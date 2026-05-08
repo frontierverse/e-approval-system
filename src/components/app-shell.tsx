@@ -5,11 +5,7 @@ import { AppNav, type NavigationItem } from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserAvatar } from "@/components/user-avatar";
-import {
-  getCompletedDocuments,
-  getInboxDocuments,
-  getSentDocuments,
-} from "@/lib/approval-queries";
+import { getShellDocumentCounts } from "@/lib/approval-queries";
 import type { AuthUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
 import { getNotificationSummary } from "@/lib/notifications";
@@ -36,13 +32,10 @@ export async function AppShell({
   const navigationItems = isAdmin
     ? [...baseNavigationItems, adminNavigationItem]
     : baseNavigationItems;
-  const [inboxCount, sentCount, completedCount, notificationSummary] =
-    await Promise.all([
-      getInboxDocuments(user.id).then((documents) => documents.length),
-      getSentDocuments(user.id).then((documents) => documents.length),
-      getCompletedDocuments(user.id).then((documents) => documents.length),
-      getNotificationSummary(user.id),
-    ]);
+  const [documentCounts, notificationSummary] = await Promise.all([
+    getShellDocumentCounts(user.id),
+    getNotificationSummary(user.id),
+  ]);
   const roleLabel = isAdmin ? "관리자" : "사용자";
 
   return (
@@ -101,16 +94,20 @@ export async function AppShell({
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between gap-3">
                 <dt className="text-[#697386]">받은결재</dt>
-                <dd className="font-semibold text-[#16181d]">{inboxCount}</dd>
+                <dd className="font-semibold text-[#16181d]">
+                  {documentCounts.inbox}
+                </dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-[#697386]">제출문서</dt>
-                <dd className="font-semibold text-[#16181d]">{sentCount}</dd>
+                <dd className="font-semibold text-[#16181d]">
+                  {documentCounts.sent}
+                </dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-[#697386]">완료문서</dt>
                 <dd className="font-semibold text-[#16181d]">
-                  {completedCount}
+                  {documentCounts.completed}
                 </dd>
               </div>
             </dl>

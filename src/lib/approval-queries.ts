@@ -260,6 +260,26 @@ export async function getCompletedDocumentPage(
   return getDocumentPage(where, orderBy, pageSize, options.page);
 }
 
+export async function getShellDocumentCounts(userId: string) {
+  const [inbox, sent, completed] = await Promise.all([
+    prisma.approvalDocument.count({
+      where: getInboxDocumentWhere(userId, {}),
+    }),
+    prisma.approvalDocument.count({
+      where: getSentDocumentWhere(userId, {}),
+    }),
+    prisma.approvalDocument.count({
+      where: getCompletedDocumentWhere(userId, {}),
+    }),
+  ]);
+
+  return {
+    inbox,
+    sent,
+    completed,
+  };
+}
+
 export async function getReadableDocumentById(
   documentId: string,
   userId: string,

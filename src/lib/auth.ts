@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +8,7 @@ import { getSessionUserId } from "@/lib/session";
 
 export type AuthUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const userId = await getSessionUserId();
 
   if (!userId) {
@@ -24,7 +25,7 @@ export async function getCurrentUser() {
       position: true,
     },
   });
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();
