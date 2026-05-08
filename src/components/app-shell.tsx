@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { UserRole } from "@/generated/prisma/client";
 import { logoutAction } from "@/app/login/actions";
 import { AppNav, type NavigationItem } from "@/components/app-nav";
@@ -21,7 +22,7 @@ const baseNavigationItems: NavigationItem[] = [
 
 const adminNavigationItem: NavigationItem = { label: "관리자", href: "/admin" };
 
-export async function AppShell({
+export function AppShell({
   user,
   children,
 }: {
@@ -32,10 +33,6 @@ export async function AppShell({
   const navigationItems = isAdmin
     ? [...baseNavigationItems, adminNavigationItem]
     : baseNavigationItems;
-  const [documentCounts, notificationSummary] = await Promise.all([
-    getShellDocumentCounts(user.id),
-    getNotificationSummary(user.id),
-  ]);
   const roleLabel = isAdmin ? "관리자" : "사용자";
 
   return (
@@ -63,10 +60,9 @@ export async function AppShell({
                 {user.department.name} · {user.position.name} · {roleLabel}
               </p>
             </div>
-            <NotificationBell
-              initialUnreadCount={notificationSummary.unreadCount}
-              initialNotifications={notificationSummary.notifications}
-            />
+            <Suspense fallback={<NotificationBellFallback />}>
+              <ShellNotificationBell userId={user.id} />
+            </Suspense>
             <ThemeToggle />
             <UserAvatar user={user} />
             <form action={logoutAction}>
@@ -91,31 +87,87 @@ export async function AppShell({
             <p className="text-xs font-semibold uppercase text-[#697386]">
               빠른 현황
             </p>
-            <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <dt className="text-[#697386]">받은결재</dt>
-                <dd className="font-semibold text-[#16181d]">
-                  {documentCounts.inbox}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-[#697386]">제출문서</dt>
-                <dd className="font-semibold text-[#16181d]">
-                  {documentCounts.sent}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-[#697386]">완료문서</dt>
-                <dd className="font-semibold text-[#16181d]">
-                  {documentCounts.completed}
-                </dd>
-              </div>
-            </dl>
+            <Suspense fallback={<ShellDocumentCountsFallback />}>
+              <ShellDocumentCounts userId={user.id} />
+            </Suspense>
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">{children}</main>
       </div>
+    </div>
+  );
+}
+
+async function ShellNotificationBell({ userId }: { userId: string }) {
+  const notificationSummary = await getNotificationSummary(userId);
+
+  return (
+    <NotificationBell
+      initialUnreadCount={notificationSummary.unreadCount}
+      initialNotifications={notificationSummary.notifications}
+    />
+  );
+}
+
+function NotificationBellFallback() {
+  return (
+    <button
+      type="button"
+      aria-label="알림 불러오는 중"
+      disabled
+      className="relative grid size-9 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#8a95a6]"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+    </button>
+  );
+}
+
+async function ShellDocumentCounts({ userId }: { userId: string }) {
+  const documentCounts = await getShellDocumentCounts(userId);
+
+  return (
+    <dl className="mt-3 space-y-2 text-sm">
+      <ShellDocumentCount label="받은결재" value={documentCounts.inbox} />
+      <ShellDocumentCount label="제출문서" value={documentCounts.sent} />
+      <ShellDocumentCount label="완료문서" value={documentCounts.completed} />
+    </dl>
+  );
+}
+
+function ShellDocumentCountsFallback() {
+  return (
+    <dl className="mt-3 space-y-2 text-sm" aria-label="빠른 현황 불러오는 중">
+      <ShellDocumentCount label="받은결재" value="-" />
+      <ShellDocumentCount label="제출문서" value="-" />
+      <ShellDocumentCount label="완료문서" value="-" />
+    </dl>
+  );
+}
+
+function ShellDocumentCount({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-[#697386]">{label}</dt>
+      <dd className="font-semibold text-[#16181d]">{value}</dd>
     </div>
   );
 }

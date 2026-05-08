@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 export type NavigationItem = {
@@ -56,8 +57,8 @@ function NavLink({
 }) {
   const base =
     variant === "mobile"
-      ? "shrink-0 rounded-md px-3 py-2 text-sm font-medium transition"
-      : "flex min-h-11 items-center rounded-md px-3 text-sm font-medium transition";
+      ? "relative inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+      : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium transition";
   const activeClass =
     variant === "mobile"
       ? "bg-[#196b69] text-white"
@@ -72,8 +73,23 @@ function NavLink({
       href={item.href}
       className={[base, active ? activeClass : idleClass].join(" ")}
     >
-      {item.label}
+      <span>{item.label}</span>
+      <NavPendingDot />
     </Link>
+  );
+}
+
+function NavPendingDot() {
+  const { pending } = useLinkStatus();
+
+  return (
+    <span
+      aria-hidden="true"
+      className={[
+        "size-1.5 shrink-0 rounded-full bg-current transition-opacity",
+        pending ? "animate-pulse opacity-80" : "opacity-0",
+      ].join(" ")}
+    />
   );
 }
 
