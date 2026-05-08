@@ -64,6 +64,15 @@ export function getAttachmentStorageConfig(
     };
   }
 
+  if (provider === localAttachmentStorageProvider && env.VERCEL) {
+    return {
+      ok: false,
+      provider,
+      message:
+        "ATTACHMENT_STORAGE_DRIVER must be supabase-storage or vercel-blob on Vercel.",
+    };
+  }
+
   if (
     provider === vercelBlobAttachmentStorageProvider &&
     !env.BLOB_READ_WRITE_TOKEN?.trim()

@@ -18,6 +18,17 @@ describe("attachment storage config", () => {
     });
   });
 
+  test("rejects local storage on Vercel", () => {
+    assert.deepEqual(getAttachmentStorageConfig({
+      VERCEL: "1",
+    }), {
+      ok: false,
+      provider: localAttachmentStorageProvider,
+      message:
+        "ATTACHMENT_STORAGE_DRIVER must be supabase-storage or vercel-blob on Vercel.",
+    });
+  });
+
   test("requires a Blob token when Vercel Blob is enabled", () => {
     assert.deepEqual(getAttachmentStorageConfig({
       ATTACHMENT_STORAGE_DRIVER: "vercel-blob",

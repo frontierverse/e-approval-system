@@ -152,7 +152,14 @@ export async function updateProfileImageAction(
         }
       : null;
 
-  await persistAttachmentFiles([image]);
+  try {
+    await persistAttachmentFiles([image]);
+  } catch {
+    return {
+      error:
+        "프로필 이미지 저장소에 연결하지 못했습니다. 관리자에게 Storage 설정을 확인해 달라고 요청하세요.",
+    };
+  }
 
   try {
     await prisma.$transaction([
