@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DocumentStatus {
+  DRAFT
+  SUBMITTED
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  RECALLED
+}
+
+enum ApprovalStepStatus {
+  WAITING
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum AuditAction {
+  CREATE_DRAFT
+  UPDATE_DRAFT
+  SUBMIT
+  APPROVE
+  REJECT
+  RECALL
+  COMPLETE
+  CREATE_USER
+  UPDATE_USER
+  CREATE_DEPARTMENT
+  UPDATE_DEPARTMENT
+  CREATE_POSITION
+  UPDATE_POSITION
+  CREATE_TEMPLATE
+  UPDATE_TEMPLATE
+  UPDATE_ATTACHMENT_POLICY
+  CHANGE_PASSWORD
+}
+
+enum NotificationType {
+  APPROVAL_REQUESTED
+  APPROVAL_APPROVED
+  APPROVAL_REJECTED
+  APPROVAL_COMPLETED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String?
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+  profileImageStorageProvider String?
+  profileImageStorageKey      String?
+  profileImageMimeType        String?
+  profileImageSize            Int?
+  profileImageUpdatedAt       DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  departmentId String
+  positionId   String
+
+  department Department @relation(fields: [departmentId], references: [id])
+  position   Position   @relation(fields: [positionId], references: [id])
+
+  draftedDocuments ApprovalDocument[] @relation("DocumentDrafter")
+  approvalSteps    ApprovalStep[]     @relation("StepApprover")
+  comments         ApprovalComment[]  @relation("CommentAuthor")
+  attachments      Attachment[]       @relation("AttachmentUploader")
+  auditLogs        AuditLog[]         @relation("AuditActor")
+  notifications    Notification[]
+
+  @@index([departmentId])
+  @@index([positionId])
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  parentId  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   Department?  @relation("DepartmentChildren", fields: [parentId], references: [id])
+  children Department[] @relation("DepartmentChildren")
+  users    User[]
+
+  @@index([parentId])
+}
+
+model Position {
+  id        String   @id @default(cuid())
+  name      String
+  level     Int
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  schema      Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents ApprovalDocument[]
+}
+
+model AttachmentPolicy {
+  id                String   @id
+  maxFileCount      Int      @default(5)
+  maxFileSizeMb     Int      @default(10)
+  allowedExtensions Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ApprovalDocument {
+  id          String         @id @default(cuid())
+  documentNo  String?        @unique
+  title       String
+  category    String         @default("일반")
+  content     String
+  status      DocumentStatus @default(DRAFT)
+  submittedAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  templateId String
+  drafterId  String
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id])
+  drafter  User             @relation("DocumentDrafter", fields: [drafterId], references: [id])
+
+  approvalSteps ApprovalStep[]
+  comments      ApprovalComment[]
+  attachments   Attachment[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([templateId])
+  @@index([drafterId])
+  @@index([submittedAt])
+}
+
+model ApprovalStep {
+  id        String             @id @default(cuid())
+  order     Int
+  status    ApprovalStepStatus @default(WAITING)
+  actedAt   DateTime?
+  comment   String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  documentId String
+  approverId String
+
+  document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  approver User             @relation("StepApprover", fields: [approverId], references: [id])
+
+  @@unique([documentId, order])
+  @@unique([documentId, approverId])
+  @@index([approverId])
+  @@index([status])
+}
+
+model ApprovalComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documentId String
+  authorId   String
+
+  document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author   User             @relation("CommentAuthor", fields: [authorId], references: [id])
+
+  @@index([documentId])
+  @@index([authorId])
+}
+
+model Attachment {
+  id              String   @id @default(cuid())
+  originalName    String
+  storageProvider String   @default("local")
+  storageKey      String
+  mimeType        String
+  size            Int
+  createdAt       DateTime @default(now())
+
+  documentId String
+  uploaderId String
+
+  document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader User             @relation("AttachmentUploader", fields: [uploaderId], references: [id])
+
+  @@index([documentId])
+  @@index([uploaderId])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  targetType String
+  targetId   String
+  message    String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  actorId    String
+  documentId String?
+
+  actor    User              @relation("AuditActor", fields: [actorId], references: [id])
+  document ApprovalDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([documentId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  userId     String
+  documentId String
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([documentId])
+  @@index([type])
+}

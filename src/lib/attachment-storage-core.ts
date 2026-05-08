@@ -1,0 +1,127 @@
+export const localAttachmentStorageProvider = "local";
+export const vercelBlobAttachmentStorageProvider = "vercel-blob";
+export const supabaseStorageAttachmentStorageProvider = "supabase-storage";
+
+export const attachmentStorageProviders = [
+  localAttachmentStorageProvider,
+  vercelBlobAttachmentStorageProvider,
+  supabaseStorageAttachmentStorageProvider,
+] as const;
+
+export type AttachmentStorageProvider =
+  (typeof attachmentStorageProviders)[number];
+
+export type AttachmentStorageConfig =
+  | {
+      ok: true;
+      provider: AttachmentStorageProvider;
+    }
+  | {
+      ok: false;
+      provider: AttachmentStorageProvider | null;
+      message: string;
+    };
+
+type AttachmentStorageEnv = Record<string, string | undefined>;
+
+export function resolveAttachmentStorageProvider(
+  value: unknown,
+): AttachmentStorageProvider | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return localAttachmentStorageProvider;
+  }
+
+  const provider = value.trim().toLowerCase();
+
+  if (provider === localAttachmentStorageProvider) {
+    return localAttachmentStorageProvider;
+  }
+
+  if (provider === vercelBlobAttachmentStorageProvider) {
+    return vercelBlobAttachmentStorageProvider;
+  }
+
+  if (provider === supabaseStorageAttachmentStorageProvider) {
+    return supabaseStorageAttachmentStorageProvider;
+  }
+
+  return null;
+}
+
+export function getAttachmentStorageConfig(
+  env: AttachmentStorageEnv,
+): AttachmentStorageConfig {
+  const provider = resolveAttachmentStorageProvider(
+    env.ATTACHMENT_STORAGE_DRIVER,
+  );
+
+  if (!provider) {
+    return {
+      ok: false,
+      provider: null,
+      message:
+        "ATTACHMENT_STORAGE_DRIVER must be local, vercel-blob, or supabase-storage.",
+    };
+  }
+
+  if (
+    provider === vercelBlobAttachmentStorageProvider &&
+    !env.BLOB_READ_WRITE_TOKEN?.trim()
+  ) {
+    return {
+      ok: false,
+      provider,
+      message:
+        "BLOB_READ_WRITE_TOKEN is required when ATTACHMENT_STORAGE_DRIVER is vercel-blob.",
+    };
+  }
+
+  if (provider === supabaseStorageAttachmentStorageProvider) {
+    const supabaseUrl = env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!supabaseUrl?.trim()) {
+      return {
+        ok: false,
+        provider,
+        message:
+          "SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required when ATTACHMENT_STORAGE_DRIVER is supabase-storage.",
+      };
+    }
+
+    if (!env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+      return {
+        ok: false,
+        provider,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is required when ATTACHMENT_STORAGE_DRIVER is supabase-storage.",
+      };
+    }
+
+    if (!env.SUPABASE_STORAGE_BUCKET?.trim()) {
+      return {
+        ok: false,
+        provider,
+        message:
+          "SUPABASE_STORAGE_BUCKET is required when ATTACHMENT_STORAGE_DRIVER is supabase-storage.",
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    provider,
+  };
+}
+
+export function getAttachmentStorageKeyPrefix(
+  provider: AttachmentStorageProvider,
+) {
+  if (
+    provider === vercelBlobAttachmentStorageProvider ||
+    provider === supabaseStorageAttachmentStorageProvider
+  ) {
+    return "attachments/";
+  }
+
+  return "";
+}

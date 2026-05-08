@@ -1,0 +1,731 @@
+import {
+  ApprovalStepStatus as DbApprovalStepStatus,
+  AuditAction,
+  DocumentStatus as DbDocumentStatus,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from "@/generated/prisma/client";
+import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import { prisma } from "@/lib/prisma";
+import {
+  type ApprovalDocument,
+  type ApprovalHistory,
+  type ApprovalStep,
+  type ApprovalStepStatus,
+  type DocumentStatus,
+} from "@/lib/mock-data";
+
+const documentInclude = {
+  template: true,
+  drafter: {
+    select: {
+      id: true,
+      name: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  },
+  approvalSteps: {
+    include: {
+      approver: {
+        select: {
+          id: true,
+          name: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      order: "asc",
+    },
+  },
+  auditLogs: {
+    include: {
+      actor: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  },
+  attachments: {
+    select: {
+      id: true,
+      originalName: true,
+      mimeType: true,
+      size: true,
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  },
+  _count: {
+    select: {
+      attachments: true,
+    },
+  },
+} satisfies Prisma.ApprovalDocumentInclude;
+
+type DocumentRecord = Prisma.ApprovalDocumentGetPayload<{
+  include: typeof documentInclude;
+}>;
+
+export type InboxDocumentStatusFilter = "all" | "submitted" | "in_progress";
+export type SentDocumentStatusFilter =
+  | "all"
+  | "draft"
+  | "submitted"
+  | "in_progress"
+  | "approved"
+  | "rejected"
+  | "recalled";
+export type CompletedDocumentStatusFilter = "all" | "approved" | "rejected";
+export type DocumentPageSort = "latest" | "oldest";
+
+export type DocumentDateRangeOptions = {
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type InboxDocumentPageOptions = {
+  query?: string;
+  status?: InboxDocumentStatusFilter;
+  sort?: DocumentPageSort;
+  page?: number;
+  pageSize?: number;
+} & DocumentDateRangeOptions;
+
+export type SentDocumentPageOptions = {
+  query?: string;
+  status?: SentDocumentStatusFilter;
+  sort?: DocumentPageSort;
+  page?: number;
+  pageSize?: number;
+} & DocumentDateRangeOptions;
+
+export type CompletedDocumentPageOptions = {
+  query?: string;
+  status?: CompletedDocumentStatusFilter;
+  sort?: DocumentPageSort;
+  page?: number;
+  pageSize?: number;
+} & DocumentDateRangeOptions;
+
+const documentStatusMap: Record<DbDocumentStatus, DocumentStatus> = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  IN_PROGRESS: "in_progress",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  RECALLED: "recalled",
+};
+
+const approvalStepStatusMap: Record<
+  DbApprovalStepStatus,
+  ApprovalStepStatus
+> = {
+  WAITING: "waiting",
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  SKIPPED: "waiting",
+};
+
+const auditActionLabels: Record<AuditAction, string> = {
+  CREATE_DRAFT: "임시저장",
+  UPDATE_DRAFT: "임시저장 수정",
+  SUBMIT: "결재 요청",
+  APPROVE: "승인",
+  REJECT: "반려",
+  RECALL: "회수",
+  COMPLETE: "승인완료",
+  CREATE_USER: "사용자 생성",
+  UPDATE_USER: "사용자 수정",
+  CREATE_DEPARTMENT: "부서 생성",
+  UPDATE_DEPARTMENT: "부서 수정",
+  CREATE_POSITION: "직급 생성",
+  UPDATE_POSITION: "직급 수정",
+  CREATE_TEMPLATE: "양식 생성",
+  UPDATE_TEMPLATE: "양식 수정",
+  UPDATE_ATTACHMENT_POLICY: "첨부 정책 수정",
+  CHANGE_PASSWORD: "비밀번호 변경",
+};
+
+export async function getInboxDocuments(userId: string) {
+  const records = await prisma.approvalDocument.findMany({
+    where: {
+      approvalSteps: {
+        some: {
+          approverId: userId,
+          status: DbApprovalStepStatus.PENDING,
+        },
+      },
+    },
+    include: documentInclude,
+    orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  return records.map(toApprovalDocument);
+}
+
+export async function getInboxDocumentPage(
+  userId: string,
+  options: InboxDocumentPageOptions = {},
+) {
+  const pageSize = options.pageSize ?? 10;
+  const where = getInboxDocumentWhere(userId, options);
+  const orderBy = getSubmittedDocumentOrderBy(options.sort ?? "latest");
+
+  return getDocumentPage(where, orderBy, pageSize, options.page);
+}
+
+export async function getSentDocuments(userId: string) {
+  const records = await prisma.approvalDocument.findMany({
+    where: {
+      drafterId: userId,
+    },
+    include: documentInclude,
+    orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  return records.map(toApprovalDocument);
+}
+
+export async function getSentDocumentPage(
+  userId: string,
+  options: SentDocumentPageOptions = {},
+) {
+  const pageSize = options.pageSize ?? 10;
+  const where = getSentDocumentWhere(userId, options);
+  const orderBy = getSubmittedDocumentOrderBy(options.sort ?? "latest");
+
+  return getDocumentPage(where, orderBy, pageSize, options.page);
+}
+
+export async function getCompletedDocuments(userId: string) {
+  const records = await prisma.approvalDocument.findMany({
+    where: {
+      status: {
+        in: [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
+      },
+      OR: [
+        { drafterId: userId },
+        {
+          approvalSteps: {
+            some: {
+              approverId: userId,
+            },
+          },
+        },
+      ],
+    },
+    include: documentInclude,
+    orderBy: [{ completedAt: "desc" }, { submittedAt: "desc" }],
+  });
+
+  return records.map(toApprovalDocument);
+}
+
+export async function getCompletedDocumentPage(
+  userId: string,
+  options: CompletedDocumentPageOptions = {},
+) {
+  const pageSize = options.pageSize ?? 10;
+  const where = getCompletedDocumentWhere(userId, options);
+  const orderBy = getCompletedDocumentOrderBy(options.sort ?? "latest");
+
+  return getDocumentPage(where, orderBy, pageSize, options.page);
+}
+
+export async function getReadableDocumentById(
+  documentId: string,
+  userId: string,
+  role: UserRole,
+) {
+  const record = await prisma.approvalDocument.findFirst({
+    where: {
+      AND: [
+        {
+          id: documentId,
+        },
+        getReadableDocumentWhere(userId, role),
+      ],
+    },
+    include: documentInclude,
+  });
+
+  return record ? toApprovalDocument(record) : null;
+}
+
+export async function getRecentHistories(
+  userId: string,
+  role: UserRole,
+  limit = 5,
+) {
+  const records = await prisma.auditLog.findMany({
+    where:
+      role === UserRole.ADMIN
+        ? {
+            documentId: {
+              not: null,
+            },
+          }
+        : {
+            document: {
+              is: getReadableDocumentWhere(userId, role),
+            },
+          },
+    take: limit,
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: {
+      actor: true,
+      document: true,
+    },
+  });
+
+  return records.map((record) => ({
+    id: record.id,
+    actorId: record.actorId,
+    actorName: record.actor.name,
+    action: auditActionLabels[record.action],
+    createdAt: record.createdAt.toISOString(),
+    description: record.message ?? "",
+    documentId: record.documentId ?? record.targetId,
+    documentNo: record.document?.documentNo ?? "-",
+    title: record.document?.title ?? record.targetId,
+  }));
+}
+
+export async function getActiveDocumentTemplates() {
+  return prisma.documentTemplate.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+}
+
+export async function getApprovalCandidateUsers(currentUserId: string) {
+  return prisma.user.findMany({
+    where: {
+      id: {
+        not: currentUserId,
+      },
+      status: UserStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          name: true,
+          level: true,
+        },
+      },
+    },
+    orderBy: [
+      {
+        department: {
+          sortOrder: "asc",
+        },
+      },
+      {
+        position: {
+          level: "desc",
+        },
+      },
+      {
+        name: "asc",
+      },
+    ],
+  });
+}
+
+function getInboxDocumentWhere(
+  userId: string,
+  options: InboxDocumentPageOptions,
+): Prisma.ApprovalDocumentWhereInput {
+  const query = options.query?.trim();
+  const status = options.status ?? "all";
+  const where: Prisma.ApprovalDocumentWhereInput = {
+    approvalSteps: {
+      some: {
+        approverId: userId,
+        status: DbApprovalStepStatus.PENDING,
+      },
+    },
+  };
+
+  if (status !== "all") {
+    where.status =
+      status === "submitted"
+        ? DbDocumentStatus.SUBMITTED
+        : DbDocumentStatus.IN_PROGRESS;
+  }
+
+  if (query) {
+    where.OR = getDocumentSearchConditions(query);
+  }
+
+  const dateRangeCondition = getActivityDateRangeCondition(options);
+
+  if (dateRangeCondition) {
+    where.AND = [dateRangeCondition];
+  }
+
+  return where;
+}
+
+function getSentDocumentWhere(
+  userId: string,
+  options: SentDocumentPageOptions,
+): Prisma.ApprovalDocumentWhereInput {
+  const query = options.query?.trim();
+  const status = options.status ?? "all";
+  const where: Prisma.ApprovalDocumentWhereInput = {
+    drafterId: userId,
+  };
+
+  if (status !== "all") {
+    where.status = toDbDocumentStatus(status);
+  }
+
+  if (query) {
+    where.OR = getDocumentSearchConditions(query);
+  }
+
+  const dateRangeCondition = getActivityDateRangeCondition(options);
+
+  if (dateRangeCondition) {
+    where.AND = [dateRangeCondition];
+  }
+
+  return where;
+}
+
+function getCompletedDocumentWhere(
+  userId: string,
+  options: CompletedDocumentPageOptions,
+): Prisma.ApprovalDocumentWhereInput {
+  const query = options.query?.trim();
+  const status = options.status ?? "all";
+  const and: Prisma.ApprovalDocumentWhereInput[] = [
+    {
+      OR: [
+        { drafterId: userId },
+        {
+          approvalSteps: {
+            some: {
+              approverId: userId,
+            },
+          },
+        },
+      ],
+    },
+  ];
+
+  if (status === "all") {
+    and.push({
+      status: {
+        in: [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
+      },
+    });
+  } else {
+    and.push({
+      status: toDbDocumentStatus(status),
+    });
+  }
+
+  if (query) {
+    and.push({
+      OR: getDocumentSearchConditions(query),
+    });
+  }
+
+  const dateRangeCondition = getActivityDateRangeCondition(options);
+
+  if (dateRangeCondition) {
+    and.push(dateRangeCondition);
+  }
+
+  return {
+    AND: and,
+  };
+}
+
+function getDocumentSearchConditions(
+  query: string,
+): Prisma.ApprovalDocumentWhereInput[] {
+  return [
+    {
+      title: {
+        contains: query,
+      },
+    },
+    {
+      documentNo: {
+        contains: query,
+      },
+    },
+    {
+      category: {
+        contains: query,
+      },
+    },
+    {
+      drafter: {
+        name: {
+          contains: query,
+        },
+      },
+    },
+  ];
+}
+
+function getSubmittedDocumentOrderBy(
+  sort: DocumentPageSort,
+): Prisma.ApprovalDocumentOrderByWithRelationInput[] {
+  const direction = sort === "oldest" ? "asc" : "desc";
+
+  return [
+    {
+      submittedAt: direction,
+    },
+    {
+      createdAt: direction,
+    },
+  ];
+}
+
+function getActivityDateRangeCondition(
+  options: DocumentDateRangeOptions,
+): Prisma.ApprovalDocumentWhereInput | null {
+  const range = getDateTimeRangeFilter(options);
+
+  if (!range) {
+    return null;
+  }
+
+  return {
+    OR: [
+      {
+        completedAt: {
+          not: null,
+          ...range,
+        },
+      },
+      {
+        completedAt: null,
+        submittedAt: {
+          not: null,
+          ...range,
+        },
+      },
+      {
+        completedAt: null,
+        submittedAt: null,
+        createdAt: range,
+      },
+    ],
+  };
+}
+
+function getDateTimeRangeFilter(options: DocumentDateRangeOptions) {
+  const from = parseDateStart(options.dateFrom);
+  const to = parseDateEnd(options.dateTo);
+
+  if (!from && !to) {
+    return null;
+  }
+
+  return {
+    ...(from ? { gte: from } : {}),
+    ...(to ? { lte: to } : {}),
+  } satisfies Prisma.DateTimeFilter;
+}
+
+function parseDateStart(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00+09:00`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseDateEnd(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T23:59:59.999+09:00`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getCompletedDocumentOrderBy(
+  sort: DocumentPageSort,
+): Prisma.ApprovalDocumentOrderByWithRelationInput[] {
+  const direction = sort === "oldest" ? "asc" : "desc";
+
+  return [
+    {
+      completedAt: direction,
+    },
+    {
+      submittedAt: direction,
+    },
+    {
+      createdAt: direction,
+    },
+  ];
+}
+
+async function getDocumentPage(
+  where: Prisma.ApprovalDocumentWhereInput,
+  orderBy: Prisma.ApprovalDocumentOrderByWithRelationInput[],
+  pageSize: number,
+  requestedPage = 1,
+) {
+  const total = await prisma.approvalDocument.count({
+    where,
+  });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const records = await prisma.approvalDocument.findMany({
+    where,
+    include: documentInclude,
+    orderBy,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
+
+  return {
+    documents: records.map(toApprovalDocument),
+    page,
+    pageSize,
+    total,
+    totalPages,
+  };
+}
+
+function toDbDocumentStatus(
+  status: Exclude<SentDocumentStatusFilter, "all"> | Exclude<CompletedDocumentStatusFilter, "all">,
+) {
+  const statusMap = {
+    draft: DbDocumentStatus.DRAFT,
+    submitted: DbDocumentStatus.SUBMITTED,
+    in_progress: DbDocumentStatus.IN_PROGRESS,
+    approved: DbDocumentStatus.APPROVED,
+    rejected: DbDocumentStatus.REJECTED,
+    recalled: DbDocumentStatus.RECALLED,
+  } satisfies Record<
+    Exclude<SentDocumentStatusFilter, "all">,
+    DbDocumentStatus
+  >;
+
+  return statusMap[status];
+}
+
+function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
+  return {
+    id: record.id,
+    documentNo: record.documentNo ?? "",
+    title: record.title,
+    templateName: record.template.name,
+    category: record.category,
+    status: documentStatusMap[record.status],
+    drafter: {
+      id: record.drafter.id,
+      name: record.drafter.name,
+      departmentName: record.drafter.department.name,
+      positionName: record.drafter.position.name,
+    },
+    drafterId: record.drafterId,
+    createdAt: record.createdAt.toISOString(),
+    submittedAt: record.submittedAt?.toISOString() ?? null,
+    completedAt: record.completedAt?.toISOString() ?? null,
+    content: record.content,
+    attachmentCount: record._count.attachments,
+    attachments: record.attachments.map((attachment) => ({
+      id: attachment.id,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      createdAt: attachment.createdAt.toISOString(),
+    })),
+    approvalSteps: record.approvalSteps.map(toApprovalStep),
+    histories: record.auditLogs.map(toApprovalHistory),
+  };
+}
+
+function toApprovalStep(
+  record: DocumentRecord["approvalSteps"][number],
+): ApprovalStep {
+  return {
+    id: record.id,
+    order: record.order,
+    approverId: record.approverId,
+    approver: {
+      id: record.approver.id,
+      name: record.approver.name,
+      departmentName: record.approver.department.name,
+      positionName: record.approver.position.name,
+    },
+    status: approvalStepStatusMap[record.status],
+    actedAt: record.actedAt?.toISOString() ?? null,
+    comment: record.comment,
+  };
+}
+
+function toApprovalHistory(
+  record: DocumentRecord["auditLogs"][number],
+): ApprovalHistory {
+  return {
+    id: record.id,
+    actorId: record.actorId,
+    actorName: record.actor.name,
+    action: auditActionLabels[record.action],
+    createdAt: record.createdAt.toISOString(),
+    description: record.message ?? "",
+  };
+}
