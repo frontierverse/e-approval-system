@@ -1,10 +1,11 @@
+import { RouteLoadingShell } from "@/components/route-loading-shell";
+
 export default function Loading() {
   return (
-    <div
-      aria-label="페이지 불러오는 중"
-      className="h-1 overflow-hidden rounded-full bg-[#edf1f5]"
-    >
-      <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-    </div>
+    <RouteLoadingShell
+      title="업무 홈"
+      description="결재 대기 문서, 진행 중인 요청 문서, 완료 문서 현황을 확인합니다."
+      message="업무 현황을 불러오는 중입니다."
+    />
   );
 }
