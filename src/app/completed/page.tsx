@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
@@ -29,7 +30,26 @@ const statusOptions = [
   { value: "rejected", label: "반려" },
 ];
 
-export default async function CompletedPage({
+export default function CompletedPage({
+  searchParams,
+}: {
+  searchParams: Promise<CompletedPageSearchParams>;
+}) {
+  return (
+    <>
+      <PageTitle
+        title="완료문서함"
+        description="승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
+      />
+
+      <Suspense fallback={<DocumentPageFallback />}>
+        <CompletedDocumentContent searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
+}
+
+async function CompletedDocumentContent({
   searchParams,
 }: {
   searchParams: Promise<CompletedPageSearchParams>;
@@ -61,11 +81,6 @@ export default async function CompletedPage({
 
   return (
     <>
-      <PageTitle
-        title="완료문서함"
-        description="승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
-      />
-
       <DocumentListControls
         basePath="/completed"
         query={query}
@@ -109,6 +124,19 @@ export default async function CompletedPage({
         totalPages={completedPage.totalPages}
       />
     </>
+  );
+}
+
+function DocumentPageFallback() {
+  return (
+    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
+      <p className="text-sm font-semibold text-[#394150]">
+        문서 목록을 불러오는 중입니다.
+      </p>
+      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
+        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
+      </div>
+    </section>
   );
 }
 

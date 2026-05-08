@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -11,7 +12,34 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 
-export default async function Home() {
+export default function Home() {
+  return (
+    <>
+      <PageTitle
+        title="업무 홈"
+        description="결재 대기 문서, 진행 중인 요청 문서, 완료 문서 현황을 확인합니다."
+        action={
+          <Link
+            href="/drafts/new"
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.create,
+              "h-10 px-4 text-sm",
+            )}
+          >
+            새 기안 작성
+          </Link>
+        }
+      />
+
+      <Suspense fallback={<HomeContentFallback />}>
+        <HomeContent />
+      </Suspense>
+    </>
+  );
+}
+
+async function HomeContent() {
   const user = await requireUser();
   const [inboxDocuments, sentDocuments, completedDocuments, recentHistories] =
     await Promise.all([
@@ -48,23 +76,6 @@ export default async function Home() {
 
   return (
     <>
-      <PageTitle
-        title="업무 홈"
-        description="결재 대기 문서, 진행 중인 요청 문서, 완료 문서 현황을 확인합니다."
-        action={
-          <Link
-            href="/drafts/new"
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.create,
-              "h-10 px-4 text-sm",
-            )}
-          >
-            새 기안 작성
-          </Link>
-        }
-      />
-
       <section className="grid gap-4 md:grid-cols-3">
         {summaries.map((item) => (
           <Link
@@ -136,5 +147,24 @@ export default async function Home() {
         </div>
       </section>
     </>
+  );
+}
+
+function HomeContentFallback() {
+  return (
+    <section className="grid gap-4 md:grid-cols-3">
+      {["받은 결재 대기", "진행 중 결재 요청", "완료 문서"].map((label) => (
+        <article
+          key={label}
+          className="rounded-md border border-[#d9dee7] bg-white p-5"
+        >
+          <p className="text-sm font-medium text-[#697386]">{label}</p>
+          <p className="mt-4 text-3xl font-semibold text-[#16181d]">-</p>
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }

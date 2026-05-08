@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
@@ -33,7 +34,26 @@ const statusOptions = [
   { value: "recalled", label: "회수" },
 ];
 
-export default async function SentPage({
+export default function SentPage({
+  searchParams,
+}: {
+  searchParams: Promise<SentPageSearchParams>;
+}) {
+  return (
+    <>
+      <PageTitle
+        title="제출 문서함"
+        description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인하는 화면입니다."
+      />
+
+      <Suspense fallback={<DocumentPageFallback />}>
+        <SentDocumentContent searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
+}
+
+async function SentDocumentContent({
   searchParams,
 }: {
   searchParams: Promise<SentPageSearchParams>;
@@ -65,11 +85,6 @@ export default async function SentPage({
 
   return (
     <>
-      <PageTitle
-        title="제출 문서함"
-        description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인하는 화면입니다."
-      />
-
       <DocumentListControls
         basePath="/sent"
         query={query}
@@ -113,6 +128,19 @@ export default async function SentPage({
         totalPages={sentPage.totalPages}
       />
     </>
+  );
+}
+
+function DocumentPageFallback() {
+  return (
+    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
+      <p className="text-sm font-semibold text-[#394150]">
+        문서 목록을 불러오는 중입니다.
+      </p>
+      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
+        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
+      </div>
+    </section>
   );
 }
 

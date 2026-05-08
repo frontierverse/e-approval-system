@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import { getNotificationTypeLabel } from "@/lib/notification-labels";
@@ -10,10 +11,7 @@ const notificationDateFormatter = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
 });
 
-export default async function NotificationsPage() {
-  const user = await requireUser();
-  const notifications = await getNotifications(user.id, 50);
-
+export default function NotificationsPage() {
   return (
     <>
       <PageTitle
@@ -21,6 +19,18 @@ export default async function NotificationsPage() {
         description="결재 요청, 승인, 반려, 완료 알림을 확인합니다."
       />
 
+      <Suspense fallback={<NotificationsFallback />}>
+        <NotificationsContent />
+      </Suspense>
+    </>
+  );
+}
+
+async function NotificationsContent() {
+  const user = await requireUser();
+  const notifications = await getNotifications(user.id, 50);
+
+  return (
       <section className="rounded-md border border-[#d9dee7] bg-white">
         {notifications.length > 0 ? (
           <ol className="divide-y divide-[#eef1f5]">
@@ -68,6 +78,18 @@ export default async function NotificationsPage() {
           </div>
         )}
       </section>
-    </>
+  );
+}
+
+function NotificationsFallback() {
+  return (
+    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
+      <p className="text-sm font-semibold text-[#394150]">
+        알림을 불러오는 중입니다.
+      </p>
+      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
+        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
+      </div>
+    </section>
   );
 }

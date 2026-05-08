@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
-import { getCurrentUser } from "@/lib/auth";
 import { appDescription, appName } from "@/lib/branding";
+import { getSessionUserId } from "@/lib/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -81,7 +81,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getCurrentUser();
+  const userId = await getSessionUserId();
 
   return (
     <html
@@ -93,7 +93,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full">
-        {user ? <AppShell user={user}>{children}</AppShell> : children}
+        {userId ? <AppShell userId={userId}>{children}</AppShell> : children}
       </body>
     </html>
   );
