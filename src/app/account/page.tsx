@@ -4,6 +4,7 @@ import { PageTitle } from "@/components/page-title";
 import { ProfileImageForm } from "@/components/profile-image-form";
 import { UserAvatar } from "@/components/user-avatar";
 import { requireUser } from "@/lib/auth";
+import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
 export default function AccountPage() {
   return (
@@ -13,7 +14,7 @@ export default function AccountPage() {
         description="로그인 정보와 비밀번호를 관리합니다."
       />
 
-      <Suspense fallback={<AccountPageFallback />}>
+      <Suspense fallback={<RouteContentSkeleton variant="account" />}>
         <AccountContent />
       </Suspense>
     </>
@@ -61,19 +62,6 @@ async function AccountContent() {
           <ChangePasswordForm />
         </div>
       </article>
-    </section>
-  );
-}
-
-function AccountPageFallback() {
-  return (
-    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-sm font-semibold text-[#394150]">
-        계정 정보를 불러오는 중입니다.
-      </p>
-      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-      </div>
     </section>
   );
 }

@@ -17,6 +17,7 @@ import {
   getAdminUsers,
 } from "@/lib/admin-queries";
 import { requireAdmin } from "@/lib/auth";
+import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
 export default function AdminPage() {
   return (
@@ -26,7 +27,7 @@ export default function AdminPage() {
         description="사용자, 부서, 직급, 문서 양식 같은 기준 정보를 관리하는 화면입니다."
       />
 
-      <Suspense fallback={<AdminPageFallback />}>
+      <Suspense fallback={<RouteContentSkeleton variant="admin" />}>
         <AdminContent />
       </Suspense>
     </>
@@ -113,32 +114,5 @@ async function AdminContent() {
         <AdminAuditLogList logs={auditLogs} />
       </div>
     </>
-  );
-}
-
-function AdminPageFallback() {
-  return (
-    <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        {["사용자", "부서", "직급", "문서 양식"].map((label) => (
-          <article
-            key={label}
-            className="rounded-md border border-[#d9dee7] bg-white p-5"
-          >
-            <p className="text-sm font-medium text-[#697386]">{label}</p>
-            <p className="mt-4 text-3xl font-semibold text-[#16181d]">-</p>
-            <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
-              <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <p className="text-sm font-semibold text-[#394150]">
-          관리자 정보를 불러오는 중입니다.
-        </p>
-      </section>
-    </div>
   );
 }

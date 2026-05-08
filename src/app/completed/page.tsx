@@ -13,6 +13,7 @@ import {
   type DocumentPageSort,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
+import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
 type CompletedPageSearchParams = {
   q?: string;
@@ -42,7 +43,7 @@ export default function CompletedPage({
         description="승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
       />
 
-      <Suspense fallback={<DocumentPageFallback />}>
+      <Suspense fallback={<RouteContentSkeleton variant="document" />}>
         <CompletedDocumentContent searchParams={searchParams} />
       </Suspense>
     </>
@@ -124,19 +125,6 @@ async function CompletedDocumentContent({
         totalPages={completedPage.totalPages}
       />
     </>
-  );
-}
-
-function DocumentPageFallback() {
-  return (
-    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-sm font-semibold text-[#394150]">
-        문서 목록을 불러오는 중입니다.
-      </p>
-      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-      </div>
-    </section>
   );
 }
 

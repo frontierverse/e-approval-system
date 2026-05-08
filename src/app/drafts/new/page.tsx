@@ -7,6 +7,7 @@ import {
 } from "@/lib/approval-queries";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
+import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default function NewDraftPage() {
         description="문서 양식을 선택하고 결재 문서를 작성합니다."
       />
 
-      <Suspense fallback={<DraftFormFallback />}>
+      <Suspense fallback={<RouteContentSkeleton variant="draft" />}>
         <DraftFormContent />
       </Suspense>
     </>
@@ -49,18 +50,5 @@ async function DraftFormContent() {
         positionName: candidate.position.name,
       }))}
     />
-  );
-}
-
-function DraftFormFallback() {
-  return (
-    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-sm font-semibold text-[#394150]">
-        기안 양식을 불러오는 중입니다.
-      </p>
-      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-      </div>
-    </section>
   );
 }

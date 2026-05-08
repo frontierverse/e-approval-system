@@ -13,6 +13,7 @@ import {
   type InboxDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
+import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
 type InboxPageSearchParams = {
   q?: string;
@@ -42,7 +43,7 @@ export default function InboxPage({
         description="현재 로그인한 사용자가 승인 또는 반려해야 할 결재 문서를 모아보는 화면입니다."
       />
 
-      <Suspense fallback={<DocumentPageFallback />}>
+      <Suspense fallback={<RouteContentSkeleton variant="document" />}>
         <InboxDocumentContent searchParams={searchParams} />
       </Suspense>
     </>
@@ -124,19 +125,6 @@ async function InboxDocumentContent({
         totalPages={inboxPage.totalPages}
       />
     </>
-  );
-}
-
-function DocumentPageFallback() {
-  return (
-    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-sm font-semibold text-[#394150]">
-        문서 목록을 불러오는 중입니다.
-      </p>
-      <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#edf1f5]">
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-[#196b69]" />
-      </div>
-    </section>
   );
 }
 

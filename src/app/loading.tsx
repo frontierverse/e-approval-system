@@ -5,7 +5,7 @@ export default function Loading() {
     <RouteLoadingShell
       title="업무 홈"
       description="결재 대기 문서, 진행 중인 요청 문서, 완료 문서 현황을 확인합니다."
-      message="업무 현황을 불러오는 중입니다."
+      variant="home"
     />
   );
 }
