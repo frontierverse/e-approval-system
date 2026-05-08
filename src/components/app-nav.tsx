@@ -19,7 +19,7 @@ export function AppNav({ items, variant }: AppNavProps) {
 
   if (variant === "mobile") {
     return (
-      <nav className="flex gap-2 overflow-x-auto border-t border-[#eef1f5] px-4 py-2 sm:px-6 lg:hidden">
+      <nav className="scrollbar-none flex h-[3.25rem] gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 sm:gap-2 sm:px-6 lg:hidden">
         {items.map((item) => (
           <NavLink
             key={item.href}
@@ -57,7 +57,7 @@ function NavLink({
 }) {
   const base =
     variant === "mobile"
-      ? "relative inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+      ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition sm:px-3"
       : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium transition";
   const activeClass =
     variant === "mobile"
@@ -74,19 +74,22 @@ function NavLink({
       className={[base, active ? activeClass : idleClass].join(" ")}
     >
       <span>{item.label}</span>
-      <NavPendingDot />
+      <NavPendingDot variant={variant} />
     </Link>
   );
 }
 
-function NavPendingDot() {
+function NavPendingDot({ variant }: { variant: "mobile" | "desktop" }) {
   const { pending } = useLinkStatus();
 
   return (
     <span
       aria-hidden="true"
       className={[
-        "size-1.5 shrink-0 rounded-full bg-current transition-opacity",
+        "absolute size-1.5 rounded-full bg-current transition-opacity",
+        variant === "mobile"
+          ? "right-1.5 top-1.5"
+          : "right-2 top-1/2 -translate-y-1/2",
         pending ? "animate-pulse opacity-80" : "opacity-0",
       ].join(" ")}
     />

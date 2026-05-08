@@ -82,6 +82,14 @@ function DocumentSkeleton() {
         <SkeletonBlock className="mt-3 h-3 w-36" />
       </section>
 
+      <DocumentResultsSkeleton />
+    </>
+  );
+}
+
+export function DocumentResultsSkeleton() {
+  return (
+    <>
       <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
         <div className="hidden lg:block">
           <div className="grid grid-cols-[2fr_1fr_1fr_0.7fr_0.8fr_0.8fr] border-b border-[#d9dee7] bg-[#fbfcfd] px-5 py-3 text-xs font-semibold text-[#697386]">

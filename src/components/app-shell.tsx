@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { UserRole } from "@/generated/prisma/client";
 import { logoutAction } from "@/app/login/actions";
+import { AppMain } from "@/components/app-main";
 import { AppNav, type NavigationItem } from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -73,8 +74,8 @@ export function AppShell({
         </Suspense>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="sticky top-24 hidden h-[calc(100vh-6.5rem)] w-64 shrink-0 self-start border-r border-[#d9dee7] pr-5 lg:block">
+      <div className="mx-auto flex w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:overflow-hidden lg:px-8">
+        <aside className="scrollbar-stable hidden w-64 shrink-0 border-r border-[#d9dee7] pr-5 lg:block lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <Suspense
             fallback={<AppNav items={baseNavigationItems} variant="desktop" />}
           >
@@ -91,7 +92,7 @@ export function AppShell({
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">{children}</main>
+        <AppMain>{children}</AppMain>
       </div>
     </div>
   );

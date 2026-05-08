@@ -1,8 +1,10 @@
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
   DocumentListControls,
+  DocumentListSummary,
+  DocumentListSummarySkeleton,
   DocumentPagination,
   hasDocumentListFilter,
 } from "@/components/document-list-controls";
@@ -13,7 +15,7 @@ import {
   type SentDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
-import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type SentPageSearchParams = {
   q?: string;
@@ -35,11 +37,43 @@ const statusOptions = [
   { value: "recalled", label: "회수" },
 ];
 
-export default function SentPage({
+type SentDocumentFilters = {
+  query: string;
+  status: SentDocumentStatusFilter;
+  sort: DocumentPageSort;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+};
+
+const getCachedSentDocumentPage = cache(
+  async (
+    userId: string,
+    query: string,
+    status: SentDocumentStatusFilter,
+    sort: DocumentPageSort,
+    dateFrom: string,
+    dateTo: string,
+    page: number,
+  ) =>
+    getSentDocumentPage(userId, {
+      query,
+      status,
+      sort,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+    }),
+);
+
+export default async function SentPage({
   searchParams,
 }: {
   searchParams: Promise<SentPageSearchParams>;
 }) {
+  const filters = getFilters(await searchParams);
+
   return (
     <>
       <PageTitle
@@ -47,58 +81,53 @@ export default function SentPage({
         description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인하는 화면입니다."
       />
 
-      <Suspense fallback={<RouteContentSkeleton variant="document" />}>
-        <SentDocumentContent searchParams={searchParams} />
+      <DocumentListControls
+        basePath="/sent"
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+        statusOptions={statusOptions}
+        summary={
+          <Suspense fallback={<DocumentListSummarySkeleton />}>
+            <SentDocumentSummary filters={filters} />
+          </Suspense>
+        }
+      />
+
+      <Suspense fallback={<DocumentResultsSkeleton />}>
+        <SentDocumentContent filters={filters} />
       </Suspense>
     </>
   );
 }
 
 async function SentDocumentContent({
-  searchParams,
+  filters,
 }: {
-  searchParams: Promise<SentPageSearchParams>;
+  filters: SentDocumentFilters;
 }) {
   const user = await requireUser();
-  const params = await searchParams;
-  const query = String(params.q ?? "").trim();
-  const status = normalizeStatus(params.status);
-  const sort = normalizeSort(params.sort);
-  const dateFrom = normalizeDate(params.dateFrom);
-  const dateTo = normalizeDate(params.dateTo);
-  const page = normalizePage(params.page);
-  const sentPage = await getSentDocumentPage(user.id, {
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
-    page,
-    pageSize,
-  });
+  const sentPage = await getCachedSentDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
   const hasActiveFilter = hasDocumentListFilter(
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
   );
 
   return (
     <>
-      <DocumentListControls
-        basePath="/sent"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        total={sentPage.total}
-        page={sentPage.page}
-        pageSize={pageSize}
-        statusOptions={statusOptions}
-      />
-
       <DocumentList
         documents={sentPage.documents}
         empty={
@@ -120,16 +149,52 @@ async function SentDocumentContent({
       <DocumentPagination
         ariaLabel="제출 문서함 페이지"
         basePath="/sent"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
         page={sentPage.page}
         totalPages={sentPage.totalPages}
       />
     </>
   );
+}
+
+async function SentDocumentSummary({
+  filters,
+}: {
+  filters: SentDocumentFilters;
+}) {
+  const user = await requireUser();
+  const sentPage = await getCachedSentDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
+
+  return (
+    <DocumentListSummary
+      total={sentPage.total}
+      page={sentPage.page}
+      pageSize={pageSize}
+    />
+  );
+}
+
+function getFilters(params: SentPageSearchParams): SentDocumentFilters {
+  return {
+    query: String(params.q ?? "").trim(),
+    status: normalizeStatus(params.status),
+    sort: normalizeSort(params.sort),
+    dateFrom: normalizeDate(params.dateFrom),
+    dateTo: normalizeDate(params.dateTo),
+    page: normalizePage(params.page),
+  };
 }
 
 function normalizeStatus(value: string | undefined): SentDocumentStatusFilter {

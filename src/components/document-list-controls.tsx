@@ -13,9 +13,7 @@ type DocumentListControlsProps = {
   sort: string;
   dateFrom: string;
   dateTo: string;
-  total: number;
-  page: number;
-  pageSize: number;
+  summary: React.ReactNode;
   statusOptions: StatusOption[];
   searchPlaceholder?: string;
 };
@@ -39,9 +37,7 @@ export function DocumentListControls({
   sort,
   dateFrom,
   dateTo,
-  total,
-  page,
-  pageSize,
+  summary,
   statusOptions,
   searchPlaceholder = "제목, 문서번호, 분류, 작성자",
 }: DocumentListControlsProps) {
@@ -52,9 +48,6 @@ export function DocumentListControls({
     dateFrom,
     dateTo,
   );
-  const firstItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const lastItem = Math.min(page * pageSize, total);
-
   return (
     <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
       <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_10rem_10rem_auto_auto]">
@@ -174,12 +167,38 @@ export function DocumentListControls({
         </div>
       </form>
 
-      <p className="mt-3 text-xs text-[#697386]">
-        {total > 0
-          ? `${total}건 중 ${firstItem}-${lastItem}건 표시`
-          : "표시할 문서가 없습니다."}
-      </p>
+      <div className="mt-3 min-h-4">{summary}</div>
     </section>
+  );
+}
+
+export function DocumentListSummary({
+  total,
+  page,
+  pageSize,
+}: {
+  total: number;
+  page: number;
+  pageSize: number;
+}) {
+  const firstItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastItem = Math.min(page * pageSize, total);
+
+  return (
+    <p className="text-xs text-[#697386]">
+      {total > 0
+        ? `${total}건 중 ${firstItem}-${lastItem}건 표시`
+        : "표시할 문서가 없습니다."}
+    </p>
+  );
+}
+
+export function DocumentListSummarySkeleton() {
+  return (
+    <div
+      aria-label="문서 건수 불러오는 중"
+      className="h-3 w-36 animate-pulse rounded-md bg-[#edf1f5]"
+    />
   );
 }
 

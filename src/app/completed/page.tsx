@@ -1,8 +1,10 @@
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
   DocumentListControls,
+  DocumentListSummary,
+  DocumentListSummarySkeleton,
   DocumentPagination,
   hasDocumentListFilter,
 } from "@/components/document-list-controls";
@@ -13,7 +15,7 @@ import {
   type DocumentPageSort,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
-import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type CompletedPageSearchParams = {
   q?: string;
@@ -31,11 +33,43 @@ const statusOptions = [
   { value: "rejected", label: "반려" },
 ];
 
-export default function CompletedPage({
+type CompletedDocumentFilters = {
+  query: string;
+  status: CompletedDocumentStatusFilter;
+  sort: DocumentPageSort;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+};
+
+const getCachedCompletedDocumentPage = cache(
+  async (
+    userId: string,
+    query: string,
+    status: CompletedDocumentStatusFilter,
+    sort: DocumentPageSort,
+    dateFrom: string,
+    dateTo: string,
+    page: number,
+  ) =>
+    getCompletedDocumentPage(userId, {
+      query,
+      status,
+      sort,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+    }),
+);
+
+export default async function CompletedPage({
   searchParams,
 }: {
   searchParams: Promise<CompletedPageSearchParams>;
 }) {
+  const filters = getFilters(await searchParams);
+
   return (
     <>
       <PageTitle
@@ -43,58 +77,53 @@ export default function CompletedPage({
         description="승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
       />
 
-      <Suspense fallback={<RouteContentSkeleton variant="document" />}>
-        <CompletedDocumentContent searchParams={searchParams} />
+      <DocumentListControls
+        basePath="/completed"
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+        statusOptions={statusOptions}
+        summary={
+          <Suspense fallback={<DocumentListSummarySkeleton />}>
+            <CompletedDocumentSummary filters={filters} />
+          </Suspense>
+        }
+      />
+
+      <Suspense fallback={<DocumentResultsSkeleton />}>
+        <CompletedDocumentContent filters={filters} />
       </Suspense>
     </>
   );
 }
 
 async function CompletedDocumentContent({
-  searchParams,
+  filters,
 }: {
-  searchParams: Promise<CompletedPageSearchParams>;
+  filters: CompletedDocumentFilters;
 }) {
   const user = await requireUser();
-  const params = await searchParams;
-  const query = String(params.q ?? "").trim();
-  const status = normalizeStatus(params.status);
-  const sort = normalizeSort(params.sort);
-  const dateFrom = normalizeDate(params.dateFrom);
-  const dateTo = normalizeDate(params.dateTo);
-  const page = normalizePage(params.page);
-  const completedPage = await getCompletedDocumentPage(user.id, {
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
-    page,
-    pageSize,
-  });
+  const completedPage = await getCachedCompletedDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
   const hasActiveFilter = hasDocumentListFilter(
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
   );
 
   return (
     <>
-      <DocumentListControls
-        basePath="/completed"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        total={completedPage.total}
-        page={completedPage.page}
-        pageSize={pageSize}
-        statusOptions={statusOptions}
-      />
-
       <DocumentList
         documents={completedPage.documents}
         empty={
@@ -116,16 +145,54 @@ async function CompletedDocumentContent({
       <DocumentPagination
         ariaLabel="완료문서함 페이지"
         basePath="/completed"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
         page={completedPage.page}
         totalPages={completedPage.totalPages}
       />
     </>
   );
+}
+
+async function CompletedDocumentSummary({
+  filters,
+}: {
+  filters: CompletedDocumentFilters;
+}) {
+  const user = await requireUser();
+  const completedPage = await getCachedCompletedDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
+
+  return (
+    <DocumentListSummary
+      total={completedPage.total}
+      page={completedPage.page}
+      pageSize={pageSize}
+    />
+  );
+}
+
+function getFilters(
+  params: CompletedPageSearchParams,
+): CompletedDocumentFilters {
+  return {
+    query: String(params.q ?? "").trim(),
+    status: normalizeStatus(params.status),
+    sort: normalizeSort(params.sort),
+    dateFrom: normalizeDate(params.dateFrom),
+    dateTo: normalizeDate(params.dateTo),
+    page: normalizePage(params.page),
+  };
 }
 
 function normalizeStatus(

@@ -1,8 +1,10 @@
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
   DocumentListControls,
+  DocumentListSummary,
+  DocumentListSummarySkeleton,
   DocumentPagination,
   hasDocumentListFilter,
 } from "@/components/document-list-controls";
@@ -13,7 +15,7 @@ import {
   type InboxDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
-import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type InboxPageSearchParams = {
   q?: string;
@@ -31,11 +33,43 @@ const statusOptions = [
   { value: "in_progress", label: "진행중" },
 ];
 
-export default function InboxPage({
+type InboxDocumentFilters = {
+  query: string;
+  status: InboxDocumentStatusFilter;
+  sort: DocumentPageSort;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+};
+
+const getCachedInboxDocumentPage = cache(
+  async (
+    userId: string,
+    query: string,
+    status: InboxDocumentStatusFilter,
+    sort: DocumentPageSort,
+    dateFrom: string,
+    dateTo: string,
+    page: number,
+  ) =>
+    getInboxDocumentPage(userId, {
+      query,
+      status,
+      sort,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+    }),
+);
+
+export default async function InboxPage({
   searchParams,
 }: {
   searchParams: Promise<InboxPageSearchParams>;
 }) {
+  const filters = getFilters(await searchParams);
+
   return (
     <>
       <PageTitle
@@ -43,58 +77,53 @@ export default function InboxPage({
         description="현재 로그인한 사용자가 승인 또는 반려해야 할 결재 문서를 모아보는 화면입니다."
       />
 
-      <Suspense fallback={<RouteContentSkeleton variant="document" />}>
-        <InboxDocumentContent searchParams={searchParams} />
+      <DocumentListControls
+        basePath="/inbox"
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
+        statusOptions={statusOptions}
+        summary={
+          <Suspense fallback={<DocumentListSummarySkeleton />}>
+            <InboxDocumentSummary filters={filters} />
+          </Suspense>
+        }
+      />
+
+      <Suspense fallback={<DocumentResultsSkeleton />}>
+        <InboxDocumentContent filters={filters} />
       </Suspense>
     </>
   );
 }
 
 async function InboxDocumentContent({
-  searchParams,
+  filters,
 }: {
-  searchParams: Promise<InboxPageSearchParams>;
+  filters: InboxDocumentFilters;
 }) {
   const user = await requireUser();
-  const params = await searchParams;
-  const query = String(params.q ?? "").trim();
-  const status = normalizeStatus(params.status);
-  const sort = normalizeSort(params.sort);
-  const dateFrom = normalizeDate(params.dateFrom);
-  const dateTo = normalizeDate(params.dateTo);
-  const page = normalizePage(params.page);
-  const inboxPage = await getInboxDocumentPage(user.id, {
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
-    page,
-    pageSize,
-  });
+  const inboxPage = await getCachedInboxDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
   const hasActiveFilter = hasDocumentListFilter(
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
   );
 
   return (
     <>
-      <DocumentListControls
-        basePath="/inbox"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        total={inboxPage.total}
-        page={inboxPage.page}
-        pageSize={pageSize}
-        statusOptions={statusOptions}
-      />
-
       <DocumentList
         documents={inboxPage.documents}
         empty={
@@ -116,16 +145,52 @@ async function InboxDocumentContent({
       <DocumentPagination
         ariaLabel="받은결재함 페이지"
         basePath="/inbox"
-        query={query}
-        status={status}
-        sort={sort}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        query={filters.query}
+        status={filters.status}
+        sort={filters.sort}
+        dateFrom={filters.dateFrom}
+        dateTo={filters.dateTo}
         page={inboxPage.page}
         totalPages={inboxPage.totalPages}
       />
     </>
   );
+}
+
+async function InboxDocumentSummary({
+  filters,
+}: {
+  filters: InboxDocumentFilters;
+}) {
+  const user = await requireUser();
+  const inboxPage = await getCachedInboxDocumentPage(
+    user.id,
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.page,
+  );
+
+  return (
+    <DocumentListSummary
+      total={inboxPage.total}
+      page={inboxPage.page}
+      pageSize={pageSize}
+    />
+  );
+}
+
+function getFilters(params: InboxPageSearchParams): InboxDocumentFilters {
+  return {
+    query: String(params.q ?? "").trim(),
+    status: normalizeStatus(params.status),
+    sort: normalizeSort(params.sort),
+    dateFrom: normalizeDate(params.dateFrom),
+    dateTo: normalizeDate(params.dateTo),
+    page: normalizePage(params.page),
+  };
 }
 
 function normalizeStatus(value: string | undefined): InboxDocumentStatusFilter {
