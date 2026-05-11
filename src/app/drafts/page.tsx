@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { cache, Suspense } from "react";
-import { EmptyState } from "@/components/empty-state";
 import { DocumentList } from "@/components/document-list";
 import {
   DocumentListControls,
@@ -8,16 +8,18 @@ import {
   DocumentPagination,
   hasDocumentListFilter,
 } from "@/components/document-list-controls";
+import { EmptyState } from "@/components/empty-state";
 import { PageTitle } from "@/components/page-title";
+import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 import {
-  getSentDocumentPage,
+  getDraftDocumentPage,
   type DocumentPageSort,
-  type SentDocumentStatusFilter,
+  type DraftDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
-import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
+import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
-type SentPageSearchParams = {
+type DraftsPageSearchParams = {
   q?: string;
   status?: string;
   sort?: string;
@@ -29,32 +31,30 @@ type SentPageSearchParams = {
 const pageSize = 8;
 const statusOptions = [
   { value: "all", label: "전체" },
-  { value: "submitted", label: "결재 요청" },
-  { value: "in_progress", label: "진행중" },
-  { value: "approved", label: "승인완료" },
-  { value: "rejected", label: "반려" },
+  { value: "draft", label: "임시저장" },
+  { value: "recalled", label: "회수" },
 ];
 
-type SentDocumentFilters = {
+type DraftDocumentFilters = {
   query: string;
-  status: SentDocumentStatusFilter;
+  status: DraftDocumentStatusFilter;
   sort: DocumentPageSort;
   dateFrom: string;
   dateTo: string;
   page: number;
 };
 
-const getCachedSentDocumentPage = cache(
+const getCachedDraftDocumentPage = cache(
   async (
     userId: string,
     query: string,
-    status: SentDocumentStatusFilter,
+    status: DraftDocumentStatusFilter,
     sort: DocumentPageSort,
     dateFrom: string,
     dateTo: string,
     page: number,
   ) =>
-    getSentDocumentPage(userId, {
+    getDraftDocumentPage(userId, {
       query,
       status,
       sort,
@@ -65,22 +65,34 @@ const getCachedSentDocumentPage = cache(
     }),
 );
 
-export default async function SentPage({
+export default async function DraftsPage({
   searchParams,
 }: {
-  searchParams: Promise<SentPageSearchParams>;
+  searchParams: Promise<DraftsPageSearchParams>;
 }) {
   const filters = getFilters(await searchParams);
 
   return (
     <>
       <PageTitle
-        title="제출 문서함"
-        description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인하는 화면입니다."
+        title="임시저장함"
+        description="작성 중이거나 회수한 문서를 이어서 수정하고 결재 요청합니다."
+        action={
+          <Link
+            href="/drafts/new"
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.create,
+              "h-10 px-4 text-sm",
+            )}
+          >
+            새 기안 작성
+          </Link>
+        }
       />
 
       <DocumentListControls
-        basePath="/sent"
+        basePath="/drafts"
         query={filters.query}
         status={filters.status}
         sort={filters.sort}
@@ -89,25 +101,25 @@ export default async function SentPage({
         statusOptions={statusOptions}
         summary={
           <Suspense fallback={<DocumentListSummarySkeleton />}>
-            <SentDocumentSummary filters={filters} />
+            <DraftDocumentSummary filters={filters} />
           </Suspense>
         }
       />
 
       <Suspense fallback={<DocumentResultsSkeleton />}>
-        <SentDocumentContent filters={filters} />
+        <DraftDocumentContent filters={filters} />
       </Suspense>
     </>
   );
 }
 
-async function SentDocumentContent({
+async function DraftDocumentContent({
   filters,
 }: {
-  filters: SentDocumentFilters;
+  filters: DraftDocumentFilters;
 }) {
   const user = await requireUser();
-  const sentPage = await getCachedSentDocumentPage(
+  const draftPage = await getCachedDraftDocumentPage(
     user.id,
     filters.query,
     filters.status,
@@ -127,45 +139,45 @@ async function SentDocumentContent({
   return (
     <>
       <DocumentList
-        documents={sentPage.documents}
+        documents={draftPage.documents}
         empty={
           <EmptyState
             title={
               hasActiveFilter
-                ? "조건에 맞는 제출 문서가 없습니다"
-                : "제출한 문서가 없습니다"
+                ? "조건에 맞는 임시저장 문서가 없습니다"
+                : "임시저장 문서가 없습니다"
             }
             description={
               hasActiveFilter
                 ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
-                : "결재 요청한 문서가 생기면 진행 상태와 현재 결재자가 표시됩니다."
+                : "기안을 임시저장하거나 결재 요청을 회수하면 이곳에 표시됩니다."
             }
           />
         }
       />
 
       <DocumentPagination
-        ariaLabel="제출 문서함 페이지"
-        basePath="/sent"
+        ariaLabel="임시저장함 페이지"
+        basePath="/drafts"
         query={filters.query}
         status={filters.status}
         sort={filters.sort}
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
-        page={sentPage.page}
-        totalPages={sentPage.totalPages}
+        page={draftPage.page}
+        totalPages={draftPage.totalPages}
       />
     </>
   );
 }
 
-async function SentDocumentSummary({
+async function DraftDocumentSummary({
   filters,
 }: {
-  filters: SentDocumentFilters;
+  filters: DraftDocumentFilters;
 }) {
   const user = await requireUser();
-  const sentPage = await getCachedSentDocumentPage(
+  const draftPage = await getCachedDraftDocumentPage(
     user.id,
     filters.query,
     filters.status,
@@ -177,14 +189,14 @@ async function SentDocumentSummary({
 
   return (
     <DocumentListSummary
-      total={sentPage.total}
-      page={sentPage.page}
+      total={draftPage.total}
+      page={draftPage.page}
       pageSize={pageSize}
     />
   );
 }
 
-function getFilters(params: SentPageSearchParams): SentDocumentFilters {
+function getFilters(params: DraftsPageSearchParams): DraftDocumentFilters {
   return {
     query: String(params.q ?? "").trim(),
     status: normalizeStatus(params.status),
@@ -195,13 +207,8 @@ function getFilters(params: SentPageSearchParams): SentDocumentFilters {
   };
 }
 
-function normalizeStatus(value: string | undefined): SentDocumentStatusFilter {
-  if (
-    value === "submitted" ||
-    value === "in_progress" ||
-    value === "approved" ||
-    value === "rejected"
-  ) {
+function normalizeStatus(value: string | undefined): DraftDocumentStatusFilter {
+  if (value === "draft" || value === "recalled") {
     return value;
   }
 

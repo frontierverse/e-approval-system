@@ -37,6 +37,15 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;

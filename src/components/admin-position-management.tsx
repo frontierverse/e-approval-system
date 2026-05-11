@@ -7,10 +7,12 @@ import {
   updateAdminPositionAction,
 } from "@/app/admin/actions";
 import {
+  AdminEditModal,
   FormMessage,
   SelectField,
   TextField,
 } from "@/components/admin-form-controls";
+import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type AdminPositionManagementProps = {
@@ -37,26 +39,56 @@ export function AdminPositionManagement({
     <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <CreatePositionForm />
 
-      <div className="rounded-md border border-[#d9dee7] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
+      <div className={adminListStyles.panel}>
+        <div className={adminListStyles.header}>
           <div>
-            <h2 className="text-base font-semibold">직급 목록</h2>
-            <p className="mt-1 text-sm text-[#697386]">
+            <h2 className={adminListStyles.title}>직급 목록</h2>
+            <p className={adminListStyles.description}>
               결재선과 사용자 정보에 표시할 직급 체계를 관리합니다.
             </p>
           </div>
-          <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-sm font-semibold text-[#394150]">
+          <span className={adminListStyles.count}>
             총 {positions.length}개
           </span>
         </div>
 
         <div className="divide-y divide-[#eef1f5]">
           {positions.map((position) => (
-            <EditPositionForm key={position.id} position={position} />
+            <PositionListItem key={position.id} position={position} />
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function PositionListItem({ position }: { position: AdminPosition }) {
+  return (
+    <AdminEditModal
+      title={`${position.name} 직급 수정`}
+      description="직급명, 레벨, 표시 순서와 사용 여부를 수정합니다."
+      trigger={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[#16181d]">
+              {position.name}
+            </p>
+            <p className="mt-1 text-xs text-[#697386]">
+              레벨 {position.level} · 표시 순서 {position.sortOrder} · 사용자{" "}
+              {position._count.users}명
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill active={position.isActive} />
+            <span className="rounded-md border border-[#cfd6e3] bg-white px-3 py-1.5 text-xs font-semibold text-[#394150]">
+              수정
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <EditPositionForm position={position} />
+    </AdminEditModal>
   );
 }
 
@@ -90,6 +122,7 @@ function CreatePositionForm() {
           min={1}
           defaultValue={state.values?.level}
           placeholder="1"
+          description="숫자가 높을수록 상위 직급입니다."
         />
         <TextField
           label="정렬 순서"
@@ -97,6 +130,7 @@ function CreatePositionForm() {
           type="number"
           min={0}
           defaultValue={state.values?.sortOrder ?? "0"}
+          description="같은 레벨 안에서 작을수록 먼저 표시됩니다."
         />
         <PositionStatusField value={state.values?.isActive ?? "ACTIVE"} />
       </div>
@@ -126,7 +160,7 @@ function EditPositionForm({ position }: { position: AdminPosition }) {
   );
 
   return (
-    <form action={formAction} className="p-5">
+    <form action={formAction}>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <TextField
           label="직급명"
@@ -139,6 +173,7 @@ function EditPositionForm({ position }: { position: AdminPosition }) {
           type="number"
           min={1}
           defaultValue={state.values?.level ?? position.level}
+          description="숫자가 높을수록 상위 직급입니다."
         />
         <TextField
           label="순서"
@@ -146,6 +181,7 @@ function EditPositionForm({ position }: { position: AdminPosition }) {
           type="number"
           min={0}
           defaultValue={state.values?.sortOrder ?? position.sortOrder}
+          description="같은 레벨 안에서 작을수록 먼저 표시됩니다."
         />
         <PositionStatusField
           value={state.values?.isActive ?? getStatusValue(position.isActive)}
@@ -176,6 +212,21 @@ function EditPositionForm({ position }: { position: AdminPosition }) {
 
       <FormMessage state={state} />
     </form>
+  );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        active
+          ? "bg-[#e8f5ed] text-[#22633a]"
+          : "bg-[#f3f5f8] text-[#697386]",
+      ].join(" ")}
+    >
+      {active ? "활성" : "비활성"}
+    </span>
   );
 }
 

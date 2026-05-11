@@ -15,6 +15,7 @@ import { getNotificationSummary } from "@/lib/notifications";
 const baseNavigationItems: NavigationItem[] = [
   { label: "홈", href: "/" },
   { label: "기안작성", href: "/drafts/new" },
+  { label: "임시저장함", href: "/drafts" },
   { label: "받은결재함", href: "/inbox" },
   { label: "제출 문서함", href: "/sent" },
   { label: "완료문서함", href: "/completed" },
@@ -193,6 +194,7 @@ async function ShellDocumentCounts({ userId }: { userId: string }) {
   return (
     <dl className="mt-3 space-y-2 text-sm">
       <ShellDocumentCount label="받은결재" value={documentCounts.inbox} />
+      <ShellDocumentCount label="임시저장" value={documentCounts.drafts} />
       <ShellDocumentCount label="제출문서" value={documentCounts.sent} />
       <ShellDocumentCount label="완료문서" value={documentCounts.completed} />
     </dl>
@@ -203,6 +205,7 @@ function ShellDocumentCountsFallback() {
   return (
     <dl className="mt-3 space-y-2 text-sm" aria-label="빠른 현황 불러오는 중">
       <ShellDocumentCount label="받은결재" value="-" />
+      <ShellDocumentCount label="임시저장" value="-" />
       <ShellDocumentCount label="제출문서" value="-" />
       <ShellDocumentCount label="완료문서" value="-" />
     </dl>

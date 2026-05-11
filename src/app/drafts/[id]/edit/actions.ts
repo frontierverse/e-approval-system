@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { UserStatus } from "@/generated/prisma/client";
-import { createApprovalDocument } from "@/lib/approval-mutations";
+import { updateDraftDocument } from "@/lib/approval-mutations";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles,
   prepareAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import {
   getDraftFormIntent,
   getDraftFormValues,
@@ -20,7 +20,8 @@ import {
 } from "@/lib/draft-form-state";
 import { prisma } from "@/lib/prisma";
 
-export async function createDraftAction(
+export async function updateDraftAction(
+  documentId: string,
   _state: DraftFormState,
   formData: FormData,
 ): Promise<DraftFormState> {
@@ -30,27 +31,40 @@ export async function createDraftAction(
     .map((value) => String(value).trim())
     .filter(Boolean);
   const values = getDraftFormValues(formData);
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return {
-      values,
-      errors: {
-        form: "로그인 정보가 만료되었습니다. 다시 로그인한 뒤 기안을 저장하세요.",
-      },
-    };
-  }
-
+  const user = await requireUser();
   const attachmentPolicy = await getAttachmentPolicy();
-  const attachmentResult = await prepareAttachmentFiles(
-    formData.getAll("attachments"),
-    attachmentPolicy,
-  );
+  const [existingDocument, attachmentResult] = await Promise.all([
+    prisma.approvalDocument.findFirst({
+      where: {
+        id: documentId,
+        drafterId: user.id,
+      },
+      select: {
+        _count: {
+          select: {
+            attachments: true,
+          },
+        },
+      },
+    }),
+    prepareAttachmentFiles(formData.getAll("attachments"), attachmentPolicy),
+  ]);
+  const totalAttachmentCount =
+    (existingDocument?._count.attachments ?? 0) + attachmentResult.files.length;
+  const attachmentError =
+    attachmentResult.error ??
+    (totalAttachmentCount > attachmentPolicy.maxFileCount
+      ? `첨부파일은 최대 ${attachmentPolicy.maxFileCount}개까지 등록할 수 있습니다.`
+      : undefined);
   const errors = validateDraftFormValues(values, {
     currentUserId: user.id,
     submittedApproverIds,
-    attachmentError: attachmentResult.error,
+    attachmentError,
   });
+
+  if (!existingDocument) {
+    errors.form = "수정할 수 있는 임시저장 문서를 찾을 수 없습니다.";
+  }
 
   if (hasDraftFormErrors(errors)) {
     return { values, errors };
@@ -107,13 +121,14 @@ export async function createDraftAction(
     mimeType: file.mimeType,
     size: file.size,
   }));
-  let createdDocumentId = "";
+  let updatedDocumentId = documentId;
 
   try {
     await persistAttachmentFiles(attachmentResult.files);
 
-    const document = await createApprovalDocument({
-      drafterId: user.id,
+    const result = await updateDraftDocument({
+      documentId,
+      actorId: user.id,
       title: values.title,
       category: values.category,
       content: values.content,
@@ -123,19 +138,25 @@ export async function createDraftAction(
       submitImmediately: intent === "submit",
     });
 
-    createdDocumentId = document.id;
+    if (!result.ok) {
+      await removePreparedAttachments(attachmentResult.files);
+
+      return {
+        values,
+        errors: {
+          form: result.message,
+        },
+      };
+    }
+
+    updatedDocumentId = result.documentId;
   } catch {
-    await removeStoredAttachmentFiles(
-      attachmentResult.files.map((file) => ({
-        storageProvider: file.storageProvider,
-        storageKey: file.storageKey,
-      })),
-    );
+    await removePreparedAttachments(attachmentResult.files);
 
     return {
       values,
       errors: {
-        form: "첨부파일 저장 중 문제가 발생했습니다. 다시 시도하세요.",
+        form: "임시저장 문서 수정 중 문제가 발생했습니다. 다시 시도하세요.",
       },
     };
   }
@@ -144,11 +165,23 @@ export async function createDraftAction(
   revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
-  redirect(`/documents/${createdDocumentId}`);
+  revalidatePath(`/documents/${updatedDocumentId}`);
+  redirect(`/documents/${updatedDocumentId}`);
 }
 
 function isApprover(
   approver: { id: string; name: string } | undefined,
 ): approver is { id: string; name: string } {
   return Boolean(approver);
+}
+
+async function removePreparedAttachments(
+  files: Awaited<ReturnType<typeof prepareAttachmentFiles>>["files"],
+) {
+  await removeStoredAttachmentFiles(
+    files.map((file) => ({
+      storageProvider: file.storageProvider,
+      storageKey: file.storageKey,
+    })),
+  );
 }

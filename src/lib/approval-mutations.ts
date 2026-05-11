@@ -8,6 +8,7 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { getApprovalDecisionPlan } from "@/lib/approval-flow-core";
+import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
@@ -35,6 +36,18 @@ type CreateApprovalDocumentInput = {
   submitImmediately: boolean;
 };
 
+type UpdateDraftDocumentInput = {
+  documentId: string;
+  actorId: string;
+  title: string;
+  category: string;
+  content: string;
+  templateId: string;
+  approvers: OrderedApprover[];
+  attachments?: AttachmentInput[];
+  submitImmediately: boolean;
+};
+
 type SubmitDraftResult =
   | {
       ok: true;
@@ -46,6 +59,7 @@ type SubmitDraftResult =
     };
 
 type ApprovalDecisionResult = SubmitDraftResult;
+type DraftMutationResult = SubmitDraftResult;
 
 export async function createApprovalDocument({
   drafterId,
@@ -263,6 +277,349 @@ export async function submitDraftDocument(
       type: NotificationType.APPROVAL_REQUESTED,
       title: "결재 요청 도착",
       message: `${document.drafter.name}님이 "${document.title}" 결재를 요청했습니다.`,
+    });
+
+    return {
+      ok: true,
+      documentId: document.id,
+    };
+  });
+}
+
+export async function updateDraftDocument({
+  documentId,
+  actorId,
+  title,
+  category,
+  content,
+  templateId,
+  approvers,
+  attachments = [],
+  submitImmediately,
+}: UpdateDraftDocumentInput): Promise<DraftMutationResult> {
+  return prisma.$transaction(async (tx) => {
+    const document = await tx.approvalDocument.findUnique({
+      where: {
+        id: documentId,
+      },
+      select: {
+        id: true,
+        drafterId: true,
+        documentNo: true,
+        status: true,
+      },
+    });
+
+    if (!document) {
+      return {
+        ok: false,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (document.drafterId !== actorId) {
+      return {
+        ok: false,
+        message: "작성자만 임시저장 문서를 수정할 수 있습니다.",
+      };
+    }
+
+    if (
+      document.status !== DocumentStatus.DRAFT &&
+      document.status !== DocumentStatus.RECALLED
+    ) {
+      return {
+        ok: false,
+        message: "임시저장 또는 회수 상태의 문서만 수정할 수 있습니다.",
+      };
+    }
+
+    const now = new Date();
+    const documentNo = submitImmediately
+      ? document.documentNo ?? (await getNextDocumentNo(tx, now))
+      : document.status === DocumentStatus.RECALLED
+        ? null
+        : document.documentNo;
+
+    await tx.approvalStep.deleteMany({
+      where: {
+        documentId: document.id,
+      },
+    });
+
+    await tx.approvalDocument.update({
+      where: {
+        id: document.id,
+      },
+      data: {
+        documentNo,
+        title,
+        category,
+        content,
+        status: submitImmediately
+          ? DocumentStatus.SUBMITTED
+          : DocumentStatus.DRAFT,
+        submittedAt: submitImmediately ? now : null,
+        completedAt: null,
+        templateId,
+        approvalSteps: {
+          create: approvers.map((approver, index) => ({
+            approverId: approver.id,
+            order: index + 1,
+            status:
+              submitImmediately && index === 0
+                ? ApprovalStepStatus.PENDING
+                : ApprovalStepStatus.WAITING,
+          })),
+        },
+        attachments:
+          attachments.length > 0
+            ? {
+                create: attachments.map((attachment) => ({
+                  originalName: attachment.originalName,
+                  storageProvider: attachment.storageProvider,
+                  storageKey: attachment.storageKey,
+                  mimeType: attachment.mimeType,
+                  size: attachment.size,
+                  uploaderId: actorId,
+                })),
+              }
+            : undefined,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action: submitImmediately
+          ? AuditAction.SUBMIT
+          : AuditAction.UPDATE_DRAFT,
+        targetType: "ApprovalDocument",
+        targetId: document.id,
+        documentId: document.id,
+        message: submitImmediately
+          ? getSubmitMessage(approvers)
+          : "임시저장 문서를 수정했습니다.",
+      },
+    });
+
+    const firstApprover = approvers[0];
+
+    if (submitImmediately && firstApprover) {
+      const drafter = await tx.user.findUnique({
+        where: {
+          id: actorId,
+        },
+        select: {
+          name: true,
+        },
+      });
+
+      await createDocumentNotification(tx, {
+        userId: firstApprover.id,
+        documentId: document.id,
+        type: NotificationType.APPROVAL_REQUESTED,
+        title: "결재 요청 도착",
+        message: `${drafter?.name ?? "작성자"}님이 "${title}" 결재를 요청했습니다.`,
+      });
+    }
+
+    return {
+      ok: true,
+      documentId: document.id,
+    };
+  });
+}
+
+export async function deleteDraftDocument(
+  documentId: string,
+  actorId: string,
+): Promise<DraftMutationResult> {
+  const attachmentsToRemove = await prisma.$transaction(async (tx) => {
+    const document = await tx.approvalDocument.findUnique({
+      where: {
+        id: documentId,
+      },
+      select: {
+        id: true,
+        title: true,
+        drafterId: true,
+        status: true,
+        attachments: {
+          select: {
+            storageProvider: true,
+            storageKey: true,
+          },
+        },
+      },
+    });
+
+    if (!document) {
+      return {
+        ok: false as const,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (document.drafterId !== actorId) {
+      return {
+        ok: false as const,
+        message: "작성자만 임시저장 문서를 삭제할 수 있습니다.",
+      };
+    }
+
+    if (
+      document.status !== DocumentStatus.DRAFT &&
+      document.status !== DocumentStatus.RECALLED
+    ) {
+      return {
+        ok: false as const,
+        message: "임시저장 또는 회수 상태의 문서만 삭제할 수 있습니다.",
+      };
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action: AuditAction.DELETE_DRAFT,
+        targetType: "ApprovalDocument",
+        targetId: document.id,
+        documentId: document.id,
+        message: `"${document.title}" 임시저장 문서를 삭제했습니다.`,
+      },
+    });
+
+    await tx.approvalDocument.delete({
+      where: {
+        id: document.id,
+      },
+    });
+
+    return {
+      ok: true as const,
+      documentId: document.id,
+      attachments: document.attachments,
+    };
+  });
+
+  if (!attachmentsToRemove.ok) {
+    return attachmentsToRemove;
+  }
+
+  try {
+    await removeStoredAttachmentFiles(attachmentsToRemove.attachments);
+  } catch (error) {
+    console.error("Failed to remove deleted draft attachments", error);
+  }
+
+  return {
+    ok: true,
+    documentId: attachmentsToRemove.documentId,
+  };
+}
+
+export async function recallSubmittedDocument(
+  documentId: string,
+  actorId: string,
+): Promise<DraftMutationResult> {
+  return prisma.$transaction(async (tx) => {
+    const document = await tx.approvalDocument.findUnique({
+      where: {
+        id: documentId,
+      },
+      select: {
+        id: true,
+        title: true,
+        drafterId: true,
+        status: true,
+        approvalSteps: {
+          orderBy: {
+            order: "asc",
+          },
+          select: {
+            id: true,
+            status: true,
+            actedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!document) {
+      return {
+        ok: false,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (document.drafterId !== actorId) {
+      return {
+        ok: false,
+        message: "작성자만 결재 요청을 회수할 수 있습니다.",
+      };
+    }
+
+    if (document.status !== DocumentStatus.SUBMITTED) {
+      return {
+        ok: false,
+        message: "결재 요청 상태의 문서만 회수할 수 있습니다.",
+      };
+    }
+
+    if (
+      document.approvalSteps.some(
+        (step) =>
+          step.status === ApprovalStepStatus.APPROVED ||
+          step.status === ApprovalStepStatus.REJECTED ||
+          step.actedAt,
+      )
+    ) {
+      return {
+        ok: false,
+        message: "결재자가 처리하기 전 문서만 회수할 수 있습니다.",
+      };
+    }
+
+    const now = new Date();
+
+    await tx.approvalDocument.update({
+      where: {
+        id: document.id,
+      },
+      data: {
+        status: DocumentStatus.RECALLED,
+        completedAt: now,
+      },
+    });
+
+    await tx.approvalStep.updateMany({
+      where: {
+        documentId: document.id,
+      },
+      data: {
+        status: ApprovalStepStatus.WAITING,
+        actedAt: null,
+        comment: null,
+      },
+    });
+
+    await tx.notification.deleteMany({
+      where: {
+        documentId: document.id,
+        type: NotificationType.APPROVAL_REQUESTED,
+        readAt: null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action: AuditAction.RECALL,
+        targetType: "ApprovalDocument",
+        targetId: document.id,
+        documentId: document.id,
+        message: `"${document.title}" 결재 요청을 회수했습니다.`,
+      },
     });
 
     return {

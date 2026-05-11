@@ -101,5 +101,13 @@ function isActivePath(pathname: string, href: string) {
     return pathname === "/";
   }
 
+  if (href === "/drafts/new") {
+    return pathname === "/drafts/new";
+  }
+
+  if (href === "/drafts") {
+    return pathname === "/drafts" || /^\/drafts\/[^/]+\/edit$/.test(pathname);
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }

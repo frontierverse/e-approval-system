@@ -445,7 +445,22 @@ export function getInboxDocuments(userId = currentUser.id) {
 
 export function getSentDocuments(userId = currentUser.id) {
   return documents
-    .filter((document) => document.drafterId === userId)
+    .filter(
+      (document) =>
+        document.drafterId === userId &&
+        document.status !== "draft" &&
+        document.status !== "recalled",
+    )
+    .sort(sortByRecentActivity);
+}
+
+export function getDraftDocuments(userId = currentUser.id) {
+  return documents
+    .filter(
+      (document) =>
+        document.drafterId === userId &&
+        (document.status === "draft" || document.status === "recalled"),
+    )
     .sort(sortByRecentActivity);
 }
 
@@ -489,10 +504,9 @@ export function formatDate(value: string | null) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
+  const { year, month, day } = getKoreanDateParts(value);
+
+  return `${year}. ${month}. ${day}.`;
 }
 
 export function formatDateTime(value: string | null) {
@@ -500,12 +514,34 @@ export function formatDateTime(value: string | null) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("ko-KR", {
+  const { year, month, day, hours, minutes } = getKoreanDateParts(value);
+  const period = hours < 12 ? "오전" : "오후";
+  const displayHour = hours % 12 || 12;
+
+  return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}`;
+}
+
+function getKoreanDateParts(value: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+    hour12: false,
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const rawHour = Number(values.hour);
+  const hours = rawHour === 24 ? 0 : rawHour;
+
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    hours,
+    minutes: values.minute,
+  };
 }
 
 function sortByRecentActivity(a: ApprovalDocument, b: ApprovalDocument) {

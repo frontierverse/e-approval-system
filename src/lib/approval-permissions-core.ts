@@ -2,6 +2,7 @@ export type ApprovalPermissionRole = "USER" | "ADMIN";
 
 export type ReadableDocumentShape = {
   drafterId: string;
+  status?: string;
   approvalSteps: {
     approverId: string;
   }[];
@@ -12,11 +13,15 @@ export function canReadApprovalDocument(
   role: ApprovalPermissionRole,
   document: ReadableDocumentShape,
 ) {
-  return (
-    role === "ADMIN" ||
-    document.drafterId === userId ||
-    document.approvalSteps.some((step) => step.approverId === userId)
-  );
+  if (role === "ADMIN" || document.drafterId === userId) {
+    return true;
+  }
+
+  if (isPrivateDraftStatus(document.status)) {
+    return false;
+  }
+
+  return document.approvalSteps.some((step) => step.approverId === userId);
 }
 
 export function getReadableDocumentWhere(
@@ -33,12 +38,25 @@ export function getReadableDocumentWhere(
         drafterId: userId,
       },
       {
-        approvalSteps: {
-          some: {
-            approverId: userId,
+        AND: [
+          {
+            status: {
+              notIn: ["DRAFT", "RECALLED"],
+            },
           },
-        },
+          {
+            approvalSteps: {
+              some: {
+                approverId: userId,
+              },
+            },
+          },
+        ],
       },
     ],
   };
+}
+
+function isPrivateDraftStatus(status: string | undefined) {
+  return status === "DRAFT" || status === "RECALLED";
 }

@@ -7,11 +7,13 @@ import {
   updateAdminTemplateAction,
 } from "@/app/admin/actions";
 import {
+  AdminEditModal,
   FormMessage,
   SelectField,
   TextareaField,
   TextField,
 } from "@/components/admin-form-controls";
+import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type AdminTemplateManagementProps = {
@@ -37,26 +39,56 @@ export function AdminTemplateManagement({
     <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <CreateTemplateForm />
 
-      <div className="rounded-md border border-[#d9dee7] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
+      <div className={adminListStyles.panel}>
+        <div className={adminListStyles.header}>
           <div>
-            <h2 className="text-base font-semibold">문서 양식 목록</h2>
-            <p className="mt-1 text-sm text-[#697386]">
+            <h2 className={adminListStyles.title}>문서 양식 목록</h2>
+            <p className={adminListStyles.description}>
               기안작성에서 선택할 수 있는 양식의 이름과 사용 여부를 관리합니다.
             </p>
           </div>
-          <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-sm font-semibold text-[#394150]">
+          <span className={adminListStyles.count}>
             총 {templates.length}개
           </span>
         </div>
 
         <div className="divide-y divide-[#eef1f5]">
           {templates.map((template) => (
-            <EditTemplateForm key={template.id} template={template} />
+            <TemplateListItem key={template.id} template={template} />
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function TemplateListItem({ template }: { template: AdminTemplate }) {
+  return (
+    <AdminEditModal
+      title={`${template.name} 양식 수정`}
+      description="기안작성에 노출할 문서 양식 정보를 수정합니다."
+      trigger={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[#16181d]">
+              {template.name}
+            </p>
+            <p className="mt-1 truncate text-xs text-[#697386]">
+              {template.description || "설명 없음"} · 사용 문서{" "}
+              {template._count.documents}건
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill active={template.isActive} />
+            <span className="rounded-md border border-[#cfd6e3] bg-white px-3 py-1.5 text-xs font-semibold text-[#394150]">
+              수정
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <EditTemplateForm template={template} />
+    </AdminEditModal>
   );
 }
 
@@ -117,7 +149,7 @@ function EditTemplateForm({ template }: { template: AdminTemplate }) {
   );
 
   return (
-    <form action={formAction} className="p-5">
+    <form action={formAction}>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <TextField
           label="양식명"
@@ -157,6 +189,21 @@ function EditTemplateForm({ template }: { template: AdminTemplate }) {
 
       <FormMessage state={state} />
     </form>
+  );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        active
+          ? "bg-[#e8f5ed] text-[#22633a]"
+          : "bg-[#f3f5f8] text-[#697386]",
+      ].join(" ")}
+    >
+      {active ? "활성" : "비활성"}
+    </span>
   );
 }
 

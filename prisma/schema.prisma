@@ -37,6 +37,7 @@ enum ApprovalStepStatus {
 enum AuditAction {
   CREATE_DRAFT
   UPDATE_DRAFT
+  DELETE_DRAFT
   SUBMIT
   APPROVE
   REJECT

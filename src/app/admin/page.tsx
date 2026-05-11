@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { AdminAttachmentPolicyManagement } from "@/components/admin-attachment-policy-management";
 import { AdminAuditLogList } from "@/components/admin-audit-log-list";
@@ -8,18 +9,56 @@ import { AdminUserManagement } from "@/components/admin-user-management";
 import { PageTitle } from "@/components/page-title";
 import {
   getAdminAttachmentPolicy,
-  getAdminAuditLogs,
+  getAdminAuditActors,
+  getAdminAuditLogPage,
   getAdminDepartments,
   getAdminDocumentTemplates,
   getAdminOverview,
   getAdminPositions,
   getAdminReferenceData,
   getAdminUsers,
+  type AdminAuditLogFilters,
+  type AdminAuditLogStatusFilter,
 } from "@/lib/admin-queries";
+import { isAuditActionValue } from "@/lib/audit-log-display";
 import { requireAdmin } from "@/lib/auth";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
-export default function AdminPage() {
+type SearchParamValue = string | string[] | undefined;
+
+type AdminPageSearchParams = {
+  tab?: SearchParamValue;
+  q?: SearchParamValue;
+  status?: SearchParamValue;
+  user?: SearchParamValue;
+  dateFrom?: SearchParamValue;
+  dateTo?: SearchParamValue;
+  page?: SearchParamValue;
+};
+
+const adminTabs = [
+  { value: "users", label: "사용자", description: "계정/권한" },
+  { value: "departments", label: "부서", description: "조직 단위" },
+  { value: "positions", label: "직급", description: "결재 체계" },
+  { value: "templates", label: "문서 양식", description: "기안 양식" },
+  { value: "attachments", label: "첨부 정책", description: "파일 제한" },
+  { value: "audit", label: "감사 로그", description: "작업 이력" },
+] as const;
+
+type AdminTabValue = (typeof adminTabs)[number]["value"];
+type AdminTabCounts = Partial<Record<AdminTabValue, string>>;
+type AdminAuditLogSearchFilters = Omit<AdminAuditLogFilters, "pageSize">;
+
+const auditLogPageSize = 12;
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<AdminPageSearchParams>;
+}) {
+  const params = await searchParams;
+  const activeTab = normalizeAdminTab(params.tab);
+
   return (
     <>
       <PageTitle
@@ -28,91 +67,221 @@ export default function AdminPage() {
       />
 
       <Suspense fallback={<RouteContentSkeleton variant="admin" />}>
-        <AdminContent />
+        <AdminContent activeTab={activeTab} searchParams={params} />
       </Suspense>
     </>
   );
 }
 
-async function AdminContent() {
+async function AdminContent({
+  activeTab,
+  searchParams,
+}: {
+  activeTab: AdminTabValue;
+  searchParams: AdminPageSearchParams;
+}) {
   await requireAdmin();
-  const [
-    overview,
-    users,
-    departments,
-    positions,
-    templates,
-    attachmentPolicy,
-    auditLogs,
-    referenceData,
-  ] = await Promise.all([
+  const [overview, activePanel] = await Promise.all([
     getAdminOverview(),
-    getAdminUsers(),
-    getAdminDepartments(),
-    getAdminPositions(),
-    getAdminDocumentTemplates(),
-    getAdminAttachmentPolicy(),
-    getAdminAuditLogs(),
-    getAdminReferenceData(),
+    getAdminPanel(activeTab, searchParams),
   ]);
-
-  const summaryItems = [
-    {
-      label: "사용자",
-      value: String(overview.users.total),
-      note: `활성 ${overview.users.active}명`,
-    },
-    {
-      label: "부서",
-      value: String(overview.departments.total),
-      note: `활성 ${overview.departments.active}개`,
-    },
-    {
-      label: "직급",
-      value: String(overview.positions.total),
-      note: `활성 ${overview.positions.active}개`,
-    },
-    {
-      label: "문서 양식",
-      value: String(overview.templates.total),
-      note: `활성 ${overview.templates.active}개`,
-    },
-  ];
+  const tabCounts = {
+    users: String(overview.users.total),
+    departments: String(overview.departments.total),
+    positions: String(overview.positions.total),
+    templates: String(overview.templates.total),
+    audit: "최근",
+  } satisfies AdminTabCounts;
 
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-4">
-        {summaryItems.map((item) => (
-          <article
-            key={item.label}
-            className="rounded-md border border-[#d9dee7] bg-white p-5"
-          >
-            <p className="text-sm font-medium text-[#697386]">{item.label}</p>
-            <p className="mt-4 text-3xl font-semibold text-[#16181d]">
-              {item.value}
-            </p>
-            <p className="mt-2 text-sm text-[#697386]">{item.note}</p>
-          </article>
-        ))}
-      </section>
-
-      <div className="mt-6 grid gap-6">
-        <AdminDepartmentManagement departments={departments} />
-
-        <AdminPositionManagement positions={positions} />
-
-        <AdminTemplateManagement templates={templates} />
-
-        <AdminAttachmentPolicyManagement policy={attachmentPolicy} />
-
-        <AdminUserManagement
-          users={users}
-          departments={referenceData.departments}
-          positions={referenceData.positions}
-        />
-
-        <AdminAuditLogList logs={auditLogs} />
-      </div>
+      <AdminTabs activeTab={activeTab} counts={tabCounts} />
+      <div className="mt-6">{activePanel}</div>
     </>
   );
+}
+
+async function getAdminPanel(
+  activeTab: AdminTabValue,
+  searchParams: AdminPageSearchParams,
+) {
+  if (activeTab === "users") {
+    const [users, referenceData] = await Promise.all([
+      getAdminUsers(),
+      getAdminReferenceData(),
+    ]);
+
+    return (
+      <AdminUserManagement
+        users={users}
+        departments={referenceData.departments}
+        positions={referenceData.positions}
+      />
+    );
+  }
+
+  if (activeTab === "departments") {
+    const departments = await getAdminDepartments();
+
+    return <AdminDepartmentManagement departments={departments} />;
+  }
+
+  if (activeTab === "positions") {
+    const positions = await getAdminPositions();
+
+    return <AdminPositionManagement positions={positions} />;
+  }
+
+  if (activeTab === "templates") {
+    const templates = await getAdminDocumentTemplates();
+
+    return <AdminTemplateManagement templates={templates} />;
+  }
+
+  if (activeTab === "attachments") {
+    const attachmentPolicy = await getAdminAttachmentPolicy();
+
+    return <AdminAttachmentPolicyManagement policy={attachmentPolicy} />;
+  }
+
+  const filters = getAuditLogFilters(searchParams);
+  const [auditPage, actors] = await Promise.all([
+    getAdminAuditLogPage({
+      ...filters,
+      pageSize: auditLogPageSize,
+    }),
+    getAdminAuditActors(),
+  ]);
+
+  return (
+    <AdminAuditLogList
+      logs={auditPage.logs}
+      actors={actors}
+      filters={filters}
+      page={auditPage.page}
+      pageSize={auditPage.pageSize}
+      total={auditPage.total}
+      totalPages={auditPage.totalPages}
+    />
+  );
+}
+
+function AdminTabs({
+  activeTab,
+  counts,
+}: {
+  activeTab: AdminTabValue;
+  counts: AdminTabCounts;
+}) {
+  return (
+    <nav
+      aria-label="관리자 항목"
+      className="border-b border-[#d9dee7]"
+    >
+      <div className="scrollbar-none flex gap-2 overflow-x-auto">
+        {adminTabs.map((tab) => {
+          const active = tab.value === activeTab;
+
+          return (
+            <Link
+              key={tab.value}
+              href={getAdminTabHref(tab.value)}
+              aria-current={active ? "page" : undefined}
+              className={[
+                "group relative flex min-w-32 shrink-0 cursor-pointer flex-col gap-1 rounded-t-md border border-transparent px-4 py-3 text-left transition-colors",
+                active
+                  ? "border-[#c9dddb] border-b-white bg-white text-[#0f5553]"
+                  : "text-[#394150] hover:border-[#c7dfdc] hover:bg-[#e7f5f3] hover:text-[#12343b]",
+              ].join(" ")}
+            >
+              <span className="flex items-center justify-between gap-2 text-sm font-semibold">
+                {tab.label}
+                {counts[tab.value] ? (
+                  <span
+                    className={[
+                      "rounded-full px-2 py-0.5 text-xs font-semibold transition-colors",
+                      active
+                        ? "bg-[#d7eceb] text-[#0f5553]"
+                        : "bg-[#e9edf3] text-[#697386] group-hover:bg-white group-hover:text-[#12343b]",
+                    ].join(" ")}
+                  >
+                    {counts[tab.value]}
+                  </span>
+                ) : null}
+              </span>
+              <span className="text-xs text-[#697386] transition-colors group-hover:text-[#44515f]">
+                {tab.description}
+              </span>
+              <span
+                aria-hidden="true"
+                className={[
+                  "absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-[#196b69] transition-opacity",
+                  active ? "opacity-100" : "opacity-0 group-hover:opacity-45",
+                ].join(" ")}
+              />
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function getAdminTabHref(tab: AdminTabValue) {
+  return tab === "users" ? "/admin" : `/admin?tab=${tab}`;
+}
+
+function getAuditLogFilters(
+  params: AdminPageSearchParams,
+): AdminAuditLogSearchFilters {
+  return {
+    query: normalizeTextParam(params.q),
+    status: normalizeAuditStatus(params.status),
+    actorId: normalizeActorId(params.user),
+    dateFrom: normalizeDate(params.dateFrom),
+    dateTo: normalizeDate(params.dateTo),
+    page: normalizePage(params.page),
+  };
+}
+
+function normalizeAdminTab(value: SearchParamValue): AdminTabValue {
+  const tab = getSingleParam(value);
+
+  return adminTabs.some((item) => item.value === tab)
+    ? (tab as AdminTabValue)
+    : "users";
+}
+
+function normalizeAuditStatus(
+  value: SearchParamValue,
+): AdminAuditLogStatusFilter {
+  const status = getSingleParam(value);
+
+  return status && isAuditActionValue(status) ? status : "all";
+}
+
+function normalizeActorId(value: SearchParamValue) {
+  const actorId = getSingleParam(value)?.trim();
+
+  return actorId ? actorId : "all";
+}
+
+function normalizeTextParam(value: SearchParamValue) {
+  return getSingleParam(value)?.trim() ?? "";
+}
+
+function normalizePage(value: SearchParamValue) {
+  const page = Number(getSingleParam(value));
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function normalizeDate(value: SearchParamValue) {
+  const date = getSingleParam(value);
+
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function getSingleParam(value: SearchParamValue) {
+  return Array.isArray(value) ? value[0] : value;
 }

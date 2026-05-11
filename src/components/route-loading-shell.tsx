@@ -48,8 +48,13 @@ export function RouteContentSkeleton({
 function HomeSkeleton() {
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-3">
-        {["받은 결재 대기", "진행 중 결재 요청", "완료 문서"].map((label) => (
+      <section className="grid gap-4 md:grid-cols-4">
+        {[
+          "임시저장/회수",
+          "받은 결재 대기",
+          "진행 중 결재 요청",
+          "완료 문서",
+        ].map((label) => (
           <SummaryCardSkeleton key={label} label={label} />
         ))}
       </section>
@@ -190,22 +195,26 @@ function DraftSkeleton() {
 function AdminSkeleton() {
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        {["사용자", "부서", "직급", "문서 양식"].map((label) => (
-          <SummaryCardSkeleton key={label} label={label} />
-        ))}
+      <section
+        aria-label="관리자 항목 불러오는 중"
+        className="border-b border-[#d9dee7]"
+      >
+        <div className="scrollbar-none flex gap-2 overflow-x-auto">
+          {["사용자", "부서", "직급", "문서 양식", "첨부 정책", "감사 로그"].map(
+            (label) => (
+              <div
+                key={label}
+                className="min-w-32 shrink-0 rounded-t-md bg-white/70 px-4 py-3"
+              >
+                <p className="text-sm font-semibold text-[#697386]">{label}</p>
+                <SkeletonBlock className="mt-2 h-3 w-16" />
+              </div>
+            ),
+          )}
+        </div>
       </section>
 
-      {[
-        "부서 관리",
-        "직급 관리",
-        "문서 양식 관리",
-        "첨부파일 정책",
-        "사용자 관리",
-        "감사 로그",
-      ].map((title) => (
-        <PanelSkeleton key={title} title={title} rows={title === "사용자 관리" ? 5 : 3} />
-      ))}
+      <PanelSkeleton title="사용자 관리" rows={5} />
     </div>
   );
 }

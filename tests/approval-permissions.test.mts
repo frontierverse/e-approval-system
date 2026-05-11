@@ -8,6 +8,7 @@ import {
 
 const document: ReadableDocumentShape = {
   drafterId: "drafter-001",
+  status: "SUBMITTED",
   approvalSteps: [
     {
       approverId: "approver-001",
@@ -46,6 +47,26 @@ describe("approval document read permission", () => {
       false,
     );
   });
+
+  test("blocks assigned approvers from reading draft documents", () => {
+    assert.equal(
+      canReadApprovalDocument("approver-001", "USER", {
+        ...document,
+        status: "DRAFT",
+      }),
+      false,
+    );
+  });
+
+  test("allows the drafter to read draft documents", () => {
+    assert.equal(
+      canReadApprovalDocument("drafter-001", "USER", {
+        ...document,
+        status: "DRAFT",
+      }),
+      true,
+    );
+  });
 });
 
 describe("readable document query filter", () => {
@@ -60,11 +81,20 @@ describe("readable document query filter", () => {
           drafterId: "user-001",
         },
         {
-          approvalSteps: {
-            some: {
-              approverId: "user-001",
+          AND: [
+            {
+              status: {
+                notIn: ["DRAFT", "RECALLED"],
+              },
             },
-          },
+            {
+              approvalSteps: {
+                some: {
+                  approverId: "user-001",
+                },
+              },
+            },
+          ],
         },
       ],
     });

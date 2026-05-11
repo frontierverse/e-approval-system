@@ -1,5 +1,5 @@
 export const buttonStyles = {
-  base: "inline-flex items-center justify-center rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+  base: "inline-flex cursor-pointer items-center justify-center rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
   primary: "bg-[#2563eb] text-white hover:bg-[#1d4ed8]",
   create: "bg-[#0f6f8f] text-white hover:bg-[#0b5973]",
   save: "bg-[#3b5f7f] text-white hover:bg-[#2f4d68]",

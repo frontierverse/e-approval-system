@@ -94,14 +94,13 @@ type DocumentRecord = Prisma.ApprovalDocumentGetPayload<{
 }>;
 
 export type InboxDocumentStatusFilter = "all" | "submitted" | "in_progress";
+export type DraftDocumentStatusFilter = "all" | "draft" | "recalled";
 export type SentDocumentStatusFilter =
   | "all"
-  | "draft"
   | "submitted"
   | "in_progress"
   | "approved"
-  | "rejected"
-  | "recalled";
+  | "rejected";
 export type CompletedDocumentStatusFilter = "all" | "approved" | "rejected";
 export type DocumentPageSort = "latest" | "oldest";
 
@@ -121,6 +120,14 @@ export type InboxDocumentPageOptions = {
 export type SentDocumentPageOptions = {
   query?: string;
   status?: SentDocumentStatusFilter;
+  sort?: DocumentPageSort;
+  page?: number;
+  pageSize?: number;
+} & DocumentDateRangeOptions;
+
+export type DraftDocumentPageOptions = {
+  query?: string;
+  status?: DraftDocumentStatusFilter;
   sort?: DocumentPageSort;
   page?: number;
   pageSize?: number;
@@ -157,6 +164,7 @@ const approvalStepStatusMap: Record<
 const auditActionLabels: Record<AuditAction, string> = {
   CREATE_DRAFT: "임시저장",
   UPDATE_DRAFT: "임시저장 수정",
+  DELETE_DRAFT: "임시저장 삭제",
   SUBMIT: "결재 요청",
   APPROVE: "승인",
   REJECT: "반려",
@@ -204,11 +212,19 @@ export async function getInboxDocumentPage(
 
 export async function getSentDocuments(userId: string) {
   const records = await prisma.approvalDocument.findMany({
-    where: {
-      drafterId: userId,
-    },
+    where: getSentDocumentWhere(userId, {}),
     include: documentInclude,
     orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  return records.map(toApprovalDocument);
+}
+
+export async function getDraftDocuments(userId: string) {
+  const records = await prisma.approvalDocument.findMany({
+    where: getDraftDocumentWhere(userId, {}),
+    include: documentInclude,
+    orderBy: getDraftDocumentOrderBy("latest"),
   });
 
   return records.map(toApprovalDocument);
@@ -221,6 +237,17 @@ export async function getSentDocumentPage(
   const pageSize = options.pageSize ?? 10;
   const where = getSentDocumentWhere(userId, options);
   const orderBy = getSubmittedDocumentOrderBy(options.sort ?? "latest");
+
+  return getDocumentPage(where, orderBy, pageSize, options.page);
+}
+
+export async function getDraftDocumentPage(
+  userId: string,
+  options: DraftDocumentPageOptions = {},
+) {
+  const pageSize = options.pageSize ?? 10;
+  const where = getDraftDocumentWhere(userId, options);
+  const orderBy = getDraftDocumentOrderBy(options.sort ?? "latest");
 
   return getDocumentPage(where, orderBy, pageSize, options.page);
 }
@@ -261,9 +288,12 @@ export async function getCompletedDocumentPage(
 }
 
 export async function getShellDocumentCounts(userId: string) {
-  const [inbox, sent, completed] = await Promise.all([
+  const [inbox, drafts, sent, completed] = await Promise.all([
     prisma.approvalDocument.count({
       where: getInboxDocumentWhere(userId, {}),
+    }),
+    prisma.approvalDocument.count({
+      where: getDraftDocumentWhere(userId, {}),
     }),
     prisma.approvalDocument.count({
       where: getSentDocumentWhere(userId, {}),
@@ -275,6 +305,7 @@ export async function getShellDocumentCounts(userId: string) {
 
   return {
     inbox,
+    drafts,
     sent,
     completed,
   };
@@ -298,6 +329,70 @@ export async function getReadableDocumentById(
   });
 
   return record ? toApprovalDocument(record) : null;
+}
+
+export async function getEditableDraftDocumentById(
+  documentId: string,
+  userId: string,
+) {
+  const record = await prisma.approvalDocument.findFirst({
+    where: {
+      id: documentId,
+      drafterId: userId,
+      status: {
+        in: [DbDocumentStatus.DRAFT, DbDocumentStatus.RECALLED],
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      content: true,
+      templateId: true,
+      status: true,
+      approvalSteps: {
+        orderBy: {
+          order: "asc",
+        },
+        select: {
+          approverId: true,
+        },
+      },
+      attachments: {
+        select: {
+          id: true,
+          originalName: true,
+          mimeType: true,
+          size: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+    },
+  });
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    title: record.title,
+    category: record.category,
+    content: record.content,
+    templateId: record.templateId,
+    status: documentStatusMap[record.status],
+    approverIds: record.approvalSteps.map((step) => step.approverId),
+    attachments: record.attachments.map((attachment) => ({
+      id: attachment.id,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      createdAt: attachment.createdAt.toISOString(),
+    })),
+  };
 }
 
 export async function getRecentHistories(
@@ -442,11 +537,43 @@ function getSentDocumentWhere(
   const status = options.status ?? "all";
   const where: Prisma.ApprovalDocumentWhereInput = {
     drafterId: userId,
+    status: {
+      notIn: [DbDocumentStatus.DRAFT, DbDocumentStatus.RECALLED],
+    },
   };
 
   if (status !== "all") {
     where.status = toDbDocumentStatus(status);
   }
+
+  if (query) {
+    where.OR = getDocumentSearchConditions(query);
+  }
+
+  const dateRangeCondition = getActivityDateRangeCondition(options);
+
+  if (dateRangeCondition) {
+    where.AND = [dateRangeCondition];
+  }
+
+  return where;
+}
+
+function getDraftDocumentWhere(
+  userId: string,
+  options: DraftDocumentPageOptions,
+): Prisma.ApprovalDocumentWhereInput {
+  const query = options.query?.trim();
+  const status = options.status ?? "all";
+  const where: Prisma.ApprovalDocumentWhereInput = {
+    drafterId: userId,
+    status:
+      status === "all"
+        ? {
+            in: [DbDocumentStatus.DRAFT, DbDocumentStatus.RECALLED],
+          }
+        : toDbDocumentStatus(status),
+  };
 
   if (query) {
     where.OR = getDocumentSearchConditions(query);
@@ -548,6 +675,21 @@ function getSubmittedDocumentOrderBy(
   return [
     {
       submittedAt: direction,
+    },
+    {
+      createdAt: direction,
+    },
+  ];
+}
+
+function getDraftDocumentOrderBy(
+  sort: DocumentPageSort,
+): Prisma.ApprovalDocumentOrderByWithRelationInput[] {
+  const direction = sort === "oldest" ? "asc" : "desc";
+
+  return [
+    {
+      updatedAt: direction,
     },
     {
       createdAt: direction,
@@ -668,9 +810,14 @@ async function getDocumentPage(
   };
 }
 
-function toDbDocumentStatus(
-  status: Exclude<SentDocumentStatusFilter, "all"> | Exclude<CompletedDocumentStatusFilter, "all">,
-) {
+type DocumentStatusFilterValue = Exclude<
+  | DraftDocumentStatusFilter
+  | SentDocumentStatusFilter
+  | CompletedDocumentStatusFilter,
+  "all"
+>;
+
+function toDbDocumentStatus(status: DocumentStatusFilterValue) {
   const statusMap = {
     draft: DbDocumentStatus.DRAFT,
     submitted: DbDocumentStatus.SUBMITTED,
@@ -678,10 +825,7 @@ function toDbDocumentStatus(
     approved: DbDocumentStatus.APPROVED,
     rejected: DbDocumentStatus.REJECTED,
     recalled: DbDocumentStatus.RECALLED,
-  } satisfies Record<
-    Exclude<SentDocumentStatusFilter, "all">,
-    DbDocumentStatus
-  >;
+  } satisfies Record<DocumentStatusFilterValue, DbDocumentStatus>;
 
   return statusMap[status];
 }

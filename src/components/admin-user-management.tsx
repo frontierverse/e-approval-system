@@ -8,11 +8,13 @@ import {
   updateAdminUserAction,
 } from "@/app/admin/actions";
 import {
+  AdminEditModal,
   FormMessage,
   SelectField,
   TextField,
 } from "@/components/admin-form-controls";
 import { UserAvatar } from "@/components/user-avatar";
+import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type AdminUserManagementProps = {
@@ -67,22 +69,22 @@ export function AdminUserManagement({
     <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <CreateUserForm departments={departments} positions={positions} />
 
-      <div className="rounded-md border border-[#d9dee7] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
+      <div className={adminListStyles.panel}>
+        <div className={adminListStyles.header}>
           <div>
-            <h2 className="text-base font-semibold">사용자 목록</h2>
-            <p className="mt-1 text-sm text-[#697386]">
+            <h2 className={adminListStyles.title}>사용자 목록</h2>
+            <p className={adminListStyles.description}>
               사용자 권한과 조직 정보를 수정합니다.
             </p>
           </div>
-          <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-sm font-semibold text-[#394150]">
+          <span className={adminListStyles.count}>
             총 {users.length}명
           </span>
         </div>
 
         <div className="divide-y divide-[#eef1f5]">
           {users.map((user) => (
-            <EditUserForm
+            <UserListItem
               key={user.id}
               user={user}
               departments={departments}
@@ -92,6 +94,55 @@ export function AdminUserManagement({
         </div>
       </div>
     </section>
+  );
+}
+
+function UserListItem({
+  user,
+  departments,
+  positions,
+}: {
+  user: AdminUser;
+  departments: AdminDepartment[];
+  positions: AdminPosition[];
+}) {
+  return (
+    <AdminEditModal
+      title={`${user.name} 사용자 수정`}
+      description="권한, 상태, 조직 정보와 비밀번호를 수정합니다."
+      trigger={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <UserAvatar user={user} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-[#16181d]">
+                {user.name}
+              </p>
+              <p className="mt-1 truncate text-xs text-[#697386]">
+                {user.email} · {user.department.name} / {user.position.name}
+              </p>
+              <p className="mt-1 text-xs text-[#697386]">
+                작성 문서 {user._count.draftedDocuments}건 · 결재 참여{" "}
+                {user._count.approvalSteps}건
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <RolePill role={user.role} />
+            <StatusPill active={user.status === "ACTIVE"} />
+            <span className="rounded-md border border-[#cfd6e3] bg-white px-3 py-1.5 text-xs font-semibold text-[#394150]">
+              수정
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <EditUserForm
+        user={user}
+        departments={departments}
+        positions={positions}
+      />
+    </AdminEditModal>
   );
 }
 
@@ -198,7 +249,7 @@ function EditUserForm({
   );
 
   return (
-    <form action={formAction} className="p-5">
+    <form action={formAction}>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-[#697386]">계정</p>
@@ -298,6 +349,36 @@ function EditUserForm({
       <FormMessage state={state} />
       <FormMessage state={resetState} />
     </form>
+  );
+}
+
+function RolePill({ role }: { role: "USER" | "ADMIN" }) {
+  return (
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        role === "ADMIN"
+          ? "bg-[#eef7f6] text-[#196b69]"
+          : "bg-[#f3f5f8] text-[#697386]",
+      ].join(" ")}
+    >
+      {role === "ADMIN" ? "관리자" : "사용자"}
+    </span>
+  );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        active
+          ? "bg-[#e8f5ed] text-[#22633a]"
+          : "bg-[#f3f5f8] text-[#697386]",
+      ].join(" ")}
+    >
+      {active ? "활성" : "비활성"}
+    </span>
   );
 }
 

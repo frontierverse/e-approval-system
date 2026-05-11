@@ -7,10 +7,12 @@ import {
   updateAdminDepartmentAction,
 } from "@/app/admin/actions";
 import {
+  AdminEditModal,
   FormMessage,
   SelectField,
   TextField,
 } from "@/components/admin-form-controls";
+import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type AdminDepartmentManagementProps = {
@@ -41,22 +43,22 @@ export function AdminDepartmentManagement({
     <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
       <CreateDepartmentForm departments={departments} />
 
-      <div className="rounded-md border border-[#d9dee7] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
+      <div className={adminListStyles.panel}>
+        <div className={adminListStyles.header}>
           <div>
-            <h2 className="text-base font-semibold">부서 목록</h2>
-            <p className="mt-1 text-sm text-[#697386]">
+            <h2 className={adminListStyles.title}>부서 목록</h2>
+            <p className={adminListStyles.description}>
               부서명, 상위 부서와 사용 여부를 관리합니다.
             </p>
           </div>
-          <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-sm font-semibold text-[#394150]">
+          <span className={adminListStyles.count}>
             총 {departments.length}개
           </span>
         </div>
 
         <div className="divide-y divide-[#eef1f5]">
           {departments.map((department) => (
-            <EditDepartmentForm
+            <DepartmentListItem
               key={department.id}
               department={department}
               departments={departments}
@@ -65,6 +67,43 @@ export function AdminDepartmentManagement({
         </div>
       </div>
     </section>
+  );
+}
+
+function DepartmentListItem({
+  department,
+  departments,
+}: {
+  department: AdminDepartment;
+  departments: AdminDepartment[];
+}) {
+  return (
+    <AdminEditModal
+      title={`${department.name} 부서 수정`}
+      description="부서명, 상위 부서, 사용 여부를 수정합니다."
+      trigger={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[#16181d]">
+              {department.name}
+            </p>
+            <p className="mt-1 text-xs text-[#697386]">
+              상위 {department.parent ? department.parent.name : "없음"} · 사용자{" "}
+              {department._count.users}명 · 하위 부서{" "}
+              {department._count.children}개
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill active={department.isActive} />
+            <span className="rounded-md border border-[#cfd6e3] bg-white px-3 py-1.5 text-xs font-semibold text-[#394150]">
+              수정
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <EditDepartmentForm department={department} departments={departments} />
+    </AdminEditModal>
   );
 }
 
@@ -147,7 +186,7 @@ function EditDepartmentForm({
   );
 
   return (
-    <form action={formAction} className="p-5">
+    <form action={formAction}>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <TextField
           label="부서명"
@@ -198,6 +237,21 @@ function EditDepartmentForm({
 
       <FormMessage state={state} />
     </form>
+  );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        active
+          ? "bg-[#e8f5ed] text-[#22633a]"
+          : "bg-[#f3f5f8] text-[#697386]",
+      ].join(" ")}
+    >
+      {active ? "활성" : "비활성"}
+    </span>
   );
 }
 

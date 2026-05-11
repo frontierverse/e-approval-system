@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
+import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
@@ -139,6 +140,29 @@ describe("major UI rendering", () => {
     assert.match(html, /현재 결재 차례입니다\./);
   });
 
+  test("renders attachment file icons by extension", () => {
+    const pdfHtml = renderToStaticMarkup(
+      React.createElement(AttachmentFileRow, {
+        fileName: "계약서.pdf",
+        size: 153600,
+      }),
+    );
+    const sheetHtml = renderToStaticMarkup(
+      React.createElement(AttachmentFileRow, {
+        fileName: "정산내역.xlsx",
+        size: 2048,
+      }),
+    );
+
+    assert.match(pdfHtml, /PDF/);
+    assert.match(pdfHtml, /PDF 문서/);
+    assert.match(pdfHtml, /계약서\.pdf/);
+    assert.match(pdfHtml, /bg-\[#fff1f1\]/);
+    assert.match(sheetHtml, /XLSX/);
+    assert.match(sheetHtml, /스프레드시트/);
+    assert.match(sheetHtml, /bg-\[#e8f5ed\]/);
+  });
+
   test("renders admin audit logs with readable labels", () => {
     const html = renderToStaticMarkup(
       React.createElement(AdminAuditLogList, {
@@ -172,15 +196,95 @@ describe("major UI rendering", () => {
               documentNo: "EA-2026-0001",
             },
           },
+          {
+            id: "audit-003",
+            action: "CREATE_DRAFT",
+            targetType: "ApprovalDocument",
+            targetId: "document-002",
+            message: "문서를 임시저장했습니다.",
+            createdAt: new Date("2026-05-08T04:50:00.000Z"),
+            actor: {
+              name: "김민준",
+              email: "admin@example.com",
+            },
+            document: {
+              title: "임시 문서",
+              documentNo: null,
+            },
+          },
         ],
       }),
     );
 
     assert.match(html, /감사 로그/);
     assert.match(html, /사용자 수정/);
+    assert.match(html, /bg-\[#f6f0ff\]/);
     assert.match(html, /박서연 사용자 정보를 수정했습니다\./);
     assert.match(html, /승인/);
+    assert.match(html, /bg-\[#e8f5ed\]/);
+    assert.match(html, /임시저장/);
+    assert.doesNotMatch(html, /기안 작성/);
     assert.match(html, /EA-2026-0001/);
     assert.match(html, /시설 운영비 집행 기안/);
+    assert.match(html, /검색/);
+    assert.match(html, /사용자/);
+    assert.match(html, /상태/);
+  });
+
+  test("renders admin audit filters and pagination links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AdminAuditLogList, {
+        logs: [
+          {
+            id: "audit-010",
+            action: "APPROVE",
+            targetType: "ApprovalDocument",
+            targetId: "document-010",
+            message: "문서를 승인했습니다.",
+            createdAt: new Date("2026-05-08T05:00:00.000Z"),
+            actor: {
+              name: "이도윤",
+              email: "approver@example.com",
+            },
+            document: {
+              title: "테스트 문서",
+              documentNo: "EA-2026-0010",
+            },
+          },
+        ],
+        actors: [
+          {
+            id: "user-003",
+            name: "이도윤",
+            email: "approver@example.com",
+          },
+        ],
+        filters: {
+          query: "approval",
+          status: "APPROVE",
+          actorId: "user-003",
+          dateFrom: "2026-05-01",
+          dateTo: "2026-05-08",
+        },
+        page: 2,
+        pageSize: 12,
+        total: 25,
+        totalPages: 3,
+      }),
+    );
+
+    assert.match(html, /name="tab" value="audit"/);
+    assert.match(html, /defaultValue="approval"|value="approval"/);
+    assert.match(html, /이도윤 · approver@example\.com/);
+    assert.match(html, /승인/);
+    assert.match(html, /25건 중 13-24건 표시/);
+    assert.match(
+      html,
+      /href="\/admin\?tab=audit&amp;q=approval&amp;dateFrom=2026-05-01&amp;dateTo=2026-05-08&amp;user=user-003&amp;status=APPROVE"/,
+    );
+    assert.match(
+      html,
+      /href="\/admin\?tab=audit&amp;q=approval&amp;dateFrom=2026-05-01&amp;dateTo=2026-05-08&amp;user=user-003&amp;status=APPROVE&amp;page=3"/,
+    );
   });
 });

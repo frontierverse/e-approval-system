@@ -1,8 +1,23 @@
 "use client";
 
-import { type FormEvent, useActionState, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createDraftAction } from "@/app/drafts/new/actions";
+import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
+import {
+  getAttachmentSelectionKey,
+  getFileExtension,
+  mergeAttachmentSelections,
+  type AttachmentSelectionFile,
+} from "@/lib/file-display";
 
 type DraftFormProps = {
   templates: {
@@ -16,7 +31,16 @@ type DraftFormProps = {
     allowedExtensions: string[];
   };
   approverCandidates: ApprovalCandidate[];
+  action?: DraftFormAction;
+  initialValues?: DraftFormValues;
+  existingAttachments?: ExistingAttachment[];
+  mode?: "create" | "edit";
 };
+
+type DraftFormAction = (
+  state: DraftFormState,
+  formData: FormData,
+) => Promise<DraftFormState>;
 
 type ApprovalCandidate = {
   id: string;
@@ -26,24 +50,10 @@ type ApprovalCandidate = {
   positionName: string;
 };
 
-type DraftFormValues = {
-  title: string;
-  category: string;
-  templateId: string;
-  content: string;
-  approverIds: string[];
-};
-
-type DraftFormState = {
-  values?: DraftFormValues;
-  errors?: {
-    title?: string;
-    category?: string;
-    templateId?: string;
-    content?: string;
-    approvers?: string;
-    form?: string;
-  };
+type ExistingAttachment = {
+  id: string;
+  originalName: string;
+  size: number;
 };
 
 type DraftFormFieldsProps = DraftFormProps & {
@@ -58,29 +68,28 @@ export function DraftForm({
   templates,
   attachmentPolicy,
   approverCandidates,
+  action = createDraftAction,
+  initialValues: providedInitialValues,
+  existingAttachments = [],
+  mode = "create",
 }: DraftFormProps) {
   const [state, formAction, pending] = useActionState(
-    createDraftAction,
+    action,
     initialState,
   );
-  const initialValues = getInitialValues(state, templates);
-  const formKey = [
-    initialValues.title,
-    initialValues.category,
-    initialValues.templateId,
-    initialValues.content,
-    ...initialValues.approverIds,
-  ].join("|");
+  const initialValues = getInitialValues(state, templates, providedInitialValues);
 
   return (
     <DraftFormFields
-      key={formKey}
       templates={templates}
       attachmentPolicy={attachmentPolicy}
       approverCandidates={approverCandidates}
+      action={action}
       errors={state.errors}
+      existingAttachments={existingAttachments}
       formAction={formAction}
       initialValues={initialValues}
+      mode={mode}
       pending={pending}
     />
   );
@@ -91,8 +100,10 @@ function DraftFormFields({
   attachmentPolicy,
   approverCandidates,
   errors,
+  existingAttachments = [],
   formAction,
   initialValues,
+  mode = "create",
   pending,
 }: DraftFormFieldsProps) {
   const [title, setTitle] = useState(initialValues.title);
@@ -102,6 +113,8 @@ function DraftFormFields({
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>(
     initialValues.approverIds,
   );
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -111,6 +124,7 @@ function DraftFormFields({
   const contentHasError = Boolean(errors?.content);
   const approverHasError = Boolean(errors?.approvers);
   const attachmentHasError = Boolean(attachmentError);
+  const isEditMode = mode === "edit";
 
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
 
@@ -163,6 +177,10 @@ function DraftFormFields({
     });
   }, [approverCandidates, departmentFilter, query, selectedApproverIds]);
 
+  useEffect(() => {
+    syncAttachmentInputFiles(attachmentInputRef.current, selectedFiles);
+  }, [errors, selectedFiles]);
+
   function addApprover(approverId: string) {
     setSelectedApproverIds((current) =>
       current.includes(approverId) ? current : [...current, approverId],
@@ -191,11 +209,49 @@ function DraftFormFields({
     });
   }
 
+  function handleAttachmentChange(fileList: FileList | null) {
+    const nextFiles = mergeAttachmentSelections(
+      selectedFiles,
+      Array.from(fileList ?? []),
+    );
+    const fileError = validateAttachmentFiles(
+      nextFiles,
+      attachmentPolicy,
+      existingAttachments.length,
+    );
+
+    if (fileError) {
+      syncAttachmentInputFiles(attachmentInputRef.current, selectedFiles);
+      setAttachmentError(fileError);
+      return;
+    }
+
+    setSelectedFiles(nextFiles);
+    syncAttachmentInputFiles(attachmentInputRef.current, nextFiles);
+    setAttachmentError(null);
+  }
+
+  function removeSelectedFile(fileKey: string) {
+    const nextFiles = selectedFiles.filter(
+      (file) => getAttachmentSelectionKey(file) !== fileKey,
+    );
+
+    setSelectedFiles(nextFiles);
+    syncAttachmentInputFiles(attachmentInputRef.current, nextFiles);
+    setAttachmentError(
+      validateAttachmentFiles(nextFiles, attachmentPolicy, existingAttachments.length),
+    );
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const input = event.currentTarget.elements.namedItem("attachments");
     const fileError =
       input instanceof HTMLInputElement
-        ? validateAttachmentFiles(input.files, attachmentPolicy)
+        ? validateAttachmentFiles(
+            input.files,
+            attachmentPolicy,
+            existingAttachments.length,
+          )
         : null;
 
     if (fileError) {
@@ -325,24 +381,66 @@ function DraftFormFields({
           >
             첨부파일
           </label>
+          {existingAttachments.length > 0 ? (
+            <ul className="mt-2 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
+              {existingAttachments.map((attachment) => (
+                <li
+                  key={attachment.id}
+                  className="px-3 py-2"
+                >
+                  <AttachmentFileRow
+                    fileName={attachment.originalName}
+                    note="기존 첨부"
+                    size={attachment.size}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <input
             id="attachments"
             name="attachments"
             type="file"
+            ref={attachmentInputRef}
             multiple
             accept={attachmentPolicy.allowedExtensions.join(",")}
             disabled={pending}
-            onChange={(event) =>
-              setAttachmentError(
-                validateAttachmentFiles(event.currentTarget.files, attachmentPolicy),
-              )
-            }
+            onChange={(event) => handleAttachmentChange(event.currentTarget.files)}
             className={`mt-2 block w-full rounded-md border border-dashed bg-[#fbfcfd] px-4 py-4 text-sm text-[#394150] file:mr-4 file:h-9 file:rounded-md file:border-0 file:bg-[#0f6f8f] file:px-3 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0b5973] disabled:cursor-not-allowed disabled:opacity-60${
               attachmentHasError
                 ? ` ${errorBorderClass}`
                 : " border-[#cfd6e3]"
             }`}
           />
+          {selectedFiles.length > 0 ? (
+            <ul className="mt-3 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5] bg-white">
+              {selectedFiles.map((file) => (
+                <li key={getAttachmentSelectionKey(file)} className="px-3 py-2">
+                  <AttachmentFileRow
+                    fileName={file.name}
+                    note="새로 추가"
+                    size={file.size}
+                    action={
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() =>
+                          removeSelectedFile(getAttachmentSelectionKey(file))
+                        }
+                        className={buttonClass(
+                          buttonStyles.base,
+                          buttonStyles.dangerOutline,
+                          "h-8 px-3 text-xs",
+                        )}
+                      >
+                        제거
+                      </button>
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {attachmentError ? (
             <p className="mt-2 text-sm text-[#8a1f1f]">{attachmentError}</p>
           ) : null}
@@ -350,6 +448,9 @@ function DraftFormFields({
             최대 {attachmentPolicy.maxFileCount}개, 파일당{" "}
             {attachmentPolicy.maxFileSizeMb}MB 이하. 허용 확장자:{" "}
             {attachmentPolicy.allowedExtensions.join(", ")}
+            {existingAttachments.length > 0
+              ? ` / 기존 ${existingAttachments.length}개 포함`
+              : ""}
           </p>
         </div>
 
@@ -371,7 +472,7 @@ function DraftFormFields({
               "h-10 px-4 text-sm",
             )}
           >
-            {pending ? "저장 중" : "임시저장"}
+            {pending ? "저장 중" : isEditMode ? "수정 저장" : "임시저장"}
           </button>
           <button
             type="submit"
@@ -575,13 +676,19 @@ function DraftFormFields({
 function getInitialValues(
   state: DraftFormState,
   templates: DraftFormProps["templates"],
+  providedInitialValues?: DraftFormValues,
 ): DraftFormValues {
   return {
-    title: state.values?.title ?? "",
-    category: state.values?.category ?? "일반",
-    templateId: state.values?.templateId ?? templates[0]?.id ?? "",
-    content: state.values?.content ?? "",
-    approverIds: state.values?.approverIds ?? [],
+    title: state.values?.title ?? providedInitialValues?.title ?? "",
+    category: state.values?.category ?? providedInitialValues?.category ?? "일반",
+    templateId:
+      state.values?.templateId ??
+      providedInitialValues?.templateId ??
+      templates[0]?.id ??
+      "",
+    content: state.values?.content ?? providedInitialValues?.content ?? "",
+    approverIds:
+      state.values?.approverIds ?? providedInitialValues?.approverIds ?? [],
   };
 }
 
@@ -592,8 +699,9 @@ function isApprovalCandidate(
 }
 
 function validateAttachmentFiles(
-  fileList: FileList | null,
+  fileList: FileList | readonly AttachmentSelectionFile[] | null,
   policy: DraftFormProps["attachmentPolicy"],
+  existingFileCount = 0,
 ) {
   const files = Array.from(fileList ?? []);
 
@@ -601,7 +709,7 @@ function validateAttachmentFiles(
     return null;
   }
 
-  if (files.length > policy.maxFileCount) {
+  if (files.length + existingFileCount > policy.maxFileCount) {
     return `첨부파일은 최대 ${policy.maxFileCount}개까지 등록할 수 있습니다.`;
   }
 
@@ -625,8 +733,28 @@ function validateAttachmentFiles(
   return null;
 }
 
-function getFileExtension(fileName: string) {
-  const index = fileName.lastIndexOf(".");
+function syncAttachmentInputFiles(
+  input: HTMLInputElement | null,
+  files: readonly File[],
+) {
+  if (!input) {
+    return;
+  }
 
-  return index >= 0 ? fileName.slice(index).toLowerCase() : "";
+  if (files.length === 0) {
+    input.value = "";
+    return;
+  }
+
+  if (typeof DataTransfer === "undefined") {
+    return;
+  }
+
+  const dataTransfer = new DataTransfer();
+
+  for (const file of files) {
+    dataTransfer.items.add(file);
+  }
+
+  input.files = dataTransfer.files;
 }

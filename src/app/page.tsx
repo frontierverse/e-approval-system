@@ -4,6 +4,7 @@ import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
 import {
   getCompletedDocuments,
+  getDraftDocuments,
   getInboxDocuments,
   getRecentHistories,
   getSentDocuments,
@@ -42,19 +43,31 @@ export default function Home() {
 
 async function HomeContent() {
   const user = await requireUser();
-  const [inboxDocuments, sentDocuments, completedDocuments, recentHistories] =
-    await Promise.all([
-      getInboxDocuments(user.id),
-      getSentDocuments(user.id),
-      getCompletedDocuments(user.id),
-      getRecentHistories(user.id, user.role, 5),
-    ]);
+  const [
+    draftDocuments,
+    inboxDocuments,
+    sentDocuments,
+    completedDocuments,
+    recentHistories,
+  ] = await Promise.all([
+    getDraftDocuments(user.id),
+    getInboxDocuments(user.id),
+    getSentDocuments(user.id),
+    getCompletedDocuments(user.id),
+    getRecentHistories(user.id, user.role, 5),
+  ]);
   const activeSentDocuments = sentDocuments.filter(
     (document) =>
       document.status === "submitted" || document.status === "in_progress",
   );
 
   const summaries = [
+    {
+      label: "임시저장/회수",
+      value: String(draftDocuments.length),
+      note: "이어 작성할 문서",
+      href: "/drafts",
+    },
     {
       label: "받은 결재 대기",
       value: String(inboxDocuments.length),
@@ -77,7 +90,7 @@ async function HomeContent() {
 
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         {summaries.map((item) => (
           <Link
             key={item.label}

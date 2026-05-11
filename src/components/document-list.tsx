@@ -66,7 +66,7 @@ function DocumentTableRow({ document }: { document: ApprovalDocument }) {
           {document.title}
         </Link>
         <p className="mt-1 text-xs text-[#697386]">
-          {document.documentNo} · {document.category}
+          {getDocumentNumberLabel(document)} · {document.category}
         </p>
         <ArchiveHint info={archiveInfo} />
       </td>
@@ -109,7 +109,7 @@ function DocumentCard({ document }: { document: ApprovalDocument }) {
             {document.title}
           </Link>
           <p className="mt-1 text-xs text-[#697386]">
-            {document.documentNo} · {document.category}
+            {getDocumentNumberLabel(document)} · {document.category}
           </p>
           <ArchiveHint info={archiveInfo} />
         </div>
@@ -163,6 +163,10 @@ function PersonText({ person }: { person: UserSummary }) {
 
 function getDocumentActivityDate(document: ApprovalDocument) {
   return document.completedAt ?? document.submittedAt ?? document.createdAt;
+}
+
+function getDocumentNumberLabel(document: ApprovalDocument) {
+  return document.documentNo || "임시문서";
 }
 
 function ArchiveHint({

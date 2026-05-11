@@ -1,8 +1,22 @@
 import "server-only";
 
+import { AuditAction, Prisma } from "@/generated/prisma/client";
+import type { AuditActionValue } from "@/lib/audit-log-display";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+export type AdminAuditLogStatusFilter = "all" | AuditActionValue;
+
+export type AdminAuditLogFilters = {
+  query: string;
+  status: AdminAuditLogStatusFilter;
+  actorId: string;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  pageSize: number;
+};
 
 export async function getAdminOverview() {
   await requireAdmin();
@@ -199,35 +213,156 @@ export async function getAdminAttachmentPolicy() {
   return getAttachmentPolicy();
 }
 
-export async function getAdminAuditLogs() {
+export async function getAdminAuditLogPage(filters: AdminAuditLogFilters) {
   await requireAdmin();
 
-  return prisma.auditLog.findMany({
-    select: {
-      id: true,
-      action: true,
-      targetType: true,
-      targetId: true,
-      message: true,
-      createdAt: true,
-      actor: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      document: {
-        select: {
-          title: true,
-          documentNo: true,
-        },
-      },
-    },
+  const where = getAdminAuditLogWhere(filters);
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+
+  const logs = await prisma.auditLog.findMany({
+    where,
+    select: adminAuditLogSelect,
     orderBy: {
       createdAt: "desc",
     },
-    take: 30,
+    skip: (page - 1) * filters.pageSize,
+    take: filters.pageSize,
   });
+
+  return {
+    logs,
+    total,
+    page,
+    pageSize: filters.pageSize,
+    totalPages,
+  };
+}
+
+export async function getAdminAuditActors() {
+  await requireAdmin();
+
+  return prisma.user.findMany({
+    where: {
+      auditLogs: {
+        some: {},
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+    orderBy: [
+      {
+        name: "asc",
+      },
+      {
+        email: "asc",
+      },
+    ],
+  });
+}
+
+function getAdminAuditLogWhere(filters: AdminAuditLogFilters) {
+  const and: Prisma.AuditLogWhereInput[] = [];
+
+  if (filters.query) {
+    const contains = {
+      contains: filters.query,
+      mode: Prisma.QueryMode.insensitive,
+    };
+
+    and.push({
+      OR: [
+        { message: contains },
+        { targetType: contains },
+        { targetId: contains },
+        {
+          actor: {
+            OR: [{ name: contains }, { email: contains }],
+          },
+        },
+        {
+          document: {
+            OR: [{ title: contains }, { documentNo: contains }],
+          },
+        },
+      ],
+    });
+  }
+
+  if (filters.status !== "all") {
+    and.push({
+      action: AuditAction[filters.status],
+    });
+  }
+
+  if (filters.actorId !== "all") {
+    and.push({
+      actorId: filters.actorId,
+    });
+  }
+
+  const createdAt: Prisma.DateTimeFilter<"AuditLog"> = {};
+
+  if (filters.dateFrom) {
+    createdAt.gte = getKoreanDateBoundary(filters.dateFrom, "start");
+  }
+
+  if (filters.dateTo) {
+    createdAt.lte = getKoreanDateBoundary(filters.dateTo, "end");
+  }
+
+  if (createdAt.gte || createdAt.lte) {
+    and.push({ createdAt });
+  }
+
+  return and.length > 0 ? { AND: and } : {};
+}
+
+function getKoreanDateBoundary(date: string, boundary: "start" | "end") {
+  return new Date(
+    boundary === "start"
+      ? `${date}T00:00:00.000+09:00`
+      : `${date}T23:59:59.999+09:00`,
+  );
+}
+
+const adminAuditLogSelect = {
+  id: true,
+  action: true,
+  targetType: true,
+  targetId: true,
+  message: true,
+  createdAt: true,
+  actor: {
+    select: {
+      name: true,
+      email: true,
+    },
+  },
+  document: {
+    select: {
+      title: true,
+      documentNo: true,
+    },
+  },
+} satisfies Prisma.AuditLogSelect;
+
+export async function getAdminAuditLogs() {
+  const page = await getAdminAuditLogPage({
+    query: "",
+    status: "all",
+    actorId: "all",
+    dateFrom: "",
+    dateTo: "",
+    page: 1,
+    pageSize: 30,
+  });
+
+  return page.logs;
 }
 
 export async function getAdminReferenceData() {

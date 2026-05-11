@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   approveCurrentApprovalStep,
+  deleteDraftDocument,
+  recallSubmittedDocument,
   rejectCurrentApprovalStep,
   submitDraftDocument,
 } from "@/lib/approval-mutations";
@@ -21,6 +23,7 @@ export async function submitDocumentAction(documentId: string) {
   const result = await submitDraftDocument(documentId, user.id);
 
   revalidatePath("/");
+  revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath(`/documents/${documentId}`);
@@ -28,6 +31,43 @@ export async function submitDocumentAction(documentId: string) {
   if (!result.ok) {
     redirect(
       `/documents/${documentId}?submitError=${encodeURIComponent(result.message)}`,
+    );
+  }
+
+  redirect(`/documents/${result.documentId}`);
+}
+
+export async function deleteDraftDocumentAction(documentId: string) {
+  const user = await requireUser();
+  const result = await deleteDraftDocument(documentId, user.id);
+
+  revalidatePath("/");
+  revalidatePath("/drafts");
+  revalidatePath("/sent");
+  revalidatePath(`/documents/${documentId}`);
+
+  if (!result.ok) {
+    redirect(
+      `/documents/${documentId}?actionError=${encodeURIComponent(result.message)}`,
+    );
+  }
+
+  redirect("/drafts");
+}
+
+export async function recallDocumentAction(documentId: string) {
+  const user = await requireUser();
+  const result = await recallSubmittedDocument(documentId, user.id);
+
+  revalidatePath("/");
+  revalidatePath("/drafts");
+  revalidatePath("/inbox");
+  revalidatePath("/sent");
+  revalidatePath(`/documents/${documentId}`);
+
+  if (!result.ok) {
+    redirect(
+      `/documents/${documentId}?actionError=${encodeURIComponent(result.message)}`,
     );
   }
 
