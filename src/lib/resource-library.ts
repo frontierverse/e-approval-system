@@ -8,6 +8,7 @@ import {
   type ResourceCategory,
   type ResourceCategoryFilter,
   type ResourceLibraryItem,
+  type ResourcePostDetail,
 } from "@/lib/resource-library-core";
 
 const resourcePostInclude = {
@@ -36,6 +37,37 @@ const resourcePostInclude = {
 
 type ResourcePostRecord = Prisma.ResourcePostGetPayload<{
   include: typeof resourcePostInclude;
+}>;
+
+const resourcePostDetailInclude = {
+  ...resourcePostInclude,
+  views: {
+    orderBy: {
+      lastViewedAt: "desc",
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.ResourcePostInclude;
+
+type ResourcePostDetailRecord = Prisma.ResourcePostGetPayload<{
+  include: typeof resourcePostDetailInclude;
 }>;
 
 export async function getResourceLibraryPage({
@@ -127,15 +159,63 @@ export async function getResourcePostById({
   currentUserRole: UserRole;
   postId: string;
 }) {
-  const record = await prisma.resourcePost.findUnique({
-    where: {
-      id: postId,
-    },
-    include: resourcePostInclude,
+  const record = await prisma.$transaction(async (tx) => {
+    const existingPost = await tx.resourcePost.findUnique({
+      where: {
+        id: postId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingPost) {
+      return null;
+    }
+
+    const now = new Date();
+
+    await tx.resourcePostView.upsert({
+      where: {
+        resourceId_userId: {
+          resourceId: postId,
+          userId: currentUserId,
+        },
+      },
+      create: {
+        resourceId: postId,
+        userId: currentUserId,
+        firstViewedAt: now,
+        lastViewedAt: now,
+        viewCount: 1,
+      },
+      update: {
+        lastViewedAt: now,
+        viewCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    const viewerCount = await tx.resourcePostView.count({
+      where: {
+        resourceId: postId,
+      },
+    });
+
+    return tx.resourcePost.update({
+      where: {
+        id: postId,
+      },
+      data: {
+        viewCount: viewerCount,
+      },
+      include: resourcePostDetailInclude,
+    });
   });
 
   return record
-    ? mapResourcePost(record, currentUserId, currentUserRole)
+    ? mapResourcePostDetail(record, currentUserId, currentUserRole)
     : null;
 }
 
@@ -245,6 +325,25 @@ function mapResourcePost(
   };
 }
 
+function mapResourcePostDetail(
+  record: ResourcePostDetailRecord,
+  currentUserId: string,
+  currentUserRole: UserRole,
+): ResourcePostDetail {
+  return {
+    ...mapResourcePost(record, currentUserId, currentUserRole),
+    viewers: record.views.map((view) => ({
+      userId: view.userId,
+      name: view.user.name,
+      departmentName: view.user.department.name,
+      positionName: view.user.position.name,
+      firstViewedAt: view.firstViewedAt.toISOString(),
+      lastViewedAt: view.lastViewedAt.toISOString(),
+      viewCount: view.viewCount,
+    })),
+  };
+}
+
 export { paginateResourceItems };
 export type {
   ResourceAttachment,
@@ -252,4 +351,6 @@ export type {
   ResourceCategoryFilter,
   ResourceLibraryItem,
   ResourceLibraryPage,
+  ResourcePostDetail,
+  ResourceViewer,
 } from "@/lib/resource-library-core";

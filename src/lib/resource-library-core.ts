@@ -22,6 +22,20 @@ export type ResourceLibraryItem = {
   canManage?: boolean;
 };
 
+export type ResourceViewer = {
+  userId: string;
+  name: string;
+  departmentName: string;
+  positionName: string;
+  firstViewedAt: string;
+  lastViewedAt: string;
+  viewCount: number;
+};
+
+export type ResourcePostDetail = ResourceLibraryItem & {
+  viewers: ResourceViewer[];
+};
+
 export type ResourceCategoryFilter = "all" | ResourceCategory;
 
 export type ResourceLibraryPage = {

@@ -92,6 +92,7 @@ model User {
   attachments         Attachment[]         @relation("AttachmentUploader")
   resourcePosts       ResourcePost[]       @relation("ResourceAuthor")
   resourceAttachments ResourceAttachment[] @relation("ResourceAttachmentUploader")
+  resourcePostViews   ResourcePostView[]   @relation("ResourcePostViewUser")
   auditLogs           AuditLog[]           @relation("AuditActor")
   notifications       Notification[]
 
@@ -250,6 +251,7 @@ model ResourcePost {
   author User @relation("ResourceAuthor", fields: [authorId], references: [id])
 
   attachments ResourceAttachment[]
+  views       ResourcePostView[]
 
   @@index([authorId])
   @@index([category])
@@ -274,6 +276,24 @@ model ResourceAttachment {
 
   @@index([resourceId])
   @@index([uploaderId])
+}
+
+model ResourcePostView {
+  id            String   @id @default(cuid())
+  firstViewedAt DateTime @default(now())
+  lastViewedAt  DateTime @default(now())
+  viewCount     Int      @default(1)
+
+  resourceId String
+  userId     String
+
+  resource ResourcePost @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user     User         @relation("ResourcePostViewUser", fields: [userId], references: [id])
+
+  @@unique([resourceId, userId])
+  @@index([resourceId])
+  @@index([userId])
+  @@index([lastViewedAt])
 }
 
 model AuditLog {

@@ -9,9 +9,13 @@ import { DocumentList } from "../src/components/document-list.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
+import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
-import type { ResourceLibraryItem } from "../src/lib/resource-library-core.ts";
+import type {
+  ResourceLibraryItem,
+  ResourceViewer,
+} from "../src/lib/resource-library-core.ts";
 
 const document: ApprovalDocument = {
   id: "document-001",
@@ -71,6 +75,7 @@ const resourceItem: ResourceLibraryItem = {
   title: "업무 자료 공유",
   summary: "직원들이 참고할 공통 자료입니다.",
   category: "manual",
+  authorId: "user-001",
   authorName: "김민준",
   departmentName: "바자울",
   createdAt: "2026-05-11T12:02:00+09:00",
@@ -84,6 +89,27 @@ const resourceItem: ResourceLibraryItem = {
     },
   ],
 };
+
+const resourceViewers: ResourceViewer[] = [
+  {
+    userId: "user-002",
+    name: "박서연",
+    departmentName: "운영팀",
+    positionName: "팀장",
+    firstViewedAt: "2026-05-11T12:05:00+09:00",
+    lastViewedAt: "2026-05-11T12:10:00+09:00",
+    viewCount: 3,
+  },
+  {
+    userId: "user-003",
+    name: "이도윤",
+    departmentName: "법무팀",
+    positionName: "이사",
+    firstViewedAt: "2026-05-11T12:20:00+09:00",
+    lastViewedAt: "2026-05-11T12:20:00+09:00",
+    viewCount: 1,
+  },
+];
 
 describe("major UI rendering", () => {
   test("renders a page title with an action", () => {
@@ -324,5 +350,20 @@ describe("major UI rendering", () => {
     assert.match(html, /총 1개 · PDF 1개/);
     assert.doesNotMatch(html, /업무자료\.pdf/);
     assert.match(html, /2026\. 05\. 11\. 오후 12:02/);
+    assert.match(html, /12명/);
+  });
+
+  test("renders resource post viewers", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceViewerList, {
+        viewers: resourceViewers,
+      }),
+    );
+
+    assert.match(html, /열람 현황/);
+    assert.match(html, /확인 2명/);
+    assert.match(html, /박서연/);
+    assert.match(html, /운영팀/);
+    assert.match(html, /마지막 확인 2026\. 05\. 11\. 오후 12:10/);
   });
 });

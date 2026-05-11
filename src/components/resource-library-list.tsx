@@ -52,32 +52,25 @@ export function ResourceLibraryList({
           <span>자료명</span>
           <span>첨부파일</span>
           <span>등록 정보</span>
-          <span className="text-right">조회</span>
+          <span className="text-right">확인</span>
         </div>
         {items.map((item) => (
           <article
             key={item.id}
-            className="grid min-h-24 grid-cols-[minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] items-center gap-5 border-b border-[#eef1f5] px-5 py-3 last:border-b-0"
+            className="border-b border-[#eef1f5] last:border-b-0"
           >
-            <ResourceTitle item={item} />
-            <ResourceAttachmentSummary attachments={item.attachments} />
-            <ResourceMeta item={item} />
-            <ResourceViewCount item={item} />
+            <ResourceItemLink
+              item={item}
+              className="grid min-h-24 grid-cols-[minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] items-center gap-5 px-5 py-3"
+            />
           </article>
         ))}
       </div>
 
       <div className="divide-y divide-[#eef1f5] lg:hidden">
         {items.map((item) => (
-          <article key={item.id} className="p-3">
-            <ResourceTitle item={item} />
-            <div className="mt-3">
-              <ResourceAttachmentSummary attachments={item.attachments} />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <ResourceMeta item={item} />
-              <ResourceViewCount item={item} />
-            </div>
+          <article key={item.id}>
+            <ResourceItemLink item={item} className="block p-3" />
           </article>
         ))}
       </div>
@@ -85,13 +78,36 @@ export function ResourceLibraryList({
   );
 }
 
+function ResourceItemLink({
+  className,
+  item,
+}: {
+  className: string;
+  item: ResourceLibraryItem;
+}) {
+  return (
+    <Link
+      href={`/resources/${item.id}`}
+      aria-label={`${item.title} 자료 상세 보기`}
+      className={`group cursor-pointer transition hover:bg-[#f7fbfb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69] ${className}`}
+    >
+      <ResourceTitle item={item} />
+      <div className="mt-3 lg:mt-0">
+        <ResourceAttachmentSummary attachments={item.attachments} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 lg:mt-0 lg:contents">
+        <ResourceMeta item={item} />
+        <ResourceViewCount item={item} />
+      </div>
+    </Link>
+  );
+}
+
 function ResourceTitle({ item }: { item: ResourceLibraryItem }) {
   return (
     <div className="min-w-0">
-      <h2 className="truncate text-sm font-semibold text-[#16181d]">
-        <Link href={`/resources/${item.id}`} className="hover:underline">
-          {item.title}
-        </Link>
+      <h2 className="truncate text-sm font-semibold text-[#16181d] group-hover:underline">
+        {item.title}
       </h2>
       <p className="mt-1 line-clamp-1 text-xs leading-5 text-[#697386]">
         {item.summary}
@@ -195,7 +211,7 @@ function ResourceMeta({ item }: { item: ResourceLibraryItem }) {
 function ResourceViewCount({ item }: { item: ResourceLibraryItem }) {
   return (
     <p className="text-right text-sm font-semibold text-[#394150]">
-      {item.viewCount}
+      {item.viewCount}명
     </p>
   );
 }
