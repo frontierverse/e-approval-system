@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
+import { UserIdentity } from "@/components/user-identity";
 import {
   getAttachmentFileDisplay,
   type AttachmentFileKind,
@@ -198,9 +199,19 @@ function getAttachmentGroups(attachments: ResourceAttachment[]) {
 }
 
 function ResourceMeta({ item }: { item: ResourceLibraryItem }) {
+  const author = item.author ?? {
+    id: item.authorId,
+    name: item.authorName,
+    departmentName: item.departmentName,
+  };
+
   return (
     <div className="min-w-0 text-xs text-[#697386]">
-      <p className="truncate font-semibold text-[#394150]">{item.authorName}</p>
+      <UserIdentity
+        user={author}
+        size="xs"
+        nameClassName="text-[#394150]"
+      />
       <time className="mt-1 block truncate" dateTime={item.createdAt}>
         {formatDateTime(item.createdAt)}
       </time>

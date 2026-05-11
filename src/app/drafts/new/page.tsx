@@ -48,6 +48,9 @@ async function DraftFormContent() {
         email: candidate.email,
         departmentName: candidate.department.name,
         positionName: candidate.position.name,
+        profileImageStorageKey: candidate.profileImageStorageKey,
+        profileImageUpdatedAt:
+          candidate.profileImageUpdatedAt?.toISOString() ?? null,
       }))}
     />
   );

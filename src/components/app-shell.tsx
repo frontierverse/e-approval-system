@@ -11,6 +11,7 @@ import {
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserAvatar } from "@/components/user-avatar";
+import { UserIdentity } from "@/components/user-identity";
 import { getShellDocumentCounts } from "@/lib/approval-queries";
 import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
@@ -158,13 +159,16 @@ async function ShellUserSummary() {
 
   return (
     <>
-      <div className="hidden text-right sm:block">
-        <p className="text-sm font-medium">{user.name}</p>
-        <p className="text-xs text-[#697386]">
-          {user.department.name} · {user.position.name} · {roleLabel}
-        </p>
-      </div>
-      <UserAvatar user={user} />
+      <UserIdentity
+        user={user}
+        size="sm"
+        meta={`${user.department.name} · ${user.position.name} · ${roleLabel}`}
+        className="hidden sm:flex"
+        nameClassName="text-[#16181d]"
+      />
+      <span className="sm:hidden">
+        <UserAvatar user={user} />
+      </span>
     </>
   );
 }

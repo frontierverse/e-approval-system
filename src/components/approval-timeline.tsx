@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/status-badge";
+import { UserIdentity } from "@/components/user-identity";
 import {
   type ApprovalDocument,
   type ApprovalStep,
@@ -27,9 +28,19 @@ export function ApprovalTimeline({ document }: ApprovalTimelineProps) {
           </p>
         </div>
         {currentStep ? (
-          <span className="rounded-md border border-[#b8d9d7] bg-[#e5f2f1] px-3 py-1.5 text-xs font-semibold text-[#0f5553]">
-            현재 {currentStep.approver.name}
-          </span>
+          <div
+            className="rounded-md border border-[#b8d9d7] bg-[#e5f2f1] px-3 py-1.5"
+            aria-label={`현재 ${currentStep.approver.name}`}
+          >
+            <span className="mb-1 block text-xs font-semibold text-[#0f5553]">
+              현재 결재자
+            </span>
+            <UserIdentity
+              user={currentStep.approver}
+              size="xs"
+              nameClassName="text-[#0f5553]"
+            />
+          </div>
         ) : null}
       </div>
 
@@ -90,14 +101,12 @@ function TimelineStep({ step, isLast }: { step: ApprovalStep; isLast: boolean })
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#16181d]">
-              {step.approver.name}
-            </p>
-            <p className="mt-1 text-xs text-[#697386]">
-              {[step.approver.departmentName, step.approver.positionName]
+            <UserIdentity
+              user={step.approver}
+              meta={[step.approver.departmentName, step.approver.positionName]
                 .filter(Boolean)
                 .join(" / ")}
-            </p>
+            />
           </div>
           <StatusBadge type="step" status={step.status} />
         </div>

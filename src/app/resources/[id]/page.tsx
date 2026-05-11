@@ -4,6 +4,7 @@ import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageTitle } from "@/components/page-title";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
+import { UserIdentity } from "@/components/user-identity";
 import { deleteResourceAction } from "@/app/resources/actions";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -32,7 +33,7 @@ export default async function ResourceDetailPage({
     <>
       <PageTitle
         title={resource.title}
-        description={`${resourceCategoryLabels[resource.category]} / ${resource.authorName} · ${resource.departmentName}`}
+        description={`${resourceCategoryLabels[resource.category]} / ${resource.departmentName}`}
         action={
           <div className="flex flex-wrap justify-end gap-2">
             {resource.canManage ? (
@@ -79,7 +80,11 @@ export default async function ResourceDetailPage({
 
       <section className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <article className="min-w-0 rounded-md border border-[#d9dee7] bg-white p-5">
-          <div className="border-b border-[#eef1f5] pb-4 text-sm text-[#697386]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] pb-4 text-sm text-[#697386]">
+            <UserIdentity
+              user={resource.author}
+              meta={`${resource.departmentName} · ${resource.author.positionName ?? ""}`}
+            />
             <p>
               등록 {formatDateTime(resource.createdAt)} · 수정{" "}
               {formatDateTime(resource.updatedAt)}

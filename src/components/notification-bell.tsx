@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getNotificationTypeLabel } from "@/lib/notification-labels";
 import type { AppNotification } from "@/lib/notification-types";
 
@@ -14,6 +14,15 @@ type NotificationBellProps = {
   initialUnreadCount: number;
   initialNotifications: AppNotification[];
 };
+
+type AudioContextRef = {
+  current: AudioContext | null;
+};
+
+type AudioWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
 
 const notificationDateFormatter = new Intl.DateTimeFormat("ko-KR", {
   month: "2-digit",
@@ -29,6 +38,8 @@ export function NotificationBell({
   initialNotifications,
 }: NotificationBellProps) {
   const router = useRouter();
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastUnreadCountRef = useRef(initialUnreadCount);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [notifications, setNotifications] = useState(initialNotifications);
@@ -37,6 +48,24 @@ export function NotificationBell({
   const buttonLabel = hasUnread
     ? `알림 ${displayUnreadCount}개`
     : "알림";
+
+  useEffect(() => {
+    function unlockNotificationSound() {
+      const context = getNotificationAudioContext(audioContextRef);
+
+      if (context?.state === "suspended") {
+        void context.resume().catch(() => {});
+      }
+    }
+
+    window.addEventListener("pointerdown", unlockNotificationSound);
+    window.addEventListener("keydown", unlockNotificationSound);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockNotificationSound);
+      window.removeEventListener("keydown", unlockNotificationSound);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +86,11 @@ export function NotificationBell({
           return;
         }
 
+        if (data.unreadCount > lastUnreadCountRef.current) {
+          playNotificationSound(audioContextRef);
+        }
+
+        lastUnreadCountRef.current = data.unreadCount;
         setUnreadCount(data.unreadCount);
         setNotifications(data.notifications);
       } catch {
@@ -85,7 +119,13 @@ export function NotificationBell({
     setIsOpen(false);
 
     if (!notification.readAt) {
-      setUnreadCount((current) => Math.max(0, current - 1));
+      setUnreadCount((current) => {
+        const nextUnreadCount = Math.max(0, current - 1);
+
+        lastUnreadCountRef.current = nextUnreadCount;
+
+        return nextUnreadCount;
+      });
       setNotifications((current) =>
         current.map((item) =>
           item.id === notification.id
@@ -108,6 +148,7 @@ export function NotificationBell({
       return;
     }
 
+    lastUnreadCountRef.current = 0;
     setUnreadCount(0);
     setNotifications((current) =>
       current.map((notification) => ({
@@ -225,4 +266,66 @@ export function NotificationBell({
       ) : null}
     </div>
   );
+}
+
+function getNotificationAudioContext(ref: AudioContextRef) {
+  if (ref.current) {
+    return ref.current;
+  }
+
+  const audioWindow = window as AudioWindow;
+  const AudioContextConstructor =
+    audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
+
+  if (!AudioContextConstructor) {
+    return null;
+  }
+
+  ref.current = new AudioContextConstructor();
+
+  return ref.current;
+}
+
+function playNotificationSound(ref: AudioContextRef) {
+  const context = getNotificationAudioContext(ref);
+
+  if (!context) {
+    return;
+  }
+
+  if (context.state === "suspended") {
+    void context
+      .resume()
+      .then(() => playNotificationChime(context))
+      .catch(() => {});
+    return;
+  }
+
+  if (context.state === "running") {
+    playNotificationChime(context);
+  }
+}
+
+function playNotificationChime(context: AudioContext) {
+  const startAt = context.currentTime;
+  const gain = context.createGain();
+
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.075, startAt + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.42);
+  gain.connect(context.destination);
+
+  [
+    { frequency: 880, offset: 0 },
+    { frequency: 1174.66, offset: 0.16 },
+  ].forEach(({ frequency, offset }) => {
+    const oscillator = context.createOscillator();
+    const toneStart = startAt + offset;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, toneStart);
+    oscillator.connect(gain);
+    oscillator.start(toneStart);
+    oscillator.stop(toneStart + 0.22);
+  });
 }

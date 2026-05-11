@@ -16,7 +16,14 @@ const resourcePostInclude = {
     select: {
       id: true,
       name: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
       department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
         select: {
           name: true,
         },
@@ -50,6 +57,8 @@ const resourcePostDetailInclude = {
         select: {
           id: true,
           name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
           department: {
             select: {
               name: true,
@@ -308,6 +317,15 @@ function mapResourcePost(
     authorId: record.authorId,
     authorName: record.author.name,
     departmentName: record.author.department.name,
+    author: {
+      id: record.author.id,
+      name: record.author.name,
+      departmentName: record.author.department.name,
+      positionName: record.author.position.name,
+      profileImageStorageKey: record.author.profileImageStorageKey,
+      profileImageUpdatedAt:
+        record.author.profileImageUpdatedAt?.toISOString() ?? null,
+    },
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     viewCount: record.viewCount,
@@ -337,6 +355,9 @@ function mapResourcePostDetail(
       name: view.user.name,
       departmentName: view.user.department.name,
       positionName: view.user.position.name,
+      profileImageStorageKey: view.user.profileImageStorageKey,
+      profileImageUpdatedAt:
+        view.user.profileImageUpdatedAt?.toISOString() ?? null,
       firstViewedAt: view.firstViewedAt.toISOString(),
       lastViewedAt: view.lastViewedAt.toISOString(),
       viewCount: view.viewCount,

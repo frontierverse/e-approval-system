@@ -1,3 +1,4 @@
+import { UserIdentity } from "@/components/user-identity";
 import { formatDateTime } from "@/lib/mock-data";
 import type { ResourceViewer } from "@/lib/resource-library-core";
 
@@ -24,21 +25,11 @@ export function ResourceViewerList({ viewers }: ResourceViewerListProps) {
               key={viewer.userId}
               className="flex min-w-0 items-start gap-3 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2.5"
             >
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#24324a] text-xs font-semibold text-white">
-                {getInitial(viewer.name)}
-              </span>
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-[#16181d]">
-                    {viewer.name}
-                  </p>
-                  <span className="min-w-0 truncate text-xs text-[#697386]">
-                    {viewer.positionName}
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-xs text-[#697386]">
-                  {viewer.departmentName}
-                </p>
+                <UserIdentity
+                  user={viewer}
+                  meta={`${viewer.departmentName} · ${viewer.positionName}`}
+                />
                 <time
                   dateTime={viewer.lastViewedAt}
                   className="mt-1 block truncate text-xs text-[#394150]"
@@ -56,8 +47,4 @@ export function ResourceViewerList({ viewers }: ResourceViewerListProps) {
       )}
     </aside>
   );
-}
-
-function getInitial(name: string) {
-  return Array.from(name.trim())[0] ?? "?";
 }

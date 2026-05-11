@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-type AvatarUser = {
+export type AvatarUser = {
   id: string;
   name: string;
   profileImageStorageKey?: string | null;
@@ -8,6 +8,11 @@ type AvatarUser = {
 };
 
 const sizeClasses = {
+  xs: {
+    wrapper: "size-7 text-xs",
+    image: "size-7",
+    pixel: 28,
+  },
   sm: {
     wrapper: "size-9 text-sm",
     image: "size-9",
@@ -23,9 +28,11 @@ const sizeClasses = {
 export function UserAvatar({
   user,
   size = "sm",
+  decorative = false,
 }: {
   user: AvatarUser;
   size?: keyof typeof sizeClasses;
+  decorative?: boolean;
 }) {
   const initial = user.name.trim().slice(0, 1) || "?";
   const classNames = sizeClasses[size];
@@ -34,7 +41,7 @@ export function UserAvatar({
     return (
       <Image
         src={getProfileImageSrc(user)}
-        alt={`${user.name} 프로필 사진`}
+        alt={decorative ? "" : `${user.name} 프로필 사진`}
         width={classNames.pixel}
         height={classNames.pixel}
         unoptimized
@@ -46,7 +53,8 @@ export function UserAvatar({
   return (
     <span
       className={`${classNames.wrapper} grid place-items-center rounded-full border border-[#cfd6e3] bg-[#f7f9fc] font-semibold text-[#394150]`}
-      aria-label={`${user.name} 프로필 기본 이미지`}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : `${user.name} 프로필 기본 이미지`}
     >
       {initial}
     </span>

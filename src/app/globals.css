@@ -216,6 +216,10 @@ button:disabled {
   background-color: #1c2632;
 }
 
+.dark .hover\:bg-\[\#f7fbfb\]:hover {
+  background-color: #19212a;
+}
+
 .dark .hover\:bg-\[\#fff1f1\]:hover {
   background-color: #4a1d1d;
 }

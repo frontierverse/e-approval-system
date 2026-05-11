@@ -108,7 +108,7 @@ function UserListItem({
 }) {
   return (
     <AdminEditModal
-      title={`${user.name} 사용자 수정`}
+      title="사용자 수정"
       description="권한, 상태, 조직 정보와 비밀번호를 수정합니다."
       trigger={
         <div className="flex flex-wrap items-center justify-between gap-4">

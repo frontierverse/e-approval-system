@@ -6,6 +6,15 @@ export type ResourceAttachment = {
   size: number;
 };
 
+export type ResourceUser = {
+  id: string;
+  name: string;
+  departmentName: string;
+  positionName?: string;
+  profileImageStorageKey?: string | null;
+  profileImageUpdatedAt?: string | null;
+};
+
 export type ResourceLibraryItem = {
   id: string;
   title: string;
@@ -14,6 +23,7 @@ export type ResourceLibraryItem = {
   authorId: string;
   authorName: string;
   departmentName: string;
+  author: ResourceUser;
   createdAt: string;
   updatedAt: string;
   viewCount: number;
@@ -27,6 +37,8 @@ export type ResourceViewer = {
   name: string;
   departmentName: string;
   positionName: string;
+  profileImageStorageKey?: string | null;
+  profileImageUpdatedAt?: string | null;
   firstViewedAt: string;
   lastViewedAt: string;
   viewCount: number;

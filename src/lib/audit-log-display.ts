@@ -60,6 +60,30 @@ export const auditActionBadgeClasses: Record<AuditActionValue, string> = {
   DELETE_RESOURCE: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
 };
 
+export const auditActionTextClasses: Record<AuditActionValue, string> = {
+  CREATE_DRAFT: "text-[#245d8f]",
+  UPDATE_DRAFT: "text-[#3f5f8c]",
+  DELETE_DRAFT: "text-[#8a1f1f]",
+  SUBMIT: "text-[#196b69]",
+  APPROVE: "text-[#22633a]",
+  REJECT: "text-[#8a1f1f]",
+  RECALL: "text-[#82620d]",
+  COMPLETE: "text-[#17643b]",
+  CREATE_USER: "text-[#624093]",
+  UPDATE_USER: "text-[#624093]",
+  CREATE_DEPARTMENT: "text-[#245d8f]",
+  UPDATE_DEPARTMENT: "text-[#245d8f]",
+  CREATE_POSITION: "text-[#4e6c26]",
+  UPDATE_POSITION: "text-[#4e6c26]",
+  CREATE_TEMPLATE: "text-[#4f4b9a]",
+  UPDATE_TEMPLATE: "text-[#4f4b9a]",
+  UPDATE_ATTACHMENT_POLICY: "text-[#82620d]",
+  CHANGE_PASSWORD: "text-[#394150]",
+  CREATE_RESOURCE: "text-[#196b69]",
+  UPDATE_RESOURCE: "text-[#3f5f8c]",
+  DELETE_RESOURCE: "text-[#8a1f1f]",
+};
+
 export function getAuditActionLabel(action: string) {
   return isAuditActionValue(action) ? auditActionLabels[action] : action;
 }
@@ -68,6 +92,12 @@ export function getAuditActionBadgeClass(action: string) {
   return isAuditActionValue(action)
     ? auditActionBadgeClasses[action]
     : "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]";
+}
+
+export function getAuditActionTextClass(action: string) {
+  return isAuditActionValue(action)
+    ? auditActionTextClasses[action]
+    : "text-[#394150]";
 }
 
 export function isAuditActionValue(action: string): action is AuditActionValue {

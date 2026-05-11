@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { UserIdentity } from "@/components/user-identity";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
@@ -50,6 +51,8 @@ type ApprovalCandidate = {
   email: string;
   departmentName: string;
   positionName: string;
+  profileImageStorageKey?: string | null;
+  profileImageUpdatedAt?: string | null;
 };
 
 type ExistingAttachment = {
@@ -275,29 +278,29 @@ function DraftFormFields({
       className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
       <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div>
-            <label
-              htmlFor="title"
-              className="text-sm font-semibold text-[#394150]"
-            >
-              제목
-            </label>
-            <input
-              id="title"
-              name="title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="제목을 입력하세요"
-              className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-                titleHasError ? ` ${errorBorderClass}` : ""
-              }`}
-            />
-            {errors?.title ? (
-              <p className="mt-2 text-sm text-[#8a1f1f]">{errors.title}</p>
-            ) : null}
-          </div>
+        <div>
+          <label
+            htmlFor="title"
+            className="text-sm font-semibold text-[#394150]"
+          >
+            제목
+          </label>
+          <input
+            id="title"
+            name="title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="제목을 입력하세요"
+            className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+              titleHasError ? ` ${errorBorderClass}` : ""
+            }`}
+          />
+          {errors?.title ? (
+            <p className="mt-2 text-sm text-[#8a1f1f]">{errors.title}</p>
+          ) : null}
+        </div>
 
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <div>
             <label
               htmlFor="category"
@@ -319,41 +322,41 @@ function DraftFormFields({
               <p className="mt-2 text-sm text-[#8a1f1f]">{errors.category}</p>
             ) : null}
           </div>
-        </div>
 
-        <div className="mt-5">
-          <label
-            htmlFor="templateId"
-            className="text-sm font-semibold text-[#394150]"
-          >
-            문서 양식
-          </label>
-          <select
-            id="templateId"
-            name="templateId"
-            value={templateId}
-            onChange={(event) => setTemplateId(event.target.value)}
-            className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-              templateHasError ? ` ${errorBorderClass}` : ""
-            }`}
+          <div>
+            <label
+              htmlFor="templateId"
+              className="text-sm font-semibold text-[#394150]"
             >
-            {templates.length === 0 ? (
-              <option value="">사용 가능한 양식 없음</option>
+              문서 양식
+            </label>
+            <select
+              id="templateId"
+              name="templateId"
+              value={templateId}
+              onChange={(event) => setTemplateId(event.target.value)}
+              className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+                templateHasError ? ` ${errorBorderClass}` : ""
+              }`}
+            >
+              {templates.length === 0 ? (
+                <option value="">사용 가능한 양식 없음</option>
+              ) : null}
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            {errors?.templateId ? (
+              <p className="mt-2 text-sm text-[#8a1f1f]">{errors.templateId}</p>
             ) : null}
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-          {errors?.templateId ? (
-            <p className="mt-2 text-sm text-[#8a1f1f]">{errors.templateId}</p>
-          ) : null}
-          {templates.length === 0 ? (
-            <p className="mt-2 text-sm text-[#8a1f1f]">
-              관리자에게 활성 문서 양식을 요청하세요.
-            </p>
-          ) : null}
+            {templates.length === 0 ? (
+              <p className="mt-2 text-sm text-[#8a1f1f]">
+                관리자에게 활성 문서 양식을 요청하세요.
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-5">
@@ -571,14 +574,10 @@ function DraftFormFields({
                 key={candidate.id}
                 className="flex items-center justify-between gap-3 rounded-md border border-[#eef1f5] p-3"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#16181d]">
-                    {candidate.name}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-[#697386]">
-                    {candidate.departmentName} · {candidate.positionName}
-                  </p>
-                </div>
+                <UserIdentity
+                  user={candidate}
+                  meta={`${candidate.departmentName} · ${candidate.positionName}`}
+                />
                 <button
                   type="button"
                   disabled={pending}
@@ -616,12 +615,13 @@ function DraftFormFields({
                   />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#16181d]">
-                        {index + 1}차 / {approver.name}
+                      <p className="mb-2 text-xs font-semibold text-[#697386]">
+                        {index + 1}차
                       </p>
-                      <p className="mt-1 truncate text-xs text-[#697386]">
-                        {approver.departmentName} · {approver.positionName}
-                      </p>
+                      <UserIdentity
+                        user={approver}
+                        meta={`${approver.departmentName} · ${approver.positionName}`}
+                      />
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button

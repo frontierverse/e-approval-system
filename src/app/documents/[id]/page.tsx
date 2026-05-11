@@ -7,6 +7,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
+import { UserIdentity } from "@/components/user-identity";
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { requireUser } from "@/lib/auth";
@@ -214,7 +215,17 @@ export default async function DocumentDetailPage({
             </div>
 
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-              <SummaryItem label="작성자" value={document.drafter.name} />
+              <SummaryItem
+                label="작성자"
+                value={
+                  <UserIdentity
+                    user={document.drafter}
+                    meta={[document.drafter.departmentName, document.drafter.positionName]
+                      .filter(Boolean)
+                      .join(" / ")}
+                  />
+                }
+              />
               <SummaryItem
                 label="작성자 소속"
                 value={
@@ -228,7 +239,12 @@ export default async function DocumentDetailPage({
                 label="현재 결재자"
                 value={
                   currentApprover
-                    ? `${currentApprover.name} / ${currentApprover.positionName}`
+                    ? (
+                        <UserIdentity
+                          user={currentApprover}
+                          meta={currentApprover.positionName}
+                        />
+                      )
                     : "-"
                 }
               />
@@ -308,9 +324,19 @@ export default async function DocumentDetailPage({
                   <p className="mt-2 text-sm text-[#394150]">
                     {history.description}
                   </p>
-                  <p className="mt-1 text-xs text-[#697386]">
-                    {history.actorName ?? "-"}
-                  </p>
+                  <div className="mt-2">
+                    {history.actor ? (
+                      <UserIdentity
+                        user={history.actor}
+                        size="xs"
+                        nameClassName="text-[#394150]"
+                      />
+                    ) : (
+                      <p className="text-xs text-[#697386]">
+                        {history.actorName ?? "-"}
+                      </p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ol>
@@ -331,7 +357,13 @@ export default async function DocumentDetailPage({
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+function SummaryItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs font-semibold text-[#697386]">{label}</dt>

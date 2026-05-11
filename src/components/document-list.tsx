@@ -8,11 +8,15 @@ import {
 } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/status-badge";
 import { getDocumentArchiveInfo } from "@/lib/document-archive-policy";
+import { UserIdentity } from "@/components/user-identity";
 
 type DocumentListProps = {
   documents: ApprovalDocument[];
   empty: React.ReactNode;
 };
+
+const documentListGridClass =
+  "grid grid-cols-[minmax(18rem,2fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_5rem_7rem_7rem]";
 
 export function DocumentList({ documents, empty }: DocumentListProps) {
   if (documents.length === 0) {
@@ -22,23 +26,23 @@ export function DocumentList({ documents, empty }: DocumentListProps) {
   return (
     <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="border-b border-[#d9dee7] bg-[#fbfcfd] text-xs font-semibold text-[#697386]">
-            <tr>
-              <th className="px-5 py-3">제목</th>
-              <th className="px-5 py-3">작성자</th>
-              <th className="px-5 py-3">현재 결재자</th>
-              <th className="px-5 py-3">진행</th>
-              <th className="px-5 py-3">상태</th>
-              <th className="px-5 py-3">일자</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#eef1f5]">
+        <div className="min-w-[58rem] text-left text-sm">
+          <div
+            className={`${documentListGridClass} border-b border-[#d9dee7] bg-[#fbfcfd] text-xs font-semibold text-[#697386]`}
+          >
+            <div className="px-5 py-3">제목</div>
+            <div className="px-5 py-3">작성자</div>
+            <div className="px-5 py-3">현재 결재자</div>
+            <div className="px-5 py-3">진행</div>
+            <div className="px-5 py-3">상태</div>
+            <div className="px-5 py-3">일자</div>
+          </div>
+          <div className="divide-y divide-[#eef1f5]">
             {documents.map((document) => (
               <DocumentTableRow key={document.id} document={document} />
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
       <div className="divide-y divide-[#eef1f5] lg:hidden">
@@ -57,39 +61,45 @@ function DocumentTableRow({ document }: { document: ApprovalDocument }) {
   const archiveInfo = getDocumentArchiveInfo(document);
 
   return (
-    <tr className="align-top transition hover:bg-[#fbfcfd]">
-      <td className="px-5 py-4">
-        <Link
-          href={`/documents/${document.id}`}
-          className="font-semibold text-[#16181d] hover:text-[#0f5553]"
-        >
+    <div
+      className={`${documentListGridClass} group relative items-start transition hover:bg-[#f7fbfb]`}
+    >
+      <Link
+        href={`/documents/${document.id}`}
+        aria-label={`${document.title} 문서 보기`}
+        className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
+      >
+        <span className="sr-only">{document.title} 문서 보기</span>
+      </Link>
+      <div className="px-5 py-4">
+        <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
           {document.title}
-        </Link>
+        </p>
         <p className="mt-1 text-xs text-[#697386]">
           {getDocumentNumberLabel(document)} · {document.category}
         </p>
         <ArchiveHint info={archiveInfo} />
-      </td>
-      <td className="px-5 py-4">
+      </div>
+      <div className="px-5 py-4">
         <PersonText person={document.drafter} />
-      </td>
-      <td className="px-5 py-4">
+      </div>
+      <div className="px-5 py-4">
         {currentApprover ? (
           <PersonText person={currentApprover} />
         ) : (
           <span className="text-[#697386]">-</span>
         )}
-      </td>
-      <td className="px-5 py-4 text-[#394150]">
+      </div>
+      <div className="px-5 py-4 text-[#394150]">
         {progress.approved}/{progress.total}
-      </td>
-      <td className="px-5 py-4">
+      </div>
+      <div className="px-5 py-4">
         <StatusBadge type="document" status={document.status} />
-      </td>
-      <td className="px-5 py-4 text-[#394150]">
+      </div>
+      <div className="px-5 py-4 text-[#394150]">
         {formatDate(getDocumentActivityDate(document))}
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
@@ -99,15 +109,15 @@ function DocumentCard({ document }: { document: ApprovalDocument }) {
   const archiveInfo = getDocumentArchiveInfo(document);
 
   return (
-    <article className="p-4">
+    <Link
+      href={`/documents/${document.id}`}
+      className="group block p-4 transition hover:bg-[#f7fbfb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link
-            href={`/documents/${document.id}`}
-            className="font-semibold text-[#16181d] hover:text-[#0f5553]"
-          >
+          <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
             {document.title}
-          </Link>
+          </p>
           <p className="mt-1 text-xs text-[#697386]">
             {getDocumentNumberLabel(document)} · {document.category}
           </p>
@@ -146,18 +156,18 @@ function DocumentCard({ document }: { document: ApprovalDocument }) {
           </dd>
         </div>
       </dl>
-    </article>
+    </Link>
   );
 }
 
 function PersonText({ person }: { person: UserSummary }) {
   return (
-    <div>
-      <p className="font-medium text-[#16181d]">{person.name}</p>
-      <p className="mt-1 text-xs text-[#697386]">
-        {[person.departmentName, person.positionName].filter(Boolean).join(" / ")}
-      </p>
-    </div>
+    <UserIdentity
+      user={person}
+      meta={[person.departmentName, person.positionName]
+        .filter(Boolean)
+        .join(" / ")}
+    />
   );
 }
 

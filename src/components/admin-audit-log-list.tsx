@@ -7,6 +7,7 @@ import {
   type AuditActionValue,
 } from "@/lib/audit-log-display";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import { UserIdentity } from "@/components/user-identity";
 
 type AdminAuditLog = {
   id: string;
@@ -16,8 +17,11 @@ type AdminAuditLog = {
   message: string | null;
   createdAt: Date;
   actor: {
+    id: string;
     name: string;
     email: string;
+    profileImageStorageKey?: string | null;
+    profileImageUpdatedAt?: Date | string | null;
   };
   document: {
     title: string;
@@ -112,12 +116,34 @@ export function AdminAuditLogList({
                 <p className="text-sm font-semibold text-[#16181d]">
                   {log.message || getFallbackAuditMessage(log)}
                 </p>
-                <p className="mt-1 truncate text-xs text-[#697386]">
-                  {log.actor.name} · {log.actor.email}
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-[#697386]">
+                  <UserIdentity
+                    user={log.actor}
+                    size="xs"
+                    nameClassName="text-[#697386]"
+                  />
+                  <span aria-hidden="true">·</span>
+                  <span className="min-w-0 truncate">{log.actor.email}</span>
                   {log.document
-                    ? ` · ${log.document.documentNo ?? "문서번호 없음"} · ${log.document.title}`
-                    : ` · ${getTargetLabel(log.targetType)} ${log.targetId}`}
-                </p>
+                    ? (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>{log.document.documentNo ?? "문서번호 없음"}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="min-w-0 truncate">
+                            {log.document.title}
+                          </span>
+                        </>
+                      )
+                    : (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>
+                            {getTargetLabel(log.targetType)} {log.targetId}
+                          </span>
+                        </>
+                      )}
+                </div>
               </div>
             </li>
           ))}
@@ -424,7 +450,7 @@ function hasAuditLogFilter(filters: AdminAuditLogFilters) {
 }
 
 function getFallbackAuditMessage(log: AdminAuditLog) {
-  return `${log.actor.name} 사용자가 ${getAuditActionLabel(log.action)} 작업을 수행했습니다.`;
+  return `${getAuditActionLabel(log.action)} 작업을 수행했습니다.`;
 }
 
 function getTargetLabel(targetType: string) {

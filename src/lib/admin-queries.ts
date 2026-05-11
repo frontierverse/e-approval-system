@@ -339,8 +339,11 @@ const adminAuditLogSelect = {
   createdAt: true,
   actor: {
     select: {
+      id: true,
       name: true,
       email: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
     },
   },
   document: {

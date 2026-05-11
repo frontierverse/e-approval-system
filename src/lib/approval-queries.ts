@@ -22,6 +22,8 @@ const documentInclude = {
     select: {
       id: true,
       name: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
       department: {
         select: {
           name: true,
@@ -40,6 +42,8 @@ const documentInclude = {
         select: {
           id: true,
           name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
           department: {
             select: {
               name: true,
@@ -63,6 +67,8 @@ const documentInclude = {
         select: {
           id: true,
           name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
         },
       },
     },
@@ -430,7 +436,17 @@ export async function getRecentHistories(
     id: record.id,
     actorId: record.actorId,
     actorName: record.actor.name,
+    actor: {
+      id: record.actor.id,
+      name: record.actor.name,
+      departmentName: "",
+      positionName: "",
+      profileImageStorageKey: record.actor.profileImageStorageKey,
+      profileImageUpdatedAt:
+        record.actor.profileImageUpdatedAt?.toISOString() ?? null,
+    },
     action: auditActionLabels[record.action],
+    actionValue: record.action,
     createdAt: record.createdAt.toISOString(),
     description: record.message ?? "",
     documentId: record.documentId ?? record.targetId,
@@ -467,6 +483,8 @@ export async function getApprovalCandidateUsers(currentUserId: string) {
       id: true,
       name: true,
       email: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
       department: {
         select: {
           name: true,
@@ -846,6 +864,9 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
       name: record.drafter.name,
       departmentName: record.drafter.department.name,
       positionName: record.drafter.position.name,
+      profileImageStorageKey: record.drafter.profileImageStorageKey,
+      profileImageUpdatedAt:
+        record.drafter.profileImageUpdatedAt?.toISOString() ?? null,
     },
     drafterId: record.drafterId,
     createdAt: record.createdAt.toISOString(),
@@ -877,6 +898,9 @@ function toApprovalStep(
       name: record.approver.name,
       departmentName: record.approver.department.name,
       positionName: record.approver.position.name,
+      profileImageStorageKey: record.approver.profileImageStorageKey,
+      profileImageUpdatedAt:
+        record.approver.profileImageUpdatedAt?.toISOString() ?? null,
     },
     status: approvalStepStatusMap[record.status],
     actedAt: record.actedAt?.toISOString() ?? null,
@@ -891,6 +915,15 @@ function toApprovalHistory(
     id: record.id,
     actorId: record.actorId,
     actorName: record.actor.name,
+    actor: {
+      id: record.actor.id,
+      name: record.actor.name,
+      departmentName: "",
+      positionName: "",
+      profileImageStorageKey: record.actor.profileImageStorageKey,
+      profileImageUpdatedAt:
+        record.actor.profileImageUpdatedAt?.toISOString() ?? null,
+    },
     action: auditActionLabels[record.action],
     createdAt: record.createdAt.toISOString(),
     description: record.message ?? "",

@@ -29,6 +29,8 @@ export type User = {
   departmentId: string;
   positionId: string;
   role: UserRole;
+  profileImageStorageKey?: string | null;
+  profileImageUpdatedAt?: string | null;
 };
 
 export type UserSummary = {
@@ -36,6 +38,8 @@ export type UserSummary = {
   name: string;
   departmentName: string;
   positionName: string;
+  profileImageStorageKey?: string | null;
+  profileImageUpdatedAt?: string | null;
 };
 
 export type ApprovalStep = {
@@ -52,6 +56,7 @@ export type ApprovalHistory = {
   id: string;
   actorId: string;
   actorName: string;
+  actor?: UserSummary;
   action: string;
   createdAt: string;
   description: string;
@@ -362,6 +367,7 @@ export const documents: ApprovalDocument[] = legacyDocuments.map((document) => (
   histories: document.histories.map((history) => ({
     ...history,
     actorName: getUserSummary(history.actorId).name,
+    actor: getUserSummary(history.actorId),
   })),
 }));
 
@@ -403,6 +409,8 @@ function getUserSummary(userId: string): UserSummary {
     name: user?.name ?? "-",
     departmentName: department?.name ?? "",
     positionName: position?.name ?? "",
+    profileImageStorageKey: user?.profileImageStorageKey ?? null,
+    profileImageUpdatedAt: user?.profileImageUpdatedAt ?? null,
   };
 }
 

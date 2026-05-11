@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import type { FormEvent } from "react";
 import type { ApprovalDecisionState } from "@/app/documents/[id]/actions";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
@@ -16,9 +17,29 @@ const initialState: ApprovalDecisionState = {};
 export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+
+    if (!(submitter instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const message =
+      submitter.value === "approve"
+        ? "이 문서를 승인하시겠습니까?"
+        : submitter.value === "reject"
+          ? "이 문서를 반려하시겠습니까?"
+          : "";
+
+    if (message && !window.confirm(message)) {
+      event.preventDefault();
+    }
+  }
+
   return (
     <form
       action={formAction}
+      onSubmit={handleSubmit}
       className="rounded-md border border-[#d9dee7] bg-white p-5"
     >
       <h2 className="text-base font-semibold">결재 처리</h2>

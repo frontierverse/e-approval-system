@@ -54,6 +54,9 @@ export default async function EditDraftPage({
           email: candidate.email,
           departmentName: candidate.department.name,
           positionName: candidate.position.name,
+          profileImageStorageKey: candidate.profileImageStorageKey,
+          profileImageUpdatedAt:
+            candidate.profileImageUpdatedAt?.toISOString() ?? null,
         }))}
         initialValues={{
           title: document.title,

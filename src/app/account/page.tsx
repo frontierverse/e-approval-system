@@ -3,6 +3,7 @@ import { ChangePasswordForm } from "@/components/change-password-form";
 import { PageTitle } from "@/components/page-title";
 import { ProfileImageForm } from "@/components/profile-image-form";
 import { UserAvatar } from "@/components/user-avatar";
+import { UserIdentity } from "@/components/user-identity";
 import { requireUser } from "@/lib/auth";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
@@ -32,7 +33,10 @@ async function AccountContent() {
           <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
             <UserAvatar user={user} size="lg" />
             <dl className="grid flex-1 gap-4 text-sm sm:grid-cols-2">
-              <SummaryItem label="이름" value={user.name} />
+              <SummaryItem
+                label="이름"
+                value={<UserIdentity user={user} />}
+              />
               <SummaryItem label="이메일" value={user.email} />
               <SummaryItem label="부서" value={user.department.name} />
               <SummaryItem label="직급" value={user.position.name} />
@@ -66,7 +70,13 @@ async function AccountContent() {
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+function SummaryItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs font-semibold text-[#697386]">{label}</dt>
