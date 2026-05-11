@@ -32,6 +32,8 @@ export default async function ResourcesPage({
     pageSize,
   });
   const hasActiveFilter = Boolean(filters.query || filters.category !== "all");
+  const firstItemNumber =
+    resourcePage.total - (resourcePage.page - 1) * resourcePage.pageSize;
 
   return (
     <>
@@ -130,6 +132,7 @@ export default async function ResourcesPage({
 
       <ResourceLibraryList
         items={resourcePage.items}
+        firstItemNumber={firstItemNumber}
         hasActiveFilter={hasActiveFilter}
       />
 
