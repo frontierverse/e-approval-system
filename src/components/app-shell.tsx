@@ -48,10 +48,7 @@ export function AppShell({
     <div className="min-h-screen bg-[#f6f7f9] text-[#16181d]">
       <header className="sticky top-0 z-30 border-b border-[#d9dee7] bg-white/95 backdrop-blur">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-md bg-[#196b69] text-sm font-bold text-white">
-              결
-            </span>
+          <Link href="/" className="flex items-center">
             <span className="min-w-0">
               <span className="block text-base font-semibold leading-5">
                 {appName}
