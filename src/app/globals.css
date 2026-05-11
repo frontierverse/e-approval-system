@@ -216,6 +216,10 @@ button:disabled {
   background-color: #1c2632;
 }
 
+.dark .hover\:bg-\[\#e7f5f3\]:hover {
+  background-color: #19212a;
+}
+
 .dark .hover\:bg-\[\#f7fbfb\]:hover {
   background-color: #19212a;
 }
@@ -228,6 +232,10 @@ button:disabled {
   border-color: #3f8a85;
 }
 
+.dark .hover\:border-\[\#c7dfdc\]:hover {
+  border-color: #344b55;
+}
+
 .dark .hover\:text-\[\#16181d\]:hover {
   color: #f4f7fb;
 }
@@ -235,4 +243,13 @@ button:disabled {
 .dark .hover\:text-\[\#0f5553\]:hover,
 .dark .hover\:text-\[\#143f3e\]:hover {
   color: #b9f3ee;
+}
+
+.dark .hover\:text-\[\#12343b\]:hover,
+.dark .group:hover .group-hover\:text-\[\#12343b\] {
+  color: #b9f3ee;
+}
+
+.dark .group:hover .group-hover\:text-\[\#44515f\] {
+  color: #c8d3df;
 }

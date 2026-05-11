@@ -42,7 +42,7 @@ export function StatusBadge(props: StatusBadgeProps) {
   return (
     <span
       className={[
-        "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold",
+        "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
         tone,
       ].join(" ")}
     >

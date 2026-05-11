@@ -142,7 +142,7 @@ describe("major UI rendering", () => {
     const documentBadgeHtml = renderToStaticMarkup(
       React.createElement(StatusBadge, {
         type: "document",
-        status: "approved",
+        status: "submitted",
       }),
     );
     const stepBadgeHtml = renderToStaticMarkup(
@@ -152,7 +152,9 @@ describe("major UI rendering", () => {
       }),
     );
 
-    assert.match(documentBadgeHtml, /승인완료/);
+    assert.match(documentBadgeHtml, /결재 요청/);
+    assert.match(documentBadgeHtml, /shrink-0/);
+    assert.match(documentBadgeHtml, /whitespace-nowrap/);
     assert.match(stepBadgeHtml, /결재대기/);
   });
 
@@ -325,6 +327,9 @@ describe("major UI rendering", () => {
     assert.match(html, /이도윤 · approver@example\.com/);
     assert.match(html, /승인/);
     assert.match(html, /25건 중 13-24건 표시/);
+    assert.match(html, /처음/);
+    assert.match(html, /aria-current="page"[^>]*>2</);
+    assert.match(html, /끝/);
     assert.match(
       html,
       /href="\/admin\?tab=audit&amp;q=approval&amp;dateFrom=2026-05-01&amp;dateTo=2026-05-08&amp;user=user-003&amp;status=APPROVE"/,

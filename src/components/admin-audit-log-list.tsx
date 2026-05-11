@@ -348,6 +348,8 @@ function AuditLogPagination({
     return null;
   }
 
+  const pageItems = getVisibleAuditLogPages(page, totalPages);
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1f5] px-5 py-4">
       <p className="text-sm text-[#697386]">
@@ -356,21 +358,50 @@ function AuditLogPagination({
           : "표시할 감사 로그가 없습니다."}
       </p>
       {totalPages > 1 ? (
-        <nav aria-label="감사 로그 페이지" className="flex gap-2">
+        <nav
+          aria-label="감사 로그 페이지"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <PaginationLink
+            disabled={page <= 1}
+            href={getAuditLogHref(filters, 1)}
+          >
+            처음
+          </PaginationLink>
           <PaginationLink
             disabled={page <= 1}
             href={getAuditLogHref(filters, page - 1)}
           >
             이전
           </PaginationLink>
-          <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-3 text-sm font-semibold text-[#394150]">
-            {page} / {totalPages}
-          </span>
+          {pageItems.map((item, index) =>
+            item === "ellipsis" ? (
+              <span
+                key={`audit-page-ellipsis-${index}`}
+                className="inline-flex h-10 min-w-10 items-center justify-center px-1 text-sm font-semibold text-[#697386]"
+              >
+                ...
+              </span>
+            ) : (
+              <PaginationPageLink
+                key={item}
+                current={item === page}
+                filters={filters}
+                page={item}
+              />
+            ),
+          )}
           <PaginationLink
             disabled={page >= totalPages}
             href={getAuditLogHref(filters, page + 1)}
           >
             다음
+          </PaginationLink>
+          <PaginationLink
+            disabled={page >= totalPages}
+            href={getAuditLogHref(filters, totalPages)}
+          >
+            끝
           </PaginationLink>
         </nav>
       ) : null}
@@ -407,6 +438,84 @@ function PaginationLink({
       {children}
     </Link>
   );
+}
+
+function PaginationPageLink({
+  current,
+  filters,
+  page,
+}: {
+  current: boolean;
+  filters: AdminAuditLogFilters;
+  page: number;
+}) {
+  if (current) {
+    return (
+      <span
+        aria-current="page"
+        className="inline-flex size-10 items-center justify-center rounded-md border border-[#196b69] bg-[#196b69] text-sm font-semibold text-white"
+      >
+        {page}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={getAuditLogHref(filters, page)}
+      className={buttonClass(
+        buttonStyles.base,
+        buttonStyles.neutral,
+        "size-10 px-0 text-sm",
+      )}
+    >
+      {page}
+    </Link>
+  );
+}
+
+type AuditLogPageItem = number | "ellipsis";
+
+function getVisibleAuditLogPages(
+  currentPage: number,
+  totalPages: number,
+): AuditLogPageItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage]);
+
+  for (let offset = -1; offset <= 1; offset += 1) {
+    pages.add(currentPage + offset);
+  }
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 3);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 1);
+  }
+
+  const sortedPages = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  return sortedPages.reduce<AuditLogPageItem[]>((items, page, index) => {
+    const previousPage = sortedPages[index - 1];
+
+    if (previousPage && page - previousPage > 1) {
+      items.push("ellipsis");
+    }
+
+    items.push(page);
+    return items;
+  }, []);
 }
 
 function getAuditLogHref(filters: AdminAuditLogFilters, page: number) {
