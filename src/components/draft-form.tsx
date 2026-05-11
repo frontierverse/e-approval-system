@@ -192,26 +192,24 @@ function DraftFormFields({
   }, [errors, selectedFiles]);
 
   function addApprover(approverId: string) {
-    setSelectedApproverIds((current) => {
-      if (current.includes(approverId)) {
-        return current;
-      }
+    if (selectedApproverIds.includes(approverId)) {
+      return;
+    }
 
-      const candidate = approverCandidates.find(
-        (approver) => approver.id === approverId,
-      );
-      const policyError =
-        candidate && current.length === 0
-          ? getApprovalLinePolicyError([candidate])
-          : null;
+    const candidate = approverCandidates.find(
+      (approver) => approver.id === approverId,
+    );
+    const policyError =
+      candidate && selectedApproverIds.length === 0
+        ? getApprovalLinePolicyError([candidate])
+        : null;
 
-      if (policyError) {
-        window.alert(policyError);
-        return current;
-      }
+    if (policyError) {
+      window.alert(policyError);
+      return;
+    }
 
-      return [...current, approverId];
-    });
+    setSelectedApproverIds([...selectedApproverIds, approverId]);
   }
 
   function removeApprover(approverId: string) {
@@ -221,31 +219,33 @@ function DraftFormFields({
   }
 
   function moveApprover(approverId: string, direction: -1 | 1) {
-    setSelectedApproverIds((current) => {
-      const index = current.indexOf(approverId);
-      const nextIndex = index + direction;
+    const index = selectedApproverIds.indexOf(approverId);
+    const nextIndex = index + direction;
 
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) {
-        return current;
-      }
+    if (
+      index < 0 ||
+      nextIndex < 0 ||
+      nextIndex >= selectedApproverIds.length
+    ) {
+      return;
+    }
 
-      const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      const policyError = getApprovalLinePolicyError(
-        next
-          .map((id) =>
-            approverCandidates.find((candidate) => candidate.id === id),
-          )
-          .filter(isApprovalCandidate),
-      );
+    const next = [...selectedApproverIds];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    const policyError = getApprovalLinePolicyError(
+      next
+        .map((id) =>
+          approverCandidates.find((candidate) => candidate.id === id),
+        )
+        .filter(isApprovalCandidate),
+    );
 
-      if (policyError) {
-        window.alert(policyError);
-        return current;
-      }
+    if (policyError) {
+      window.alert(policyError);
+      return;
+    }
 
-      return next;
-    });
+    setSelectedApproverIds(next);
   }
 
   function handleAttachmentChange(fileList: FileList | null) {
