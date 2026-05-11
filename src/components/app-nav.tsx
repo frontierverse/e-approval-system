@@ -9,38 +9,59 @@ export type NavigationItem = {
   href: string;
 };
 
-type AppNavProps = {
+export type NavigationGroup = {
+  label: string;
   items: NavigationItem[];
+};
+
+type AppNavProps = {
+  groups: NavigationGroup[];
   variant: "mobile" | "desktop";
 };
 
-export function AppNav({ items, variant }: AppNavProps) {
+export function AppNav({ groups, variant }: AppNavProps) {
   const pathname = usePathname();
 
   if (variant === "mobile") {
     return (
       <nav className="scrollbar-none flex h-[3.25rem] gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 sm:gap-2 sm:px-6 lg:hidden">
-        {items.map((item) => (
-          <NavLink
-            key={item.href}
-            item={item}
-            active={isActivePath(pathname, item.href)}
-            variant="mobile"
-          />
+        {groups.map((group) => (
+          <div key={group.label} className="flex shrink-0 items-center gap-1">
+            <span className="px-2 text-[11px] font-semibold text-[#697386]">
+              {group.label}
+            </span>
+            {group.items.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={isActivePath(pathname, item.href)}
+                variant="mobile"
+              />
+            ))}
+          </div>
         ))}
       </nav>
     );
   }
 
   return (
-    <nav className="space-y-1">
-      {items.map((item) => (
-        <NavLink
-          key={item.href}
-          item={item}
-          active={isActivePath(pathname, item.href)}
-          variant="desktop"
-        />
+    <nav className="space-y-5">
+      {groups.map((group) => (
+        <section key={group.label} aria-label={group.label}>
+          <p className="px-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#697386]">
+            {group.label}
+          </p>
+          <div className="mt-2 space-y-1 border-l border-[#d9dee7] pl-3">
+            {group.items.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={isActivePath(pathname, item.href)}
+                variant="desktop"
+              />
+            ))}
+          </div>
+        </section>
       ))}
     </nav>
   );

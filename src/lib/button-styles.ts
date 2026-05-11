@@ -9,6 +9,8 @@ export const buttonStyles = {
     "border border-[#e4b4ad] bg-white text-[#9f241a] hover:bg-[#fff1ef]",
   neutral:
     "border border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
+  cancel:
+    "border border-[#cfd6e3] bg-[#eef1f5] text-[#394150] hover:bg-[#f7f9fc]",
   filter: "bg-[#475569] text-white hover:bg-[#334155]",
 } as const;
 

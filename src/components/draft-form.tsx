@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   type FormEvent,
   useActionState,
@@ -32,6 +33,7 @@ type DraftFormProps = {
   };
   approverCandidates: ApprovalCandidate[];
   action?: DraftFormAction;
+  cancelHref?: string;
   initialValues?: DraftFormValues;
   existingAttachments?: ExistingAttachment[];
   mode?: "create" | "edit";
@@ -69,6 +71,7 @@ export function DraftForm({
   attachmentPolicy,
   approverCandidates,
   action = createDraftAction,
+  cancelHref,
   initialValues: providedInitialValues,
   existingAttachments = [],
   mode = "create",
@@ -86,6 +89,7 @@ export function DraftForm({
       approverCandidates={approverCandidates}
       action={action}
       errors={state.errors}
+      cancelHref={cancelHref}
       existingAttachments={existingAttachments}
       formAction={formAction}
       initialValues={initialValues}
@@ -99,6 +103,7 @@ function DraftFormFields({
   templates,
   attachmentPolicy,
   approverCandidates,
+  cancelHref,
   errors,
   existingAttachments = [],
   formAction,
@@ -461,6 +466,18 @@ function DraftFormFields({
         ) : null}
 
         <div className="mt-6 flex flex-wrap justify-end gap-2">
+          {cancelHref ? (
+            <Link
+              href={cancelHref}
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.cancel,
+                "h-10 px-4 text-sm",
+              )}
+            >
+              취소
+            </Link>
+          ) : null}
           <button
             type="submit"
             name="intent"

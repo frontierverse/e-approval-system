@@ -40,6 +40,7 @@ export default async function EditDraftPage({
 
       <DraftForm
         action={updateDraftAction.bind(null, document.id)}
+        cancelHref={`/documents/${document.id}`}
         mode="edit"
         templates={templates.map((template) => ({
           id: template.id,

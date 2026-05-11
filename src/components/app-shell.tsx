@@ -3,7 +3,11 @@ import { Suspense } from "react";
 import { UserRole } from "@/generated/prisma/client";
 import { logoutAction } from "@/app/login/actions";
 import { AppMain } from "@/components/app-main";
-import { AppNav, type NavigationItem } from "@/components/app-nav";
+import {
+  AppNav,
+  type NavigationGroup,
+  type NavigationItem,
+} from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserAvatar } from "@/components/user-avatar";
@@ -12,17 +16,25 @@ import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
 import { getNotificationSummary } from "@/lib/notifications";
 
-const baseNavigationItems: NavigationItem[] = [
-  { label: "홈", href: "/" },
+const approvalNavigationItems: NavigationItem[] = [
+  { label: "전자결재 홈", href: "/" },
   { label: "기안작성", href: "/drafts/new" },
   { label: "임시저장함", href: "/drafts" },
   { label: "받은결재함", href: "/inbox" },
   { label: "제출 문서함", href: "/sent" },
   { label: "완료문서함", href: "/completed" },
+];
+
+const resourceNavigationItems: NavigationItem[] = [
+  { label: "자료실", href: "/resources" },
+];
+
+const accountNavigationItems: NavigationItem[] = [
   { label: "내 계정", href: "/account" },
 ];
 
 const adminNavigationItem: NavigationItem = { label: "관리자", href: "/admin" };
+const fallbackNavigationGroups = getNavigationGroups(false);
 
 export function AppShell({
   userId,
@@ -69,7 +81,7 @@ export function AppShell({
         </div>
 
         <Suspense
-          fallback={<AppNav items={baseNavigationItems} variant="mobile" />}
+          fallback={<AppNav groups={fallbackNavigationGroups} variant="mobile" />}
         >
           <ShellNavigation variant="mobile" />
         </Suspense>
@@ -78,7 +90,7 @@ export function AppShell({
       <div className="mx-auto flex w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:overflow-hidden lg:px-8">
         <aside className="scrollbar-stable hidden w-64 shrink-0 border-r border-[#d9dee7] pr-5 lg:block lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <Suspense
-            fallback={<AppNav items={baseNavigationItems} variant="desktop" />}
+            fallback={<AppNav groups={fallbackNavigationGroups} variant="desktop" />}
           >
             <ShellNavigation variant="desktop" />
           </Suspense>
@@ -105,12 +117,34 @@ async function ShellNavigation({
   variant: "mobile" | "desktop";
 }) {
   const user = await getCurrentUser();
-  const items =
-    user?.role === UserRole.ADMIN
-      ? [...baseNavigationItems, adminNavigationItem]
-      : baseNavigationItems;
+  const groups = getNavigationGroups(user?.role === UserRole.ADMIN);
 
-  return <AppNav items={items} variant={variant} />;
+  return <AppNav groups={groups} variant={variant} />;
+}
+
+function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
+  return [
+    {
+      label: "전자결재",
+      items: approvalNavigationItems,
+    },
+    {
+      label: "자료실",
+      items: resourceNavigationItems,
+    },
+    {
+      label: "내 정보",
+      items: accountNavigationItems,
+    },
+    ...(isAdmin
+      ? [
+          {
+            label: "관리",
+            items: [adminNavigationItem],
+          },
+        ]
+      : []),
+  ];
 }
 
 async function ShellUserSummary() {

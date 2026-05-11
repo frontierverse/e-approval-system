@@ -13,7 +13,9 @@ const adapter = new PrismaPg({
 export const prisma =
   globalForPrisma.prisma &&
   "attachmentPolicy" in globalForPrisma.prisma &&
-  "notification" in globalForPrisma.prisma
+  "notification" in globalForPrisma.prisma &&
+  "resourcePost" in globalForPrisma.prisma &&
+  "resourceAttachment" in globalForPrisma.prisma
     ? globalForPrisma.prisma
     : new PrismaClient({ adapter });
 

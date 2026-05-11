@@ -17,6 +17,9 @@ export const auditActionLabels = {
   UPDATE_TEMPLATE: "양식 수정",
   UPDATE_ATTACHMENT_POLICY: "첨부 정책 수정",
   CHANGE_PASSWORD: "비밀번호 변경",
+  CREATE_RESOURCE: "자료 업로드",
+  UPDATE_RESOURCE: "자료 수정",
+  DELETE_RESOURCE: "자료 삭제",
 } as const;
 
 export type AuditActionValue = keyof typeof auditActionLabels;
@@ -52,6 +55,9 @@ export const auditActionBadgeClasses: Record<AuditActionValue, string> = {
   UPDATE_TEMPLATE: "border-[#c9c8f0] bg-[#f2f2ff] text-[#4f4b9a]",
   UPDATE_ATTACHMENT_POLICY: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
   CHANGE_PASSWORD: "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]",
+  CREATE_RESOURCE: "border-[#b8d9d7] bg-[#eef7f6] text-[#196b69]",
+  UPDATE_RESOURCE: "border-[#c9d6ea] bg-[#f3f7fc] text-[#3f5f8c]",
+  DELETE_RESOURCE: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
 };
 
 export function getAuditActionLabel(action: string) {

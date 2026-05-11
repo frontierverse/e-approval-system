@@ -27,8 +27,8 @@ export function AttachmentFileRow({
   const file = getAttachmentFileDisplay(fileName);
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <span
           aria-hidden="true"
           className={[

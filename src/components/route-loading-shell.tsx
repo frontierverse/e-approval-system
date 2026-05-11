@@ -7,7 +7,14 @@ export function RouteLoadingShell({
 }: {
   title: string;
   description: string;
-  variant?: "home" | "document" | "draft" | "admin" | "account" | "notifications";
+  variant?:
+    | "home"
+    | "document"
+    | "draft"
+    | "admin"
+    | "account"
+    | "notifications"
+    | "resources";
 }) {
   return (
     <>
@@ -20,7 +27,14 @@ export function RouteLoadingShell({
 export function RouteContentSkeleton({
   variant,
 }: {
-  variant: "home" | "document" | "draft" | "admin" | "account" | "notifications";
+  variant:
+    | "home"
+    | "document"
+    | "draft"
+    | "admin"
+    | "account"
+    | "notifications"
+    | "resources";
 }) {
   if (variant === "home") {
     return <HomeSkeleton />;
@@ -40,6 +54,10 @@ export function RouteContentSkeleton({
 
   if (variant === "notifications") {
     return <NotificationSkeleton />;
+  }
+
+  if (variant === "resources") {
+    return <ResourcesSkeleton />;
   }
 
   return <DocumentSkeleton />;
@@ -268,6 +286,28 @@ function NotificationSkeleton() {
         </div>
       ))}
     </section>
+  );
+}
+
+function ResourcesSkeleton() {
+  return (
+    <>
+      <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto_auto]">
+          <FieldSkeleton label="검색" />
+          <FieldSkeleton label="분류" />
+          <div className="flex items-end">
+            <SkeletonBlock className="h-10 w-full min-w-20" />
+          </div>
+          <div className="hidden items-end lg:flex">
+            <SkeletonBlock className="h-10 w-full min-w-20" />
+          </div>
+        </div>
+        <SkeletonBlock className="mt-3 h-3 w-20" />
+      </section>
+
+      <PanelSkeleton title="자료 목록" rows={4} />
+    </>
   );
 }
 

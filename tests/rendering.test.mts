@@ -8,8 +8,10 @@ import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
+import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
+import type { ResourceLibraryItem } from "../src/lib/resource-library-core.ts";
 
 const document: ApprovalDocument = {
   id: "document-001",
@@ -62,6 +64,25 @@ const document: ApprovalDocument = {
     },
   ],
   histories: [],
+};
+
+const resourceItem: ResourceLibraryItem = {
+  id: "resource-test-001",
+  title: "업무 자료 공유",
+  summary: "직원들이 참고할 공통 자료입니다.",
+  category: "manual",
+  authorName: "김민준",
+  departmentName: "바자울",
+  createdAt: "2026-05-11T12:02:00+09:00",
+  updatedAt: "2026-05-11T12:02:00+09:00",
+  viewCount: 12,
+  pinned: true,
+  attachments: [
+    {
+      fileName: "업무자료.pdf",
+      size: 1024,
+    },
+  ],
 };
 
 describe("major UI rendering", () => {
@@ -286,5 +307,22 @@ describe("major UI rendering", () => {
       html,
       /href="\/admin\?tab=audit&amp;q=approval&amp;dateFrom=2026-05-01&amp;dateTo=2026-05-08&amp;user=user-003&amp;status=APPROVE&amp;page=3"/,
     );
+  });
+
+  test("renders resource library items with attachment context", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceLibraryList, {
+        items: [resourceItem],
+        hasActiveFilter: false,
+      }),
+    );
+
+    assert.match(html, /자료명/);
+    assert.match(html, /업무 자료 공유/);
+    assert.doesNotMatch(html, /업무 매뉴얼/);
+    assert.doesNotMatch(html, /고정/);
+    assert.match(html, /총 1개 · PDF 1개/);
+    assert.doesNotMatch(html, /업무자료\.pdf/);
+    assert.match(html, /2026\. 05\. 11\. 오후 12:02/);
   });
 });
