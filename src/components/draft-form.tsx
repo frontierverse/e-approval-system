@@ -12,6 +12,7 @@ import {
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { UserIdentity } from "@/components/user-identity";
+import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
@@ -51,6 +52,7 @@ type ApprovalCandidate = {
   email: string;
   departmentName: string;
   positionName: string;
+  positionLevel: number;
   profileImageStorageKey?: string | null;
   profileImageUpdatedAt?: string | null;
 };
@@ -190,9 +192,26 @@ function DraftFormFields({
   }, [errors, selectedFiles]);
 
   function addApprover(approverId: string) {
-    setSelectedApproverIds((current) =>
-      current.includes(approverId) ? current : [...current, approverId],
-    );
+    setSelectedApproverIds((current) => {
+      if (current.includes(approverId)) {
+        return current;
+      }
+
+      const candidate = approverCandidates.find(
+        (approver) => approver.id === approverId,
+      );
+      const policyError =
+        candidate && current.length === 0
+          ? getApprovalLinePolicyError([candidate])
+          : null;
+
+      if (policyError) {
+        window.alert(policyError);
+        return current;
+      }
+
+      return [...current, approverId];
+    });
   }
 
   function removeApprover(approverId: string) {
@@ -212,6 +231,18 @@ function DraftFormFields({
 
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      const policyError = getApprovalLinePolicyError(
+        next
+          .map((id) =>
+            approverCandidates.find((candidate) => candidate.id === id),
+          )
+          .filter(isApprovalCandidate),
+      );
+
+      if (policyError) {
+        window.alert(policyError);
+        return current;
+      }
 
       return next;
     });
@@ -682,7 +713,8 @@ function DraftFormFields({
             <p className="mt-3 text-sm text-[#8a1f1f]">{errors.approvers}</p>
           ) : null}
           <p className="mt-3 text-xs leading-5 text-[#697386]">
-            작성자 본인은 제외되며 같은 결재자는 한 번만 지정됩니다.
+            작성자 본인은 제외되며 같은 결재자는 한 번만 지정됩니다. 첫 결재자는
+            팀장급 이하로 지정하세요.
           </p>
         </div>
       </aside>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { UserStatus } from "@/generated/prisma/client";
 import { createApprovalDocument } from "@/lib/approval-mutations";
+import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles,
@@ -82,6 +83,12 @@ export async function createDraftAction(
     select: {
       id: true,
       name: true,
+      position: {
+        select: {
+          name: true,
+          level: true,
+        },
+      },
     },
   });
 
@@ -100,6 +107,23 @@ export async function createDraftAction(
   const orderedApprovers = values.approverIds
     .map((approverId) => approverById.get(approverId))
     .filter(isApprover);
+  const approvalLineError = getApprovalLinePolicyError(
+    orderedApprovers.map((approver) => ({
+      name: approver.name,
+      positionName: approver.position.name,
+      positionLevel: approver.position.level,
+    })),
+  );
+
+  if (approvalLineError) {
+    return {
+      values,
+      errors: {
+        approvers: approvalLineError,
+      },
+    };
+  }
+
   const attachments = attachmentResult.files.map((file) => ({
     originalName: file.originalName,
     storageProvider: file.storageProvider,
@@ -148,7 +172,23 @@ export async function createDraftAction(
 }
 
 function isApprover(
-  approver: { id: string; name: string } | undefined,
-): approver is { id: string; name: string } {
+  approver:
+    | {
+        id: string;
+        name: string;
+        position: {
+          name: string;
+          level: number;
+        };
+      }
+    | undefined,
+): approver is {
+  id: string;
+  name: string;
+  position: {
+    name: string;
+    level: number;
+  };
+} {
   return Boolean(approver);
 }

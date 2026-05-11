@@ -54,6 +54,7 @@ export default async function EditDraftPage({
           email: candidate.email,
           departmentName: candidate.department.name,
           positionName: candidate.position.name,
+          positionLevel: candidate.position.level,
           profileImageStorageKey: candidate.profileImageStorageKey,
           profileImageUpdatedAt:
             candidate.profileImageUpdatedAt?.toISOString() ?? null,

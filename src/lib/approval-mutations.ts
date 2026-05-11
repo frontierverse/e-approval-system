@@ -8,6 +8,7 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { getApprovalDecisionPlan } from "@/lib/approval-flow-core";
+import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
@@ -187,6 +188,12 @@ export async function submitDraftDocument(
               select: {
                 id: true,
                 name: true,
+                position: {
+                  select: {
+                    name: true,
+                    level: true,
+                  },
+                },
               },
             },
           },
@@ -221,6 +228,21 @@ export async function submitDraftDocument(
       return {
         ok: false,
         message: "결재자를 1명 이상 지정해야 결재 요청할 수 있습니다.",
+      };
+    }
+
+    const approvalLineError = getApprovalLinePolicyError(
+      document.approvalSteps.map((step) => ({
+        name: step.approver.name,
+        positionName: step.approver.position.name,
+        positionLevel: step.approver.position.level,
+      })),
+    );
+
+    if (approvalLineError) {
+      return {
+        ok: false,
+        message: approvalLineError,
       };
     }
 
