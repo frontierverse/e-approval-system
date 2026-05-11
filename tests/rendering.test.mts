@@ -6,10 +6,12 @@ import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
 import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
+import { DocumentAuditHistory } from "../src/components/document-audit-history.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
+import { RouteLoadingShell } from "../src/components/route-loading-shell.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
 import type {
@@ -138,6 +140,24 @@ describe("major UI rendering", () => {
     assert.match(html, /새로 도착한 결재 요청/);
   });
 
+  test("renders document detail loading skeleton", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(RouteLoadingShell, {
+        title: "문서 상세",
+        description: "문서 상태, 본문, 첨부파일과 결재선을 불러오는 중입니다.",
+        variant: "documentDetail",
+      }),
+    );
+
+    assert.match(html, /문서 상세/);
+    assert.match(html, /문서 상태/);
+    assert.match(html, /문서 본문/);
+    assert.match(html, /첨부파일/);
+    assert.match(html, /감사 이력/);
+    assert.match(html, /결재선/);
+    assert.doesNotMatch(html, /업무 홈/);
+  });
+
   test("renders document and step status badges", () => {
     const documentBadgeHtml = renderToStaticMarkup(
       React.createElement(StatusBadge, {
@@ -173,6 +193,7 @@ describe("major UI rendering", () => {
     assert.match(html, /김민준/);
     assert.match(html, /이도윤/);
     assert.match(html, /1\/2/);
+    assert.match(html, /whitespace-nowrap px-5 py-4 tabular-nums/);
     assert.doesNotMatch(html, /문서가 없습니다/);
   });
 
@@ -184,9 +205,46 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /결재 진행/);
-    assert.match(html, /현재 이도윤/);
+    assert.match(html, /이도윤/);
     assert.match(html, /확인했습니다\./);
     assert.match(html, /현재 결재 차례입니다\./);
+    assert.doesNotMatch(html, /현재 결재자/);
+  });
+
+  test("renders audit history as a timeline", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DocumentAuditHistory, {
+        histories: [
+          {
+            id: "history-001",
+            actorId: "user-001",
+            actorName: "김민준",
+            actor: document.drafter,
+            action: "결재 요청",
+            createdAt: "2026-05-02T00:00:00.000Z",
+            description: "문서를 결재 요청했습니다.",
+          },
+          {
+            id: "history-002",
+            actorId: "user-002",
+            actorName: "박서연",
+            actor: document.approvalSteps[0].approver,
+            action: "승인",
+            createdAt: "2026-05-03T00:00:00.000Z",
+            description: "1차 결재자가 승인했습니다.",
+          },
+        ],
+      }),
+    );
+
+    assert.match(html, /감사 이력/);
+    assert.match(html, /aria-label="감사 이력 타임라인"/);
+    assert.match(html, /결재 요청/);
+    assert.match(html, /문서를 결재 요청했습니다\./);
+    assert.match(html, /김민준/);
+    assert.match(html, /승인/);
+    assert.match(html, /박서연/);
+    assert.match(html, /left-\[0\.9375rem\]/);
   });
 
   test("renders attachment file icons by extension", () => {
@@ -350,6 +408,7 @@ describe("major UI rendering", () => {
 
     assert.match(html, /자료명/);
     assert.match(html, /업무 자료 공유/);
+    assert.match(html, /tabular-nums text-sm font-semibold text-\[#697386\]/);
     assert.doesNotMatch(html, /업무 매뉴얼/);
     assert.doesNotMatch(html, /고정/);
     assert.match(html, /총 1개 · PDF 1개/);

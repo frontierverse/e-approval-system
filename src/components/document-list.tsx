@@ -16,7 +16,7 @@ type DocumentListProps = {
 };
 
 const documentListGridClass =
-  "grid grid-cols-[minmax(18rem,2fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_5rem_7rem_7rem]";
+  "grid grid-cols-[minmax(14rem,2fr)_minmax(8rem,1fr)_minmax(7.5rem,1fr)_4.5rem_6rem_8.5rem]";
 
 export function DocumentList({ documents, empty }: DocumentListProps) {
   if (documents.length === 0) {
@@ -26,7 +26,7 @@ export function DocumentList({ documents, empty }: DocumentListProps) {
   return (
     <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
       <div className="hidden overflow-x-auto lg:block">
-        <div className="min-w-[58rem] text-left text-sm">
+        <div className="min-w-[52rem] text-left text-sm">
           <div
             className={`${documentListGridClass} border-b border-[#d9dee7] bg-[#fbfcfd] text-xs font-semibold text-[#697386]`}
           >
@@ -35,7 +35,7 @@ export function DocumentList({ documents, empty }: DocumentListProps) {
             <div className="px-5 py-3">현재 결재자</div>
             <div className="px-5 py-3">진행</div>
             <div className="px-5 py-3">상태</div>
-            <div className="px-5 py-3">일자</div>
+            <div className="px-5 py-3 whitespace-nowrap">일자</div>
           </div>
           <div className="divide-y divide-[#eef1f5]">
             {documents.map((document) => (
@@ -96,7 +96,7 @@ function DocumentTableRow({ document }: { document: ApprovalDocument }) {
       <div className="px-5 py-4">
         <StatusBadge type="document" status={document.status} />
       </div>
-      <div className="px-5 py-4 text-[#394150]">
+      <div className="whitespace-nowrap px-5 py-4 tabular-nums text-[#394150]">
         {formatDate(getDocumentActivityDate(document))}
       </div>
     </div>
@@ -151,7 +151,7 @@ function DocumentCard({ document }: { document: ApprovalDocument }) {
         </div>
         <div>
           <dt className="text-xs font-semibold text-[#697386]">일자</dt>
-          <dd className="mt-1 text-[#394150]">
+          <dd className="mt-1 whitespace-nowrap tabular-nums text-[#394150]">
             {formatDate(getDocumentActivityDate(document))}
           </dd>
         </div>

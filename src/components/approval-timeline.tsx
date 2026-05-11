@@ -14,9 +14,6 @@ export function ApprovalTimeline({ document }: ApprovalTimelineProps) {
   const rejectedStep = document.approvalSteps.find(
     (step) => step.status === "rejected",
   );
-  const currentStep = document.approvalSteps.find(
-    (step) => step.status === "pending",
-  );
 
   return (
     <article className="rounded-md border border-[#d9dee7] bg-white p-5">
@@ -27,21 +24,6 @@ export function ApprovalTimeline({ document }: ApprovalTimelineProps) {
             결재 순서와 현재 처리해야 할 단계를 확인합니다.
           </p>
         </div>
-        {currentStep ? (
-          <div
-            className="rounded-md border border-[#b8d9d7] bg-[#e5f2f1] px-3 py-1.5"
-            aria-label={`현재 ${currentStep.approver.name}`}
-          >
-            <span className="mb-1 block text-xs font-semibold text-[#0f5553]">
-              현재 결재자
-            </span>
-            <UserIdentity
-              user={currentStep.approver}
-              size="xs"
-              nameClassName="text-[#0f5553]"
-            />
-          </div>
-        ) : null}
       </div>
 
       {rejectedStep?.comment ? (

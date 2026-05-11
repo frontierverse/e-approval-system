@@ -4,6 +4,7 @@ import { ApprovalDecisionForm } from "@/components/approval-decision-form";
 import { ApprovalTimeline } from "@/components/approval-timeline";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { DocumentAuditHistory } from "@/components/document-audit-history";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
@@ -305,42 +306,7 @@ export default async function DocumentDetailPage({
             )}
           </article>
 
-          <article className="rounded-md border border-[#d9dee7] bg-white p-5">
-            <h2 className="text-base font-semibold">감사 이력</h2>
-            <ol className="mt-5 space-y-4">
-              {document.histories.map((history) => (
-                <li
-                  key={history.id}
-                  className="rounded-md border border-[#eef1f5] px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-[#16181d]">
-                      {history.action}
-                    </p>
-                    <time className="text-xs text-[#697386]">
-                      {formatDateTime(history.createdAt)}
-                    </time>
-                  </div>
-                  <p className="mt-2 text-sm text-[#394150]">
-                    {history.description}
-                  </p>
-                  <div className="mt-2">
-                    {history.actor ? (
-                      <UserIdentity
-                        user={history.actor}
-                        size="xs"
-                        nameClassName="text-[#394150]"
-                      />
-                    ) : (
-                      <p className="text-xs text-[#697386]">
-                        {history.actorName ?? "-"}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </article>
+          <DocumentAuditHistory histories={document.histories} />
         </div>
 
         <aside className="space-y-6">

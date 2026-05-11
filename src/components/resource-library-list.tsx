@@ -125,7 +125,7 @@ function ResourceItemLink({
 
 function ResourceNumber({ displayNumber }: { displayNumber: number }) {
   return (
-    <span className="mb-3 inline-flex h-7 items-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-2 text-xs font-semibold text-[#394150] lg:mb-0 lg:justify-center">
+    <span className="mb-3 block tabular-nums text-sm font-semibold text-[#697386] lg:mb-0 lg:text-center">
       {displayNumber}
     </span>
   );

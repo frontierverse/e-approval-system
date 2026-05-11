@@ -14,7 +14,8 @@ export function RouteLoadingShell({
     | "admin"
     | "account"
     | "notifications"
-    | "resources";
+    | "resources"
+    | "documentDetail";
 }) {
   return (
     <>
@@ -34,7 +35,8 @@ export function RouteContentSkeleton({
     | "admin"
     | "account"
     | "notifications"
-    | "resources";
+    | "resources"
+    | "documentDetail";
 }) {
   if (variant === "home") {
     return <HomeSkeleton />;
@@ -58,6 +60,10 @@ export function RouteContentSkeleton({
 
   if (variant === "resources") {
     return <ResourcesSkeleton />;
+  }
+
+  if (variant === "documentDetail") {
+    return <DocumentDetailSkeleton />;
   }
 
   return <DocumentSkeleton />;
@@ -156,6 +162,80 @@ export function DocumentResultsSkeleton() {
         </div>
       </section>
     </>
+  );
+}
+
+function DocumentDetailSkeleton() {
+  return (
+    <section className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <div className="space-y-6">
+        <article className="rounded-md border border-[#d9dee7] bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#eef1f5] pb-4">
+            <div>
+              <p className="text-sm font-semibold text-[#697386]">문서 상태</p>
+              <div className="mt-2 flex items-center gap-3">
+                <SkeletonBlock className="h-7 w-20" />
+                <SkeletonBlock className="h-4 w-16" />
+              </div>
+              <SkeletonBlock className="mt-3 h-2 w-48 max-w-full rounded-full" />
+            </div>
+            <div className="grid gap-2 text-right">
+              {[0, 1, 2].map((row) => (
+                <SkeletonBlock key={row} className="h-4 w-32" />
+              ))}
+            </div>
+          </div>
+
+          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+            {["작성자", "작성자 소속", "카테고리", "현재 결재자", "첨부파일", "보관 정책"].map(
+              (label, index) => (
+                <div key={label}>
+                  <dt className="text-xs font-semibold text-[#697386]">
+                    {label}
+                  </dt>
+                  <dd className="mt-2">
+                    {index === 0 || index === 3 ? (
+                      <PersonSkeleton />
+                    ) : (
+                      <SkeletonBlock className="h-4 w-36 max-w-full" />
+                    )}
+                  </dd>
+                </div>
+              ),
+            )}
+          </dl>
+        </article>
+
+        <PanelSkeleton title="문서 본문" rows={4} />
+        <PanelSkeleton title="첨부파일" rows={2} />
+        <PanelSkeleton title="감사 이력" rows={3} />
+      </div>
+
+      <aside className="space-y-6">
+        <article className="rounded-md border border-[#d9dee7] bg-white p-5">
+          <p className="text-base font-semibold text-[#16181d]">결재 처리</p>
+          <SkeletonBlock className="mt-4 h-20 w-full" />
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <SkeletonBlock className="h-10 w-full" />
+            <SkeletonBlock className="h-10 w-full" />
+          </div>
+        </article>
+        <article className="rounded-md border border-[#d9dee7] bg-white p-5">
+          <p className="text-base font-semibold text-[#16181d]">결재선</p>
+          <div className="mt-5 space-y-4">
+            {[0, 1, 2].map((row) => (
+              <div
+                key={row}
+                className="rounded-md border border-[#eef1f5] p-3"
+              >
+                <PersonSkeleton />
+                <SkeletonBlock className="mt-3 h-6 w-16" />
+              </div>
+            ))}
+          </div>
+        </article>
+      </aside>
+    </section>
   );
 }
 
