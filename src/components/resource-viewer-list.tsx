@@ -27,7 +27,12 @@ export function ResourceViewerList({ viewers }: ResourceViewerListProps) {
             >
               <div className="min-w-0 flex-1">
                 <UserIdentity
-                  user={viewer}
+                  user={{
+                    id: viewer.userId,
+                    name: viewer.name,
+                    profileImageStorageKey: viewer.profileImageStorageKey,
+                    profileImageUpdatedAt: viewer.profileImageUpdatedAt,
+                  }}
                   meta={`${viewer.departmentName} · ${viewer.positionName}`}
                 />
                 <time
