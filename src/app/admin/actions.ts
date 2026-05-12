@@ -77,7 +77,7 @@ export async function createAdminUserAction(
   const values = getUserFormValues(formData);
   const password = String(formData.get("password") ?? "");
   const error = await validateUserFormValues(values, {
-    requireEmail: true,
+    requireEmail: false,
     requirePassword: true,
     password,
   });
@@ -89,14 +89,16 @@ export async function createAdminUserAction(
     };
   }
 
-  const exists = await prisma.user.findUnique({
-    where: {
-      email: values.email,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const exists = values.email
+    ? await prisma.user.findUnique({
+        where: {
+          email: values.email,
+        },
+        select: {
+          id: true,
+        },
+      })
+    : null;
 
   if (exists) {
     return {
@@ -108,7 +110,7 @@ export async function createAdminUserAction(
   const user = await prisma.user.create({
     data: {
       name: values.name,
-      email: values.email,
+      email: values.email || null,
       passwordHash: hashPassword(password),
       role: values.role,
       status: values.status,

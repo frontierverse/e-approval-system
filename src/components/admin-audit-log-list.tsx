@@ -19,7 +19,7 @@ type AdminAuditLog = {
   actor: {
     id: string;
     name: string;
-    email: string;
+    email: string | null;
     profileImageStorageKey?: string | null;
     profileImageUpdatedAt?: Date | string | null;
   };
@@ -32,7 +32,7 @@ type AdminAuditLog = {
 type AdminAuditActor = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
 };
 
 type AdminAuditLogFilters = {
@@ -123,7 +123,9 @@ export function AdminAuditLogList({
                     nameClassName="text-[#697386]"
                   />
                   <span aria-hidden="true">·</span>
-                  <span className="min-w-0 truncate">{log.actor.email}</span>
+                  <span className="min-w-0 truncate">
+                    {formatOptionalEmail(log.actor.email)}
+                  </span>
                   {log.document
                     ? (
                         <>
@@ -262,7 +264,7 @@ function AuditLogFilters({
             ) : null}
             {actors.map((actor) => (
               <option key={actor.id} value={actor.id}>
-                {actor.name} · {actor.email}
+                {actor.name} · {formatOptionalEmail(actor.email)}
               </option>
             ))}
           </select>
@@ -573,6 +575,10 @@ function getTargetLabel(targetType: string) {
   };
 
   return labels[targetType] ?? targetType;
+}
+
+function formatOptionalEmail(email: string | null) {
+  return email || "이메일 미등록";
 }
 
 function formatAuditLogDate(date: Date) {

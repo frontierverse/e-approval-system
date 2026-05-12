@@ -37,7 +37,7 @@ async function AccountContent() {
                 label="이름"
                 value={<UserIdentity user={user} />}
               />
-              <SummaryItem label="이메일" value={user.email} />
+              <SummaryItem label="이메일" value={user.email ?? "미등록"} />
               <SummaryItem label="부서" value={user.department.name} />
               <SummaryItem label="직급" value={user.position.name} />
             </dl>

@@ -26,7 +26,7 @@ type AdminUserManagementProps = {
 type AdminUser = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   role: "USER" | "ADMIN";
   status: "ACTIVE" | "INACTIVE";
   profileImageStorageKey: string | null;
@@ -119,7 +119,8 @@ function UserListItem({
                 {user.name}
               </p>
               <p className="mt-1 truncate text-xs text-[#697386]">
-                {user.email} · {user.department.name} / {user.position.name}
+                {formatUserEmail(user.email)} · {user.department.name} /{" "}
+                {user.position.name}
               </p>
               <p className="mt-1 text-xs text-[#697386]">
                 작성 문서 {user._count.draftedDocuments}건 · 결재 참여{" "}
@@ -177,10 +178,11 @@ function CreateUserForm({
         />
         <TextField
           label="이메일"
+          description="선택"
           name="email"
           type="email"
           defaultValue={state.values?.email}
-          placeholder="user@company.local"
+          placeholder="입력하지 않아도 생성됩니다"
         />
         <TextField
           label="초기 비밀번호"
@@ -253,7 +255,7 @@ function EditUserForm({
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-[#697386]">계정</p>
-          <input type="hidden" name="email" value={user.email} />
+          <input type="hidden" name="email" value={user.email ?? ""} />
           <div className="mt-2 flex min-w-0 items-start gap-3">
             <UserAvatar user={user} />
             <div className="min-w-0 flex-1">
@@ -263,7 +265,7 @@ function EditUserForm({
                 className="h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#16181d] outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
               />
               <p className="mt-1 truncate text-xs text-[#697386]">
-                {user.email}
+                {formatUserEmail(user.email)}
               </p>
               <p className="mt-1 text-xs text-[#697386]">
                 {user.profileImageStorageKey ? "프로필 이미지 등록" : "기본 이미지"}
@@ -365,6 +367,10 @@ function RolePill({ role }: { role: "USER" | "ADMIN" }) {
       {role === "ADMIN" ? "관리자" : "사용자"}
     </span>
   );
+}
+
+function formatUserEmail(email: string | null) {
+  return email || "이메일 미등록";
 }
 
 function StatusPill({ active }: { active: boolean }) {

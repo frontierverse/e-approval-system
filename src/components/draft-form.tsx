@@ -49,7 +49,7 @@ type DraftFormAction = (
 type ApprovalCandidate = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   departmentName: string;
   positionName: string;
   positionLevel: number;
@@ -177,7 +177,7 @@ function DraftFormFields({
 
       return [
         candidate.name,
-        candidate.email,
+        candidate.email ?? "",
         candidate.departmentName,
         candidate.positionName,
       ]
