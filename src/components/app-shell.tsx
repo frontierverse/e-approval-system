@@ -173,16 +173,16 @@ async function ShellUserSummary() {
 function ShellUserFallback() {
   return (
     <>
-      <div className="hidden text-right sm:block">
-        <p className="text-sm font-medium text-[#8a95a6]">불러오는 중</p>
-        <p className="text-xs text-[#a7b0bf]">계정 정보 확인 중</p>
-      </div>
       <span
         className="grid size-9 place-items-center rounded-full border border-[#cfd6e3] bg-[#f7f9fc] text-sm font-semibold text-[#8a95a6]"
         aria-label="계정 정보 불러오는 중"
       >
         -
       </span>
+      <div className="hidden text-left sm:block">
+        <p className="text-sm font-medium text-[#8a95a6]">불러오는 중</p>
+        <p className="text-xs text-[#a7b0bf]">계정 정보 확인 중</p>
+      </div>
     </>
   );
 }
