@@ -292,7 +292,7 @@ export default async function DocumentDetailPage({
                             mimeType={attachment.mimeType}
                             previewHref={`/attachments/${attachment.id}/preview`}
                           />
-                          <Link
+                          <a
                             href={`/attachments/${attachment.id}`}
                             className={buttonClass(
                               buttonStyles.base,
@@ -301,7 +301,7 @@ export default async function DocumentDetailPage({
                             )}
                           >
                             다운로드
-                          </Link>
+                          </a>
                         </div>
                       }
                     />

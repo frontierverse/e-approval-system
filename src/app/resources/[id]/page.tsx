@@ -115,7 +115,7 @@ export default async function ResourceDetailPage({
                               fileName={attachment.fileName}
                               previewHref={`/resources/attachments/${attachment.id}/preview`}
                             />
-                            <Link
+                            <a
                               href={`/resources/attachments/${attachment.id}`}
                               className={buttonClass(
                                 buttonStyles.base,
@@ -124,7 +124,7 @@ export default async function ResourceDetailPage({
                               )}
                             >
                               다운로드
-                            </Link>
+                            </a>
                           </div>
                         ) : null
                       }
