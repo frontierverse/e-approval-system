@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ApprovalDecisionForm } from "@/components/approval-decision-form";
 import { ApprovalTimeline } from "@/components/approval-timeline";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { AttachmentPreviewButton } from "@/components/attachment-preview-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentAuditHistory } from "@/components/document-audit-history";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
@@ -284,16 +285,24 @@ export default async function DocumentDetailPage({
                       fileName={attachment.originalName}
                       size={attachment.size}
                       action={
-                        <Link
-                          href={`/attachments/${attachment.id}`}
-                          className={buttonClass(
-                            buttonStyles.base,
-                            buttonStyles.neutral,
-                            "h-9 px-3 text-sm",
-                          )}
-                        >
-                          다운로드
-                        </Link>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <AttachmentPreviewButton
+                            downloadHref={`/attachments/${attachment.id}`}
+                            fileName={attachment.originalName}
+                            mimeType={attachment.mimeType}
+                            previewHref={`/attachments/${attachment.id}/preview`}
+                          />
+                          <Link
+                            href={`/attachments/${attachment.id}`}
+                            className={buttonClass(
+                              buttonStyles.base,
+                              buttonStyles.neutral,
+                              "h-9 px-3 text-sm",
+                            )}
+                          >
+                            다운로드
+                          </Link>
+                        </div>
                       }
                     />
                   </li>

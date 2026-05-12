@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  getAttachmentPreviewContentType,
+  getAttachmentPreviewKind,
+  isPreviewableAttachmentFile,
+} from "../src/lib/attachment-preview.ts";
+import {
   getAttachmentFileDisplay,
   mergeAttachmentSelections,
 } from "../src/lib/file-display.ts";
@@ -32,5 +37,17 @@ describe("attachment file display", () => {
       { lastModified: 2, name: "b.xlsx", size: 200 },
       { lastModified: 3, name: "c.hwp", size: 300 },
     ]);
+  });
+
+  test("detects attachments that can be previewed inline", () => {
+    assert.equal(getAttachmentPreviewKind("견적서.pdf"), "pdf");
+    assert.equal(getAttachmentPreviewKind("사진.PNG"), "image");
+    assert.equal(getAttachmentPreviewKind("capture", "image/webp"), "image");
+    assert.equal(isPreviewableAttachmentFile("보고서.hwp"), false);
+    assert.equal(isPreviewableAttachmentFile("vector.svg", "image/svg+xml"), false);
+    assert.equal(
+      getAttachmentPreviewContentType("preview.jpg", "application/octet-stream"),
+      "image/jpeg",
+    );
   });
 });

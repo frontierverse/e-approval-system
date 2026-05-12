@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { AttachmentPreviewButton } from "@/components/attachment-preview-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageTitle } from "@/components/page-title";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
@@ -107,16 +108,24 @@ export default async function ResourceDetailPage({
                       size={attachment.size}
                       action={
                         attachment.id ? (
-                          <Link
-                            href={`/resources/attachments/${attachment.id}`}
-                            className={buttonClass(
-                              buttonStyles.base,
-                              buttonStyles.neutral,
-                              "h-8 px-3 text-xs",
-                            )}
-                          >
-                            다운로드
-                          </Link>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <AttachmentPreviewButton
+                              buttonSizeClassName="h-8 px-3 text-xs"
+                              downloadHref={`/resources/attachments/${attachment.id}`}
+                              fileName={attachment.fileName}
+                              previewHref={`/resources/attachments/${attachment.id}/preview`}
+                            />
+                            <Link
+                              href={`/resources/attachments/${attachment.id}`}
+                              className={buttonClass(
+                                buttonStyles.base,
+                                buttonStyles.neutral,
+                                "h-8 px-3 text-xs",
+                              )}
+                            >
+                              다운로드
+                            </Link>
+                          </div>
                         ) : null
                       }
                     />
