@@ -24,12 +24,24 @@ export type AttachmentStorageConfig =
 
 type AttachmentStorageEnv = Record<string, string | undefined>;
 
-export function normalizeAttachmentStorageEnvValue(value: unknown) {
+export function normalizeAttachmentStorageEnvValue(
+  value: unknown,
+  keyName?: string,
+) {
   if (typeof value !== "string") {
     return "";
   }
 
-  const trimmed = value.trim();
+  let trimmed = value.trim();
+
+  if (keyName) {
+    const keyPrefix = `${keyName}=`;
+
+    if (trimmed.toUpperCase().startsWith(keyPrefix.toUpperCase())) {
+      trimmed = trimmed.slice(keyPrefix.length).trim();
+    }
+  }
+
   const first = trimmed.at(0);
   const last = trimmed.at(-1);
 
@@ -43,10 +55,28 @@ export function normalizeAttachmentStorageEnvValue(value: unknown) {
   return trimmed;
 }
 
+export function getFirstAttachmentStorageEnvValue(
+  env: AttachmentStorageEnv,
+  keys: string[],
+) {
+  for (const key of keys) {
+    const value = normalizeAttachmentStorageEnvValue(env[key], key);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
 export function resolveAttachmentStorageProvider(
   value: unknown,
 ): AttachmentStorageProvider | null {
-  const normalizedValue = normalizeAttachmentStorageEnvValue(value);
+  const normalizedValue = normalizeAttachmentStorageEnvValue(
+    value,
+    "ATTACHMENT_STORAGE_DRIVER",
+  );
 
   if (!normalizedValue) {
     return localAttachmentStorageProvider;
@@ -107,9 +137,10 @@ export function getAttachmentStorageConfig(
   }
 
   if (provider === supabaseStorageAttachmentStorageProvider) {
-    const supabaseUrl = normalizeAttachmentStorageEnvValue(
-      env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL,
-    );
+    const supabaseUrl = getFirstAttachmentStorageEnvValue(env, [
+      "SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_URL",
+    ]);
 
     if (!supabaseUrl) {
       return {
@@ -120,7 +151,12 @@ export function getAttachmentStorageConfig(
       };
     }
 
-    if (!normalizeAttachmentStorageEnvValue(env.SUPABASE_SERVICE_ROLE_KEY)) {
+    if (
+      !normalizeAttachmentStorageEnvValue(
+        env.SUPABASE_SERVICE_ROLE_KEY,
+        "SUPABASE_SERVICE_ROLE_KEY",
+      )
+    ) {
       return {
         ok: false,
         provider,
@@ -129,7 +165,12 @@ export function getAttachmentStorageConfig(
       };
     }
 
-    if (!normalizeAttachmentStorageEnvValue(env.SUPABASE_STORAGE_BUCKET)) {
+    if (
+      !normalizeAttachmentStorageEnvValue(
+        env.SUPABASE_STORAGE_BUCKET,
+        "SUPABASE_STORAGE_BUCKET",
+      )
+    ) {
       return {
         ok: false,
         provider,
@@ -142,6 +183,47 @@ export function getAttachmentStorageConfig(
   return {
     ok: true,
     provider,
+  };
+}
+
+export function getAttachmentStorageDiagnostics(env: AttachmentStorageEnv) {
+  const config = getAttachmentStorageConfig(env);
+  const rawDriver = env.ATTACHMENT_STORAGE_DRIVER;
+
+  return {
+    ok: config.ok,
+    message: config.ok ? undefined : config.message,
+    provider: config.provider,
+    normalizedDriver: normalizeAttachmentStorageEnvValue(
+      rawDriver,
+      "ATTACHMENT_STORAGE_DRIVER",
+    ),
+    rawDriverLength: typeof rawDriver === "string" ? rawDriver.length : 0,
+    hasSupabaseUrl: Boolean(
+      getFirstAttachmentStorageEnvValue(env, [
+        "SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+      ]),
+    ),
+    hasSupabaseServiceRoleKey: Boolean(
+      normalizeAttachmentStorageEnvValue(
+        env.SUPABASE_SERVICE_ROLE_KEY,
+        "SUPABASE_SERVICE_ROLE_KEY",
+      ),
+    ),
+    hasSupabaseStorageBucket: Boolean(
+      normalizeAttachmentStorageEnvValue(
+        env.SUPABASE_STORAGE_BUCKET,
+        "SUPABASE_STORAGE_BUCKET",
+      ),
+    ),
+    hasVercelBlobToken: Boolean(
+      normalizeAttachmentStorageEnvValue(
+        env.BLOB_READ_WRITE_TOKEN,
+        "BLOB_READ_WRITE_TOKEN",
+      ),
+    ),
+    isVercel: Boolean(env.VERCEL),
   };
 }
 

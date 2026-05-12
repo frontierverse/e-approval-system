@@ -7,8 +7,10 @@ import path from "node:path";
 import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
 import {
   type AttachmentStorageProvider,
+  getAttachmentStorageDiagnostics,
   getAttachmentStorageConfig,
   getAttachmentStorageKeyPrefix,
+  getFirstAttachmentStorageEnvValue,
   localAttachmentStorageProvider,
   normalizeAttachmentStorageEnvValue,
   resolveAttachmentStorageProvider,
@@ -70,6 +72,11 @@ export async function prepareAttachmentFiles(
   const storageConfig = getAttachmentStorageConfig(process.env);
 
   if (!storageConfig.ok) {
+    console.error(
+      "Invalid attachment storage configuration",
+      getAttachmentStorageDiagnostics(process.env),
+    );
+
     return {
       error: "첨부파일 저장소 설정이 올바르지 않습니다. 관리자에게 문의하세요.",
       files: [],
@@ -329,6 +336,7 @@ function toStoredAttachmentRef(
 function getVercelBlobToken() {
   const token = normalizeAttachmentStorageEnvValue(
     process.env.BLOB_READ_WRITE_TOKEN,
+    "BLOB_READ_WRITE_TOKEN",
   );
 
   if (!token) {
@@ -379,6 +387,7 @@ function getSupabaseStorageBucketObjectUrl() {
 function getSupabaseStorageHeaders() {
   const serviceRoleKey = normalizeAttachmentStorageEnvValue(
     process.env.SUPABASE_SERVICE_ROLE_KEY,
+    "SUPABASE_SERVICE_ROLE_KEY",
   );
 
   if (!serviceRoleKey) {
@@ -392,10 +401,10 @@ function getSupabaseStorageHeaders() {
 }
 
 function getSupabaseStorageBaseUrl() {
-  const supabaseUrl = normalizeAttachmentStorageEnvValue(
-    process.env.SUPABASE_URL ??
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-  );
+  const supabaseUrl = getFirstAttachmentStorageEnvValue(process.env, [
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+  ]);
 
   if (!supabaseUrl) {
     throw new Error("SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required.");
@@ -407,6 +416,7 @@ function getSupabaseStorageBaseUrl() {
 function getSupabaseStorageBucket() {
   const bucket = normalizeAttachmentStorageEnvValue(
     process.env.SUPABASE_STORAGE_BUCKET,
+    "SUPABASE_STORAGE_BUCKET",
   );
 
   if (!bucket) {

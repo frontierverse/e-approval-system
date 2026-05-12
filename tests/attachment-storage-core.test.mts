@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  getAttachmentStorageDiagnostics,
   getAttachmentStorageConfig,
+  getFirstAttachmentStorageEnvValue,
   getAttachmentStorageKeyPrefix,
   localAttachmentStorageProvider,
   normalizeAttachmentStorageEnvValue,
@@ -36,6 +38,75 @@ describe("attachment storage config", () => {
     }), {
       ok: true,
       provider: supabaseStorageAttachmentStorageProvider,
+    });
+  });
+
+  test("accepts full .env lines pasted into Vercel value fields", () => {
+    assert.equal(
+      normalizeAttachmentStorageEnvValue(
+        "ATTACHMENT_STORAGE_DRIVER=supabase-storage",
+        "ATTACHMENT_STORAGE_DRIVER",
+      ),
+      "supabase-storage",
+    );
+    assert.deepEqual(getAttachmentStorageConfig({
+      ATTACHMENT_STORAGE_DRIVER: "ATTACHMENT_STORAGE_DRIVER=supabase-storage",
+      NEXT_PUBLIC_SUPABASE_URL:
+        "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY:
+        "SUPABASE_SERVICE_ROLE_KEY=service-role-key",
+      SUPABASE_STORAGE_BUCKET:
+        "SUPABASE_STORAGE_BUCKET=approval-attachments",
+    }), {
+      ok: true,
+      provider: supabaseStorageAttachmentStorageProvider,
+    });
+  });
+
+  test("falls back to NEXT_PUBLIC_SUPABASE_URL when SUPABASE_URL is empty", () => {
+    assert.equal(
+      getFirstAttachmentStorageEnvValue(
+        {
+          SUPABASE_URL: "",
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+        },
+        ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ),
+      "https://example.supabase.co",
+    );
+    assert.deepEqual(getAttachmentStorageConfig({
+      ATTACHMENT_STORAGE_DRIVER: "supabase-storage",
+      SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+      SUPABASE_STORAGE_BUCKET: "approval-attachments",
+    }), {
+      ok: true,
+      provider: supabaseStorageAttachmentStorageProvider,
+    });
+  });
+
+  test("reports storage diagnostics without secret values", () => {
+    assert.deepEqual(getAttachmentStorageDiagnostics({
+      ATTACHMENT_STORAGE_DRIVER: "ATTACHMENT_STORAGE_DRIVER=supabase-storage",
+      NEXT_PUBLIC_SUPABASE_URL:
+        "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY:
+        "SUPABASE_SERVICE_ROLE_KEY=service-role-key",
+      SUPABASE_STORAGE_BUCKET:
+        "SUPABASE_STORAGE_BUCKET=approval-attachments",
+      VERCEL: "1",
+    }), {
+      ok: true,
+      message: undefined,
+      provider: supabaseStorageAttachmentStorageProvider,
+      normalizedDriver: "supabase-storage",
+      rawDriverLength: 42,
+      hasSupabaseUrl: true,
+      hasSupabaseServiceRoleKey: true,
+      hasSupabaseStorageBucket: true,
+      hasVercelBlobToken: false,
+      isVercel: true,
     });
   });
 
