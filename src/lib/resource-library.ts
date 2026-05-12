@@ -168,7 +168,7 @@ export async function getResourcePostById({
   currentUserRole: UserRole;
   postId: string;
 }) {
-  const record = await prisma.$transaction(async (tx) => {
+  const viewedPostId = await prisma.$transaction(async (tx) => {
     const existingPost = await tx.resourcePost.findUnique({
       where: {
         id: postId,
@@ -212,15 +212,30 @@ export async function getResourcePostById({
       },
     });
 
-    return tx.resourcePost.update({
+    const updatedPost = await tx.resourcePost.update({
       where: {
         id: postId,
       },
       data: {
         viewCount: viewerCount,
       },
-      include: resourcePostDetailInclude,
+      select: {
+        id: true,
+      },
     });
+
+    return updatedPost.id;
+  });
+
+  if (!viewedPostId) {
+    return null;
+  }
+
+  const record = await prisma.resourcePost.findUnique({
+    where: {
+      id: viewedPostId,
+    },
+    include: resourcePostDetailInclude,
   });
 
   return record
