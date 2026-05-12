@@ -10,6 +10,7 @@ import {
   getAttachmentStorageConfig,
   getAttachmentStorageKeyPrefix,
   localAttachmentStorageProvider,
+  normalizeAttachmentStorageEnvValue,
   resolveAttachmentStorageProvider,
   supabaseStorageAttachmentStorageProvider,
   vercelBlobAttachmentStorageProvider,
@@ -326,7 +327,9 @@ function toStoredAttachmentRef(
 }
 
 function getVercelBlobToken() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  const token = normalizeAttachmentStorageEnvValue(
+    process.env.BLOB_READ_WRITE_TOKEN,
+  );
 
   if (!token) {
     throw new Error("BLOB_READ_WRITE_TOKEN is required.");
@@ -374,7 +377,9 @@ function getSupabaseStorageBucketObjectUrl() {
 }
 
 function getSupabaseStorageHeaders() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const serviceRoleKey = normalizeAttachmentStorageEnvValue(
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
 
   if (!serviceRoleKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is required.");
@@ -387,11 +392,10 @@ function getSupabaseStorageHeaders() {
 }
 
 function getSupabaseStorageBaseUrl() {
-  const supabaseUrl = (
+  const supabaseUrl = normalizeAttachmentStorageEnvValue(
     process.env.SUPABASE_URL ??
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    ""
-  ).trim();
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+  );
 
   if (!supabaseUrl) {
     throw new Error("SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required.");
@@ -401,7 +405,9 @@ function getSupabaseStorageBaseUrl() {
 }
 
 function getSupabaseStorageBucket() {
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET?.trim();
+  const bucket = normalizeAttachmentStorageEnvValue(
+    process.env.SUPABASE_STORAGE_BUCKET,
+  );
 
   if (!bucket) {
     throw new Error("SUPABASE_STORAGE_BUCKET is required.");

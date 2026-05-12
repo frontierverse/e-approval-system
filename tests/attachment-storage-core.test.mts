@@ -4,6 +4,7 @@ import {
   getAttachmentStorageConfig,
   getAttachmentStorageKeyPrefix,
   localAttachmentStorageProvider,
+  normalizeAttachmentStorageEnvValue,
   resolveAttachmentStorageProvider,
   supabaseStorageAttachmentStorageProvider,
   vercelBlobAttachmentStorageProvider,
@@ -15,6 +16,26 @@ describe("attachment storage config", () => {
     assert.deepEqual(getAttachmentStorageConfig({}), {
       ok: true,
       provider: localAttachmentStorageProvider,
+    });
+  });
+
+  test("accepts values copied from .env with wrapping quotes", () => {
+    assert.equal(
+      normalizeAttachmentStorageEnvValue(` "supabase-storage" `),
+      "supabase-storage",
+    );
+    assert.equal(
+      resolveAttachmentStorageProvider(`"supabase-storage"`),
+      supabaseStorageAttachmentStorageProvider,
+    );
+    assert.deepEqual(getAttachmentStorageConfig({
+      ATTACHMENT_STORAGE_DRIVER: `"supabase-storage"`,
+      NEXT_PUBLIC_SUPABASE_URL: `"https://example.supabase.co"`,
+      SUPABASE_SERVICE_ROLE_KEY: `"service-role-key"`,
+      SUPABASE_STORAGE_BUCKET: `"approval-attachments"`,
+    }), {
+      ok: true,
+      provider: supabaseStorageAttachmentStorageProvider,
     });
   });
 

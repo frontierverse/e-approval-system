@@ -24,14 +24,35 @@ export type AttachmentStorageConfig =
 
 type AttachmentStorageEnv = Record<string, string | undefined>;
 
+export function normalizeAttachmentStorageEnvValue(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  const first = trimmed.at(0);
+  const last = trimmed.at(-1);
+
+  if (
+    trimmed.length >= 2 &&
+    ((first === `"` && last === `"`) || (first === `'` && last === `'`))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 export function resolveAttachmentStorageProvider(
   value: unknown,
 ): AttachmentStorageProvider | null {
-  if (typeof value !== "string" || value.trim() === "") {
+  const normalizedValue = normalizeAttachmentStorageEnvValue(value);
+
+  if (!normalizedValue) {
     return localAttachmentStorageProvider;
   }
 
-  const provider = value.trim().toLowerCase();
+  const provider = normalizedValue.toLowerCase();
 
   if (provider === localAttachmentStorageProvider) {
     return localAttachmentStorageProvider;
@@ -86,9 +107,11 @@ export function getAttachmentStorageConfig(
   }
 
   if (provider === supabaseStorageAttachmentStorageProvider) {
-    const supabaseUrl = env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseUrl = normalizeAttachmentStorageEnvValue(
+      env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL,
+    );
 
-    if (!supabaseUrl?.trim()) {
+    if (!supabaseUrl) {
       return {
         ok: false,
         provider,
@@ -97,7 +120,7 @@ export function getAttachmentStorageConfig(
       };
     }
 
-    if (!env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    if (!normalizeAttachmentStorageEnvValue(env.SUPABASE_SERVICE_ROLE_KEY)) {
       return {
         ok: false,
         provider,
@@ -106,7 +129,7 @@ export function getAttachmentStorageConfig(
       };
     }
 
-    if (!env.SUPABASE_STORAGE_BUCKET?.trim()) {
+    if (!normalizeAttachmentStorageEnvValue(env.SUPABASE_STORAGE_BUCKET)) {
       return {
         ok: false,
         provider,
