@@ -633,73 +633,104 @@ function DraftFormFields({
         <div className="mt-5 border-t border-[#eef1f5] pt-5">
           <h3 className="text-sm font-semibold text-[#394150]">결재 순서</h3>
           {selectedApprovers.length > 0 ? (
-            <ol className="mt-3 space-y-2">
+            <ol className="mt-4 space-y-4">
               {selectedApprovers.map((approver, index) => (
                 <li
                   key={approver.id}
-                  className="rounded-md border border-[#eef1f5] p-3"
+                  className="relative min-h-20 pl-11"
                 >
+                  {index < selectedApprovers.length - 1 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-[1.125rem] top-10 h-[calc(100%-1rem)] w-px bg-[#e7ecf2]"
+                    />
+                  ) : null}
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      "absolute left-0 top-0 grid size-9 place-items-center rounded-full border text-sm font-semibold",
+                      index === 0
+                        ? "border-[#b8d9d7] bg-[#196b69] text-white"
+                        : "border-[#cfd6e3] bg-[#f7f9fc] text-[#697386]",
+                    ].join(" ")}
+                  >
+                    {index + 1}
+                  </span>
                   <input
                     type="hidden"
                     name="approverIds"
                     value={approver.id}
                   />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="mb-2 text-xs font-semibold text-[#697386]">
-                        {index + 1}차
-                      </p>
-                      <UserIdentity
-                        user={approver}
-                        meta={`${approver.departmentName} · ${approver.positionName}`}
-                      />
+                  <div
+                    className={[
+                      "rounded-md border px-3 py-3",
+                      index === 0
+                        ? "border-[#b8d9d7] bg-[#e5f2f1]"
+                        : "border-[#eef1f5] bg-white",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="mb-2 text-xs font-semibold text-[#697386]">
+                          {index + 1}차 결재자
+                        </p>
+                        <UserIdentity
+                          user={approver}
+                          meta={`${approver.departmentName} · ${approver.positionName}`}
+                        />
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          title="위로 이동"
+                          aria-label={`${approver.name} 위로 이동`}
+                          disabled={pending || index === 0}
+                          onClick={() => moveApprover(approver.id, -1)}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            buttonStyles.neutral,
+                            "h-8 w-8 text-sm disabled:opacity-40",
+                          )}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          title="아래로 이동"
+                          aria-label={`${approver.name} 아래로 이동`}
+                          disabled={
+                            pending || index === selectedApprovers.length - 1
+                          }
+                          onClick={() => moveApprover(approver.id, 1)}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            buttonStyles.neutral,
+                            "h-8 w-8 text-sm disabled:opacity-40",
+                          )}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          title="삭제"
+                          aria-label={`${approver.name} 삭제`}
+                          disabled={pending}
+                          onClick={() => removeApprover(approver.id)}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            buttonStyles.dangerOutline,
+                            "h-8 w-8 text-sm disabled:opacity-40",
+                          )}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 gap-1">
-                      <button
-                        type="button"
-                        title="위로 이동"
-                        aria-label={`${approver.name} 위로 이동`}
-                        disabled={pending || index === 0}
-                        onClick={() => moveApprover(approver.id, -1)}
-                        className={buttonClass(
-                          buttonStyles.base,
-                          buttonStyles.neutral,
-                          "h-8 w-8 text-sm disabled:opacity-40",
-                        )}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        title="아래로 이동"
-                        aria-label={`${approver.name} 아래로 이동`}
-                        disabled={
-                          pending || index === selectedApprovers.length - 1
-                        }
-                        onClick={() => moveApprover(approver.id, 1)}
-                        className={buttonClass(
-                          buttonStyles.base,
-                          buttonStyles.neutral,
-                          "h-8 w-8 text-sm disabled:opacity-40",
-                        )}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        title="삭제"
-                        aria-label={`${approver.name} 삭제`}
-                        disabled={pending}
-                        onClick={() => removeApprover(approver.id)}
-                        className={buttonClass(
-                          buttonStyles.base,
-                          buttonStyles.dangerOutline,
-                          "h-8 w-8 text-sm disabled:opacity-40",
-                        )}
-                      >
-                        ×
-                      </button>
-                    </div>
+                    <p className="mt-3 text-xs font-medium text-[#697386]">
+                      {index === 0
+                        ? "결재 요청 후 가장 먼저 처리할 단계입니다."
+                        : "앞 단계가 끝나면 결재 차례가 됩니다."}
+                    </p>
                   </div>
                 </li>
               ))}
