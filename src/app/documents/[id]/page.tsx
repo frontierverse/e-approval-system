@@ -48,7 +48,6 @@ export default async function DocumentDetailPage({
   }
 
   const currentStep = getCurrentApprovalStep(document);
-  const currentApprover = currentStep?.approver ?? null;
   const progress = getApprovalProgress(document);
   const isOwnDocument = document.drafterId === user.id;
   const isEditableDraft =
@@ -194,15 +193,6 @@ export default async function DocumentDetailPage({
                 <p className="text-sm font-semibold text-[#697386]">문서 상태</p>
                 <div className="mt-2 flex items-center gap-3">
                   <StatusBadge type="document" status={document.status} />
-                  <span className="text-sm text-[#394150]">
-                    {progressLabel}
-                  </span>
-                </div>
-                <div className="mt-3 h-2 w-48 max-w-full rounded-full bg-[#edf1f5]">
-                  <div
-                    className="h-full rounded-full bg-[#196b69]"
-                    style={{ width: `${progressPercent}%` }}
-                  />
                 </div>
               </div>
               <div className="grid gap-1 text-right text-sm text-[#697386]">
@@ -229,28 +219,7 @@ export default async function DocumentDetailPage({
                   />
                 }
               />
-              <SummaryItem
-                label="작성자 소속"
-                value={
-                  [document.drafter.departmentName, document.drafter.positionName]
-                    .filter(Boolean)
-                    .join(" / ")
-                }
-              />
               <SummaryItem label="카테고리" value={document.category} />
-              <SummaryItem
-                label="현재 결재자"
-                value={
-                  currentApprover
-                    ? (
-                        <UserIdentity
-                          user={currentApprover}
-                          meta={currentApprover.positionName}
-                        />
-                      )
-                    : "-"
-                }
-              />
               <SummaryItem
                 label="첨부파일"
                 value={`${document.attachmentCount}개`}
@@ -334,7 +303,11 @@ export default async function DocumentDetailPage({
             />
           ) : null}
 
-          <ApprovalTimeline document={document} />
+          <ApprovalTimeline
+            document={document}
+            progressLabel={progressLabel}
+            progressPercent={progressPercent}
+          />
         </aside>
       </section>
     </>

@@ -428,7 +428,55 @@ export async function getRecentHistories(
     },
     include: {
       actor: true,
-      document: true,
+      document: {
+        select: {
+          documentNo: true,
+          title: true,
+          drafter: {
+            select: {
+              id: true,
+              name: true,
+              profileImageStorageKey: true,
+              profileImageUpdatedAt: true,
+              department: {
+                select: {
+                  name: true,
+                },
+              },
+              position: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          approvalSteps: {
+            include: {
+              approver: {
+                select: {
+                  id: true,
+                  name: true,
+                  profileImageStorageKey: true,
+                  profileImageUpdatedAt: true,
+                  department: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  position: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+        },
+      },
     },
   });
 
@@ -452,6 +500,44 @@ export async function getRecentHistories(
     documentId: record.documentId ?? record.targetId,
     documentNo: record.document?.documentNo ?? "-",
     title: record.document?.title ?? record.targetId,
+    requester: record.document
+      ? {
+          id: record.document.drafter.id,
+          name: record.document.drafter.name,
+          departmentName: record.document.drafter.department.name,
+          positionName: record.document.drafter.position.name,
+          profileImageStorageKey: record.document.drafter.profileImageStorageKey,
+          profileImageUpdatedAt:
+            record.document.drafter.profileImageUpdatedAt?.toISOString() ??
+            null,
+        }
+      : {
+          id: record.actor.id,
+          name: record.actor.name,
+          departmentName: "",
+          positionName: "",
+          profileImageStorageKey: record.actor.profileImageStorageKey,
+          profileImageUpdatedAt:
+            record.actor.profileImageUpdatedAt?.toISOString() ?? null,
+        },
+    approvalSteps:
+      record.document?.approvalSteps.map((step) => ({
+        id: step.id,
+        order: step.order,
+        approverId: step.approverId,
+        approver: {
+          id: step.approver.id,
+          name: step.approver.name,
+          departmentName: step.approver.department.name,
+          positionName: step.approver.position.name,
+          profileImageStorageKey: step.approver.profileImageStorageKey,
+          profileImageUpdatedAt:
+            step.approver.profileImageUpdatedAt?.toISOString() ?? null,
+        },
+        status: approvalStepStatusMap[step.status],
+        actedAt: step.actedAt?.toISOString() ?? null,
+        comment: step.comment,
+      })) ?? [],
   }));
 }
 

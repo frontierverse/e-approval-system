@@ -59,6 +59,33 @@ button:disabled {
   scrollbar-gutter: stable;
 }
 
+.approval-line-current {
+  --approval-line-current-rest: #7bb9b6;
+  --approval-line-current-active: #196b69;
+  animation: approval-line-current-pulse 1.8s ease-in-out infinite;
+  border-color: var(--approval-line-current-rest);
+  color: #0f5553;
+}
+
+@keyframes approval-line-current-pulse {
+  0%,
+  100% {
+    border-color: var(--approval-line-current-rest);
+    color: #0f5553;
+  }
+
+  50% {
+    border-color: var(--approval-line-current-active);
+    color: #143f3e;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approval-line-current {
+    animation: none;
+  }
+}
+
 [data-theme-toggle-thumb] {
   transform: translateX(0);
 }

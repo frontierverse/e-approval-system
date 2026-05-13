@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { ApprovalLinePreview } from "@/components/approval-line-preview";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
@@ -12,7 +13,6 @@ import {
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
-import { getAuditActionTextClass } from "@/lib/audit-log-display";
 import { formatDateTime } from "@/lib/mock-data";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 
@@ -139,20 +139,19 @@ async function HomeContent() {
                     <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-[#697386]">
                       <span>{history.documentNo}</span>
                       <span aria-hidden="true">·</span>
-                      <UserIdentity
-                        user={history.actor}
-                        size="xs"
-                        nameClassName="text-[#697386]"
-                      />
-                      <span aria-hidden="true">·</span>
-                      <span
-                        className={`font-semibold ${getAuditActionTextClass(
-                          history.actionValue,
-                        )}`}
-                      >
-                        {history.action}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="shrink-0">결재요청자:</span>
+                        <UserIdentity
+                          user={history.requester}
+                          size="xs"
+                          nameClassName="text-[#697386]"
+                        />
+                      </div>
                     </div>
+                    <ApprovalLinePreview
+                      steps={history.approvalSteps}
+                      className="mt-3"
+                    />
                   </Link>
                 </li>
               );

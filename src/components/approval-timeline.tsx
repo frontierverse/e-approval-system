@@ -8,22 +8,39 @@ import {
 
 type ApprovalTimelineProps = {
   document: ApprovalDocument;
+  progressLabel: string;
+  progressPercent: number;
 };
 
-export function ApprovalTimeline({ document }: ApprovalTimelineProps) {
+export function ApprovalTimeline({
+  document,
+  progressLabel,
+  progressPercent,
+}: ApprovalTimelineProps) {
   const rejectedStep = document.approvalSteps.find(
     (step) => step.status === "rejected",
   );
 
   return (
     <article className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div>
+        <div className="flex items-center justify-between gap-4">
           <h2 className="text-base font-semibold">결재 진행</h2>
-          <p className="mt-1 text-sm text-[#697386]">
-            결재 순서와 현재 처리해야 할 단계를 확인합니다.
-          </p>
+          <div className="w-28 shrink-0">
+            <p className="text-right text-xs font-semibold text-[#394150]">
+              {progressLabel}
+            </p>
+            <div className="mt-2 h-2 rounded-full bg-[#edf1f5]">
+              <div
+                className="h-full rounded-full bg-[#196b69]"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
         </div>
+        <p className="mt-1 text-sm text-[#697386]">
+          결재 순서와 현재 처리해야 할 단계를 확인합니다.
+        </p>
       </div>
 
       {rejectedStep?.comment ? (

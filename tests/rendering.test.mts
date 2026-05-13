@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
+import { ApprovalLinePreview } from "../src/components/approval-line-preview.tsx";
 import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
@@ -201,14 +202,42 @@ describe("major UI rendering", () => {
     const html = renderToStaticMarkup(
       React.createElement(ApprovalTimeline, {
         document,
+        progressLabel: "진행 1/2",
+        progressPercent: 50,
       }),
     );
 
     assert.match(html, /결재 진행/);
+    assert.match(html, /진행 1\/2/);
+    assert.match(html, /width:50%/);
     assert.match(html, /이도윤/);
     assert.match(html, /확인했습니다\./);
     assert.match(html, /현재 결재 차례입니다\./);
     assert.doesNotMatch(html, /현재 결재자/);
+  });
+
+  test("renders a compact approval line preview in order", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ApprovalLinePreview, {
+        steps: document.approvalSteps,
+      }),
+    );
+
+    assert.match(html, /결재선/);
+    assert.match(html, /aria-label="결재선: 1차 박서연 승인, 2차 이도윤 진행중"/);
+    assert.match(html, /박서연/);
+    assert.match(html, /이도윤/);
+    assert.doesNotMatch(html, />승인</);
+    assert.doesNotMatch(html, />진행중</);
+    assert.doesNotMatch(html, /rounded-md border/);
+    assert.doesNotMatch(html, /shadow-\[/);
+    assert.match(html, /bg-transparent/);
+    assert.equal(html.match(/approval-line-current/g)?.length, 2);
+    assert.match(html, /flex h-6 items-center/);
+    assert.match(html, /h-px min-w-8 flex-1/);
+    assert.doesNotMatch(html, /mx-2/);
+    assert.doesNotMatch(html, /bg-\[#e8f5ed\]/);
+    assert.doesNotMatch(html, /bg-\[#e7f4f3\]/);
   });
 
   test("renders audit history as a timeline", () => {
