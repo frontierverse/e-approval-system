@@ -270,6 +270,20 @@ describe("major UI rendering", () => {
     assert.match(sheetHtml, /bg-\[#e8f5ed\]/);
   });
 
+  test("renders image attachment thumbnails when provided", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AttachmentFileRow, {
+        fileName: "영수증.png",
+        size: 4096,
+        thumbnailHref: "/attachments/image-1/preview",
+      }),
+    );
+
+    assert.match(html, /src="\/attachments\/image-1\/preview"/);
+    assert.match(html, /alt="영수증\.png 미리보기"/);
+    assert.match(html, /이미지 파일/);
+  });
+
   test("renders admin audit logs with readable labels", () => {
     const html = renderToStaticMarkup(
       React.createElement(AdminAuditLogList, {

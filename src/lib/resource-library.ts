@@ -36,6 +36,7 @@ const resourcePostInclude = {
     },
     select: {
       id: true,
+      mimeType: true,
       originalName: true,
       size: true,
     },
@@ -348,6 +349,7 @@ function mapResourcePost(
     attachments: record.attachments.map((attachment) => ({
       id: attachment.id,
       fileName: attachment.originalName,
+      mimeType: attachment.mimeType,
       size: attachment.size,
     })),
     canManage: canManageResourcePost(

@@ -7,6 +7,7 @@ import { PageTitle } from "@/components/page-title";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
 import { UserIdentity } from "@/components/user-identity";
 import { deleteResourceAction } from "@/app/resources/actions";
+import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
@@ -106,6 +107,14 @@ export default async function ResourceDetailPage({
                     <AttachmentFileRow
                       fileName={attachment.fileName}
                       size={attachment.size}
+                      thumbnailHref={
+                        getAttachmentPreviewKind(
+                          attachment.fileName,
+                          attachment.mimeType,
+                        ) === "image"
+                          ? `/resources/attachments/${attachment.id}/preview`
+                          : undefined
+                      }
                       action={
                         attachment.id ? (
                           <div className="flex flex-wrap justify-end gap-2">

@@ -38,6 +38,7 @@ export default async function EditResourcePage({
         cancelHref={`/resources/${resource.id}`}
         existingAttachments={resource.attachments.map((attachment) => ({
           id: attachment.id,
+          mimeType: attachment.mimeType,
           originalName: attachment.originalName,
           size: attachment.size,
         }))}

@@ -10,6 +10,7 @@ import { NotificationDocumentReadMarker } from "@/components/notification-docume
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
+import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { requireUser } from "@/lib/auth";
@@ -284,6 +285,14 @@ export default async function DocumentDetailPage({
                     <AttachmentFileRow
                       fileName={attachment.originalName}
                       size={attachment.size}
+                      thumbnailHref={
+                        getAttachmentPreviewKind(
+                          attachment.originalName,
+                          attachment.mimeType,
+                        ) === "image"
+                          ? `/attachments/${attachment.id}/preview`
+                          : undefined
+                      }
                       action={
                         <div className="flex flex-wrap justify-end gap-2">
                           <AttachmentPreviewButton

@@ -3,6 +3,7 @@ export type ResourceCategory = "notice" | "manual" | "form" | "report";
 export type ResourceAttachment = {
   id?: string;
   fileName: string;
+  mimeType?: string | null;
   size: number;
 };
 

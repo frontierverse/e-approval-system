@@ -5,6 +5,7 @@ type AttachmentFileRowProps = {
   fileName: string;
   note?: string;
   size?: number;
+  thumbnailHref?: string;
 };
 
 const iconClasses = {
@@ -23,22 +24,35 @@ export function AttachmentFileRow({
   fileName,
   note,
   size,
+  thumbnailHref,
 }: AttachmentFileRowProps) {
   const file = getAttachmentFileDisplay(fileName);
+  const showThumbnail = file.kind === "image" && Boolean(thumbnailHref);
 
   return (
     <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span
-          aria-hidden="true"
-          className={[
-            "relative flex h-12 w-10 shrink-0 items-end justify-center rounded-md border pb-1.5 text-[0.58rem] font-bold leading-none",
-            iconClasses[file.kind],
-          ].join(" ")}
-        >
-          <span className="absolute right-0 top-0 h-3 w-3 rounded-bl-md border-b border-l border-current/25 bg-white/70" />
-          {file.extensionLabel}
-        </span>
+        {showThumbnail ? (
+          <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-[#d9dee7] bg-[#f7f9fc]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt={`${fileName} 미리보기`}
+              className="h-full w-full object-cover"
+              src={thumbnailHref}
+            />
+          </span>
+        ) : (
+          <span
+            aria-hidden="true"
+            className={[
+              "relative flex h-12 w-10 shrink-0 items-end justify-center rounded-md border pb-1.5 text-[0.58rem] font-bold leading-none",
+              iconClasses[file.kind],
+            ].join(" ")}
+          >
+            <span className="absolute right-0 top-0 h-3 w-3 rounded-bl-md border-b border-l border-current/25 bg-white/70" />
+            {file.extensionLabel}
+          </span>
+        )}
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-[#16181d]">
             {fileName}

@@ -68,6 +68,7 @@ export default async function EditDraftPage({
         }}
         existingAttachments={document.attachments.map((attachment) => ({
           id: attachment.id,
+          mimeType: attachment.mimeType,
           originalName: attachment.originalName,
           size: attachment.size,
         }))}

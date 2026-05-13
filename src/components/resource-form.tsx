@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { useAttachmentThumbnailUrls } from "@/components/use-attachment-thumbnail-urls";
+import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { AttachmentPolicyConfig } from "@/lib/attachment-storage";
 import {
@@ -28,6 +30,7 @@ import {
 
 type ExistingResourceAttachment = {
   id: string;
+  mimeType?: string | null;
   originalName: string;
   size: number;
 };
@@ -108,6 +111,7 @@ function ResourceFormFields({
   );
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const retainedAttachmentCount =
     existingAttachments.length - removedAttachmentIds.length;
@@ -336,6 +340,14 @@ function ResourceFormFields({
                       fileName={attachment.originalName}
                       note={isRemoved ? "삭제 예정" : "기존 첨부"}
                       size={attachment.size}
+                      thumbnailHref={
+                        getAttachmentPreviewKind(
+                          attachment.originalName,
+                          attachment.mimeType,
+                        ) === "image"
+                          ? `/resources/attachments/${attachment.id}/preview`
+                          : undefined
+                      }
                       action={
                         <button
                           type="button"
@@ -392,6 +404,9 @@ function ResourceFormFields({
                   fileName={file.name}
                   note="새로 추가"
                   size={file.size}
+                  thumbnailHref={
+                    selectedFileThumbnailUrls[getAttachmentSelectionKey(file)]
+                  }
                   action={
                     <button
                       type="button"
