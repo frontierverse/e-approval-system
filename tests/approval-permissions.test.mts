@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  canDeleteDraftDocumentByPolicy,
   canReadApprovalDocument,
+  canRecallDocumentByPolicy,
   getReadableDocumentWhere,
   type ReadableDocumentShape,
 } from "../src/lib/approval-permissions-core.ts";
@@ -98,5 +100,62 @@ describe("readable document query filter", () => {
         },
       ],
     });
+  });
+});
+
+describe("document action policy", () => {
+  test("allows only the drafter to delete draft documents", () => {
+    assert.equal(
+      canDeleteDraftDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "DRAFT",
+      }),
+      true,
+    );
+    assert.equal(
+      canDeleteDraftDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "RECALLED",
+      }),
+      false,
+    );
+    assert.equal(
+      canDeleteDraftDocumentByPolicy("approver-001", {
+        drafterId: "drafter-001",
+        status: "DRAFT",
+      }),
+      false,
+    );
+  });
+
+  test("allows the drafter to recall submitted or in-progress documents", () => {
+    assert.equal(
+      canRecallDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "SUBMITTED",
+      }),
+      true,
+    );
+    assert.equal(
+      canRecallDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "in_progress",
+      }),
+      true,
+    );
+    assert.equal(
+      canRecallDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "APPROVED",
+      }),
+      false,
+    );
+    assert.equal(
+      canRecallDocumentByPolicy("approver-001", {
+        drafterId: "drafter-001",
+        status: "SUBMITTED",
+      }),
+      false,
+    );
   });
 });

@@ -12,6 +12,10 @@ import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getReadableDocumentById } from "@/lib/approval-queries";
+import {
+  canDeleteDraftDocumentByPolicy,
+  canRecallDocumentByPolicy,
+} from "@/lib/approval-permissions-core";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { requireUser } from "@/lib/auth";
 import {
@@ -63,12 +67,8 @@ export default async function DocumentDetailPage({
     isOwnDocument &&
     document.approvalSteps.length > 0;
   const canEditDraft = isEditableDraft && isOwnDocument;
-  const canRecall =
-    document.status === "submitted" &&
-    isOwnDocument &&
-    document.approvalSteps.every(
-      (step) => step.status === "waiting" || step.status === "pending",
-    );
+  const canDeleteDraft = canDeleteDraftDocumentByPolicy(user.id, document);
+  const canRecall = canRecallDocumentByPolicy(user.id, document);
   const canDecide =
     currentStep?.approverId === user.id &&
     (document.status === "submitted" || document.status === "in_progress");
@@ -89,7 +89,12 @@ export default async function DocumentDetailPage({
     ...(document.completedAt
       ? [
           {
-            label: document.status === "rejected" ? "반려" : "완료",
+            label:
+              document.status === "rejected"
+                ? "반려"
+                : document.status === "recalled"
+                  ? "회수"
+                  : "완료",
             value: formatDateTime(document.completedAt),
           },
         ]
@@ -145,7 +150,7 @@ export default async function DocumentDetailPage({
                 </ConfirmSubmitButton>
               </form>
             ) : null}
-            {canEditDraft ? (
+            {canDeleteDraft ? (
               <form action={deleteDraftDocumentAction.bind(null, document.id)}>
                 <ConfirmSubmitButton
                   message="임시저장 문서를 삭제하시겠습니까?"

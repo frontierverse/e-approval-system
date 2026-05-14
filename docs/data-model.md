@@ -325,10 +325,17 @@ stateDiagram-v2
   SUBMITTED --> RECALLED: recall
   IN_PROGRESS --> APPROVED: final approve
   IN_PROGRESS --> REJECTED: reject
+  IN_PROGRESS --> RECALLED: recall
   APPROVED --> [*]
   REJECTED --> [*]
   RECALLED --> DRAFT: edit again
 ```
+
+삭제 정책:
+
+- DRAFT 문서는 작성자가 삭제할 수 있다.
+- SUBMITTED, IN_PROGRESS 문서는 작성자가 회수할 수 있다.
+- APPROVED, REJECTED, RECALLED 문서는 삭제하지 않고 보관한다.
 
 ## 다음 단계에서 Prisma로 옮길 때 확인할 것
 

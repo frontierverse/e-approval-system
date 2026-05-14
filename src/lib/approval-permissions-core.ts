@@ -8,6 +8,11 @@ export type ReadableDocumentShape = {
   }[];
 };
 
+export type DocumentActionPolicyShape = {
+  drafterId: string;
+  status?: string | null;
+};
+
 export function canReadApprovalDocument(
   userId: string,
   role: ApprovalPermissionRole,
@@ -57,6 +62,32 @@ export function getReadableDocumentWhere(
   };
 }
 
+export function canDeleteDraftDocumentByPolicy(
+  userId: string,
+  document: DocumentActionPolicyShape,
+) {
+  return (
+    document.drafterId === userId &&
+    normalizeDocumentStatus(document.status) === "DRAFT"
+  );
+}
+
+export function canRecallDocumentByPolicy(
+  userId: string,
+  document: DocumentActionPolicyShape,
+) {
+  const status = normalizeDocumentStatus(document.status);
+
+  return (
+    document.drafterId === userId &&
+    (status === "SUBMITTED" || status === "IN_PROGRESS")
+  );
+}
+
 function isPrivateDraftStatus(status: string | undefined) {
   return status === "DRAFT" || status === "RECALLED";
+}
+
+function normalizeDocumentStatus(status: string | null | undefined) {
+  return status?.trim().toUpperCase();
 }

@@ -44,7 +44,7 @@ export default async function ResourceDetailPage({
                   href={`/resources/${resource.id}/edit`}
                   className={buttonClass(
                     buttonStyles.base,
-                    buttonStyles.neutral,
+                    buttonStyles.save,
                     "h-10 px-4 text-sm",
                   )}
                 >
@@ -117,9 +117,9 @@ export default async function ResourceDetailPage({
                       }
                       action={
                         attachment.id ? (
-                          <div className="flex flex-wrap justify-end gap-2">
+                          <div className="flex min-w-[5.5rem] flex-col gap-1.5">
                             <AttachmentPreviewButton
-                              buttonSizeClassName="h-8 px-3 text-xs"
+                              buttonSizeClassName="h-8 w-full px-3 text-xs"
                               downloadHref={`/resources/attachments/${attachment.id}`}
                               fileName={attachment.fileName}
                               previewHref={`/resources/attachments/${attachment.id}/preview`}
@@ -129,7 +129,7 @@ export default async function ResourceDetailPage({
                               className={buttonClass(
                                 buttonStyles.base,
                                 buttonStyles.neutral,
-                                "h-8 px-3 text-xs",
+                                "h-8 w-full px-3 text-xs",
                               )}
                             >
                               다운로드

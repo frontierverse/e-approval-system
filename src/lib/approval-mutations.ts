@@ -9,6 +9,10 @@ import {
 } from "@/generated/prisma/client";
 import { getApprovalDecisionPlan } from "@/lib/approval-flow-core";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
+import {
+  canDeleteDraftDocumentByPolicy,
+  canRecallDocumentByPolicy,
+} from "@/lib/approval-permissions-core";
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
@@ -490,13 +494,10 @@ export async function deleteDraftDocument(
       };
     }
 
-    if (
-      document.status !== DocumentStatus.DRAFT &&
-      document.status !== DocumentStatus.RECALLED
-    ) {
+    if (!canDeleteDraftDocumentByPolicy(actorId, document)) {
       return {
         ok: false as const,
-        message: "임시저장 또는 회수 상태의 문서만 삭제할 수 있습니다.",
+        message: "임시저장 상태의 문서만 삭제할 수 있습니다.",
       };
     }
 
@@ -554,16 +555,6 @@ export async function recallSubmittedDocument(
         title: true,
         drafterId: true,
         status: true,
-        approvalSteps: {
-          orderBy: {
-            order: "asc",
-          },
-          select: {
-            id: true,
-            status: true,
-            actedAt: true,
-          },
-        },
       },
     });
 
@@ -581,32 +572,21 @@ export async function recallSubmittedDocument(
       };
     }
 
-    if (document.status !== DocumentStatus.SUBMITTED) {
+    if (!canRecallDocumentByPolicy(actorId, document)) {
       return {
         ok: false,
-        message: "결재 요청 상태의 문서만 회수할 수 있습니다.",
-      };
-    }
-
-    if (
-      document.approvalSteps.some(
-        (step) =>
-          step.status === ApprovalStepStatus.APPROVED ||
-          step.status === ApprovalStepStatus.REJECTED ||
-          step.actedAt,
-      )
-    ) {
-      return {
-        ok: false,
-        message: "결재자가 처리하기 전 문서만 회수할 수 있습니다.",
+        message: "결재 요청 또는 진행중 상태의 문서만 회수할 수 있습니다.",
       };
     }
 
     const now = new Date();
 
-    await tx.approvalDocument.update({
+    const recallResult = await tx.approvalDocument.updateMany({
       where: {
         id: document.id,
+        status: {
+          in: [DocumentStatus.SUBMITTED, DocumentStatus.IN_PROGRESS],
+        },
       },
       data: {
         status: DocumentStatus.RECALLED,
@@ -614,9 +594,19 @@ export async function recallSubmittedDocument(
       },
     });
 
+    if (recallResult.count === 0) {
+      return {
+        ok: false,
+        message: "이미 완료되었거나 회수할 수 없는 문서입니다.",
+      };
+    }
+
     await tx.approvalStep.updateMany({
       where: {
         documentId: document.id,
+        status: {
+          in: [ApprovalStepStatus.WAITING, ApprovalStepStatus.PENDING],
+        },
       },
       data: {
         status: ApprovalStepStatus.WAITING,
