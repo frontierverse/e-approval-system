@@ -94,6 +94,7 @@ model User {
   resourceAttachments ResourceAttachment[] @relation("ResourceAttachmentUploader")
   resourcePostViews   ResourcePostView[]   @relation("ResourcePostViewUser")
   auditLogs           AuditLog[]           @relation("AuditActor")
+  loginHistories      LoginHistory[]
   notifications       Notification[]
 
   @@index([departmentId])
@@ -316,6 +317,31 @@ model AuditLog {
   @@index([actorId])
   @@index([documentId])
   @@index([action])
+  @@index([createdAt])
+}
+
+model LoginHistory {
+  id            String   @id @default(cuid())
+  attemptedName String
+  success       Boolean
+  failureReason String?
+  ipAddress     String?
+  userAgent     String?
+  browser       String?
+  os            String?
+  device        String?
+  country       String?
+  region        String?
+  city          String?
+  createdAt     DateTime @default(now())
+
+  userId String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([attemptedName])
+  @@index([success, createdAt])
   @@index([createdAt])
 }
 

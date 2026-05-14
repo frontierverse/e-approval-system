@@ -7,6 +7,7 @@
 - 문서 본문과 결재 이력은 삭제보다 상태 변경으로 관리한다.
 - 결재선은 문서마다 복사해서 저장한다. 사용자의 직급이나 부서가 바뀌어도 이미 결재 요청된 문서의 당시 결재선이 보존되어야 한다.
 - 승인, 반려, 회수 같은 주요 행위는 AuditLog에 남긴다.
+- 로그인 성공/실패는 LoginHistory에 남기며 관리자가 보안 확인용으로 조회한다.
 - 첨부파일은 로컬 개발 저장소와 Vercel Blob 운영 저장소를 구분해 메타데이터를 남긴다.
 - 승인완료, 반려, 회수 문서는 처리일 기준 5년 뒤 보관 검토 대상으로 표시하며 자동 삭제하지 않는다.
 
@@ -26,6 +27,7 @@ erDiagram
   User ||--o{ ApprovalComment : writes
   User ||--o{ Attachment : uploads
   User ||--o{ AuditLog : acts
+  User ||--o{ LoginHistory : logs
 ```
 
 ## Enum
@@ -101,6 +103,7 @@ erDiagram
 - Position 1개를 가진다.
 - 여러 문서를 작성할 수 있다.
 - 여러 결재 단계의 결재자가 될 수 있다.
+- 여러 로그인 이력을 가진다.
 
 ### Department
 
@@ -252,6 +255,27 @@ erDiagram
 | userAgent | string | N | 브라우저 정보 |
 | createdAt | datetime | Y | 발생일 |
 
+### LoginHistory
+
+로그인 성공과 실패 시도를 남기는 보안 이력이다. 계정이 삭제되거나 비활성화되어도 과거 접속 시도 추적을 위해 이력 자체는 보존한다.
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| id | string | Y | 로그인 이력 ID |
+| userId | string | N | 성공한 사용자 또는 식별 가능한 비활성 사용자 참조 |
+| attemptedName | string | Y | 로그인 폼에 입력된 이름 |
+| success | boolean | Y | 로그인 성공 여부 |
+| failureReason | string | N | 실패 사유 코드 |
+| ipAddress | string | N | 요청 IP |
+| userAgent | string | N | 원본 User-Agent |
+| browser | string | N | 파싱한 브라우저 |
+| os | string | N | 파싱한 OS |
+| device | string | N | 데스크톱/모바일/태블릿 |
+| country | string | N | 플랫폼 헤더 기반 국가 |
+| region | string | N | 플랫폼 헤더 기반 지역 |
+| city | string | N | 플랫폼 헤더 기반 도시 |
+| createdAt | datetime | Y | 로그인 시도 시각 |
+
 ## 화면별 사용 모델
 
 | 화면 | 사용 모델 |
@@ -266,6 +290,7 @@ erDiagram
 | 관리자 사용자 관리 | User, Department, Position, AuditLog |
 | 관리자 양식 관리 | DocumentTemplate, AuditLog |
 | 관리자 감사 로그 | AuditLog, User, ApprovalDocument |
+| 관리자 로그인 이력 | LoginHistory, User |
 
 ## 문서 번호 정책
 

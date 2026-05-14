@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { AdminAttachmentPolicyManagement } from "@/components/admin-attachment-policy-management";
 import { AdminAuditLogList } from "@/components/admin-audit-log-list";
 import { AdminDepartmentManagement } from "@/components/admin-department-management";
+import { AdminLoginHistoryList } from "@/components/admin-login-history-list";
 import { AdminPositionManagement } from "@/components/admin-position-management";
 import { AdminTemplateManagement } from "@/components/admin-template-management";
 import { AdminUserManagement } from "@/components/admin-user-management";
@@ -13,12 +14,16 @@ import {
   getAdminAuditLogPage,
   getAdminDepartments,
   getAdminDocumentTemplates,
+  getAdminLoginHistoryPage,
+  getAdminLoginHistoryUsers,
   getAdminOverview,
   getAdminPositions,
   getAdminReferenceData,
   getAdminUsers,
   type AdminAuditLogFilters,
   type AdminAuditLogStatusFilter,
+  type AdminLoginHistoryFilters,
+  type AdminLoginHistoryResultFilter,
 } from "@/lib/admin-queries";
 import { isAuditActionValue } from "@/lib/audit-log-display";
 import { requireAdmin } from "@/lib/auth";
@@ -30,6 +35,7 @@ type AdminPageSearchParams = {
   tab?: SearchParamValue;
   q?: SearchParamValue;
   status?: SearchParamValue;
+  result?: SearchParamValue;
   user?: SearchParamValue;
   dateFrom?: SearchParamValue;
   dateTo?: SearchParamValue;
@@ -43,13 +49,19 @@ const adminTabs = [
   { value: "templates", label: "문서 양식", description: "기안 양식" },
   { value: "attachments", label: "첨부 정책", description: "파일 제한" },
   { value: "audit", label: "감사 로그", description: "작업 이력" },
+  { value: "login-history", label: "로그인 이력", description: "접속 기록" },
 ] as const;
 
 type AdminTabValue = (typeof adminTabs)[number]["value"];
 type AdminTabCounts = Partial<Record<AdminTabValue, string>>;
 type AdminAuditLogSearchFilters = Omit<AdminAuditLogFilters, "pageSize">;
+type AdminLoginHistorySearchFilters = Omit<
+  AdminLoginHistoryFilters,
+  "pageSize"
+>;
 
 const auditLogPageSize = 12;
+const loginHistoryPageSize = 12;
 
 export default async function AdminPage({
   searchParams,
@@ -91,6 +103,7 @@ async function AdminContent({
     positions: String(overview.positions.total),
     templates: String(overview.templates.total),
     audit: "최근",
+    "login-history": String(overview.loginHistories.total),
   } satisfies AdminTabCounts;
 
   return (
@@ -142,6 +155,29 @@ async function getAdminPanel(
     const attachmentPolicy = await getAdminAttachmentPolicy();
 
     return <AdminAttachmentPolicyManagement policy={attachmentPolicy} />;
+  }
+
+  if (activeTab === "login-history") {
+    const filters = getLoginHistoryFilters(searchParams);
+    const [historyPage, users] = await Promise.all([
+      getAdminLoginHistoryPage({
+        ...filters,
+        pageSize: loginHistoryPageSize,
+      }),
+      getAdminLoginHistoryUsers(),
+    ]);
+
+    return (
+      <AdminLoginHistoryList
+        histories={historyPage.histories}
+        users={users}
+        filters={filters}
+        page={historyPage.page}
+        pageSize={historyPage.pageSize}
+        total={historyPage.total}
+        totalPages={historyPage.totalPages}
+      />
+    );
   }
 
   const filters = getAuditLogFilters(searchParams);
@@ -244,12 +280,33 @@ function getAuditLogFilters(
   };
 }
 
+function getLoginHistoryFilters(
+  params: AdminPageSearchParams,
+): AdminLoginHistorySearchFilters {
+  return {
+    query: normalizeTextParam(params.q),
+    result: normalizeLoginResult(params.result),
+    userId: normalizeActorId(params.user),
+    dateFrom: normalizeDate(params.dateFrom),
+    dateTo: normalizeDate(params.dateTo),
+    page: normalizePage(params.page),
+  };
+}
+
 function normalizeAdminTab(value: SearchParamValue): AdminTabValue {
   const tab = getSingleParam(value);
 
   return adminTabs.some((item) => item.value === tab)
     ? (tab as AdminTabValue)
     : "users";
+}
+
+function normalizeLoginResult(
+  value: SearchParamValue,
+): AdminLoginHistoryResultFilter {
+  const result = getSingleParam(value);
+
+  return result === "success" || result === "failure" ? result : "all";
 }
 
 function normalizeAuditStatus(

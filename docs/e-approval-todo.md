@@ -90,6 +90,7 @@
 - [x] ApprovalComment 모델 정의하기
 - [x] Attachment 모델 정의하기
 - [x] AuditLog 모델 정의하기
+- [x] LoginHistory 모델 정의하기
 - [x] 각 모델의 필수 필드와 상태값 정리하기
 
 권장 핵심 필드:
@@ -99,6 +100,7 @@
 - [x] ApprovalStep: id, documentId, approverId, order, status, actedAt
 - [x] ApprovalComment: id, documentId, authorId, body, createdAt
 - [x] AuditLog: id, actorId, action, targetType, targetId, createdAt
+- [x] LoginHistory: id, userId, attemptedName, success, failureReason, ipAddress, userAgent, createdAt
 
 완료 기준:
 
@@ -232,6 +234,7 @@
 - [x] 직급 관리 만들기
 - [x] 문서 양식 관리 만들기
 - [x] 관리자 액션을 AuditLog에 기록하기
+- [x] 전체 사용자 로그인 이력을 관리자만 조회할 수 있게 만들기
 
 완료 기준:
 
@@ -283,6 +286,7 @@
 - [x] 결재 액션 권한 검사 넣기
 - [x] 관리자 액션 권한 검사 넣기
 - [x] 주요 액션 AuditLog 기록 확인하기
+- [x] 로그인 성공/실패 이력을 IP, 기기, 브라우저 정보와 함께 기록하기
 - [x] 민감한 에러 메시지 숨기기
 
 완료 기준:

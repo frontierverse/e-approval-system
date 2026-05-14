@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
+import { AdminLoginHistoryList } from "../src/components/admin-login-history-list.tsx";
 import { ApprovalLinePreview } from "../src/components/approval-line-preview.tsx";
 import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
@@ -439,6 +440,66 @@ describe("major UI rendering", () => {
     assert.match(
       html,
       /href="\/admin\?tab=audit&amp;q=approval&amp;dateFrom=2026-05-01&amp;dateTo=2026-05-08&amp;user=user-003&amp;status=APPROVE&amp;page=3"/,
+    );
+  });
+
+  test("renders admin login history filters and results", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AdminLoginHistoryList, {
+        histories: [
+          {
+            id: "login-001",
+            attemptedName: "김민준",
+            success: false,
+            failureReason: "invalid_credentials",
+            ipAddress: "203.0.113.10",
+            userAgent: "Mozilla/5.0 Chrome/126.0.0.0",
+            browser: "Chrome 126",
+            os: "Windows",
+            device: "데스크톱",
+            country: "KR",
+            region: "Seoul",
+            city: "Seoul",
+            createdAt: new Date("2026-05-14T01:30:00.000Z"),
+            user: {
+              id: "user-001",
+              name: "김민준",
+              email: "minjun@example.com",
+            },
+          },
+        ],
+        users: [
+          {
+            id: "user-001",
+            name: "김민준",
+            email: "minjun@example.com",
+          },
+        ],
+        filters: {
+          query: "Chrome",
+          result: "failure",
+          userId: "user-001",
+          dateFrom: "2026-05-14",
+          dateTo: "2026-05-14",
+        },
+        page: 1,
+        pageSize: 12,
+        total: 13,
+        totalPages: 2,
+      }),
+    );
+
+    assert.match(html, /name="tab" value="login-history"/);
+    assert.match(html, /로그인 이력/);
+    assert.match(html, /실패/);
+    assert.match(html, /이름 또는 비밀번호 불일치/);
+    assert.match(html, /203\.0\.113\.10/);
+    assert.match(html, /데스크톱 · Chrome 126 · Windows/);
+    assert.match(html, /Seoul \/ Seoul \/ KR/);
+    assert.match(html, /13건 중 1-12건 표시/);
+    assert.match(
+      html,
+      /href="\/admin\?tab=login-history&amp;q=Chrome&amp;dateFrom=2026-05-14&amp;dateTo=2026-05-14&amp;user=user-001&amp;result=failure&amp;page=2"/,
     );
   });
 

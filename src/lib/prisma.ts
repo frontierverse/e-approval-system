@@ -16,7 +16,8 @@ export const prisma =
   "notification" in globalForPrisma.prisma &&
   "resourcePost" in globalForPrisma.prisma &&
   "resourceAttachment" in globalForPrisma.prisma &&
-  "resourcePostView" in globalForPrisma.prisma
+  "resourcePostView" in globalForPrisma.prisma &&
+  "loginHistory" in globalForPrisma.prisma
     ? globalForPrisma.prisma
     : new PrismaClient({ adapter });
 

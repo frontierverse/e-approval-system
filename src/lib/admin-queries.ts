@@ -7,11 +7,22 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export type AdminAuditLogStatusFilter = "all" | AuditActionValue;
+export type AdminLoginHistoryResultFilter = "all" | "success" | "failure";
 
 export type AdminAuditLogFilters = {
   query: string;
   status: AdminAuditLogStatusFilter;
   actorId: string;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminLoginHistoryFilters = {
+  query: string;
+  result: AdminLoginHistoryResultFilter;
+  userId: string;
   dateFrom: string;
   dateTo: string;
   page: number;
@@ -30,6 +41,7 @@ export async function getAdminOverview() {
     activePositions,
     totalTemplates,
     activeTemplates,
+    totalLoginHistories,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { status: "ACTIVE" } }),
@@ -39,6 +51,7 @@ export async function getAdminOverview() {
     prisma.position.count({ where: { isActive: true } }),
     prisma.documentTemplate.count(),
     prisma.documentTemplate.count({ where: { isActive: true } }),
+    prisma.loginHistory.count(),
   ]);
 
   return {
@@ -57,6 +70,9 @@ export async function getAdminOverview() {
     templates: {
       total: totalTemplates,
       active: activeTemplates,
+    },
+    loginHistories: {
+      total: totalLoginHistories,
     },
   };
 }
@@ -265,6 +281,60 @@ export async function getAdminAuditActors() {
   });
 }
 
+export async function getAdminLoginHistoryPage(
+  filters: AdminLoginHistoryFilters,
+) {
+  await requireAdmin();
+
+  const where = getAdminLoginHistoryWhere(filters);
+  const total = await prisma.loginHistory.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+
+  const histories = await prisma.loginHistory.findMany({
+    where,
+    select: adminLoginHistorySelect,
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (page - 1) * filters.pageSize,
+    take: filters.pageSize,
+  });
+
+  return {
+    histories,
+    total,
+    page,
+    pageSize: filters.pageSize,
+    totalPages,
+  };
+}
+
+export async function getAdminLoginHistoryUsers() {
+  await requireAdmin();
+
+  return prisma.user.findMany({
+    where: {
+      loginHistories: {
+        some: {},
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+    orderBy: [
+      {
+        name: "asc",
+      },
+      {
+        email: "asc",
+      },
+    ],
+  });
+}
+
 function getAdminAuditLogWhere(filters: AdminAuditLogFilters) {
   const and: Prisma.AuditLogWhereInput[] = [];
 
@@ -322,6 +392,67 @@ function getAdminAuditLogWhere(filters: AdminAuditLogFilters) {
   return and.length > 0 ? { AND: and } : {};
 }
 
+function getAdminLoginHistoryWhere(filters: AdminLoginHistoryFilters) {
+  const and: Prisma.LoginHistoryWhereInput[] = [];
+
+  if (filters.query) {
+    const contains = {
+      contains: filters.query,
+      mode: Prisma.QueryMode.insensitive,
+    };
+
+    and.push({
+      OR: [
+        { attemptedName: contains },
+        { ipAddress: contains },
+        { userAgent: contains },
+        { browser: contains },
+        { os: contains },
+        { device: contains },
+        { country: contains },
+        { region: contains },
+        { city: contains },
+        { failureReason: contains },
+        {
+          user: {
+            is: {
+              OR: [{ name: contains }, { email: contains }],
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  if (filters.result !== "all") {
+    and.push({
+      success: filters.result === "success",
+    });
+  }
+
+  if (filters.userId !== "all") {
+    and.push({
+      userId: filters.userId,
+    });
+  }
+
+  const createdAt: Prisma.DateTimeFilter<"LoginHistory"> = {};
+
+  if (filters.dateFrom) {
+    createdAt.gte = getKoreanDateBoundary(filters.dateFrom, "start");
+  }
+
+  if (filters.dateTo) {
+    createdAt.lte = getKoreanDateBoundary(filters.dateTo, "end");
+  }
+
+  if (createdAt.gte || createdAt.lte) {
+    and.push({ createdAt });
+  }
+
+  return and.length > 0 ? { AND: and } : {};
+}
+
 function getKoreanDateBoundary(date: string, boundary: "start" | "end") {
   return new Date(
     boundary === "start"
@@ -353,6 +484,31 @@ const adminAuditLogSelect = {
     },
   },
 } satisfies Prisma.AuditLogSelect;
+
+const adminLoginHistorySelect = {
+  id: true,
+  attemptedName: true,
+  success: true,
+  failureReason: true,
+  ipAddress: true,
+  userAgent: true,
+  browser: true,
+  os: true,
+  device: true,
+  country: true,
+  region: true,
+  city: true,
+  createdAt: true,
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
+    },
+  },
+} satisfies Prisma.LoginHistorySelect;
 
 export async function getAdminAuditLogs() {
   const page = await getAdminAuditLogPage({

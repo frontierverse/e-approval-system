@@ -297,8 +297,15 @@ function AdminSkeleton() {
         className="border-b border-[#d9dee7]"
       >
         <div className="scrollbar-none flex gap-2 overflow-x-auto">
-          {["사용자", "부서", "직급", "문서 양식", "첨부 정책", "감사 로그"].map(
-            (label) => (
+          {[
+            "사용자",
+            "부서",
+            "직급",
+            "문서 양식",
+            "첨부 정책",
+            "감사 로그",
+            "로그인 이력",
+          ].map((label) => (
               <div
                 key={label}
                 className="min-w-32 shrink-0 rounded-t-md bg-white/70 px-4 py-3"
@@ -306,8 +313,7 @@ function AdminSkeleton() {
                 <p className="text-sm font-semibold text-[#697386]">{label}</p>
                 <SkeletonBlock className="mt-2 h-3 w-16" />
               </div>
-            ),
-          )}
+          ))}
         </div>
       </section>
 
