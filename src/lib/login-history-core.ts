@@ -21,6 +21,132 @@ type HeaderReader = {
 
 const maxHeaderLength = 1000;
 
+const countryLabels: Record<string, string> = {
+  KR: "대한민국",
+};
+
+const koreaRegionLabels: Record<string, string> = {
+  "11": "서울",
+  "26": "부산",
+  "27": "대구",
+  "28": "인천",
+  "29": "광주",
+  "30": "대전",
+  "31": "울산",
+  "36": "세종",
+  "41": "경기",
+  "42": "강원",
+  "43": "충북",
+  "44": "충남",
+  "45": "전북",
+  "46": "전남",
+  "47": "경북",
+  "48": "경남",
+  "49": "제주",
+  "50": "세종",
+  "51": "강원",
+  "52": "전북",
+  busan: "부산",
+  chungbuk: "충북",
+  chungnam: "충남",
+  daegu: "대구",
+  daejeon: "대전",
+  gangwon: "강원",
+  gwangju: "광주",
+  gyeongbuk: "경북",
+  gyeonggi: "경기",
+  gyeongnam: "경남",
+  incheon: "인천",
+  jeju: "제주",
+  jeonbuk: "전북",
+  jeonnam: "전남",
+  sejong: "세종",
+  seoul: "서울",
+  ulsan: "울산",
+};
+
+const koreaCityLabels: Record<string, string> = {
+  ansan: "안산",
+  anseong: "안성",
+  anyang: "안양",
+  asan: "아산",
+  boryeong: "보령",
+  bucheon: "부천",
+  busan: "부산",
+  changwon: "창원",
+  cheonan: "천안",
+  cheongju: "청주",
+  chuncheon: "춘천",
+  chungju: "충주",
+  daegu: "대구",
+  daejeon: "대전",
+  dangjin: "당진",
+  dongducheon: "동두천",
+  donghae: "동해",
+  gangneung: "강릉",
+  geoje: "거제",
+  gimcheon: "김천",
+  gimhae: "김해",
+  gimje: "김제",
+  gimpo: "김포",
+  gongju: "공주",
+  gumi: "구미",
+  gunpo: "군포",
+  gunsan: "군산",
+  guri: "구리",
+  gwacheon: "과천",
+  gwangju: "광주",
+  gwangmyeong: "광명",
+  gwangyang: "광양",
+  gyeongju: "경주",
+  gyeongsan: "경산",
+  gyeryong: "계룡",
+  hanam: "하남",
+  hwaseong: "화성",
+  icheon: "이천",
+  iksan: "익산",
+  incheon: "인천",
+  jecheon: "제천",
+  jeju: "제주",
+  jeongeup: "정읍",
+  jeonju: "전주",
+  jinju: "진주",
+  mokpo: "목포",
+  mungyeong: "문경",
+  namwon: "남원",
+  namyangju: "남양주",
+  naju: "나주",
+  nonsan: "논산",
+  osan: "오산",
+  paju: "파주",
+  pohang: "포항",
+  pyeongtaek: "평택",
+  samcheok: "삼척",
+  sangju: "상주",
+  sacheon: "사천",
+  sejong: "세종",
+  seogwipo: "서귀포",
+  seosan: "서산",
+  seongnam: "성남",
+  seoul: "서울",
+  siheung: "시흥",
+  sokcho: "속초",
+  suncheon: "순천",
+  suwon: "수원",
+  taebaek: "태백",
+  tongyeong: "통영",
+  uijeongbu: "의정부",
+  uiwang: "의왕",
+  ulsan: "울산",
+  wonju: "원주",
+  yangsan: "양산",
+  yeongcheon: "영천",
+  yeongju: "영주",
+  yeosu: "여수",
+  yeoju: "여주",
+  yongin: "용인",
+};
+
 export function getLoginRequestInfo(headers: HeaderReader): LoginRequestInfo {
   const userAgent = normalizeHeaderValue(headers.get("user-agent"), maxHeaderLength);
   const clientHintsPlatform = normalizeHeaderValue(
@@ -57,11 +183,14 @@ export function getLoginLocationLabel(location: {
   region?: string | null;
   city?: string | null;
 }) {
-  const parts = [location.city, location.region, location.country]
-    .map((part) => part?.trim())
-    .filter(Boolean);
+  const country = getCountryLabel(location.country);
+  const region = getRegionLabel(location.region, country);
+  const city = getCityLabel(location.city, country);
+  const parts = getUniqueLocationParts([city, region, country]);
 
-  return parts.length > 0 ? parts.join(" / ") : "위치 정보 없음";
+  return parts.length > 0
+    ? `${parts.join(", ")} · IP 추정`
+    : "위치 정보 없음";
 }
 
 function getClientIp(headers: HeaderReader) {
@@ -219,4 +348,81 @@ function normalizeHeaderValue(value: string | null | undefined, maxLength: numbe
   return normalized.length > maxLength
     ? normalized.slice(0, maxLength)
     : normalized;
+}
+
+function getCountryLabel(country?: string | null) {
+  const normalized = country?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return countryLabels[normalized.toUpperCase()] ?? normalized;
+}
+
+function getRegionLabel(region?: string | null, country?: string | null) {
+  const normalized = region?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (country === "대한민국" || country?.toUpperCase() === "KR") {
+    const lookupKey = getLocationLookupKey(normalized);
+    const regionCode = lookupKey.replace(/^kr-/, "");
+    const label =
+      koreaRegionLabels[lookupKey] ?? koreaRegionLabels[regionCode];
+
+    if (label) {
+      return label;
+    }
+
+    return /^\d+$/.test(regionCode) ? null : normalized;
+  }
+
+  return normalized;
+}
+
+function getCityLabel(city?: string | null, country?: string | null) {
+  const normalized = city?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (country === "대한민국" || country?.toUpperCase() === "KR") {
+    const lookupKey = getLocationLookupKey(normalized).replace(/-si$/, "");
+
+    return koreaCityLabels[lookupKey] ?? normalized;
+  }
+
+  return normalized;
+}
+
+function getUniqueLocationParts(parts: Array<string | null>) {
+  const seen = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    const key = part.toLocaleLowerCase("ko-KR");
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueParts.push(part);
+    }
+  }
+
+  return uniqueParts;
+}
+
+function getLocationLookupKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-");
 }

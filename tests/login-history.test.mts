@@ -23,7 +23,26 @@ describe("login history", () => {
     assert.equal(info.browser, "Chrome 126");
     assert.equal(info.os, "Windows");
     assert.equal(info.device, "데스크톱");
-    assert.equal(getLoginLocationLabel(info), "Seoul / Seoul / KR");
+    assert.equal(getLoginLocationLabel(info), "서울, 대한민국 · IP 추정");
+  });
+
+  test("formats Korean IP location codes for display", () => {
+    assert.equal(
+      getLoginLocationLabel({
+        city: "Gunsan",
+        region: "45",
+        country: "KR",
+      }),
+      "군산, 전북, 대한민국 · IP 추정",
+    );
+    assert.equal(
+      getLoginLocationLabel({
+        city: "Gunsan-si",
+        region: "KR-45",
+        country: "KR",
+      }),
+      "군산, 전북, 대한민국 · IP 추정",
+    );
   });
 
   test("labels login failure reasons", () => {

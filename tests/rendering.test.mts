@@ -458,8 +458,8 @@ describe("major UI rendering", () => {
             os: "Windows",
             device: "데스크톱",
             country: "KR",
-            region: "Seoul",
-            city: "Seoul",
+            region: "45",
+            city: "Gunsan",
             createdAt: new Date("2026-05-14T01:30:00.000Z"),
             user: {
               id: "user-001",
@@ -495,7 +495,8 @@ describe("major UI rendering", () => {
     assert.match(html, /이름 또는 비밀번호 불일치/);
     assert.match(html, /203\.0\.113\.10/);
     assert.match(html, /데스크톱 · Chrome 126 · Windows/);
-    assert.match(html, /Seoul \/ Seoul \/ KR/);
+    assert.match(html, /군산, 전북, 대한민국 · IP 추정/);
+    assert.doesNotMatch(html, /Gunsan \/ 45 \/ KR/);
     assert.match(html, /13건 중 1-12건 표시/);
     assert.match(
       html,
