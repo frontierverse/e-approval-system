@@ -29,8 +29,7 @@ type SentPageSearchParams = {
 const pageSize = 8;
 const statusOptions = [
   { value: "all", label: "전체" },
-  { value: "submitted", label: "결재 요청" },
-  { value: "in_progress", label: "진행중" },
+  { value: "active", label: "진행중" },
   { value: "approved", label: "승인완료" },
   { value: "rejected", label: "반려" },
 ];
@@ -197,12 +196,13 @@ function getFilters(params: SentPageSearchParams): SentDocumentFilters {
 
 function normalizeStatus(value: string | undefined): SentDocumentStatusFilter {
   if (
+    value === "active" ||
     value === "submitted" ||
     value === "in_progress" ||
     value === "approved" ||
     value === "rejected"
   ) {
-    return value;
+    return value === "submitted" || value === "in_progress" ? "active" : value;
   }
 
   return "all";

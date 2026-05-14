@@ -99,12 +99,11 @@ type DocumentRecord = Prisma.ApprovalDocumentGetPayload<{
   include: typeof documentInclude;
 }>;
 
-export type InboxDocumentStatusFilter = "all" | "submitted" | "in_progress";
+export type InboxDocumentStatusFilter = "all" | "active";
 export type DraftDocumentStatusFilter = "all" | "draft" | "recalled";
 export type SentDocumentStatusFilter =
   | "all"
-  | "submitted"
-  | "in_progress"
+  | "active"
   | "approved"
   | "rejected";
 export type CompletedDocumentStatusFilter = "all" | "approved" | "rejected";
@@ -616,11 +615,10 @@ function getInboxDocumentWhere(
     },
   };
 
-  if (status !== "all") {
-    where.status =
-      status === "submitted"
-        ? DbDocumentStatus.SUBMITTED
-        : DbDocumentStatus.IN_PROGRESS;
+  if (status === "active") {
+    where.status = {
+      in: [DbDocumentStatus.SUBMITTED, DbDocumentStatus.IN_PROGRESS],
+    };
   }
 
   if (query) {
@@ -649,7 +647,11 @@ function getSentDocumentWhere(
     },
   };
 
-  if (status !== "all") {
+  if (status === "active") {
+    where.status = {
+      in: [DbDocumentStatus.SUBMITTED, DbDocumentStatus.IN_PROGRESS],
+    };
+  } else if (status !== "all") {
     where.status = toDbDocumentStatus(status);
   }
 
@@ -921,14 +923,12 @@ type DocumentStatusFilterValue = Exclude<
   | DraftDocumentStatusFilter
   | SentDocumentStatusFilter
   | CompletedDocumentStatusFilter,
-  "all"
+  "all" | "active"
 >;
 
 function toDbDocumentStatus(status: DocumentStatusFilterValue) {
   const statusMap = {
     draft: DbDocumentStatus.DRAFT,
-    submitted: DbDocumentStatus.SUBMITTED,
-    in_progress: DbDocumentStatus.IN_PROGRESS,
     approved: DbDocumentStatus.APPROVED,
     rejected: DbDocumentStatus.REJECTED,
     recalled: DbDocumentStatus.RECALLED,

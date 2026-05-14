@@ -14,26 +14,34 @@ export async function loginAction(
   _state: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!email || !password) {
-    return { error: "이메일과 비밀번호를 입력하세요." };
+  if (!name || !password) {
+    return { error: "이름과 비밀번호를 입력하세요." };
   }
 
-  const user = await prisma.user.findUnique({
+  const users = await prisma.user.findMany({
     where: {
-      email,
+      name,
+      status: UserStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      passwordHash: true,
+    },
+    orderBy: {
+      createdAt: "asc",
     },
   });
+  const user = users.find(
+    (candidate) =>
+      candidate.passwordHash &&
+      verifyPassword(password, candidate.passwordHash),
+  );
 
-  if (
-    !user ||
-    user.status !== UserStatus.ACTIVE ||
-    !user.passwordHash ||
-    !verifyPassword(password, user.passwordHash)
-  ) {
-    return { error: "이메일 또는 비밀번호가 올바르지 않습니다." };
+  if (!user) {
+    return { error: "이름 또는 비밀번호가 올바르지 않습니다." };
   }
 
   await createSession(user.id);

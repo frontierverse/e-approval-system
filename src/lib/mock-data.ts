@@ -373,7 +373,7 @@ export const documents: ApprovalDocument[] = legacyDocuments.map((document) => (
 
 export const documentStatusLabels: Record<DocumentStatus, string> = {
   draft: "임시저장",
-  submitted: "결재 요청",
+  submitted: "진행중",
   in_progress: "진행중",
   approved: "승인완료",
   rejected: "반려",

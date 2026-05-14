@@ -81,7 +81,7 @@ erDiagram
 | --- | --- | --- | --- |
 | id | string | Y | 사용자 ID |
 | name | string | Y | 사용자 이름 |
-| email | string | Y | 로그인 이메일, unique |
+| email | string | N | 연락 이메일, unique |
 | passwordHash | string | N | 자체 로그인 사용 시 저장 |
 | departmentId | string | Y | Department 참조 |
 | positionId | string | Y | Position 참조 |

@@ -19,15 +19,15 @@ export function LoginForm() {
   return (
     <form action={formAction} className="mt-8 space-y-5">
       <div>
-        <label htmlFor="email" className="text-sm font-semibold text-[#394150]">
-          이메일
+        <label htmlFor="name" className="text-sm font-semibold text-[#394150]">
+          이름
         </label>
         <input
-          id="email"
-          name="email"
-          type="email"
-          defaultValue="minjun.kim@company.local"
-          autoComplete="email"
+          id="name"
+          name="name"
+          type="text"
+          defaultValue="김민준"
+          autoComplete="name"
           className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         />
       </div>

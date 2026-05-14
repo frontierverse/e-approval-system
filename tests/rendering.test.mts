@@ -173,7 +173,8 @@ describe("major UI rendering", () => {
       }),
     );
 
-    assert.match(documentBadgeHtml, /결재 요청/);
+    assert.match(documentBadgeHtml, /진행중/);
+    assert.doesNotMatch(documentBadgeHtml, /결재 요청/);
     assert.match(documentBadgeHtml, /shrink-0/);
     assert.match(documentBadgeHtml, /whitespace-nowrap/);
     assert.match(stepBadgeHtml, /결재대기/);

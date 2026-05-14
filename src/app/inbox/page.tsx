@@ -29,8 +29,7 @@ type InboxPageSearchParams = {
 const pageSize = 8;
 const statusOptions = [
   { value: "all", label: "전체" },
-  { value: "submitted", label: "결재 요청" },
-  { value: "in_progress", label: "진행중" },
+  { value: "active", label: "진행중" },
 ];
 
 type InboxDocumentFilters = {
@@ -194,8 +193,8 @@ function getFilters(params: InboxPageSearchParams): InboxDocumentFilters {
 }
 
 function normalizeStatus(value: string | undefined): InboxDocumentStatusFilter {
-  if (value === "submitted" || value === "in_progress") {
-    return value;
+  if (value === "active" || value === "submitted" || value === "in_progress") {
+    return "active";
   }
 
   return "all";

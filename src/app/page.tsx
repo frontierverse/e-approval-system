@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ApprovalLinePreview } from "@/components/approval-line-preview";
 import { PageTitle } from "@/components/page-title";
-import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
 import {
   getCompletedDocuments,
@@ -109,7 +108,7 @@ async function HomeContent() {
         ))}
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <section className="mt-6">
         <div className="rounded-md border border-[#d9dee7] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold">최근 결재 활동</h2>
@@ -157,29 +156,6 @@ async function HomeContent() {
               );
             })}
           </ol>
-        </div>
-
-        <div className="rounded-md border border-[#d9dee7] bg-white p-5">
-          <h2 className="text-base font-semibold">내 결재 대기</h2>
-          <div className="mt-4 space-y-3">
-            {inboxDocuments.map((document) => (
-              <Link
-                key={document.id}
-                href={`/documents/${document.id}`}
-                className="block rounded-md border border-[#eef1f5] p-4 transition hover:border-[#b8d9d7] hover:bg-[#fbfcfd]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 text-sm font-semibold text-[#16181d]">
-                    {document.title}
-                  </p>
-                  <StatusBadge type="document" status={document.status} />
-                </div>
-                <p className="mt-2 text-xs text-[#697386]">
-                  {document.documentNo} · {document.category}
-                </p>
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
     </>

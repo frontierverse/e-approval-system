@@ -31,8 +31,8 @@ npm run dev
 
 공통 비밀번호는 `password123`이다.
 
-- 관리자: `minjun.kim@company.local`
-- 일반 사용자: `seoyeon.lee@company.local`
+- 관리자: `김민준`
+- 일반 사용자: `이서연`
 
 ## 검증
 

@@ -83,9 +83,8 @@ function HomeSkeleton() {
         ))}
       </section>
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <section className="mt-6">
         <PanelSkeleton title="최근 결재 활동" rows={5} />
-        <PanelSkeleton title="내 결재 대기" rows={3} />
       </section>
     </>
   );
