@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 
 export type NavigationItem = {
   label: string;
@@ -19,28 +25,166 @@ type AppNavProps = {
   variant: "mobile" | "desktop";
 };
 
+type MobileDragState = {
+  pointerId: number | null;
+  startX: number;
+  scrollLeft: number;
+  moved: boolean;
+  suppressClick: boolean;
+};
+
 export function AppNav({ groups, variant }: AppNavProps) {
   const pathname = usePathname();
+  const mobileNavRef = useRef<HTMLElement>(null);
+  const dragStateRef = useRef<MobileDragState>({
+    pointerId: null,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false,
+    suppressClick: false,
+  });
+
+  useEffect(() => {
+    if (variant !== "mobile") {
+      return;
+    }
+
+    const nav = mobileNavRef.current;
+    const activeLink = nav?.querySelector<HTMLElement>('[data-active-nav="true"]');
+
+    if (!nav || !activeLink) {
+      return;
+    }
+
+    const navRect = nav.getBoundingClientRect();
+    const activeLinkRect = activeLink.getBoundingClientRect();
+    const centeredScrollLeft =
+      nav.scrollLeft +
+      activeLinkRect.left -
+      navRect.left -
+      (nav.clientWidth - activeLinkRect.width) / 2;
+    const maxScrollLeft = nav.scrollWidth - nav.clientWidth;
+
+    nav.scrollTo({
+      left: Math.max(0, Math.min(centeredScrollLeft, maxScrollLeft)),
+      behavior: "auto",
+    });
+  }, [pathname, variant]);
+
+  function handleMobileNavPointerDown(event: PointerEvent<HTMLElement>) {
+    if (
+      variant !== "mobile" ||
+      event.button !== 0 ||
+      event.pointerType === "touch"
+    ) {
+      return;
+    }
+
+    const nav = event.currentTarget;
+
+    if (nav.scrollWidth <= nav.clientWidth) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: nav.scrollLeft,
+      moved: false,
+      suppressClick: false,
+    };
+  }
+
+  function handleMobileNavPointerMove(event: PointerEvent<HTMLElement>) {
+    const state = dragStateRef.current;
+
+    if (variant !== "mobile" || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - state.startX;
+
+    if (Math.abs(deltaX) > 12) {
+      state.moved = true;
+      state.suppressClick = true;
+
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    }
+
+    if (state.moved) {
+      event.preventDefault();
+      event.currentTarget.scrollLeft = state.scrollLeft - deltaX;
+    }
+  }
+
+  function handleMobileNavPointerEnd(event: PointerEvent<HTMLElement>) {
+    const state = dragStateRef.current;
+
+    if (state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    state.pointerId = null;
+    state.moved = false;
+
+    if (state.suppressClick) {
+      window.setTimeout(() => {
+        dragStateRef.current.suppressClick = false;
+      }, 120);
+    }
+  }
+
+  function handleMobileNavClickCapture(event: MouseEvent<HTMLElement>) {
+    if (!dragStateRef.current.suppressClick) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragStateRef.current.suppressClick = false;
+  }
 
   if (variant === "mobile") {
     return (
-      <nav className="scrollbar-none flex h-[3.25rem] gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 sm:gap-2 sm:px-6 lg:hidden">
-        {groups.map((group) => (
-          <div key={group.label} className="flex shrink-0 items-center gap-1">
-            <span className="px-2 text-[11px] font-semibold text-[#697386]">
-              {group.label}
-            </span>
-            {group.items.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                active={isActivePath(pathname, item.href)}
-                variant="mobile"
-              />
-            ))}
-          </div>
-        ))}
-      </nav>
+      <div className="relative w-full max-w-full overflow-hidden lg:hidden">
+        <nav
+          ref={mobileNavRef}
+          aria-label="모바일 메뉴"
+          className="scrollbar-none flex h-[3.25rem] w-full min-w-0 cursor-grab touch-pan-x select-none gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-t border-[#eef1f5] px-3 py-2 scroll-px-3 active:cursor-grabbing [-webkit-overflow-scrolling:touch] sm:gap-2 sm:px-6 sm:scroll-px-6"
+          onClickCapture={handleMobileNavClickCapture}
+          onPointerCancel={handleMobileNavPointerEnd}
+          onPointerDown={handleMobileNavPointerDown}
+          onPointerMove={handleMobileNavPointerMove}
+          onPointerUp={handleMobileNavPointerEnd}
+        >
+          {groups.map((group) => (
+            <div key={group.label} className="flex shrink-0 items-center gap-1">
+              <span className="sr-only">{group.label}</span>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  active={isActivePath(pathname, item.href)}
+                  variant="mobile"
+                />
+              ))}
+            </div>
+          ))}
+        </nav>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 w-6 border-t border-[#eef1f5] bg-gradient-to-r from-white to-white/0 dark:from-[#151b23] dark:to-[#151b23]/0"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-6 border-t border-[#eef1f5] bg-gradient-to-l from-white to-white/0 dark:from-[#151b23] dark:to-[#151b23]/0"
+        />
+      </div>
     );
   }
 
@@ -92,7 +236,10 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       className={[base, active ? activeClass : idleClass].join(" ")}
+      data-active-nav={active ? "true" : undefined}
+      draggable={false}
     >
       <span>{item.label}</span>
       <NavPendingDot variant={variant} />
