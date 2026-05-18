@@ -4,6 +4,7 @@ import {
   getAttachmentPreviewContentType,
   getAttachmentPreviewKind,
   isPreviewableAttachmentFile,
+  isSignableAttachmentFile,
 } from "../src/lib/attachment-preview.ts";
 import {
   getAttachmentFileDisplay,
@@ -49,5 +50,13 @@ describe("attachment file display", () => {
       getAttachmentPreviewContentType("preview.jpg", "application/octet-stream"),
       "image/jpeg",
     );
+  });
+
+  test("detects attachments that can receive a signature image", () => {
+    assert.equal(isSignableAttachmentFile("계약서.pdf"), true);
+    assert.equal(isSignableAttachmentFile("도면.JPG"), true);
+    assert.equal(isSignableAttachmentFile("사진", "image/png"), true);
+    assert.equal(isSignableAttachmentFile("capture.webp"), false);
+    assert.equal(isSignableAttachmentFile("보고서.hwp"), false);
   });
 });

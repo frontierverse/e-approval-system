@@ -18,6 +18,9 @@ const previewableImageMimeTypes = new Set([
   "image/webp",
 ]);
 
+const signableImageExtensions = new Set([".jpeg", ".jpg", ".png"]);
+const signableImageMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png"]);
+
 const imageContentTypesByExtension: Record<string, string> = {
   ".gif": "image/gif",
   ".jpeg": "image/jpeg",
@@ -53,6 +56,21 @@ export function isPreviewableAttachmentFile(
   mimeType?: string | null,
 ) {
   return getAttachmentPreviewKind(fileName, mimeType) !== null;
+}
+
+export function isSignableAttachmentFile(
+  fileName: string,
+  mimeType?: string | null,
+) {
+  const extension = getFileExtension(fileName);
+  const normalizedMimeType = normalizeMimeType(mimeType);
+
+  return (
+    extension === ".pdf" ||
+    normalizedMimeType === "application/pdf" ||
+    signableImageExtensions.has(extension) ||
+    (normalizedMimeType !== null && signableImageMimeTypes.has(normalizedMimeType))
+  );
 }
 
 export function getAttachmentPreviewContentType(

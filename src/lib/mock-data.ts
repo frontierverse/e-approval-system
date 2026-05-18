@@ -68,6 +68,9 @@ export type AttachmentSummary = {
   mimeType: string;
   size: number;
   createdAt: string;
+  signedAt?: string | null;
+  signedBy?: UserSummary | null;
+  signedSourceAttachmentId?: string | null;
 };
 
 export type ApprovalDocument = {

@@ -10,7 +10,10 @@ import { NotificationDocumentReadMarker } from "@/components/notification-docume
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
-import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
+import {
+  getAttachmentPreviewKind,
+  isSignableAttachmentFile,
+} from "@/lib/attachment-preview";
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import {
   canDeleteDraftDocumentByPolicy,
@@ -30,6 +33,7 @@ import {
 } from "@/lib/mock-data";
 import {
   decideDocumentAction,
+  deleteSignedAttachmentAction,
   deleteDraftDocumentAction,
   recallDocumentAction,
   submitDocumentAction,
@@ -72,6 +76,19 @@ export default async function DocumentDetailPage({
   const canDecide =
     currentStep?.approverId === user.id &&
     (document.status === "submitted" || document.status === "in_progress");
+  const hasSignatureImage = Boolean(user.signatureImageStorageKey);
+  const originalAttachments = document.attachments.filter(
+    (attachment) => !attachment.signedSourceAttachmentId,
+  );
+  const signedAttachments = document.attachments.filter(
+    (attachment) => attachment.signedSourceAttachmentId,
+  );
+  const attachmentNameById = new Map(
+    document.attachments.map((attachment) => [
+      attachment.id,
+      attachment.originalName,
+    ]),
+  );
   const progressLabel =
     progress.total > 0
       ? `진행 ${progress.approved}/${progress.total}`
@@ -227,7 +244,11 @@ export default async function DocumentDetailPage({
               <SummaryItem label="카테고리" value={document.category} />
               <SummaryItem
                 label="첨부파일"
-                value={`${document.attachmentCount}개`}
+                value={
+                  signedAttachments.length > 0
+                    ? `원본 ${originalAttachments.length}개 / 서명본 ${signedAttachments.length}개`
+                    : `${originalAttachments.length}개`
+                }
               />
               <SummaryItem
                 label="보관 정책"
@@ -249,9 +270,9 @@ export default async function DocumentDetailPage({
 
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <h2 className="text-base font-semibold">첨부파일</h2>
-            {document.attachments.length > 0 ? (
+            {originalAttachments.length > 0 ? (
               <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
-                {document.attachments.map((attachment) => (
+                {originalAttachments.map((attachment) => (
                   <li
                     key={attachment.id}
                     className="px-4 py-3"
@@ -269,6 +290,35 @@ export default async function DocumentDetailPage({
                       }
                       action={
                         <div className="flex flex-wrap justify-end gap-2">
+                          {canDecide &&
+                          isSignableAttachmentFile(
+                            attachment.originalName,
+                            attachment.mimeType,
+                          ) ? (
+                            hasSignatureImage ? (
+                              <Link
+                                href={`/attachments/${attachment.id}/sign`}
+                                className={buttonClass(
+                                  buttonStyles.base,
+                                  buttonStyles.save,
+                                  "h-9 px-3 text-sm",
+                                )}
+                              >
+                                도장 찍기
+                              </Link>
+                            ) : (
+                              <Link
+                                href="/account"
+                                className={buttonClass(
+                                  buttonStyles.base,
+                                  buttonStyles.neutral,
+                                  "h-9 px-3 text-sm",
+                                )}
+                              >
+                                도장 등록
+                              </Link>
+                            )
+                          ) : null}
                           <AttachmentPreviewButton
                             downloadHref={`/attachments/${attachment.id}`}
                             fileName={attachment.originalName}
@@ -298,6 +348,111 @@ export default async function DocumentDetailPage({
             )}
           </article>
 
+          <article className="rounded-md border border-[#d9dee7] bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">서명본</h2>
+              <span className="rounded-full bg-[#eef7f6] px-2.5 py-1 text-xs font-semibold text-[#196b69]">
+                {signedAttachments.length}개
+              </span>
+            </div>
+            {signedAttachments.length > 0 ? (
+              <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
+                {signedAttachments.map((attachment) => {
+                  const canDeleteSignedAttachment =
+                    user.role === "ADMIN" ||
+                    (canDecide && attachment.signedBy?.id === user.id);
+
+                  return (
+                    <li key={attachment.id} className="px-4 py-3">
+                      <AttachmentFileRow
+                        fileName={attachment.originalName}
+                        note="서명본"
+                        size={attachment.size}
+                        thumbnailHref={
+                          getAttachmentPreviewKind(
+                            attachment.originalName,
+                            attachment.mimeType,
+                          ) === "image"
+                            ? `/attachments/${attachment.id}/preview`
+                            : undefined
+                        }
+                        action={
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <AttachmentPreviewButton
+                              downloadHref={`/attachments/${attachment.id}`}
+                              fileName={attachment.originalName}
+                              mimeType={attachment.mimeType}
+                              previewHref={`/attachments/${attachment.id}/preview`}
+                            />
+                            <a
+                              href={`/attachments/${attachment.id}`}
+                              className={buttonClass(
+                                buttonStyles.base,
+                                buttonStyles.neutral,
+                                "h-9 px-3 text-sm",
+                              )}
+                            >
+                              다운로드
+                            </a>
+                            {canDeleteSignedAttachment ? (
+                              <form
+                                action={deleteSignedAttachmentAction.bind(
+                                  null,
+                                  document.id,
+                                  attachment.id,
+                                )}
+                              >
+                                <ConfirmSubmitButton
+                                  message="이 서명본을 삭제하시겠습니까?"
+                                  type="submit"
+                                  className={buttonClass(
+                                    buttonStyles.base,
+                                    buttonStyles.dangerOutline,
+                                    "h-9 px-3 text-sm",
+                                  )}
+                                >
+                                  삭제
+                                </ConfirmSubmitButton>
+                              </form>
+                            ) : null}
+                          </div>
+                        }
+                      />
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#697386]">
+                        <span>
+                          원본:{" "}
+                          {attachment.signedSourceAttachmentId
+                            ? attachmentNameById.get(
+                                attachment.signedSourceAttachmentId,
+                              ) ?? "원본 첨부파일"
+                            : "원본 첨부파일"}
+                        </span>
+                        {attachment.signedBy ? (
+                          <span>처리자: {attachment.signedBy.name}</span>
+                        ) : null}
+                        {attachment.signedAt ? (
+                          <span>생성: {formatDateTime(attachment.signedAt)}</span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="mt-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+                생성된 서명본이 없습니다.
+              </div>
+            )}
+          </article>
+
+          <div className="xl:hidden">
+            <ApprovalTimeline
+              document={document}
+              progressLabel={progressLabel}
+              progressPercent={progressPercent}
+            />
+          </div>
+
           <DocumentAuditHistory histories={document.histories} />
         </div>
 
@@ -308,11 +463,13 @@ export default async function DocumentDetailPage({
             />
           ) : null}
 
-          <ApprovalTimeline
-            document={document}
-            progressLabel={progressLabel}
-            progressPercent={progressPercent}
-          />
+          <div className="hidden xl:block">
+            <ApprovalTimeline
+              document={document}
+              progressLabel={progressLabel}
+              progressPercent={progressPercent}
+            />
+          </div>
         </aside>
       </section>
     </>

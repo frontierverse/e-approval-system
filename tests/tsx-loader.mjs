@@ -20,9 +20,11 @@ registerHooks({
     }
 
     if (specifier.startsWith(".")) {
-      const parentPath = context.parentURL?.startsWith("file:")
-        ? fileURLToPath(context.parentURL)
-        : path.join(projectRoot, "index.mjs");
+      if (!context.parentURL?.startsWith("file:")) {
+        return nextResolve(specifier, context);
+      }
+
+      const parentPath = fileURLToPath(context.parentURL);
 
       return resolveFile(path.resolve(path.dirname(parentPath), specifier));
     }

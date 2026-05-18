@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { PageTitle } from "@/components/page-title";
 import { ProfileImageForm } from "@/components/profile-image-form";
+import { SignatureImageForm } from "@/components/signature-image-form";
 import { UserAvatar } from "@/components/user-avatar";
 import { UserIdentity } from "@/components/user-identity";
 import { requireUser } from "@/lib/auth";
@@ -52,6 +53,19 @@ async function AccountContent() {
           <div className="mt-5">
             <ProfileImageForm
               hasProfileImage={Boolean(user.profileImageStorageKey)}
+            />
+          </div>
+        </article>
+
+        <article className="rounded-md border border-[#d9dee7] bg-white p-5">
+          <h2 className="text-base font-semibold">결재 도장/서명</h2>
+          <p className="mt-2 text-sm text-[#697386]">
+            첨부파일 서명본을 만들 때 사용할 도장 또는 서명 이미지를 관리합니다.
+          </p>
+          <div className="mt-5">
+            <SignatureImageForm
+              userId={user.id}
+              hasSignatureImage={Boolean(user.signatureImageStorageKey)}
             />
           </div>
         </article>

@@ -83,6 +83,26 @@ const documentInclude = {
       mimeType: true,
       size: true,
       createdAt: true,
+      signedAt: true,
+      signedSourceAttachmentId: true,
+      signedBy: {
+        select: {
+          id: true,
+          name: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "asc",
@@ -966,6 +986,19 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
       mimeType: attachment.mimeType,
       size: attachment.size,
       createdAt: attachment.createdAt.toISOString(),
+      signedAt: attachment.signedAt?.toISOString() ?? null,
+      signedBy: attachment.signedBy
+        ? {
+            id: attachment.signedBy.id,
+            name: attachment.signedBy.name,
+            departmentName: attachment.signedBy.department.name,
+            positionName: attachment.signedBy.position.name,
+            profileImageStorageKey: attachment.signedBy.profileImageStorageKey,
+            profileImageUpdatedAt:
+              attachment.signedBy.profileImageUpdatedAt?.toISOString() ?? null,
+          }
+        : null,
+      signedSourceAttachmentId: attachment.signedSourceAttachmentId,
     })),
     approvalSteps: record.approvalSteps.map(toApprovalStep),
     histories: record.auditLogs.map(toApprovalHistory),
