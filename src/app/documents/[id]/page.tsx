@@ -8,6 +8,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentAuditHistory } from "@/components/document-audit-history";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
 import { PageTitle } from "@/components/page-title";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
 import {
@@ -143,8 +144,9 @@ export default async function DocumentDetailPage({
             ) : null}
             {canSubmitDraft ? (
               <form action={submitDocumentAction.bind(null, document.id)}>
-                <button
+                <PendingSubmitButton
                   type="submit"
+                  pendingLabel="문서 생성 중"
                   className={buttonClass(
                     buttonStyles.base,
                     buttonStyles.primary,
@@ -152,7 +154,7 @@ export default async function DocumentDetailPage({
                   )}
                 >
                   결재 요청
-                </button>
+                </PendingSubmitButton>
               </form>
             ) : null}
             {canRecall ? (

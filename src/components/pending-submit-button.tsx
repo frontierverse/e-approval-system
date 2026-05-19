@@ -3,34 +3,20 @@
 import type { ComponentProps, ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
-type ConfirmSubmitButtonProps = ComponentProps<"button"> & {
-  message: string;
+type PendingSubmitButtonProps = ComponentProps<"button"> & {
   pendingLabel?: ReactNode;
 };
 
-export function ConfirmSubmitButton({
+export function PendingSubmitButton({
   children,
   disabled,
-  message,
-  onClick,
   pendingLabel = "처리 중",
   ...props
-}: ConfirmSubmitButtonProps) {
+}: PendingSubmitButtonProps) {
   const { pending } = useFormStatus();
 
   return (
-    <button
-      {...props}
-      disabled={disabled || pending}
-      onClick={(event) => {
-        if (!window.confirm(message)) {
-          event.preventDefault();
-          return;
-        }
-
-        onClick?.(event);
-      }}
-    >
+    <button {...props} disabled={disabled || pending}>
       {pending ? (
         <span className="inline-flex items-center gap-2">
           <span

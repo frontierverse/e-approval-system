@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { FormEvent } from "react";
 import type { ApprovalDecisionState } from "@/app/documents/[id]/actions";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -13,9 +13,12 @@ type ApprovalDecisionFormProps = {
 };
 
 const initialState: ApprovalDecisionState = {};
+type ApprovalDecision = "approve" | "reject";
 
 export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [pendingDecision, setPendingDecision] =
+    useState<ApprovalDecision | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
@@ -33,6 +36,12 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
 
     if (message && !window.confirm(message)) {
       event.preventDefault();
+      setPendingDecision(null);
+      return;
+    }
+
+    if (submitter.value === "approve" || submitter.value === "reject") {
+      setPendingDecision(submitter.value);
     }
   }
 
@@ -74,7 +83,11 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
             "h-10 px-4 text-sm",
           )}
         >
-          {pending ? "처리 중" : "반려"}
+          {pending && pendingDecision === "reject" ? (
+            <LoadingButtonContent label="반려 처리 중" />
+          ) : (
+            "반려"
+          )}
         </button>
         <button
           type="submit"
@@ -87,9 +100,25 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
             "h-10 px-4 text-sm",
           )}
         >
-          {pending ? "처리 중" : "승인"}
+          {pending && pendingDecision === "approve" ? (
+            <LoadingButtonContent label="문서 생성 중" />
+          ) : (
+            "승인"
+          )}
         </button>
       </div>
     </form>
+  );
+}
+
+function LoadingButtonContent({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span
+        aria-hidden="true"
+        className="size-3.5 animate-spin rounded-full border-2 border-current/35 border-t-current"
+      />
+      {label}
+    </span>
   );
 }

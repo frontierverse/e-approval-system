@@ -170,6 +170,7 @@ function TimelineStep({
           >
             <ConfirmSubmitButton
               message={`${step.order}차 ${step.approver.name}님까지 대리결재하시겠습니까?`}
+              pendingLabel="문서 생성 중"
               type="submit"
               className={buttonClass(
                 buttonStyles.base,
@@ -225,6 +226,7 @@ function TimelineStep({
             <div className="flex justify-end">
               <ConfirmSubmitButton
                 message="이 대리결재를 반려하시겠습니까?"
+                pendingLabel="반려 처리 중"
                 type="submit"
                 className={buttonClass(
                   buttonStyles.base,
