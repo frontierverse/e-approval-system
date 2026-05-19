@@ -72,6 +72,7 @@ const approvalPanelRowHeight = 150;
 const bodyTextFontSize = 16;
 const bodyTextLineHeight = 30;
 const bodyTextMaxChars = 58;
+const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v2/";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
@@ -171,6 +172,15 @@ export async function attachGeneratedApprovalPdfToDocument(
       storageKey: true,
     },
   });
+
+  if (
+    existingAttachment &&
+    isCurrentGeneratedApprovalPdfStorageKey(existingAttachment.storageKey)
+  ) {
+    return {
+      id: existingAttachment.id,
+    };
+  }
 
   const file = await createGeneratedApprovalPdfFile({
     documentNo: document.documentNo,
@@ -478,7 +488,7 @@ export async function createGeneratedApprovalPdfFile(
       input.title,
     ),
     storageProvider: storageConfig.provider,
-    storageKey: createPdfStorageKey(storageConfig.provider),
+    storageKey: createGeneratedApprovalPdfStorageKey(storageConfig.provider),
     mimeType: "application/pdf",
     size: buffer.byteLength,
     buffer,
@@ -1122,6 +1132,21 @@ function canAttachStampedApprovalPdf(status: DocumentStatus) {
 
 function createPdfStorageKey(provider: AttachmentStorageProvider) {
   return `${getAttachmentStorageKeyPrefix(provider)}${randomUUID()}.pdf`;
+}
+
+function createGeneratedApprovalPdfStorageKey(
+  provider: AttachmentStorageProvider,
+) {
+  return `${getAttachmentStorageKeyPrefix(provider)}${generatedApprovalPdfStorageSegment}${randomUUID()}.pdf`;
+}
+
+function isCurrentGeneratedApprovalPdfStorageKey(storageKey: string) {
+  const normalizedKey = storageKey.replace(/\\/g, "/");
+
+  return (
+    normalizedKey.startsWith(generatedApprovalPdfStorageSegment) ||
+    normalizedKey.includes(`/${generatedApprovalPdfStorageSegment}`)
+  );
 }
 
 function formatKoreanDateTime(date: Date) {
