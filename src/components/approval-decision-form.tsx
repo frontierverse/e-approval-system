@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import type { FormEvent } from "react";
 import type { ApprovalDecisionState } from "@/app/documents/[id]/actions";
+import { PendingOverlay } from "@/components/form-pending-overlay";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type ApprovalDecisionFormProps = {
@@ -19,6 +20,8 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
+  const pendingLabel =
+    pendingDecision === "reject" ? "반려 처리 중" : "문서 생성 중";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
@@ -83,11 +86,7 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
             "h-10 px-4 text-sm",
           )}
         >
-          {pending && pendingDecision === "reject" ? (
-            <LoadingButtonContent label="반려 처리 중" />
-          ) : (
-            "반려"
-          )}
+          반려
         </button>
         <button
           type="submit"
@@ -100,25 +99,10 @@ export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
             "h-10 px-4 text-sm",
           )}
         >
-          {pending && pendingDecision === "approve" ? (
-            <LoadingButtonContent label="문서 생성 중" />
-          ) : (
-            "승인"
-          )}
+          승인
         </button>
       </div>
+      <PendingOverlay label={pendingLabel} show={pending} />
     </form>
-  );
-}
-
-function LoadingButtonContent({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span
-        aria-hidden="true"
-        className="size-3.5 animate-spin rounded-full border-2 border-current/35 border-t-current"
-      />
-      {label}
-    </span>
   );
 }
