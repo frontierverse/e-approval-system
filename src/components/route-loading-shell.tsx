@@ -207,6 +207,9 @@ function DocumentDetailSkeleton() {
 
         <PanelSkeleton title="문서 본문" rows={4} />
         <PanelSkeleton title="첨부파일" rows={2} />
+        <div className="xl:hidden">
+          <PanelSkeleton title="결재 진행" rows={3} />
+        </div>
         <PanelSkeleton title="감사 이력" rows={3} />
       </div>
 
@@ -219,20 +222,9 @@ function DocumentDetailSkeleton() {
             <SkeletonBlock className="h-10 w-full" />
           </div>
         </article>
-        <article className="rounded-md border border-[#d9dee7] bg-white p-5">
-          <p className="text-base font-semibold text-[#16181d]">결재선</p>
-          <div className="mt-5 space-y-4">
-            {[0, 1, 2].map((row) => (
-              <div
-                key={row}
-                className="rounded-md border border-[#eef1f5] p-3"
-              >
-                <PersonSkeleton />
-                <SkeletonBlock className="mt-3 h-6 w-16" />
-              </div>
-            ))}
-          </div>
-        </article>
+        <div className="hidden xl:block">
+          <PanelSkeleton title="결재선" rows={3} />
+        </div>
       </aside>
     </section>
   );

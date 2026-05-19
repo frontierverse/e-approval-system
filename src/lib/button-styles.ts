@@ -6,7 +6,7 @@ export const buttonStyles = {
   approve: "bg-[#16834a] text-white hover:bg-[#11683a]",
   danger: "bg-[#b42318] text-white hover:bg-[#8f1d15]",
   dangerOutline:
-    "border border-[#e4b4ad] bg-white text-[#9f241a] hover:bg-[#fff1ef] dark:border-[#7f2c2c] dark:bg-[#2a1719] dark:text-[#ffb4ad] dark:hover:bg-[#3a1f22]",
+    "border border-[#e4b4ad] bg-white text-[#9f241a] hover:bg-[#fff1ef] dark:border-[#f851498c] dark:bg-[#da363329] dark:text-[#ff7b72] dark:hover:bg-[#da363338]",
   neutral:
     "border border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
   cancel:

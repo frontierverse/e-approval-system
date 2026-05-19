@@ -67,7 +67,7 @@ export function ResourceForm({
   const values = {
     title: state.values?.title ?? initialValues?.title ?? "",
     summary: state.values?.summary ?? initialValues?.summary ?? "",
-    category: state.values?.category ?? initialValues?.category ?? "report",
+    category: state.values?.category ?? initialValues?.category ?? "bajaul",
   };
 
   return (
@@ -222,7 +222,7 @@ function ResourceFormFields({
               htmlFor="category"
               className="text-sm font-semibold text-[#394150]"
             >
-              분류
+              자료실
             </label>
             <select
               id="category"

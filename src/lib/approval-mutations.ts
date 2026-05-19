@@ -6,8 +6,18 @@ import {
   DocumentStatus,
   NotificationType,
   Prisma,
+  UserRole,
 } from "@/generated/prisma/client";
-import { getApprovalDecisionPlan } from "@/lib/approval-flow-core";
+import {
+  getApprovalDecisionPlan,
+  getProxyApprovalDecisionPlan,
+} from "@/lib/approval-flow-core";
+import {
+  createApprovalApprovedAuditMessage,
+  createApprovalRejectedAuditMessage,
+  createProxyApprovedAuditMessage,
+  createProxyRejectedAuditMessage,
+} from "@/lib/approval-audit-messages";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import {
   canDeleteDraftDocumentByPolicy,
@@ -271,6 +281,9 @@ export async function submitDraftDocument(
       data: {
         status: ApprovalStepStatus.WAITING,
         actedAt: null,
+        actedById: null,
+        proxyApprovedById: null,
+        decisionType: "NORMAL",
         comment: null,
       },
     });
@@ -611,6 +624,9 @@ export async function recallSubmittedDocument(
       data: {
         status: ApprovalStepStatus.WAITING,
         actedAt: null,
+        actedById: null,
+        proxyApprovedById: null,
+        decisionType: "NORMAL",
         comment: null,
       },
     });
@@ -672,6 +688,9 @@ export async function approveCurrentApprovalStep(
       data: {
         status: ApprovalStepStatus.APPROVED,
         actedAt: now,
+        actedById: actorId,
+        proxyApprovedById: null,
+        decisionType: "NORMAL",
         comment: comment || null,
       },
     });
@@ -683,7 +702,10 @@ export async function approveCurrentApprovalStep(
         targetType: "ApprovalStep",
         targetId: currentStep.id,
         documentId: decisionDocument.id,
-        message: `${currentStep.order}차 결재자가 승인했습니다.`,
+        message: createApprovalApprovedAuditMessage({
+          approver: currentStep.approver,
+          drafter: decisionDocument.drafter,
+        }),
       },
     });
 
@@ -786,6 +808,9 @@ export async function rejectCurrentApprovalStep(
       data: {
         status: ApprovalStepStatus.REJECTED,
         actedAt: now,
+        actedById: actorId,
+        proxyApprovedById: null,
+        decisionType: "NORMAL",
         comment: comment || null,
       },
     });
@@ -807,9 +832,11 @@ export async function rejectCurrentApprovalStep(
         targetType: "ApprovalStep",
         targetId: currentStep.id,
         documentId: decisionDocument.id,
-        message: comment
-          ? `문서를 반려했습니다. 사유: ${comment}`
-          : "문서를 반려했습니다.",
+        message: createApprovalRejectedAuditMessage({
+          approver: currentStep.approver,
+          drafter: decisionDocument.drafter,
+          comment,
+        }),
       },
     });
 
@@ -832,6 +859,410 @@ export async function rejectCurrentApprovalStep(
   });
 }
 
+export async function proxyApproveApprovalStepsThrough(
+  documentId: string,
+  actorId: string,
+  targetStepId: string,
+  comment: string,
+): Promise<ApprovalDecisionResult> {
+  return prisma.$transaction(async (tx) => {
+    const [actor, document] = await Promise.all([
+      tx.user.findUnique({
+        where: {
+          id: actorId,
+        },
+        select: {
+          name: true,
+          role: true,
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      getDocumentForDecision(tx, documentId),
+    ]);
+    const decisionPlan = getProxyApprovalDecisionPlan(
+      document,
+      actorId,
+      targetStepId,
+    );
+
+    if (!decisionPlan.ok) {
+      return decisionPlan;
+    }
+
+    if (!actor) {
+      return {
+        ok: false,
+        message: "사용자를 찾을 수 없습니다.",
+      };
+    }
+
+    const {
+      document: decisionDocument,
+      nextStep,
+      stepsToApprove,
+      targetStep,
+    } = decisionPlan;
+
+    if (!canProxyApproveDocument(actorId, actor.role, decisionDocument)) {
+      return {
+        ok: false,
+        message: "결재선 참여자 또는 관리자만 대리결재할 수 있습니다.",
+      };
+    }
+
+    const now = new Date();
+
+    for (const step of stepsToApprove) {
+      const isOwnApproval = step.approverId === actorId;
+
+      await tx.approvalStep.update({
+        where: {
+          id: step.id,
+        },
+        data: {
+          status: ApprovalStepStatus.APPROVED,
+          actedAt: now,
+          actedById: actorId,
+          proxyApprovedById: isOwnApproval ? null : actorId,
+          decisionType: isOwnApproval ? "NORMAL" : "PROXY",
+          comment: comment || null,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: isOwnApproval
+            ? AuditAction.APPROVE
+            : AuditAction.PROXY_APPROVE,
+          targetType: "ApprovalStep",
+          targetId: step.id,
+          documentId: decisionDocument.id,
+          message: isOwnApproval
+            ? createApprovalApprovedAuditMessage({
+                approver: step.approver,
+                drafter: decisionDocument.drafter,
+              })
+            : createProxyApprovedAuditMessage({
+                actor,
+                approver: step.approver,
+              }),
+          metadata: isOwnApproval
+            ? {
+                decisionType: "NORMAL",
+              }
+            : {
+                proxiedApproverId: step.approverId,
+                proxyActorId: actorId,
+                decisionType: "PROXY",
+              },
+        },
+      });
+    }
+
+    if (nextStep) {
+      await tx.approvalStep.update({
+        where: {
+          id: nextStep.id,
+        },
+        data: {
+          status: ApprovalStepStatus.PENDING,
+        },
+      });
+
+      await tx.approvalDocument.update({
+        where: {
+          id: decisionDocument.id,
+        },
+        data: {
+          status: decisionPlan.finalDocumentStatus,
+        },
+      });
+
+      await createDocumentNotification(tx, {
+        userId: nextStep.approverId,
+        documentId: decisionDocument.id,
+        type: NotificationType.APPROVAL_REQUESTED,
+        title: "내 결재 차례",
+        message: `${targetStep.order}차까지 결재가 처리되어 "${decisionDocument.title}" 결재 순서가 도착했습니다.`,
+      });
+
+      await notifyProxyApprovalParticipants(tx, {
+        actorId,
+        document: decisionDocument,
+        actorName: actor.name,
+        proxiedSteps: stepsToApprove.filter(
+          (step) => step.approverId !== actorId,
+        ),
+        targetStep,
+      });
+    } else {
+      await tx.approvalDocument.update({
+        where: {
+          id: decisionDocument.id,
+        },
+        data: {
+          status: decisionPlan.finalDocumentStatus,
+          completedAt: now,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: AuditAction.COMPLETE,
+          targetType: "ApprovalDocument",
+          targetId: decisionDocument.id,
+          documentId: decisionDocument.id,
+          message: "최종 결재가 대리결재를 포함하여 완료되었습니다.",
+        },
+      });
+
+      await notifyProxyApprovalParticipants(tx, {
+        actorId,
+        document: decisionDocument,
+        actorName: actor.name,
+        proxiedSteps: stepsToApprove.filter(
+          (step) => step.approverId !== actorId,
+        ),
+        targetStep,
+      });
+    }
+
+    return {
+      ok: true,
+      documentId: decisionDocument.id,
+    };
+  });
+}
+
+export async function rejectProxyApprovedStep(
+  documentId: string,
+  stepId: string,
+  actorId: string,
+  comment: string,
+): Promise<ApprovalDecisionResult> {
+  return prisma.$transaction(async (tx) => {
+    const [actor, document] = await Promise.all([
+      tx.user.findUnique({
+        where: {
+          id: actorId,
+        },
+        select: {
+          name: true,
+          role: true,
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      getDocumentForDecision(tx, documentId),
+    ]);
+
+    if (!actor) {
+      return {
+        ok: false,
+        message: "사용자를 찾을 수 없습니다.",
+      };
+    }
+
+    if (!document) {
+      return {
+        ok: false,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (
+      document.status !== DocumentStatus.SUBMITTED &&
+      document.status !== DocumentStatus.IN_PROGRESS &&
+      document.status !== DocumentStatus.APPROVED
+    ) {
+      return {
+        ok: false,
+        message: "진행 중이거나 승인 완료된 문서의 대리결재만 반려할 수 있습니다.",
+      };
+    }
+
+    const targetStep = document.approvalSteps.find((step) => step.id === stepId);
+
+    if (!targetStep) {
+      return {
+        ok: false,
+        message: "대리결재 단계를 찾을 수 없습니다.",
+      };
+    }
+
+    if (
+      targetStep.status !== ApprovalStepStatus.APPROVED ||
+      targetStep.decisionType !== "PROXY" ||
+      !targetStep.proxyApprovedById
+    ) {
+      return {
+        ok: false,
+        message: "대리결재로 승인된 단계만 반려할 수 있습니다.",
+      };
+    }
+
+    if (!canRejectProxyApproval(actorId, actor.role, document, targetStep)) {
+      return {
+        ok: false,
+        message: "대리결재 처리자, 원 결재자, 상위 결재자 또는 관리자만 반려할 수 있습니다.",
+      };
+    }
+
+    const now = new Date();
+
+    await tx.approvalStep.update({
+      where: {
+        id: targetStep.id,
+      },
+      data: {
+        status: ApprovalStepStatus.REJECTED,
+        actedAt: now,
+        actedById: actorId,
+        decisionType: "PROXY_REJECT",
+        comment: comment || null,
+      },
+    });
+
+    await tx.approvalDocument.update({
+      where: {
+        id: document.id,
+      },
+      data: {
+        status: DocumentStatus.REJECTED,
+        completedAt: now,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action: AuditAction.PROXY_REJECT,
+        targetType: "ApprovalStep",
+        targetId: targetStep.id,
+        documentId: document.id,
+        message: createProxyRejectedAuditMessage({
+          actor,
+          actorId,
+          step: targetStep,
+          comment,
+        }),
+        metadata: {
+          proxiedApproverId: targetStep.approverId,
+          proxyActorId: targetStep.proxyApprovedById,
+          rejectedById: actorId,
+          decisionType: "PROXY_REJECT",
+        },
+      },
+    });
+
+    if (document.drafterId !== actorId) {
+      await createDocumentNotification(tx, {
+        userId: document.drafterId,
+        documentId: document.id,
+        type: NotificationType.APPROVAL_REJECTED,
+        title: "대리결재 반려",
+        message: comment
+          ? `"${document.title}" 문서의 대리결재가 반려되었습니다. 사유: ${comment}`
+          : `"${document.title}" 문서의 대리결재가 반려되었습니다.`,
+      });
+    }
+
+    return {
+      ok: true,
+      documentId: document.id,
+    };
+  });
+}
+
+type DecisionDocument = NonNullable<
+  Awaited<ReturnType<typeof getDocumentForDecision>>
+>;
+type DecisionStep = DecisionDocument["approvalSteps"][number];
+
+function canProxyApproveDocument(
+  actorId: string,
+  actorRole: UserRole,
+  document: DecisionDocument,
+) {
+  return (
+    actorRole === UserRole.ADMIN ||
+    document.drafterId === actorId ||
+    document.approvalSteps.some((step) => step.approverId === actorId)
+  );
+}
+
+function canRejectProxyApproval(
+  actorId: string,
+  actorRole: UserRole,
+  document: DecisionDocument,
+  targetStep: DecisionStep,
+) {
+  if (actorRole === UserRole.ADMIN) {
+    return true;
+  }
+
+  if (
+    targetStep.approverId === actorId ||
+    targetStep.proxyApprovedById === actorId
+  ) {
+    return true;
+  }
+
+  return document.approvalSteps.some(
+    (step) => step.order > targetStep.order && step.approverId === actorId,
+  );
+}
+
+async function notifyProxyApprovalParticipants(
+  tx: Prisma.TransactionClient,
+  {
+    actorId,
+    actorName,
+    document,
+    proxiedSteps,
+    targetStep,
+  }: {
+    actorId: string;
+    actorName: string;
+    document: DecisionDocument;
+    proxiedSteps: DecisionStep[];
+    targetStep: DecisionStep;
+  },
+) {
+  if (proxiedSteps.length === 0) {
+    return;
+  }
+
+  if (document.drafterId !== actorId) {
+    await createDocumentNotification(tx, {
+      userId: document.drafterId,
+      documentId: document.id,
+      type: NotificationType.APPROVAL_APPROVED,
+      title: "결재 진행 알림",
+      message: `"${document.title}" 문서가 ${targetStep.order}차까지 대리 승인되었습니다.`,
+    });
+  }
+
+  for (const step of proxiedSteps) {
+    await createDocumentNotification(tx, {
+      userId: step.approverId,
+      documentId: document.id,
+      type: NotificationType.APPROVAL_APPROVED,
+      title: "대리결재 처리됨",
+      message: `${actorName}님이 "${document.title}" ${step.order}차 결재를 대리 승인했습니다.`,
+    });
+  }
+}
+
 async function getDocumentForDecision(
   tx: Prisma.TransactionClient,
   documentId: string,
@@ -848,6 +1279,11 @@ async function getDocumentForDecision(
       drafter: {
         select: {
           name: true,
+          position: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
       approvalSteps: {
@@ -858,11 +1294,30 @@ async function getDocumentForDecision(
           id: true,
           order: true,
           approverId: true,
+          actedById: true,
+          proxyApprovedById: true,
+          decisionType: true,
           status: true,
           approver: {
             select: {
               id: true,
               name: true,
+              position: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          proxyApprovedBy: {
+            select: {
+              id: true,
+              name: true,
+              position: {
+                select: {
+                  name: true,
+                },
+              },
             },
           },
         },

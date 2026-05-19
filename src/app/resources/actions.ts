@@ -89,7 +89,7 @@ export async function createResourceAction(
   }
 
   revalidatePath("/resources");
-  redirect("/resources");
+  redirect(getResourceCategoryHref(values.category));
 }
 
 export async function updateResourceAction(
@@ -216,7 +216,7 @@ export async function updateResourceAction(
   );
 
   revalidatePath("/resources");
-  redirect("/resources");
+  redirect(getResourceCategoryHref(values.category));
 }
 
 export async function deleteResourceAction(formData: FormData) {
@@ -261,7 +261,11 @@ export async function deleteResourceAction(formData: FormData) {
   );
 
   revalidatePath("/resources");
-  redirect("/resources");
+  redirect(getResourceCategoryHref(resource.category));
+}
+
+function getResourceCategoryHref(category: string) {
+  return `/resources?category=${encodeURIComponent(category)}`;
 }
 
 async function removePreparedAttachments(

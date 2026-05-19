@@ -19,6 +19,10 @@ import {
   type DraftFormState,
   validateDraftFormValues,
 } from "@/lib/draft-form-state";
+import {
+  attachGeneratedApprovalPdfToDocument,
+  getGeneratedApprovalPdfStorageError,
+} from "@/lib/generated-approval-pdf";
 import { prisma } from "@/lib/prisma";
 
 export async function createDraftAction(
@@ -47,10 +51,13 @@ export async function createDraftAction(
     formData.getAll("attachments"),
     attachmentPolicy,
   );
+  const generatedPdfStorageError =
+    intent === "submit" ? getGeneratedApprovalPdfStorageError() : null;
   const errors = validateDraftFormValues(values, {
     currentUserId: user.id,
     submittedApproverIds,
-    attachmentError: attachmentResult.error,
+    attachmentError:
+      attachmentResult.error ?? generatedPdfStorageError ?? undefined,
   });
 
   if (hasDraftFormErrors(errors)) {
@@ -148,6 +155,15 @@ export async function createDraftAction(
     });
 
     createdDocumentId = document.id;
+
+    if (intent === "submit") {
+      await attachGeneratedApprovalPdfToDocument(
+        createdDocumentId,
+        user.id,
+      ).catch((error) => {
+        console.error("Failed to attach generated approval PDF", error);
+      });
+    }
   } catch {
     await removeStoredAttachmentFiles(
       attachmentResult.files.map((file) => ({

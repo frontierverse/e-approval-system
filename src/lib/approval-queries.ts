@@ -7,6 +7,12 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import {
+  createApprovalApprovedAuditMessage,
+  createApprovalRejectedAuditMessage,
+  createProxyApprovedAuditMessage,
+  createProxyRejectedAuditMessage,
+} from "@/lib/approval-audit-messages";
 import { prisma } from "@/lib/prisma";
 import {
   type ApprovalDocument,
@@ -56,6 +62,42 @@ const documentInclude = {
           },
         },
       },
+      actedBy: {
+        select: {
+          id: true,
+          name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      proxyApprovedBy: {
+        select: {
+          id: true,
+          name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
     },
     orderBy: {
       order: "asc",
@@ -69,6 +111,16 @@ const documentInclude = {
           name: true,
           profileImageStorageKey: true,
           profileImageUpdatedAt: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
@@ -85,7 +137,27 @@ const documentInclude = {
       createdAt: true,
       signedAt: true,
       signedSourceAttachmentId: true,
+      convertedAt: true,
+      convertedSourceAttachmentId: true,
       signedBy: {
+        select: {
+          id: true,
+          name: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+        },
+      },
+      convertedBy: {
         select: {
           id: true,
           name: true,
@@ -192,6 +264,8 @@ const auditActionLabels: Record<AuditAction, string> = {
   DELETE_DRAFT: "임시저장 삭제",
   SUBMIT: "결재 요청",
   APPROVE: "승인",
+  PROXY_APPROVE: "대리결재",
+  PROXY_REJECT: "대리결재 반려",
   REJECT: "반려",
   RECALL: "회수",
   COMPLETE: "승인완료",
@@ -446,7 +520,24 @@ export async function getRecentHistories(
       createdAt: "desc",
     },
     include: {
-      actor: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
       document: {
         select: {
           documentNo: true,
@@ -506,8 +597,8 @@ export async function getRecentHistories(
     actor: {
       id: record.actor.id,
       name: record.actor.name,
-      departmentName: "",
-      positionName: "",
+      departmentName: record.actor.department.name,
+      positionName: record.actor.position.name,
       profileImageStorageKey: record.actor.profileImageStorageKey,
       profileImageUpdatedAt:
         record.actor.profileImageUpdatedAt?.toISOString() ?? null,
@@ -533,8 +624,8 @@ export async function getRecentHistories(
       : {
           id: record.actor.id,
           name: record.actor.name,
-          departmentName: "",
-          positionName: "",
+          departmentName: record.actor.department.name,
+          positionName: record.actor.position.name,
           profileImageStorageKey: record.actor.profileImageStorageKey,
           profileImageUpdatedAt:
             record.actor.profileImageUpdatedAt?.toISOString() ?? null,
@@ -999,9 +1090,26 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
           }
         : null,
       signedSourceAttachmentId: attachment.signedSourceAttachmentId,
+      convertedAt: attachment.convertedAt?.toISOString() ?? null,
+      convertedBy: attachment.convertedBy
+        ? {
+            id: attachment.convertedBy.id,
+            name: attachment.convertedBy.name,
+            departmentName: attachment.convertedBy.department.name,
+            positionName: attachment.convertedBy.position.name,
+            profileImageStorageKey:
+              attachment.convertedBy.profileImageStorageKey,
+            profileImageUpdatedAt:
+              attachment.convertedBy.profileImageUpdatedAt?.toISOString() ??
+              null,
+          }
+        : null,
+      convertedSourceAttachmentId: attachment.convertedSourceAttachmentId,
     })),
     approvalSteps: record.approvalSteps.map(toApprovalStep),
-    histories: record.auditLogs.map(toApprovalHistory),
+    histories: record.auditLogs.map((auditLog) =>
+      toApprovalHistory(auditLog, record),
+    ),
   };
 }
 
@@ -1021,6 +1129,30 @@ function toApprovalStep(
       profileImageUpdatedAt:
         record.approver.profileImageUpdatedAt?.toISOString() ?? null,
     },
+    actedBy: record.actedBy
+      ? {
+          id: record.actedBy.id,
+          name: record.actedBy.name,
+          departmentName: record.actedBy.department.name,
+          positionName: record.actedBy.position.name,
+          profileImageStorageKey: record.actedBy.profileImageStorageKey,
+          profileImageUpdatedAt:
+            record.actedBy.profileImageUpdatedAt?.toISOString() ?? null,
+        }
+      : null,
+    proxyApprovedBy: record.proxyApprovedBy
+      ? {
+          id: record.proxyApprovedBy.id,
+          name: record.proxyApprovedBy.name,
+          departmentName: record.proxyApprovedBy.department.name,
+          positionName: record.proxyApprovedBy.position.name,
+          profileImageStorageKey:
+            record.proxyApprovedBy.profileImageStorageKey,
+          profileImageUpdatedAt:
+            record.proxyApprovedBy.profileImageUpdatedAt?.toISOString() ?? null,
+        }
+      : null,
+    decisionType: record.decisionType,
     status: approvalStepStatusMap[record.status],
     actedAt: record.actedAt?.toISOString() ?? null,
     comment: record.comment,
@@ -1029,6 +1161,7 @@ function toApprovalStep(
 
 function toApprovalHistory(
   record: DocumentRecord["auditLogs"][number],
+  document: DocumentRecord,
 ): ApprovalHistory {
   return {
     id: record.id,
@@ -1037,14 +1170,60 @@ function toApprovalHistory(
     actor: {
       id: record.actor.id,
       name: record.actor.name,
-      departmentName: "",
-      positionName: "",
+      departmentName: record.actor.department.name,
+      positionName: record.actor.position.name,
       profileImageStorageKey: record.actor.profileImageStorageKey,
       profileImageUpdatedAt:
         record.actor.profileImageUpdatedAt?.toISOString() ?? null,
     },
     action: auditActionLabels[record.action],
     createdAt: record.createdAt.toISOString(),
-    description: record.message ?? "",
+    description: getApprovalHistoryDescription(record, document),
   };
+}
+
+function getApprovalHistoryDescription(
+  auditLog: DocumentRecord["auditLogs"][number],
+  document: DocumentRecord,
+) {
+  const step = document.approvalSteps.find(
+    (approvalStep) => approvalStep.id === auditLog.targetId,
+  );
+
+  if (!step) {
+    return auditLog.message ?? "";
+  }
+
+  if (auditLog.action === AuditAction.APPROVE) {
+    return createApprovalApprovedAuditMessage({
+      approver: step.approver,
+      drafter: document.drafter,
+    });
+  }
+
+  if (auditLog.action === AuditAction.REJECT) {
+    return createApprovalRejectedAuditMessage({
+      approver: step.approver,
+      drafter: document.drafter,
+      comment: step.comment ?? undefined,
+    });
+  }
+
+  if (auditLog.action === AuditAction.PROXY_APPROVE) {
+    return createProxyApprovedAuditMessage({
+      actor: auditLog.actor,
+      approver: step.approver,
+    });
+  }
+
+  if (auditLog.action === AuditAction.PROXY_REJECT) {
+    return createProxyRejectedAuditMessage({
+      actor: auditLog.actor,
+      actorId: auditLog.actorId,
+      step,
+      comment: step.comment ?? undefined,
+    });
+  }
+
+  return auditLog.message ?? "";
 }

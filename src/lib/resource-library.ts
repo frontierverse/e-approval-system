@@ -323,7 +323,7 @@ function mapResourcePost(
 ): ResourceLibraryItem {
   const category = isResourceCategory(record.category)
     ? record.category
-    : ("report" satisfies ResourceCategory);
+    : ("bajaul" satisfies ResourceCategory);
 
   return {
     id: record.id,

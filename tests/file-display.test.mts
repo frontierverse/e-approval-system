@@ -59,4 +59,5 @@ describe("attachment file display", () => {
     assert.equal(isSignableAttachmentFile("capture.webp"), false);
     assert.equal(isSignableAttachmentFile("보고서.hwp"), false);
   });
+
 });

@@ -97,6 +97,13 @@ function AuditHistoryTimelineItem({
 }
 
 function getAuditHistoryTone(action: string) {
+  if (action.includes("대리결재") && !action.includes("반려")) {
+    return {
+      marker: "border-[#ead8a8] bg-[#d89b00] text-white",
+      badge: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
+    };
+  }
+
   if (action.includes("반려")) {
     return {
       marker: "border-[#f0c6c6] bg-[#8a1f1f] text-white",

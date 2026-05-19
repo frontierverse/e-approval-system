@@ -4,27 +4,45 @@ export type ApprovalLinePolicyApprover = {
   positionLevel?: number | null;
 };
 
-export const FIRST_APPROVER_MAX_POSITION_LEVEL = 3;
-
 export function canStartApprovalLine(approver: ApprovalLinePolicyApprover) {
-  return (
-    typeof approver.positionLevel !== "number" ||
-    approver.positionLevel <= FIRST_APPROVER_MAX_POSITION_LEVEL
-  );
+  void approver;
+  return true;
 }
 
 export function getApprovalLinePolicyError(
   approvers: readonly ApprovalLinePolicyApprover[],
 ) {
-  const firstApprover = approvers[0];
+  for (let index = 1; index < approvers.length; index += 1) {
+    const previousApprover = approvers[index - 1];
+    const currentApprover = approvers[index];
 
-  if (!firstApprover || canStartApprovalLine(firstApprover)) {
-    return null;
+    if (!previousApprover || !currentApprover) {
+      continue;
+    }
+
+    if (
+      typeof previousApprover.positionLevel !== "number" ||
+      typeof currentApprover.positionLevel !== "number"
+    ) {
+      continue;
+    }
+
+    if (previousApprover.positionLevel <= currentApprover.positionLevel) {
+      continue;
+    }
+
+    return `결재선 순서가 올바르지 않습니다. ${getPositionLabel(
+      previousApprover,
+    )} 다음에 ${getPositionLabel(
+      currentApprover,
+    )}은 올 수 없습니다. 결재선은 낮은 직급에서 높은 직급 순서로 지정하세요.`;
   }
 
-  const positionLabel = firstApprover.positionName
-    ? `${firstApprover.positionName} 직급`
-    : "상위 직급";
+  return null;
+}
 
-  return `${positionLabel}은 첫 결재자로 지정할 수 없습니다. 팀장급 이하 결재자를 먼저 추가한 뒤 상위 결재자로 배치하세요.`;
+function getPositionLabel(approver: ApprovalLinePolicyApprover) {
+  return approver.positionName
+    ? `${approver.positionName} 직급`
+    : `${approver.name} 결재자`;
 }

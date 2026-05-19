@@ -6,7 +6,6 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { getResourceLibraryPage } from "@/lib/resource-library";
 import {
   normalizeResourceCategoryFilter,
-  resourceCategoryOptions,
   type ResourceCategoryFilter,
 } from "@/lib/resource-library-core";
 
@@ -31,7 +30,7 @@ export default async function ResourcesPage({
     currentUserRole: user.role,
     pageSize,
   });
-  const hasActiveFilter = Boolean(filters.query || filters.category !== "all");
+  const hasActiveFilter = Boolean(filters.query);
   const firstItemNumber =
     resourcePage.total - (resourcePage.page - 1) * resourcePage.pageSize;
 
@@ -39,7 +38,7 @@ export default async function ResourcesPage({
     <>
       <PageTitle
         title="자료실"
-        description="직원들이 업무 자료와 공유사항을 확인하는 공간입니다."
+        description="법인, 카페, 바자울 자료를 구분해서 확인하는 공간입니다."
         action={
           <Link
             href="/resources/new"
@@ -55,7 +54,8 @@ export default async function ResourcesPage({
       />
 
       <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
-        <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto_auto]">
+        <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <input type="hidden" name="category" value={filters.category} />
           <div>
             <label
               htmlFor="resourceSearch"
@@ -71,27 +71,6 @@ export default async function ResourcesPage({
               placeholder="제목, 내용, 작성자, 첨부파일"
               className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             />
-          </div>
-
-          <div>
-            <label
-              htmlFor="resourceCategory"
-              className="text-xs font-semibold text-[#697386]"
-            >
-              분류
-            </label>
-            <select
-              id="resourceCategory"
-              name="category"
-              defaultValue={filters.category}
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-            >
-              {resourceCategoryOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="flex items-end">
@@ -110,7 +89,11 @@ export default async function ResourcesPage({
           <div className="flex items-end">
             {hasActiveFilter ? (
               <Link
-                href="/resources"
+                href={getResourcePageHref({
+                  category: filters.category,
+                  page: 1,
+                  query: "",
+                })}
                 className={buttonClass(
                   buttonStyles.base,
                   buttonStyles.neutral,
@@ -157,7 +140,9 @@ function getFilters(params: ResourcesPageSearchParams) {
 function normalizeCategory(
   value: string | undefined,
 ): ResourceCategoryFilter {
-  return normalizeResourceCategoryFilter(value);
+  const category = normalizeResourceCategoryFilter(value);
+
+  return category === "all" ? "corporation" : category;
 }
 
 function normalizePage(value: string | undefined) {

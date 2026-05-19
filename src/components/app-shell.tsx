@@ -27,7 +27,9 @@ const approvalNavigationItems: NavigationItem[] = [
 ];
 
 const resourceNavigationItems: NavigationItem[] = [
-  { label: "자료실", href: "/resources" },
+  { label: "법인", href: "/resources?category=corporation" },
+  { label: "카페", href: "/resources?category=cafe" },
+  { label: "바자울", href: "/resources?category=bajaul" },
 ];
 
 const accountNavigationItems: NavigationItem[] = [
@@ -79,13 +81,19 @@ export function AppShell({
         </div>
 
         <Suspense
+          fallback={<AppNav groups={fallbackNavigationGroups} variant="topbar" />}
+        >
+          <ShellNavigation variant="topbar" />
+        </Suspense>
+
+        <Suspense
           fallback={<AppNav groups={fallbackNavigationGroups} variant="mobile" />}
         >
           <ShellNavigation variant="mobile" />
         </Suspense>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:overflow-hidden lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:h-[calc(100vh-7.25rem)] lg:min-h-0 lg:overflow-hidden lg:px-8">
         <aside className="scrollbar-stable hidden w-64 shrink-0 border-r border-[#d9dee7] pr-5 lg:block lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <Suspense
             fallback={<AppNav groups={fallbackNavigationGroups} variant="desktop" />}
@@ -112,7 +120,7 @@ export function AppShell({
 async function ShellNavigation({
   variant,
 }: {
-  variant: "mobile" | "desktop";
+  variant: "mobile" | "desktop" | "topbar";
 }) {
   const user = await getCurrentUser();
   const groups = getNavigationGroups(user?.role === UserRole.ADMIN);

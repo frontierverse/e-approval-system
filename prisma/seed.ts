@@ -78,8 +78,8 @@ async function main() {
       { id: "pos-staff", name: "주임", level: 1, sortOrder: 1 },
       { id: "pos-senior", name: "대리", level: 2, sortOrder: 2 },
       { id: "pos-lead", name: "팀장", level: 3, sortOrder: 3 },
-      { id: "pos-facility-head", name: "시설장", level: 4, sortOrder: 4 },
-      { id: "pos-director", name: "이사", level: 5, sortOrder: 5 },
+      { id: "pos-director", name: "이사", level: 4, sortOrder: 4 },
+      { id: "pos-facility-head", name: "시설장", level: 5, sortOrder: 5 },
     ],
   });
 

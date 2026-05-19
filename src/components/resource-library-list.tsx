@@ -7,6 +7,7 @@ import {
 } from "@/lib/file-display";
 import { formatDateTime } from "@/lib/mock-data";
 import {
+  resourceCategoryLabels,
   type ResourceAttachment,
   type ResourceLibraryItem,
 } from "@/lib/resource-library-core";
@@ -41,7 +42,7 @@ export function ResourceLibraryList({
         }
         description={
           hasActiveFilter
-            ? "검색어나 분류를 조정하면 다른 자료를 찾을 수 있습니다."
+            ? "검색어나 자료실을 조정하면 다른 자료를 찾을 수 있습니다."
             : "업무 자료가 등록되면 이곳에 표시됩니다."
         }
       />
@@ -134,9 +135,14 @@ function ResourceNumber({ displayNumber }: { displayNumber: number }) {
 function ResourceTitle({ item }: { item: ResourceLibraryItem }) {
   return (
     <div className="min-w-0">
-      <h2 className="truncate text-sm font-semibold text-[#16181d] group-hover:underline">
-        {item.title}
-      </h2>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-2 py-0.5 text-xs font-semibold text-[#394150]">
+          {resourceCategoryLabels[item.category]}
+        </span>
+        <h2 className="truncate text-sm font-semibold text-[#16181d] group-hover:underline">
+          {item.title}
+        </h2>
+      </div>
       <p className="mt-1 line-clamp-1 text-xs leading-5 text-[#697386]">
         {item.summary}
       </p>

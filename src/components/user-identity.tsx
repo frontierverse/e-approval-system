@@ -21,8 +21,12 @@ export function UserIdentity({
   metaClassName = "text-[#697386]",
 }: UserIdentityProps) {
   return (
-    <div className={`flex min-w-0 items-center gap-2 ${className}`.trim()}>
-      <UserAvatar user={user} size={size} decorative />
+    <div
+      className={`flex min-w-0 flex-row items-center gap-2 ${className}`.trim()}
+    >
+      <span className="shrink-0">
+        <UserAvatar user={user} size={size} decorative />
+      </span>
       <div className="min-w-0">
         <p className={`truncate font-semibold ${nameClassName}`.trim()}>
           {user.name}

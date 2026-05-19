@@ -20,7 +20,6 @@ const previewableImageMimeTypes = new Set([
 
 const signableImageExtensions = new Set([".jpeg", ".jpg", ".png"]);
 const signableImageMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png"]);
-
 const imageContentTypesByExtension: Record<string, string> = {
   ".gif": "image/gif",
   ".jpeg": "image/jpeg",

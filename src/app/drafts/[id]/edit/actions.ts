@@ -19,6 +19,10 @@ import {
   type DraftFormState,
   validateDraftFormValues,
 } from "@/lib/draft-form-state";
+import {
+  attachGeneratedApprovalPdfToDocument,
+  getGeneratedApprovalPdfStorageError,
+} from "@/lib/generated-approval-pdf";
 import { prisma } from "@/lib/prisma";
 
 export async function updateDraftAction(
@@ -57,10 +61,12 @@ export async function updateDraftAction(
     (totalAttachmentCount > attachmentPolicy.maxFileCount
       ? `첨부파일은 최대 ${attachmentPolicy.maxFileCount}개까지 등록할 수 있습니다.`
       : undefined);
+  const generatedPdfStorageError =
+    intent === "submit" ? getGeneratedApprovalPdfStorageError() : null;
   const errors = validateDraftFormValues(values, {
     currentUserId: user.id,
     submittedApproverIds,
-    attachmentError,
+    attachmentError: attachmentError ?? generatedPdfStorageError ?? undefined,
   });
 
   if (!existingDocument) {
@@ -174,6 +180,15 @@ export async function updateDraftAction(
     }
 
     updatedDocumentId = result.documentId;
+
+    if (intent === "submit") {
+      await attachGeneratedApprovalPdfToDocument(
+        updatedDocumentId,
+        user.id,
+      ).catch((error) => {
+        console.error("Failed to attach generated approval PDF", error);
+      });
+    }
   } catch {
     await removePreparedAttachments(attachmentResult.files);
 

@@ -56,7 +56,7 @@ export function validateResourceFormValues(
   }
 
   if (!isResourceCategory(values.category)) {
-    errors.category = "자료 분류를 선택하세요.";
+    errors.category = "자료실을 선택하세요.";
   }
 
   if (options.attachmentError) {

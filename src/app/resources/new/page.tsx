@@ -12,7 +12,7 @@ export default async function NewResourcePage() {
     <>
       <PageTitle
         title="자료 업로드"
-        description="직원들과 공유할 업무 자료나 공지사항을 등록합니다."
+        description="법인, 카페, 바자울 중 자료를 올릴 공간을 선택해 등록합니다."
       />
       <ResourceForm
         action={createResourceAction}

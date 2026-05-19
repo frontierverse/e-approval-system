@@ -66,6 +66,20 @@ type ExistingAttachment = {
   size: number;
 };
 
+type TemplateFieldType = "date" | "number" | "text" | "textarea";
+
+type TemplateFieldDefinition = {
+  id: string;
+  label: string;
+  placeholder?: string;
+  type: TemplateFieldType;
+};
+
+type TemplateFormatDefinition = {
+  title: string;
+  fields: TemplateFieldDefinition[];
+};
+
 type DraftFormFieldsProps = DraftFormProps & {
   errors?: DraftFormState["errors"];
   formAction: (formData: FormData) => void;
@@ -74,6 +88,134 @@ type DraftFormFieldsProps = DraftFormProps & {
 };
 
 const initialState: DraftFormState = {};
+const templateFormats: Record<string, TemplateFormatDefinition> = {
+  "template-general-draft": {
+    title: "일반 기안서 입력",
+    fields: [
+      {
+        id: "purpose",
+        label: "기안 목적",
+        placeholder: "예: 운영 일정 조정 승인 요청",
+        type: "text",
+      },
+      {
+        id: "details",
+        label: "상세 내용",
+        placeholder: "검토가 필요한 배경, 진행 내용, 요청 사항을 입력하세요.",
+        type: "textarea",
+      },
+      {
+        id: "expectedEffect",
+        label: "기대 효과",
+        placeholder: "승인 후 기대되는 효과를 입력하세요.",
+        type: "textarea",
+      },
+    ],
+  },
+  "template-expense-report": {
+    title: "지출결의서 입력",
+    fields: [
+      {
+        id: "expenseDate",
+        label: "지출일",
+        type: "date",
+      },
+      {
+        id: "vendor",
+        label: "거래처",
+        placeholder: "예: ○○문구",
+        type: "text",
+      },
+      {
+        id: "amount",
+        label: "지출 금액",
+        placeholder: "예: 150000",
+        type: "number",
+      },
+      {
+        id: "accountTitle",
+        label: "계정과목",
+        placeholder: "예: 사무용품비",
+        type: "text",
+      },
+      {
+        id: "reason",
+        label: "지출 사유",
+        placeholder: "지출 목적과 산출 근거를 입력하세요.",
+        type: "textarea",
+      },
+    ],
+  },
+  "template-vacation-request": {
+    title: "휴가신청서 입력",
+    fields: [
+      {
+        id: "vacationType",
+        label: "휴가 구분",
+        placeholder: "예: 연차, 반차, 병가",
+        type: "text",
+      },
+      {
+        id: "startDate",
+        label: "시작일",
+        type: "date",
+      },
+      {
+        id: "endDate",
+        label: "종료일",
+        type: "date",
+      },
+      {
+        id: "emergencyContact",
+        label: "비상 연락처",
+        placeholder: "예: 010-0000-0000",
+        type: "text",
+      },
+      {
+        id: "reason",
+        label: "신청 사유",
+        placeholder: "휴가 신청 사유를 입력하세요.",
+        type: "textarea",
+      },
+    ],
+  },
+  "template-purchase-request": {
+    title: "구매요청서 입력",
+    fields: [
+      {
+        id: "itemName",
+        label: "구매 품목",
+        placeholder: "예: 업무용 노트북",
+        type: "text",
+      },
+      {
+        id: "quantity",
+        label: "수량",
+        placeholder: "예: 2",
+        type: "number",
+      },
+      {
+        id: "estimatedAmount",
+        label: "예상 금액",
+        placeholder: "예: 2500000",
+        type: "number",
+      },
+      {
+        id: "vendor",
+        label: "구매처",
+        placeholder: "예: ○○컴퓨터",
+        type: "text",
+      },
+      {
+        id: "reason",
+        label: "구매 사유",
+        placeholder: "구매 필요성과 활용 계획을 입력하세요.",
+        type: "textarea",
+      },
+    ],
+  },
+};
+
 export function DraftForm({
   templates,
   attachmentPolicy,
@@ -123,6 +265,9 @@ function DraftFormFields({
   const [category, setCategory] = useState(initialValues.category);
   const [templateId, setTemplateId] = useState(initialValues.templateId);
   const [content, setContent] = useState(initialValues.content);
+  const [templateFieldValues, setTemplateFieldValues] = useState<
+    Record<string, string>
+  >({});
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>(
     initialValues.approverIds,
   );
@@ -139,6 +284,12 @@ function DraftFormFields({
   const approverHasError = Boolean(errors?.approvers);
   const attachmentHasError = Boolean(attachmentError);
   const isEditMode = mode === "edit";
+  const selectedTemplateFormat = templateFormats[templateId];
+  const usesStructuredTemplate = Boolean(selectedTemplateFormat && !isEditMode);
+  const structuredContent =
+    usesStructuredTemplate && selectedTemplateFormat
+      ? compileTemplateContent(selectedTemplateFormat, templateFieldValues)
+      : content;
 
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
 
@@ -203,17 +354,28 @@ function DraftFormFields({
     const candidate = approverCandidates.find(
       (approver) => approver.id === approverId,
     );
-    const policyError =
-      candidate && selectedApproverIds.length === 0
-        ? getApprovalLinePolicyError([candidate])
-        : null;
+
+    if (!candidate) {
+      return;
+    }
+
+    const next = [...selectedApproverIds, approverId];
+    const policyError = getApprovalLinePolicyError(
+      next
+        .map((id) =>
+          id === approverId
+            ? candidate
+            : approverCandidates.find((approver) => approver.id === id),
+        )
+        .filter(isApprovalCandidate),
+    );
 
     if (policyError) {
       window.alert(policyError);
       return;
     }
 
-    setSelectedApproverIds([...selectedApproverIds, approverId]);
+    setSelectedApproverIds(next);
   }
 
   function removeApprover(approverId: string) {
@@ -369,7 +531,10 @@ function DraftFormFields({
               id="templateId"
               name="templateId"
               value={templateId}
-              onChange={(event) => setTemplateId(event.target.value)}
+              onChange={(event) => {
+                setTemplateId(event.target.value);
+                setTemplateFieldValues({});
+              }}
               className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
                 templateHasError ? ` ${errorBorderClass}` : ""
               }`}
@@ -396,22 +561,46 @@ function DraftFormFields({
 
         <div className="mt-5">
           <label
-            htmlFor="content"
             className="text-sm font-semibold text-[#394150]"
+            htmlFor={usesStructuredTemplate ? undefined : "content"}
           >
-            기안 내용
+            {usesStructuredTemplate && selectedTemplateFormat
+              ? selectedTemplateFormat.title
+              : "기안 내용"}
           </label>
-          <textarea
-            id="content"
-            name="content"
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            rows={12}
-            placeholder="기안 내용을 입력하세요"
-            className={`mt-2 w-full resize-y rounded-md border border-[#cfd6e3] bg-white px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-              contentHasError ? ` ${errorBorderClass}` : ""
-            }`}
-          />
+          {usesStructuredTemplate && selectedTemplateFormat ? (
+            <>
+              <input name="content" type="hidden" value={structuredContent} />
+              <div className="mt-2 grid gap-4 lg:grid-cols-2">
+                {selectedTemplateFormat.fields.map((field) => (
+                  <TemplateInput
+                    key={field.id}
+                    field={field}
+                    pending={pending}
+                    value={templateFieldValues[field.id] ?? ""}
+                    onChange={(value) =>
+                      setTemplateFieldValues((current) => ({
+                        ...current,
+                        [field.id]: value,
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <textarea
+              id="content"
+              name="content"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              rows={12}
+              placeholder="기안 내용을 입력하세요"
+              className={`mt-2 w-full resize-y rounded-md border border-[#cfd6e3] bg-white px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+                contentHasError ? ` ${errorBorderClass}` : ""
+              }`}
+            />
+          )}
           {errors?.content ? (
             <p className="mt-2 text-sm text-[#8a1f1f]">{errors.content}</p>
           ) : null}
@@ -759,8 +948,8 @@ function DraftFormFields({
             <p className="mt-3 text-sm text-[#8a1f1f]">{errors.approvers}</p>
           ) : null}
           <p className="mt-3 text-xs leading-5 text-[#697386]">
-            작성자 본인은 제외되며 같은 결재자는 한 번만 지정됩니다. 첫 결재자는
-            팀장급 이하로 지정하세요.
+            작성자 본인은 제외되며 같은 결재자는 한 번만 지정됩니다. 결재선은
+            낮은 직급에서 높은 직급 순서로 지정하세요.
           </p>
         </div>
       </aside>
@@ -785,6 +974,66 @@ function getInitialValues(
     approverIds:
       state.values?.approverIds ?? providedInitialValues?.approverIds ?? [],
   };
+}
+
+function TemplateInput({
+  field,
+  onChange,
+  pending,
+  value,
+}: {
+  field: TemplateFieldDefinition;
+  onChange: (value: string) => void;
+  pending: boolean;
+  value: string;
+}) {
+  const inputId = `template-field-${field.id}`;
+  const baseClass =
+    "mt-2 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
+
+  return (
+    <div className={field.type === "textarea" ? "lg:col-span-2" : ""}>
+      <label htmlFor={inputId} className="text-xs font-semibold text-[#697386]">
+        {field.label}
+      </label>
+      {field.type === "textarea" ? (
+        <textarea
+          id={inputId}
+          required
+          disabled={pending}
+          rows={5}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.placeholder}
+          className={`${baseClass} resize-y py-3 leading-6`}
+        />
+      ) : (
+        <input
+          id={inputId}
+          required
+          disabled={pending}
+          type={field.type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.placeholder}
+          className={`${baseClass} h-11`}
+        />
+      )}
+    </div>
+  );
+}
+
+function compileTemplateContent(
+  template: TemplateFormatDefinition,
+  values: Record<string, string>,
+) {
+  return template.fields
+    .map((field) => {
+      const value = values[field.id]?.trim();
+
+      return `${field.label}: ${value || "-"}`;
+    })
+    .join("\n");
 }
 
 function isApprovalCandidate(

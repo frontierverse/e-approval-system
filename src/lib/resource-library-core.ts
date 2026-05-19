@@ -1,4 +1,4 @@
-export type ResourceCategory = "notice" | "manual" | "form" | "report";
+export type ResourceCategory = "corporation" | "cafe" | "bajaul";
 
 export type ResourceAttachment = {
   id?: string;
@@ -60,10 +60,9 @@ export type ResourceLibraryPage = {
 };
 
 export const resourceCategoryLabels: Record<ResourceCategory, string> = {
-  notice: "공지",
-  manual: "업무 매뉴얼",
-  form: "공통 양식",
-  report: "업무 자료",
+  corporation: "법인",
+  cafe: "카페",
+  bajaul: "바자울",
 };
 
 export const resourceCategoryOptions: {
@@ -71,18 +70,17 @@ export const resourceCategoryOptions: {
   label: string;
 }[] = [
   { value: "all", label: "전체" },
-  { value: "notice", label: resourceCategoryLabels.notice },
-  { value: "manual", label: resourceCategoryLabels.manual },
-  { value: "form", label: resourceCategoryLabels.form },
-  { value: "report", label: resourceCategoryLabels.report },
+  { value: "corporation", label: resourceCategoryLabels.corporation },
+  { value: "cafe", label: resourceCategoryLabels.cafe },
+  { value: "bajaul", label: resourceCategoryLabels.bajaul },
 ];
 
 export function isResourceCategory(value: string): value is ResourceCategory {
-  return value === "notice" || value === "manual" || value === "form" || value === "report";
+  return value === "corporation" || value === "cafe" || value === "bajaul";
 }
 
 export function normalizeResourceCategory(value: string | undefined) {
-  return value && isResourceCategory(value) ? value : "report";
+  return value && isResourceCategory(value) ? value : "bajaul";
 }
 
 export function normalizeResourceCategoryFilter(

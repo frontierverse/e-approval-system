@@ -40,6 +40,8 @@ enum AuditAction {
   DELETE_DRAFT
   SUBMIT
   APPROVE
+  PROXY_APPROVE
+  PROXY_REJECT
   REJECT
   RECALL
   COMPLETE
@@ -91,17 +93,20 @@ model User {
   department Department @relation(fields: [departmentId], references: [id])
   position   Position   @relation(fields: [positionId], references: [id])
 
-  draftedDocuments    ApprovalDocument[]   @relation("DocumentDrafter")
-  approvalSteps       ApprovalStep[]       @relation("StepApprover")
-  comments            ApprovalComment[]    @relation("CommentAuthor")
-  attachments         Attachment[]         @relation("AttachmentUploader")
-  resourcePosts       ResourcePost[]       @relation("ResourceAuthor")
-  resourceAttachments ResourceAttachment[] @relation("ResourceAttachmentUploader")
-  resourcePostViews   ResourcePostView[]   @relation("ResourcePostViewUser")
-  auditLogs           AuditLog[]           @relation("AuditActor")
-  loginHistories      LoginHistory[]
-  notifications       Notification[]
-  signedAttachments   Attachment[]         @relation("AttachmentSigner")
+  draftedDocuments     ApprovalDocument[]   @relation("DocumentDrafter")
+  approvalSteps        ApprovalStep[]       @relation("StepApprover")
+  actedApprovalSteps   ApprovalStep[]       @relation("StepActor")
+  proxyApprovalSteps   ApprovalStep[]       @relation("StepProxyApprover")
+  comments             ApprovalComment[]    @relation("CommentAuthor")
+  attachments          Attachment[]         @relation("AttachmentUploader")
+  resourcePosts        ResourcePost[]       @relation("ResourceAuthor")
+  resourceAttachments  ResourceAttachment[] @relation("ResourceAttachmentUploader")
+  resourcePostViews    ResourcePostView[]   @relation("ResourcePostViewUser")
+  auditLogs            AuditLog[]           @relation("AuditActor")
+  loginHistories       LoginHistory[]
+  notifications        Notification[]
+  signedAttachments    Attachment[]         @relation("AttachmentSigner")
+  convertedAttachments Attachment[]         @relation("AttachmentConverter")
 
   @@index([departmentId])
   @@index([positionId])
@@ -188,23 +193,30 @@ model ApprovalDocument {
 }
 
 model ApprovalStep {
-  id        String             @id @default(cuid())
-  order     Int
-  status    ApprovalStepStatus @default(WAITING)
-  actedAt   DateTime?
-  comment   String?
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id                String             @id @default(cuid())
+  order             Int
+  status            ApprovalStepStatus @default(WAITING)
+  actedAt           DateTime?
+  comment           String?
+  decisionType      String             @default("NORMAL")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  documentId String
-  approverId String
+  documentId        String
+  approverId        String
+  actedById         String?
+  proxyApprovedById String?
 
-  document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  approver User             @relation("StepApprover", fields: [approverId], references: [id])
+  document        ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  approver        User             @relation("StepApprover", fields: [approverId], references: [id])
+  actedBy         User?            @relation("StepActor", fields: [actedById], references: [id], onDelete: SetNull)
+  proxyApprovedBy User?            @relation("StepProxyApprover", fields: [proxyApprovedById], references: [id], onDelete: SetNull)
 
   @@unique([documentId, order])
   @@unique([documentId, approverId])
   @@index([approverId])
+  @@index([actedById])
+  @@index([proxyApprovedById])
   @@index([status])
 }
 
@@ -233,29 +245,37 @@ model Attachment {
   size            Int
   createdAt       DateTime  @default(now())
   signedAt        DateTime?
+  convertedAt     DateTime?
 
-  documentId               String
-  uploaderId               String
-  signedSourceAttachmentId String?
-  signedById               String?
+  documentId                  String
+  uploaderId                  String
+  signedSourceAttachmentId    String?
+  signedById                  String?
+  convertedSourceAttachmentId String?
+  convertedById               String?
 
-  document               ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  uploader               User             @relation("AttachmentUploader", fields: [uploaderId], references: [id])
-  signedBy               User?            @relation("AttachmentSigner", fields: [signedById], references: [id], onDelete: SetNull)
-  signedSourceAttachment Attachment?      @relation("AttachmentSignedCopies", fields: [signedSourceAttachmentId], references: [id], onDelete: SetNull)
-  signedCopies           Attachment[]     @relation("AttachmentSignedCopies")
+  document                  ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader                  User             @relation("AttachmentUploader", fields: [uploaderId], references: [id])
+  signedBy                  User?            @relation("AttachmentSigner", fields: [signedById], references: [id], onDelete: SetNull)
+  signedSourceAttachment    Attachment?      @relation("AttachmentSignedCopies", fields: [signedSourceAttachmentId], references: [id], onDelete: SetNull)
+  signedCopies              Attachment[]     @relation("AttachmentSignedCopies")
+  convertedBy               User?            @relation("AttachmentConverter", fields: [convertedById], references: [id], onDelete: SetNull)
+  convertedSourceAttachment Attachment?      @relation("AttachmentConvertedCopies", fields: [convertedSourceAttachmentId], references: [id], onDelete: SetNull)
+  convertedCopies           Attachment[]     @relation("AttachmentConvertedCopies")
 
   @@index([documentId])
   @@index([uploaderId])
   @@index([signedById])
   @@index([signedSourceAttachmentId])
+  @@index([convertedById])
+  @@index([convertedSourceAttachmentId])
 }
 
 model ResourcePost {
   id        String   @id @default(cuid())
   title     String
   summary   String
-  category  String   @default("report")
+  category  String   @default("bajaul")
   pinned    Boolean  @default(false)
   viewCount Int      @default(0)
   createdAt DateTime @default(now())

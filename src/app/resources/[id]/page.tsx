@@ -67,7 +67,7 @@ export default async function ResourceDetailPage({
               </>
             ) : null}
             <Link
-              href="/resources"
+              href={`/resources?category=${resource.category}`}
               className={buttonClass(
                 buttonStyles.base,
                 buttonStyles.neutral,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   getApprovalDecisionPlan,
+  getProxyApprovalDecisionPlan,
   type ApprovalFlowDocument,
 } from "../src/lib/approval-flow-core.ts";
 
@@ -24,6 +25,19 @@ function createSubmittedDocument(): ApprovalFlowDocument {
       },
     ],
   };
+}
+
+function createThreeStepSubmittedDocument(): ApprovalFlowDocument {
+  const document = createSubmittedDocument();
+
+  document.approvalSteps.push({
+    id: "step-003",
+    order: 3,
+    approverId: "approver-003",
+    status: "WAITING",
+  });
+
+  return document;
 }
 
 describe("approval decision flow", () => {
@@ -108,5 +122,148 @@ describe("approval decision flow", () => {
       ok: false,
       message: "진행 중인 문서만 결재할 수 있습니다.",
     });
+  });
+
+  test("allows proxy approval for the current step approver", () => {
+    const document = createSubmittedDocument();
+    document.drafterId = "drafter-001";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "approver-009",
+      "step-001",
+    );
+
+    assert.equal(plan.ok, true);
+
+    if (!plan.ok) {
+      return;
+    }
+
+    assert.equal(plan.currentStep.id, "step-001");
+    assert.equal(plan.targetStep.id, "step-001");
+    assert.deepEqual(
+      plan.stepsToApprove.map((step) => step.id),
+      ["step-001"],
+    );
+    assert.equal(plan.nextStep?.id, "step-002");
+    assert.equal(plan.finalDocumentStatus, "IN_PROGRESS");
+  });
+
+  test("blocks proxy approval by the original approver", () => {
+    const document = createSubmittedDocument();
+    document.drafterId = "drafter-001";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "approver-001",
+      "step-001",
+    );
+
+    assert.deepEqual(plan, {
+      ok: false,
+      message: "본인 결재 단계는 일반 승인으로 처리하세요.",
+    });
+  });
+
+  test("allows proxy approval by the drafter", () => {
+    const document = createSubmittedDocument();
+    document.drafterId = "drafter-001";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "drafter-001",
+      "step-001",
+    );
+
+    assert.equal(plan.ok, true);
+
+    if (!plan.ok) {
+      return;
+    }
+
+    assert.equal(plan.currentStep.id, "step-001");
+    assert.equal(plan.nextStep?.id, "step-002");
+    assert.equal(plan.finalDocumentStatus, "IN_PROGRESS");
+  });
+
+  test("uses the current pending step as the proxy target", () => {
+    const document = createSubmittedDocument();
+    document.drafterId = "drafter-001";
+    document.status = "IN_PROGRESS";
+    document.approvalSteps[0].status = "APPROVED";
+    document.approvalSteps[1].status = "PENDING";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "approver-009",
+      "step-002",
+    );
+
+    assert.equal(plan.ok, true);
+
+    if (!plan.ok) {
+      return;
+    }
+
+    assert.equal(plan.currentStep.id, "step-002");
+    assert.equal(plan.targetStep.id, "step-002");
+    assert.deepEqual(
+      plan.stepsToApprove.map((step) => step.id),
+      ["step-002"],
+    );
+    assert.equal(plan.nextStep, null);
+    assert.equal(plan.finalDocumentStatus, "APPROVED");
+  });
+
+  test("allows proxy approval through a future target step", () => {
+    const document = createThreeStepSubmittedDocument();
+    document.drafterId = "drafter-001";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "drafter-001",
+      "step-003",
+    );
+
+    assert.equal(plan.ok, true);
+
+    if (!plan.ok) {
+      return;
+    }
+
+    assert.equal(plan.currentStep.id, "step-001");
+    assert.equal(plan.targetStep.id, "step-003");
+    assert.deepEqual(
+      plan.stepsToApprove.map((step) => step.id),
+      ["step-001", "step-002", "step-003"],
+    );
+    assert.equal(plan.nextStep, null);
+    assert.equal(plan.finalDocumentStatus, "APPROVED");
+  });
+
+  test("allows the current approver to approve their step and proxy later steps", () => {
+    const document = createThreeStepSubmittedDocument();
+    document.drafterId = "drafter-001";
+
+    const plan = getProxyApprovalDecisionPlan(
+      document,
+      "approver-001",
+      "step-003",
+    );
+
+    assert.equal(plan.ok, true);
+
+    if (!plan.ok) {
+      return;
+    }
+
+    assert.equal(plan.currentStep.id, "step-001");
+    assert.equal(plan.targetStep.id, "step-003");
+    assert.deepEqual(
+      plan.stepsToApprove.map((step) => step.id),
+      ["step-001", "step-002", "step-003"],
+    );
+    assert.equal(plan.finalDocumentStatus, "APPROVED");
   });
 });

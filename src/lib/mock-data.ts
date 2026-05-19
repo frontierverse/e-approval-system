@@ -47,6 +47,9 @@ export type ApprovalStep = {
   order: number;
   approverId: string;
   approver: UserSummary;
+  actedBy?: UserSummary | null;
+  proxyApprovedBy?: UserSummary | null;
+  decisionType?: string;
   status: ApprovalStepStatus;
   actedAt: string | null;
   comment: string | null;
@@ -71,6 +74,9 @@ export type AttachmentSummary = {
   signedAt?: string | null;
   signedBy?: UserSummary | null;
   signedSourceAttachmentId?: string | null;
+  convertedAt?: string | null;
+  convertedBy?: UserSummary | null;
+  convertedSourceAttachmentId?: string | null;
 };
 
 export type ApprovalDocument = {
@@ -150,7 +156,11 @@ export const users: User[] = [
 
 export const currentUser = users[0];
 
-type LegacyApprovalStep = Omit<ApprovalStep, "approver">;
+type LegacyApprovalStep = Omit<
+  ApprovalStep,
+  "approver" | "actedBy" | "proxyApprovedBy" | "decisionType"
+> &
+  Partial<Pick<ApprovalStep, "decisionType">>;
 type LegacyApprovalHistory = Omit<ApprovalHistory, "actorName">;
 type LegacyApprovalDocument = Omit<
   ApprovalDocument,
@@ -366,6 +376,12 @@ export const documents: ApprovalDocument[] = legacyDocuments.map((document) => (
   approvalSteps: document.approvalSteps.map((step) => ({
     ...step,
     approver: getUserSummary(step.approverId),
+    actedBy:
+      step.actedAt && step.status !== "waiting"
+        ? getUserSummary(step.approverId)
+        : null,
+    proxyApprovedBy: null,
+    decisionType: step.decisionType ?? "NORMAL",
   })),
   histories: document.histories.map((history) => ({
     ...history,

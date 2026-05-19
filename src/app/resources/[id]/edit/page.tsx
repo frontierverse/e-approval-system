@@ -46,12 +46,11 @@ export default async function EditResourcePage({
           title: resource.title,
           summary: resource.summary,
           category:
-            resource.category === "notice" ||
-            resource.category === "manual" ||
-            resource.category === "form" ||
-            resource.category === "report"
+            resource.category === "corporation" ||
+            resource.category === "cafe" ||
+            resource.category === "bajaul"
               ? resource.category
-              : "report",
+              : "bajaul",
         }}
         mode="edit"
       />

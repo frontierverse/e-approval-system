@@ -78,7 +78,7 @@ const resourceItem: ResourceLibraryItem = {
   id: "resource-test-001",
   title: "업무 자료 공유",
   summary: "직원들이 참고할 공통 자료입니다.",
-  category: "manual",
+  category: "bajaul",
   authorId: "user-001",
   authorName: "김민준",
   departmentName: "바자울",
@@ -215,7 +215,26 @@ describe("major UI rendering", () => {
     assert.match(html, /이도윤/);
     assert.match(html, /확인했습니다\./);
     assert.match(html, /현재 결재 차례입니다\./);
+    assert.ok(
+      html.indexOf('aria-hidden="true">이</span>') < html.indexOf("이도윤"),
+    );
     assert.doesNotMatch(html, /현재 결재자/);
+  });
+
+  test("renders proxy approval buttons through selectable target steps", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ApprovalTimeline, {
+        document,
+        currentUserId: "user-001",
+        currentUserRole: "ADMIN",
+        progressLabel: "진행 1/2",
+        progressPercent: 50,
+        proxyApproveDocumentAction: async () => {},
+      }),
+    );
+
+    assert.match(html, /현재 단계 대리결재/);
+    assert.doesNotMatch(html, /현재 대리결재 대상/);
   });
 
   test("renders a compact approval line preview in order", () => {
@@ -264,6 +283,16 @@ describe("major UI rendering", () => {
             createdAt: "2026-05-03T00:00:00.000Z",
             description: "1차 결재자가 승인했습니다.",
           },
+          {
+            id: "history-003",
+            actorId: "user-001",
+            actorName: "김민준",
+            actor: document.drafter,
+            action: "대리결재",
+            createdAt: "2026-05-04T00:00:00.000Z",
+            description:
+              "김민준 주임이 이도윤 이사의 결재를 대리 승인했습니다.",
+          },
         ],
       }),
     );
@@ -275,6 +304,8 @@ describe("major UI rendering", () => {
     assert.match(html, /김민준/);
     assert.match(html, /승인/);
     assert.match(html, /박서연/);
+    assert.match(html, /대리결재/);
+    assert.match(html, /bg-\[#fff8df\]/);
     assert.match(html, /left-\[0\.9375rem\]/);
   });
 
@@ -515,7 +546,7 @@ describe("major UI rendering", () => {
     assert.match(html, /자료명/);
     assert.match(html, /업무 자료 공유/);
     assert.match(html, /tabular-nums text-sm font-semibold text-\[#697386\]/);
-    assert.doesNotMatch(html, /업무 매뉴얼/);
+    assert.match(html, /바자울/);
     assert.doesNotMatch(html, /고정/);
     assert.match(html, /총 1개 · PDF 1개/);
     assert.doesNotMatch(html, /업무자료\.pdf/);

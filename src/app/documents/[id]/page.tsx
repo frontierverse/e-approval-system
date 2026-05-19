@@ -35,8 +35,11 @@ import {
   decideDocumentAction,
   deleteSignedAttachmentAction,
   deleteDraftDocumentAction,
+  proxyApproveDocumentAction,
   recallDocumentAction,
+  rejectProxyApprovalAction,
   submitDocumentAction,
+  uploadSignedAttachmentAction,
 } from "./actions";
 
 export default async function DocumentDetailPage({
@@ -272,74 +275,101 @@ export default async function DocumentDetailPage({
             <h2 className="text-base font-semibold">첨부파일</h2>
             {originalAttachments.length > 0 ? (
               <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
-                {originalAttachments.map((attachment) => (
-                  <li
-                    key={attachment.id}
-                    className="px-4 py-3"
-                  >
-                    <AttachmentFileRow
-                      fileName={attachment.originalName}
-                      size={attachment.size}
-                      thumbnailHref={
-                        getAttachmentPreviewKind(
-                          attachment.originalName,
-                          attachment.mimeType,
-                        ) === "image"
-                          ? `/attachments/${attachment.id}/preview`
-                          : undefined
-                      }
-                      action={
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {canDecide &&
-                          isSignableAttachmentFile(
+                {originalAttachments.map((attachment) => {
+                  const canSignOriginal =
+                    canDecide &&
+                    isSignableAttachmentFile(
+                      attachment.originalName,
+                      attachment.mimeType,
+                    );
+
+                  return (
+                    <li key={attachment.id} className="px-4 py-3">
+                      <AttachmentFileRow
+                        fileName={attachment.originalName}
+                        size={attachment.size}
+                        thumbnailHref={
+                          getAttachmentPreviewKind(
                             attachment.originalName,
                             attachment.mimeType,
-                          ) ? (
-                            hasSignatureImage ? (
-                              <Link
-                                href={`/attachments/${attachment.id}/sign`}
-                                className={buttonClass(
-                                  buttonStyles.base,
-                                  buttonStyles.save,
-                                  "h-9 px-3 text-sm",
-                                )}
-                              >
-                                도장 찍기
-                              </Link>
-                            ) : (
-                              <Link
-                                href="/account"
-                                className={buttonClass(
-                                  buttonStyles.base,
-                                  buttonStyles.neutral,
-                                  "h-9 px-3 text-sm",
-                                )}
-                              >
-                                도장 등록
-                              </Link>
-                            )
-                          ) : null}
-                          <AttachmentPreviewButton
-                            downloadHref={`/attachments/${attachment.id}`}
-                            fileName={attachment.originalName}
-                            mimeType={attachment.mimeType}
-                            previewHref={`/attachments/${attachment.id}/preview`}
+                          ) === "image"
+                            ? `/attachments/${attachment.id}/preview`
+                            : undefined
+                        }
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {canSignOriginal ? (
+                          hasSignatureImage ? (
+                            <Link
+                              href={`/attachments/${attachment.id}/sign`}
+                              className={buttonClass(
+                                buttonStyles.base,
+                                buttonStyles.save,
+                                "h-9 px-3 text-sm",
+                              )}
+                            >
+                              도장 찍기
+                            </Link>
+                          ) : (
+                            <Link
+                              href="/account"
+                              className={buttonClass(
+                                buttonStyles.base,
+                                buttonStyles.neutral,
+                                "h-9 px-3 text-sm",
+                              )}
+                            >
+                              도장 등록
+                            </Link>
+                          )
+                        ) : null}
+                        <AttachmentPreviewButton
+                          downloadHref={`/attachments/${attachment.id}`}
+                          fileName={attachment.originalName}
+                          mimeType={attachment.mimeType}
+                          previewHref={`/attachments/${attachment.id}/preview`}
+                        />
+                        <a
+                          href={`/attachments/${attachment.id}`}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            buttonStyles.neutral,
+                            "h-9 px-3 text-sm",
+                          )}
+                        >
+                          다운로드
+                        </a>
+                      </div>
+                      {canDecide ? (
+                        <form
+                          action={uploadSignedAttachmentAction.bind(
+                            null,
+                            document.id,
+                            attachment.id,
+                          )}
+                          className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                        >
+                          <input
+                            aria-label={`${attachment.originalName} 서명본 파일`}
+                            name="signedAttachment"
+                            type="file"
+                            className="block h-9 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white text-xs text-[#394150] file:mr-2 file:h-full file:border-0 file:bg-[#eef2f7] file:px-3 file:text-xs file:font-semibold file:text-[#394150]"
                           />
-                          <a
-                            href={`/attachments/${attachment.id}`}
+                          <button
+                            type="submit"
                             className={buttonClass(
                               buttonStyles.base,
-                              buttonStyles.neutral,
+                              buttonStyles.save,
                               "h-9 px-3 text-sm",
                             )}
                           >
-                            다운로드
-                          </a>
-                        </div>
-                      }
-                    />
-                  </li>
-                ))}
+                            서명본 업로드
+                          </button>
+                        </form>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className="mt-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
@@ -363,7 +393,11 @@ export default async function DocumentDetailPage({
                     (canDecide && attachment.signedBy?.id === user.id);
 
                   return (
-                    <li key={attachment.id} className="px-4 py-3">
+                    <li
+                      key={attachment.id}
+                      id={`signed-${attachment.id}`}
+                      className="px-4 py-3"
+                    >
                       <AttachmentFileRow
                         fileName={attachment.originalName}
                         note="서명본"
@@ -448,8 +482,18 @@ export default async function DocumentDetailPage({
           <div className="xl:hidden">
             <ApprovalTimeline
               document={document}
+              currentUserId={user.id}
+              currentUserRole={user.role}
               progressLabel={progressLabel}
               progressPercent={progressPercent}
+              proxyApproveDocumentAction={proxyApproveDocumentAction.bind(
+                null,
+                document.id,
+              )}
+              rejectProxyApprovalAction={rejectProxyApprovalAction.bind(
+                null,
+                document.id,
+              )}
             />
           </div>
 
@@ -466,8 +510,18 @@ export default async function DocumentDetailPage({
           <div className="hidden xl:block">
             <ApprovalTimeline
               document={document}
+              currentUserId={user.id}
+              currentUserRole={user.role}
               progressLabel={progressLabel}
               progressPercent={progressPercent}
+              proxyApproveDocumentAction={proxyApproveDocumentAction.bind(
+                null,
+                document.id,
+              )}
+              rejectProxyApprovalAction={rejectProxyApprovalAction.bind(
+                null,
+                document.id,
+              )}
             />
           </div>
         </aside>

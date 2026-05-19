@@ -15,7 +15,8 @@ const resources: ResourceLibraryItem[] = [
 
 describe("resource library", () => {
   test("normalizes category filters", () => {
-    assert.equal(normalizeResourceCategoryFilter("manual"), "manual");
+    assert.equal(normalizeResourceCategoryFilter("cafe"), "cafe");
+    assert.equal(normalizeResourceCategoryFilter("bajaul"), "bajaul");
     assert.equal(normalizeResourceCategoryFilter("unknown"), "all");
     assert.equal(normalizeResourceCategoryFilter(undefined), "all");
   });
@@ -39,7 +40,7 @@ function createResource(id: string): ResourceLibraryItem {
     id,
     title: id,
     summary: "테스트 자료",
-    category: "report",
+    category: "bajaul",
     authorId: "user-001",
     authorName: "김민준",
     departmentName: "바자울",
