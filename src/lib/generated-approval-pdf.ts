@@ -167,12 +167,10 @@ export async function attachGeneratedApprovalPdfToDocument(
     },
     select: {
       id: true,
+      storageProvider: true,
+      storageKey: true,
     },
   });
-
-  if (existingAttachment) {
-    return existingAttachment;
-  }
 
   const file = await createGeneratedApprovalPdfFile({
     documentNo: document.documentNo,
@@ -192,24 +190,45 @@ export async function attachGeneratedApprovalPdfToDocument(
     })),
     issuedAt: document.submittedAt ?? document.createdAt,
   });
+  const previousFile = existingAttachment
+    ? {
+        storageProvider: existingAttachment.storageProvider,
+        storageKey: existingAttachment.storageKey,
+      }
+    : null;
 
   try {
     await persistAttachmentFiles([file]);
-    return await prisma.$transaction(async (tx) => {
-      const attachment = await tx.attachment.create({
-        data: {
-          documentId: document.id,
-          uploaderId: document.drafterId,
-          originalName: file.originalName,
-          storageProvider: file.storageProvider,
-          storageKey: file.storageKey,
-          mimeType: file.mimeType,
-          size: file.size,
-        },
-        select: {
-          id: true,
-        },
-      });
+    const attachment = await prisma.$transaction(async (tx) => {
+      const attachment = existingAttachment
+        ? await tx.attachment.update({
+            where: {
+              id: existingAttachment.id,
+            },
+            data: {
+              storageProvider: file.storageProvider,
+              storageKey: file.storageKey,
+              mimeType: file.mimeType,
+              size: file.size,
+            },
+            select: {
+              id: true,
+            },
+          })
+        : await tx.attachment.create({
+            data: {
+              documentId: document.id,
+              uploaderId: document.drafterId,
+              originalName: file.originalName,
+              storageProvider: file.storageProvider,
+              storageKey: file.storageKey,
+              mimeType: file.mimeType,
+              size: file.size,
+            },
+            select: {
+              id: true,
+            },
+          });
 
       await tx.auditLog.create({
         data: {
@@ -218,12 +237,20 @@ export async function attachGeneratedApprovalPdfToDocument(
           targetType: "Attachment",
           targetId: attachment.id,
           documentId: document.id,
-          message: "시스템 원본문서 PDF를 생성했습니다.",
+          message: existingAttachment
+            ? "시스템 원본문서 PDF를 다시 생성했습니다."
+            : "시스템 원본문서 PDF를 생성했습니다.",
         },
       });
 
       return attachment;
     });
+
+    if (previousFile) {
+      await removeStoredAttachmentFiles([previousFile]).catch(() => undefined);
+    }
+
+    return attachment;
   } catch (error) {
     await removeStoredAttachmentFiles([file]).catch(() => undefined);
     throw error;
@@ -1122,7 +1149,7 @@ async function embedApprovalPdfFonts(
 
   return {
     korean: await pdf.embedFont(readFileSync(pdfKoreanFontPath), {
-      subset: true,
+      subset: false,
     }),
   };
 }
@@ -1153,12 +1180,6 @@ async function ensureGeneratedApprovalPdfAttachment(
   },
   actorId: string,
 ) {
-  const attachment = await findGeneratedApprovalPdfAttachment(document);
-
-  if (attachment) {
-    return attachment;
-  }
-
   await attachGeneratedApprovalPdfToDocument(document.id, actorId);
 
   const createdAttachment = await findGeneratedApprovalPdfAttachment(document);
