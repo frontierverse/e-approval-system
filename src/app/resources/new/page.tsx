@@ -2,10 +2,21 @@ import { ResourceForm } from "@/components/resource-form";
 import { PageTitle } from "@/components/page-title";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
+import { normalizeResourceCategory } from "@/lib/resource-library-core";
 import { createResourceAction } from "../actions";
 
-export default async function NewResourcePage() {
+type NewResourcePageSearchParams = {
+  category?: string;
+};
+
+export default async function NewResourcePage({
+  searchParams,
+}: {
+  searchParams: Promise<NewResourcePageSearchParams>;
+}) {
   await requireUser();
+  const { category } = await searchParams;
+  const initialCategory = normalizeResourceCategory(category);
   const attachmentPolicy = await getAttachmentPolicy();
 
   return (
@@ -17,6 +28,11 @@ export default async function NewResourcePage() {
       <ResourceForm
         action={createResourceAction}
         attachmentPolicy={attachmentPolicy}
+        initialValues={{
+          category: initialCategory,
+          summary: "",
+          title: "",
+        }}
         mode="create"
       />
     </>

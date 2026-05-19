@@ -6,6 +6,7 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { getResourceLibraryPage } from "@/lib/resource-library";
 import {
   normalizeResourceCategoryFilter,
+  type ResourceCategory,
   type ResourceCategoryFilter,
 } from "@/lib/resource-library-core";
 
@@ -16,6 +17,29 @@ type ResourcesPageSearchParams = {
 };
 
 const pageSize = 3;
+const resourcePageCopy: Record<
+  ResourceCategory,
+  {
+    description: string;
+    title: string;
+  }
+> = {
+  corporation: {
+    title: "법인 자료실",
+    description:
+      "법인 운영, 공문, 규정, 회의자료처럼 조직 공통 기준이 되는 자료를 보관합니다.",
+  },
+  bajaul: {
+    title: "바자울 자료실",
+    description:
+      "바자울 운영, 현장 업무, 프로그램 진행에 필요한 자료를 모아둡니다.",
+  },
+  cafe: {
+    title: "카페 자료실",
+    description:
+      "카페 운영, 매장 관리, 판매와 서비스 업무에 필요한 자료를 정리합니다.",
+  },
+};
 
 export default async function ResourcesPage({
   searchParams,
@@ -33,15 +57,16 @@ export default async function ResourcesPage({
   const hasActiveFilter = Boolean(filters.query);
   const firstItemNumber =
     resourcePage.total - (resourcePage.page - 1) * resourcePage.pageSize;
+  const pageCopy = getResourcePageCopy(filters.category);
 
   return (
     <>
       <PageTitle
-        title="자료실"
-        description="법인, 카페, 바자울 자료를 구분해서 확인하는 공간입니다."
+        title={pageCopy.title}
+        description={pageCopy.description}
         action={
           <Link
-            href="/resources/new"
+            href={`/resources/new?category=${filters.category}`}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.create,
@@ -135,6 +160,17 @@ function getFilters(params: ResourcesPageSearchParams) {
     category: normalizeCategory(params.category),
     page: normalizePage(params.page),
   };
+}
+
+function getResourcePageCopy(category: ResourceCategoryFilter) {
+  if (category === "all") {
+    return {
+      title: "자료실",
+      description: "법인, 카페, 바자울 자료를 구분해서 확인하는 공간입니다.",
+    };
+  }
+
+  return resourcePageCopy[category];
 }
 
 function normalizeCategory(
