@@ -1,4 +1,3 @@
-import { UserIdentity } from "@/components/user-identity";
 import { formatDateTime, type ApprovalHistory } from "@/lib/mock-data";
 
 type DocumentAuditHistoryProps = {
@@ -37,6 +36,7 @@ function AuditHistoryTimelineItem({
   isLast: boolean;
 }) {
   const tone = getAuditHistoryTone(history.action);
+  const actorLabel = history.actor?.name || history.actorName || "시스템";
 
   return (
     <li className="relative pb-5 pl-10 last:pb-0">
@@ -57,15 +57,23 @@ function AuditHistoryTimelineItem({
       </span>
 
       <div className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span
-            className={[
-              "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
-              tone.badge,
-            ].join(" ")}
-          >
-            {history.action}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              className={[
+                "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
+                tone.badge,
+              ].join(" ")}
+            >
+              {history.action}
+            </span>
+            <span className="min-w-0 truncate text-xs font-medium text-[#697386]">
+              처리자{" "}
+              <span className="font-semibold text-[#394150]">
+                {actorLabel}
+              </span>
+            </span>
+          </div>
           <time
             className="text-xs font-medium text-[#697386]"
             dateTime={history.createdAt}
@@ -77,20 +85,6 @@ function AuditHistoryTimelineItem({
         <p className="mt-3 text-sm leading-6 text-[#394150]">
           {history.description || `${history.action} 작업이 기록되었습니다.`}
         </p>
-
-        <div className="mt-3 border-t border-[#eef1f5] pt-3">
-          {history.actor ? (
-            <UserIdentity
-              user={history.actor}
-              size="xs"
-              nameClassName="text-[#394150]"
-            />
-          ) : (
-            <p className="text-xs font-semibold text-[#697386]">
-              {history.actorName || "시스템"}
-            </p>
-          )}
-        </div>
       </div>
     </li>
   );
