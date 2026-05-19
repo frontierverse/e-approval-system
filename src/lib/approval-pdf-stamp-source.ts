@@ -20,11 +20,31 @@ export function getVisibleApprovalColumnCount(totalApprovalSteps: number) {
   return Math.max(1, Math.min(totalApprovalSteps, 5));
 }
 
+export function getVisibleApprovalRowCount(totalApprovalSteps: number) {
+  const columnCount = getVisibleApprovalColumnCount(totalApprovalSteps);
+
+  return Math.max(
+    1,
+    Math.ceil(Math.max(1, totalApprovalSteps) / columnCount),
+  );
+}
+
 export function getApprovalStampColumnIndex(
   order: number,
   approvalColumnCount: number,
 ) {
   const columnCount = Math.max(1, approvalColumnCount);
+  const normalizedOrder = Math.max(1, Math.floor(order));
 
-  return Math.max(0, Math.min(order - 1, columnCount - 1));
+  return (normalizedOrder - 1) % columnCount;
+}
+
+export function getApprovalStampRowIndex(
+  order: number,
+  approvalColumnCount: number,
+) {
+  const columnCount = Math.max(1, approvalColumnCount);
+  const normalizedOrder = Math.max(1, Math.floor(order));
+
+  return Math.floor((normalizedOrder - 1) / columnCount);
 }

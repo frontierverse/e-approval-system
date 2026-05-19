@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   getApprovalStampColumnIndex,
+  getApprovalStampRowIndex,
   getFinalApprovalStampSource,
   getStampedApprovalPdfTypeLabel,
   getVisibleApprovalColumnCount,
+  getVisibleApprovalRowCount,
 } from "../src/lib/approval-pdf-stamp-source.ts";
 
 describe("generated approval pdf", () => {
@@ -30,7 +32,7 @@ describe("generated approval pdf", () => {
     assert.equal(getStampedApprovalPdfTypeLabel("APPROVED"), "승인본");
   });
 
-  test("places stamps by approval-line columns, not approved-step count", () => {
+  test("places stamps by approval-line rows and columns", () => {
     const columnCount = getVisibleApprovalColumnCount(5);
 
     assert.equal(columnCount, 5);
@@ -39,11 +41,20 @@ describe("generated approval pdf", () => {
     assert.equal(getApprovalStampColumnIndex(3, columnCount), 2);
     assert.equal(getApprovalStampColumnIndex(4, columnCount), 3);
     assert.equal(getApprovalStampColumnIndex(5, columnCount), 4);
+    assert.equal(getApprovalStampColumnIndex(6, columnCount), 0);
+    assert.equal(getApprovalStampRowIndex(1, columnCount), 0);
+    assert.equal(getApprovalStampRowIndex(5, columnCount), 0);
+    assert.equal(getApprovalStampRowIndex(6, columnCount), 1);
   });
 
-  test("keeps the generated approval table wide enough for five approvers", () => {
+  test("wraps long approval lines instead of hiding approvers", () => {
     assert.equal(getVisibleApprovalColumnCount(1), 1);
     assert.equal(getVisibleApprovalColumnCount(5), 5);
     assert.equal(getVisibleApprovalColumnCount(6), 5);
+    assert.equal(getVisibleApprovalColumnCount(12), 5);
+    assert.equal(getVisibleApprovalRowCount(1), 1);
+    assert.equal(getVisibleApprovalRowCount(5), 1);
+    assert.equal(getVisibleApprovalRowCount(6), 2);
+    assert.equal(getVisibleApprovalRowCount(12), 3);
   });
 });

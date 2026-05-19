@@ -10,9 +10,11 @@ import {
 } from "@/lib/attachment-storage";
 import {
   getApprovalStampColumnIndex,
+  getApprovalStampRowIndex,
   getFinalApprovalStampSource,
   getStampedApprovalPdfTypeLabel,
   getVisibleApprovalColumnCount,
+  getVisibleApprovalRowCount,
   type ApprovalStampImageSource,
 } from "@/lib/approval-pdf-stamp-source";
 import {
@@ -55,6 +57,10 @@ const pageWidth = 595.28;
 const pageHeight = 841.89;
 const svgWidth = 1240;
 const svgHeight = 1754;
+const approvalPanelX = 718;
+const approvalPanelY = 382;
+const approvalPanelWidth = 404;
+const approvalPanelRowHeight = 150;
 const pdfKoreanFontFamily = "PdfKorean";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
@@ -277,12 +283,9 @@ export async function attachStampedApprovalPdfToDocument(
     title: document.title,
   });
 
-  const visibleApprovalCount = getVisibleApprovalColumnCount(
-    document.approvalSteps.length,
-  );
+  const approvalStepCount = document.approvalSteps.length;
   const approvedSteps = document.approvalSteps
-    .filter((step) => step.status === ApprovalStepStatus.APPROVED)
-    .slice(0, visibleApprovalCount);
+    .filter((step) => step.status === ApprovalStepStatus.APPROVED);
 
   if (approvedSteps.length === 0) {
     return null;
@@ -305,7 +308,7 @@ export async function attachStampedApprovalPdfToDocument(
     originalName,
     sourceBuffer,
     stamps,
-    visibleApprovalCount,
+    approvalStepCount,
   });
   const previousFile = existingAttachment
     ? {
@@ -470,15 +473,15 @@ export async function createGeneratedApprovalPdfFile(
 }
 
 async function createStampedApprovalPdfFile({
+  approvalStepCount,
   originalName,
   sourceBuffer,
   stamps,
-  visibleApprovalCount,
 }: {
+  approvalStepCount: number;
   originalName: string;
   sourceBuffer: Buffer;
   stamps: ApprovalPdfStamp[];
-  visibleApprovalCount: number;
 }): Promise<PreparedAttachmentFile> {
   const storageConfig = getAttachmentStorageConfig(process.env);
 
@@ -491,7 +494,7 @@ async function createStampedApprovalPdfFile({
   const buffer = await stampFinalApprovalPdf(
     sourceBuffer,
     stamps,
-    visibleApprovalCount,
+    approvalStepCount,
   );
 
   return {
@@ -507,7 +510,7 @@ async function createStampedApprovalPdfFile({
 async function stampFinalApprovalPdf(
   sourceBuffer: Buffer,
   stamps: ApprovalPdfStamp[],
-  visibleApprovalCount: number,
+  approvalStepCount: number,
 ) {
   const pdf = await PDFDocument.load(sourceBuffer);
   const [page] = pdf.getPages();
@@ -519,7 +522,7 @@ async function stampFinalApprovalPdf(
   for (const stamp of stamps) {
     const placement = getApprovalStampPlacement(
       stamp.order,
-      visibleApprovalCount,
+      approvalStepCount,
     );
     const embeddedStamp = await embedApprovalStampImage(pdf, stamp.imageBuffer);
     const width = placement.size;
@@ -541,12 +544,25 @@ async function stampFinalApprovalPdf(
 function createApprovalDocumentSvg(input: ApprovalPdfInput) {
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
-  const approvers = input.approvers.slice(
-    0,
-    getVisibleApprovalColumnCount(input.approvers.length),
-  );
-  const bodyLines = wrapLines(input.content, 48, 22);
+  const approvers = input.approvers;
   const titleLines = wrapLines(input.title, 30, 2);
+  const approvalPanelBottom = getApprovalPanelBottomY(approvers.length);
+  const summaryBottom = 382 + 194;
+  const contentTop = Math.max(summaryBottom, approvalPanelBottom) + 62;
+  const bodyTitleY = contentTop;
+  const bodyRectY = bodyTitleY + 28;
+  const notesTitleY = 1390;
+  const minBodyRectHeight = 80;
+  const shouldRenderNotes =
+    bodyRectY + minBodyRectHeight + 64 <= notesTitleY;
+  const bodyRectBottomLimit = shouldRenderNotes ? notesTitleY - 64 : 1548;
+  const bodyRectHeight = Math.max(
+    minBodyRectHeight,
+    bodyRectBottomLimit - bodyRectY,
+  );
+  const bodyTextMaxLines = Math.max(1, Math.floor((bodyRectHeight - 54) / 40));
+  const bodyLines = wrapLines(input.content, 48, bodyTextMaxLines);
+  const notesSection = shouldRenderNotes ? renderApprovalNotesSection() : "";
   const footerText =
     "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 
@@ -569,14 +585,11 @@ function createApprovalDocumentSvg(input: ApprovalPdfInput) {
   ${renderInfoPanel(input, documentNo, issuedAt)}
   ${renderApprovalPanel(approvers, input.approvers.length)}
 
-  <text x="118" y="638" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">기안 내용</text>
-  <rect x="118" y="666" width="1004" height="660" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  ${renderMultilineText(bodyLines, 150, 720, 24, 40, "#2f3742")}
+  <text x="118" y="${bodyTitleY}" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">기안 내용</text>
+  <rect x="118" y="${bodyRectY}" width="1004" height="${bodyRectHeight}" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
+  ${renderMultilineText(bodyLines, 150, bodyRectY + 54, 24, 40, "#2f3742")}
 
-  <text x="118" y="1390" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">결재 유의사항</text>
-  <rect x="118" y="1420" width="1004" height="128" fill="#f8fafc" stroke="#e4e8ee" stroke-width="2"/>
-  <text x="150" y="1472" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">결재자는 문서 내용과 첨부파일을 확인한 후 승인 또는 반려 처리합니다.</text>
-  <text x="150" y="1515" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">최종 승인 완료 후 이 원본문서를 기준으로 보관 및 검증 절차가 진행됩니다.</text>
+  ${notesSection}
 
   <line x1="118" y1="1602" x2="1122" y2="1602" stroke="#d6dbe3" stroke-width="2"/>
   <text x="118" y="1642" font-family="${pdfFontFamily()}" font-size="16" fill="#697386">${escapeXml(footerText)}</text>
@@ -611,29 +624,55 @@ function renderInfoPanel(
 }
 
 function renderApprovalPanel(approvers: ApprovalPdfUser[], totalCount: number) {
-  const columns = Math.max(1, approvers.length);
-  const width = 404;
-  const x = 718;
-  const y = 382;
-  const columnWidth = width / columns;
-  const overflowLabel = totalCount > approvers.length ? ` 외 ${totalCount - approvers.length}명` : "";
+  const layout = getApprovalPanelLayout(totalCount);
+  const columnWidth = layout.width / layout.columns;
 
   return `
-  <text x="${x}" y="356" font-family="${pdfFontFamily()}" font-size="18" font-weight="700" fill="#1f3347">결재란${escapeXml(overflowLabel)}</text>
-  <rect x="${x}" y="${y}" width="${width}" height="194" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
+  <text x="${layout.x}" y="356" font-family="${pdfFontFamily()}" font-size="18" font-weight="700" fill="#1f3347">결재란</text>
+  <rect x="${layout.x}" y="${layout.y}" width="${layout.width}" height="${layout.height}" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
   ${approvers
     .map((approver, index) => {
-      const cellX = x + index * columnWidth;
+      const rowIndex = Math.floor(index / layout.columns);
+      const columnIndex = index % layout.columns;
+      const cellX = layout.x + columnIndex * columnWidth;
+      const cellY = layout.y + rowIndex * layout.rowHeight;
       return `
-  <rect x="${cellX}" y="${y}" width="${columnWidth}" height="44" fill="#f3f6f9" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${y + 28}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="15" font-weight="700" fill="#394150">${index + 1}차</text>
-  <rect x="${cellX}" y="${y + 44}" width="${columnWidth}" height="92" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${y + 92}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="18" font-weight="700" fill="#171b22">${escapeXml(approver.name)}</text>
-  <rect x="${cellX}" y="${y + 136}" width="${columnWidth}" height="58" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${y + 160}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="13" fill="#697386">${escapeXml(approver.departmentName ?? "")}</text>
-  <text x="${cellX + columnWidth / 2}" y="${y + 180}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="13" fill="#697386">${escapeXml(approver.positionName ?? "")}</text>`;
+  <rect x="${cellX}" y="${cellY}" width="${columnWidth}" height="34" fill="#f3f6f9" stroke="#d6dbe3" stroke-width="1"/>
+  <text x="${cellX + columnWidth / 2}" y="${cellY + 23}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="14" font-weight="700" fill="#394150">${index + 1}차</text>
+  <rect x="${cellX}" y="${cellY + 34}" width="${columnWidth}" height="72" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
+  <text x="${cellX + columnWidth / 2}" y="${cellY + 78}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="17" font-weight="700" fill="#171b22">${escapeXml(approver.name)}</text>
+  <rect x="${cellX}" y="${cellY + 106}" width="${columnWidth}" height="${layout.rowHeight - 106}" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
+  <text x="${cellX + columnWidth / 2}" y="${cellY + 127}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="12" fill="#697386">${escapeXml(approver.departmentName ?? "")}</text>
+  <text x="${cellX + columnWidth / 2}" y="${cellY + 145}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="12" fill="#697386">${escapeXml(approver.positionName ?? "")}</text>`;
     })
     .join("")}`;
+}
+
+function getApprovalPanelBottomY(totalCount: number) {
+  const layout = getApprovalPanelLayout(totalCount);
+
+  return layout.y + layout.height;
+}
+
+function getApprovalPanelLayout(totalCount: number) {
+  const columns = getVisibleApprovalColumnCount(totalCount);
+  const rows = getVisibleApprovalRowCount(totalCount);
+
+  return {
+    columns,
+    height: rows * approvalPanelRowHeight,
+    rowHeight: approvalPanelRowHeight,
+    width: approvalPanelWidth,
+    x: approvalPanelX,
+    y: approvalPanelY,
+  };
+}
+
+function renderApprovalNotesSection() {
+  return `<text x="118" y="1390" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">결재 유의사항</text>
+  <rect x="118" y="1420" width="1004" height="128" fill="#f8fafc" stroke="#e4e8ee" stroke-width="2"/>
+  <text x="150" y="1472" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">결재자는 문서 내용과 첨부파일을 확인한 후 승인 또는 반려 처리합니다.</text>
+  <text x="150" y="1515" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">최종 승인 완료 후 이 원본문서를 기준으로 보관 및 검증 절차가 진행됩니다.</text>`;
 }
 
 function renderMultilineText(
@@ -871,23 +910,22 @@ function findGeneratedApprovalPdfAttachment(document: {
   });
 }
 
-function getApprovalStampPlacement(order: number, visibleApprovalCount: number) {
-  const visibleCount = Math.max(1, visibleApprovalCount);
-  const zeroBasedIndex = getApprovalStampColumnIndex(order, visibleCount);
+function getApprovalStampPlacement(order: number, approvalStepCount: number) {
+  const layout = getApprovalPanelLayout(approvalStepCount);
+  const columnIndex = getApprovalStampColumnIndex(order, layout.columns);
+  const rowIndex = getApprovalStampRowIndex(order, layout.columns);
   const scaleX = pageWidth / svgWidth;
   const scaleY = pageHeight / svgHeight;
-  const panelX = 718;
-  const panelY = 382;
-  const panelWidth = 404;
-  const columnWidth = panelWidth / visibleCount;
+  const columnWidth = layout.width / layout.columns;
   const maxStampSize = columnWidth * scaleX - 8;
   const size = Math.max(24, Math.min(38, maxStampSize));
   const centerX =
-    (panelX + zeroBasedIndex * columnWidth + columnWidth / 2) * scaleX;
+    (layout.x + columnIndex * columnWidth + columnWidth / 2) * scaleX;
+  const stampTop = layout.y + rowIndex * layout.rowHeight + 42;
 
   return {
     x: centerX - size / 2,
-    top: (panelY + 56) * scaleY,
+    top: stampTop * scaleY,
     size,
   };
 }
