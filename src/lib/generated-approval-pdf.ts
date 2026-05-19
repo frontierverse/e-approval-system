@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 import {
   type PreparedAttachmentFile,
@@ -53,6 +55,15 @@ const pageWidth = 595.28;
 const pageHeight = 841.89;
 const svgWidth = 1240;
 const svgHeight = 1754;
+const pdfKoreanFontFamily = "PdfKorean";
+const pdfKoreanFontPath = path.join(
+  process.cwd(),
+  "public",
+  "fonts",
+  "NanumGothic-Regular.ttf",
+);
+
+let pdfKoreanFontStyle: string | null = null;
 
 export function getGeneratedApprovalPdfStorageError() {
   const storageConfig = getAttachmentStorageConfig(process.env);
@@ -537,6 +548,9 @@ function createApprovalDocumentSvg(input: ApprovalPdfInput) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+  <defs>
+    ${pdfFontFaceStyle()}
+  </defs>
   <rect width="${svgWidth}" height="${svgHeight}" fill="#f5f6f8"/>
   <rect x="78" y="72" width="1084" height="1610" rx="10" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
   <rect x="78" y="72" width="1084" height="118" rx="10" fill="#1f3347"/>
@@ -763,7 +777,38 @@ function sanitizeFileName(value: string) {
 }
 
 function pdfFontFamily() {
-  return "'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', 'Segoe UI', sans-serif";
+  return `${pdfKoreanFontFamily}, sans-serif`;
+}
+
+function pdfFontFaceStyle() {
+  if (!pdfKoreanFontStyle) {
+    const fontBase64 = readFileSync(pdfKoreanFontPath).toString("base64");
+
+    // Vercel's image runtime does not provide Korean system fonts, so the
+    // generated SVG must carry its own font for sharp/librsvg rendering.
+    pdfKoreanFontStyle = `<style><![CDATA[
+@font-face {
+  font-family: ${pdfKoreanFontFamily};
+  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: ${pdfKoreanFontFamily};
+  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: ${pdfKoreanFontFamily};
+  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
+  font-weight: 800;
+  font-style: normal;
+}
+]]></style>`;
+  }
+
+  return pdfKoreanFontStyle;
 }
 
 function escapeXml(value: string) {
@@ -860,6 +905,9 @@ async function createGeneratedApprovalStampImage(name: string) {
   const sharp = await getSharp();
   const safeName = escapeXml(name.trim().slice(0, 5) || "승인");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    ${pdfFontFaceStyle()}
+  </defs>
   <rect width="240" height="240" fill="none"/>
   <circle cx="120" cy="120" r="94" fill="none" stroke="#c82333" stroke-width="12"/>
   <circle cx="120" cy="120" r="76" fill="none" stroke="#c82333" stroke-width="3" opacity="0.65"/>
