@@ -61,6 +61,9 @@ const approvalPanelX = 718;
 const approvalPanelY = 382;
 const approvalPanelWidth = 404;
 const approvalPanelRowHeight = 150;
+const bodyTextFontSize = 16;
+const bodyTextLineHeight = 30;
+const bodyTextMaxChars = 58;
 const pdfKoreanFontFamily = "PdfKorean";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
@@ -560,8 +563,15 @@ function createApprovalDocumentSvg(input: ApprovalPdfInput) {
     minBodyRectHeight,
     bodyRectBottomLimit - bodyRectY,
   );
-  const bodyTextMaxLines = Math.max(1, Math.floor((bodyRectHeight - 54) / 40));
-  const bodyLines = wrapLines(input.content, 48, bodyTextMaxLines);
+  const bodyTextMaxLines = Math.max(
+    1,
+    Math.floor((bodyRectHeight - 54) / bodyTextLineHeight),
+  );
+  const bodyLines = wrapLines(
+    input.content,
+    bodyTextMaxChars,
+    bodyTextMaxLines,
+  );
   const notesSection = shouldRenderNotes ? renderApprovalNotesSection() : "";
   const footerText =
     "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
@@ -587,7 +597,14 @@ function createApprovalDocumentSvg(input: ApprovalPdfInput) {
 
   <text x="118" y="${bodyTitleY}" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">기안 내용</text>
   <rect x="118" y="${bodyRectY}" width="1004" height="${bodyRectHeight}" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  ${renderMultilineText(bodyLines, 150, bodyRectY + 54, 24, 40, "#2f3742")}
+  ${renderMultilineText(
+    bodyLines,
+    150,
+    bodyRectY + 54,
+    bodyTextFontSize,
+    bodyTextLineHeight,
+    "#2f3742",
+  )}
 
   ${notesSection}
 
