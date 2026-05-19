@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PDFDocument } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, type PDFFont, type PDFPage, rgb } from "pdf-lib";
 import {
   type PreparedAttachmentFile,
   persistAttachmentFiles,
@@ -47,16 +48,23 @@ type ApprovalPdfInput = {
 };
 
 type ApprovalPdfStamp = {
-  imageBuffer: Buffer;
   order: number;
+  source: ApprovalStampImageSource;
 };
 
 type Sharp = typeof import("sharp");
+type ApprovalPdfFonts = {
+  korean: PDFFont;
+};
+type TextAlign = "start" | "middle" | "end";
 
 const pageWidth = 595.28;
 const pageHeight = 841.89;
 const svgWidth = 1240;
 const svgHeight = 1754;
+const pdfScaleX = pageWidth / svgWidth;
+const pdfScaleY = pageHeight / svgHeight;
+const pdfScale = pdfScaleX;
 const approvalPanelX = 718;
 const approvalPanelY = 382;
 const approvalPanelWidth = 404;
@@ -64,15 +72,12 @@ const approvalPanelRowHeight = 150;
 const bodyTextFontSize = 16;
 const bodyTextLineHeight = 30;
 const bodyTextMaxChars = 58;
-const pdfKoreanFontFamily = "PdfKorean";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
   "fonts",
   "NanumGothic-Regular.ttf",
 );
-
-let pdfKoreanFontStyle: string | null = null;
 
 export function getGeneratedApprovalPdfStorageError() {
   const storageConfig = getAttachmentStorageConfig(process.env);
@@ -299,14 +304,10 @@ export async function attachStampedApprovalPdfToDocument(
     storageKey: sourceAttachment.storageKey,
   });
   const sourceBuffer = await readableStreamToBuffer(sourceFile.body);
-  const stamps = await Promise.all(
-    approvedSteps.map(async (step) => ({
-      order: step.order,
-      imageBuffer: await getApprovalStampImageBuffer(
-        getFinalApprovalStampSource(step),
-      ),
-    })),
-  );
+  const stamps = approvedSteps.map((step) => ({
+    order: step.order,
+    source: getFinalApprovalStampSource(step),
+  }));
   const file = await createStampedApprovalPdfFile({
     originalName,
     sourceBuffer,
@@ -442,25 +443,7 @@ export async function createGeneratedApprovalPdfFile(
     );
   }
 
-  const svg = createApprovalDocumentSvg(input);
-  const sharp = await getSharp();
-  const pngBuffer = await sharp(Buffer.from(svg), {
-    failOn: "none",
-  })
-    .png()
-    .toBuffer();
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([pageWidth, pageHeight]);
-  const image = await pdf.embedPng(pngBuffer);
-
-  page.drawImage(image, {
-    x: 0,
-    y: 0,
-    width: pageWidth,
-    height: pageHeight,
-  });
-
-  const buffer = Buffer.from(await pdf.save());
+  const buffer = await createApprovalDocumentPdfBuffer(input);
 
   return {
     originalName: createGeneratedApprovalPdfOriginalName(
@@ -516,6 +499,7 @@ async function stampFinalApprovalPdf(
   approvalStepCount: number,
 ) {
   const pdf = await PDFDocument.load(sourceBuffer);
+  const fonts = await embedApprovalPdfFonts(pdf);
   const [page] = pdf.getPages();
 
   if (!page) {
@@ -527,24 +511,48 @@ async function stampFinalApprovalPdf(
       stamp.order,
       approvalStepCount,
     );
-    const embeddedStamp = await embedApprovalStampImage(pdf, stamp.imageBuffer);
-    const width = placement.size;
-    const height = embeddedStamp.height * (width / embeddedStamp.width);
-    const y = page.getHeight() - placement.top - height;
 
-    page.drawImage(embeddedStamp.image, {
-      x: placement.x,
-      y,
-      width,
-      height,
-      opacity: 0.92,
-    });
+    if (
+      stamp.source.signatureImageStorageProvider &&
+      stamp.source.signatureImageStorageKey
+    ) {
+      const imageBuffer = await getApprovalStampImageBuffer(stamp.source);
+      const embeddedStamp = await embedApprovalStampImage(pdf, imageBuffer);
+      const width = placement.size;
+      const height = embeddedStamp.height * (width / embeddedStamp.width);
+      const y = page.getHeight() - placement.top - height;
+
+      page.drawImage(embeddedStamp.image, {
+        x: placement.x,
+        y,
+        width,
+        height,
+        opacity: 0.92,
+      });
+      continue;
+    }
+
+    drawGeneratedApprovalStamp(page, fonts, placement, stamp.source.name);
   }
 
   return Buffer.from(await pdf.save());
 }
 
-function createApprovalDocumentSvg(input: ApprovalPdfInput) {
+async function createApprovalDocumentPdfBuffer(input: ApprovalPdfInput) {
+  const pdf = await PDFDocument.create();
+  const fonts = await embedApprovalPdfFonts(pdf);
+  const page = pdf.addPage([pageWidth, pageHeight]);
+
+  drawApprovalDocumentPage(page, fonts, input);
+
+  return Buffer.from(await pdf.save());
+}
+
+function drawApprovalDocumentPage(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  input: ApprovalPdfInput,
+) {
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
   const approvers = input.approvers;
@@ -572,48 +580,84 @@ function createApprovalDocumentSvg(input: ApprovalPdfInput) {
     bodyTextMaxChars,
     bodyTextMaxLines,
   );
-  const notesSection = shouldRenderNotes ? renderApprovalNotesSection() : "";
   const footerText =
     "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-  <defs>
-    ${pdfFontFaceStyle()}
-  </defs>
-  <rect width="${svgWidth}" height="${svgHeight}" fill="#f5f6f8"/>
-  <rect x="78" y="72" width="1084" height="1610" rx="10" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  <rect x="78" y="72" width="1084" height="118" rx="10" fill="#1f3347"/>
-  <text x="118" y="132" font-family="${pdfFontFamily()}" font-size="27" font-weight="700" fill="#ffffff">사내 전자결재 문서</text>
-  <text x="118" y="165" font-family="${pdfFontFamily()}" font-size="17" fill="#c8d3df">사회적협동조합 청소년자립학교</text>
-  <text x="1018" y="132" text-anchor="end" font-family="${pdfFontFamily()}" font-size="17" fill="#ffffff">${escapeXml(documentNo)}</text>
-  <text x="1018" y="164" text-anchor="end" font-family="${pdfFontFamily()}" font-size="15" fill="#c8d3df">${escapeXml(issuedAt)}</text>
+  drawSvgRect(page, 0, 0, svgWidth, svgHeight, "#f5f6f8");
+  drawSvgRect(page, 78, 72, 1084, 1610, "#ffffff", "#d6dbe3", 2);
+  drawSvgRect(page, 78, 72, 1084, 118, "#1f3347");
+  drawSvgText(page, fonts, "사내 전자결재 문서", 118, 132, 27, "#ffffff", {
+    fontWeight: 700,
+  });
+  drawSvgText(
+    page,
+    fonts,
+    "사회적협동조합 청소년자립학교",
+    118,
+    165,
+    17,
+    "#c8d3df",
+  );
+  drawSvgText(page, fonts, documentNo, 1018, 132, 17, "#ffffff", {
+    align: "end",
+  });
+  drawSvgText(page, fonts, issuedAt, 1018, 164, 15, "#c8d3df", {
+    align: "end",
+  });
 
-  <text x="118" y="270" font-family="${pdfFontFamily()}" font-size="34" font-weight="800" fill="#171b22">${escapeXml(input.templateName)}</text>
-  ${renderMultilineText(titleLines, 118, 322, 30, 38, "#171b22", 700)}
+  drawSvgText(page, fonts, input.templateName, 118, 270, 34, "#171b22", {
+    fontWeight: 800,
+  });
+  drawSvgMultilineText(
+    page,
+    fonts,
+    titleLines,
+    118,
+    322,
+    30,
+    38,
+    "#171b22",
+    700,
+  );
 
-  ${renderInfoPanel(input, documentNo, issuedAt)}
-  ${renderApprovalPanel(approvers, input.approvers.length)}
+  drawInfoPanel(page, fonts, input, documentNo, issuedAt);
+  drawApprovalPanel(page, fonts, approvers, input.approvers.length);
 
-  <text x="118" y="${bodyTitleY}" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">기안 내용</text>
-  <rect x="118" y="${bodyRectY}" width="1004" height="${bodyRectHeight}" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  ${renderMultilineText(
+  drawSvgText(page, fonts, "기안 내용", 118, bodyTitleY, 19, "#1f3347", {
+    fontWeight: 700,
+  });
+  drawSvgRect(
+    page,
+    118,
+    bodyRectY,
+    1004,
+    bodyRectHeight,
+    "#ffffff",
+    "#d6dbe3",
+    2,
+  );
+  drawSvgMultilineText(
+    page,
+    fonts,
     bodyLines,
     150,
     bodyRectY + 54,
     bodyTextFontSize,
     bodyTextLineHeight,
     "#2f3742",
-  )}
+  );
 
-  ${notesSection}
+  if (shouldRenderNotes) {
+    drawApprovalNotesSection(page, fonts);
+  }
 
-  <line x1="118" y1="1602" x2="1122" y2="1602" stroke="#d6dbe3" stroke-width="2"/>
-  <text x="118" y="1642" font-family="${pdfFontFamily()}" font-size="16" fill="#697386">${escapeXml(footerText)}</text>
-</svg>`;
+  drawSvgLine(page, 118, 1602, 1122, 1602, "#d6dbe3", 2);
+  drawSvgText(page, fonts, footerText, 118, 1642, 16, "#697386");
 }
 
-function renderInfoPanel(
+function drawInfoPanel(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
   input: ApprovalPdfInput,
   documentNo: string,
   issuedAt: string,
@@ -626,43 +670,113 @@ function renderInfoPanel(
     ["생성일시", issuedAt],
   ];
 
-  return `
-  <rect x="118" y="382" width="560" height="194" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  ${rows
-    .map((row, index) => {
-      const y = 382 + index * 38;
-      return `
-  <rect x="118" y="${y}" width="132" height="38" fill="#f3f6f9" stroke="#d6dbe3" stroke-width="1"/>
-  <rect x="250" y="${y}" width="428" height="38" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="142" y="${y + 25}" font-family="${pdfFontFamily()}" font-size="16" font-weight="700" fill="#394150">${escapeXml(row[0])}</text>
-  <text x="272" y="${y + 25}" font-family="${pdfFontFamily()}" font-size="16" fill="#2f3742">${escapeXml(row[1])}</text>`;
-    })
-    .join("")}`;
+  drawSvgRect(page, 118, 382, 560, 194, "#ffffff", "#d6dbe3", 2);
+
+  rows.forEach((row, index) => {
+    const y = 382 + index * 38;
+
+    drawSvgRect(page, 118, y, 132, 38, "#f3f6f9", "#d6dbe3", 1);
+    drawSvgRect(page, 250, y, 428, 38, "#ffffff", "#d6dbe3", 1);
+    drawSvgText(page, fonts, row[0], 142, y + 25, 16, "#394150", {
+      fontWeight: 700,
+    });
+    drawSvgText(page, fonts, row[1], 272, y + 25, 16, "#2f3742");
+  });
 }
 
-function renderApprovalPanel(approvers: ApprovalPdfUser[], totalCount: number) {
+function drawApprovalPanel(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  approvers: ApprovalPdfUser[],
+  totalCount: number,
+) {
   const layout = getApprovalPanelLayout(totalCount);
   const columnWidth = layout.width / layout.columns;
 
-  return `
-  <text x="${layout.x}" y="356" font-family="${pdfFontFamily()}" font-size="18" font-weight="700" fill="#1f3347">결재란</text>
-  <rect x="${layout.x}" y="${layout.y}" width="${layout.width}" height="${layout.height}" fill="#ffffff" stroke="#d6dbe3" stroke-width="2"/>
-  ${approvers
-    .map((approver, index) => {
-      const rowIndex = Math.floor(index / layout.columns);
-      const columnIndex = index % layout.columns;
-      const cellX = layout.x + columnIndex * columnWidth;
-      const cellY = layout.y + rowIndex * layout.rowHeight;
-      return `
-  <rect x="${cellX}" y="${cellY}" width="${columnWidth}" height="34" fill="#f3f6f9" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${cellY + 23}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="14" font-weight="700" fill="#394150">${index + 1}차</text>
-  <rect x="${cellX}" y="${cellY + 34}" width="${columnWidth}" height="72" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${cellY + 78}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="17" font-weight="700" fill="#171b22">${escapeXml(approver.name)}</text>
-  <rect x="${cellX}" y="${cellY + 106}" width="${columnWidth}" height="${layout.rowHeight - 106}" fill="#ffffff" stroke="#d6dbe3" stroke-width="1"/>
-  <text x="${cellX + columnWidth / 2}" y="${cellY + 127}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="12" fill="#697386">${escapeXml(approver.departmentName ?? "")}</text>
-  <text x="${cellX + columnWidth / 2}" y="${cellY + 145}" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="12" fill="#697386">${escapeXml(approver.positionName ?? "")}</text>`;
-    })
-    .join("")}`;
+  drawSvgText(page, fonts, "결재란", layout.x, 356, 18, "#1f3347", {
+    fontWeight: 700,
+  });
+  drawSvgRect(
+    page,
+    layout.x,
+    layout.y,
+    layout.width,
+    layout.height,
+    "#ffffff",
+    "#d6dbe3",
+    2,
+  );
+
+  approvers.forEach((approver, index) => {
+    const rowIndex = Math.floor(index / layout.columns);
+    const columnIndex = index % layout.columns;
+    const cellX = layout.x + columnIndex * columnWidth;
+    const cellY = layout.y + rowIndex * layout.rowHeight;
+    const cellCenterX = cellX + columnWidth / 2;
+
+    drawSvgRect(page, cellX, cellY, columnWidth, 34, "#f3f6f9", "#d6dbe3", 1);
+    drawSvgText(
+      page,
+      fonts,
+      `${index + 1}차`,
+      cellCenterX,
+      cellY + 23,
+      14,
+      "#394150",
+      {
+        align: "middle",
+        fontWeight: 700,
+      },
+    );
+    drawSvgRect(page, cellX, cellY + 34, columnWidth, 72, "#ffffff", "#d6dbe3", 1);
+    drawSvgText(
+      page,
+      fonts,
+      approver.name,
+      cellCenterX,
+      cellY + 78,
+      17,
+      "#171b22",
+      {
+        align: "middle",
+        fontWeight: 700,
+      },
+    );
+    drawSvgRect(
+      page,
+      cellX,
+      cellY + 106,
+      columnWidth,
+      layout.rowHeight - 106,
+      "#ffffff",
+      "#d6dbe3",
+      1,
+    );
+    drawSvgText(
+      page,
+      fonts,
+      approver.departmentName ?? "",
+      cellCenterX,
+      cellY + 127,
+      12,
+      "#697386",
+      {
+        align: "middle",
+      },
+    );
+    drawSvgText(
+      page,
+      fonts,
+      approver.positionName ?? "",
+      cellCenterX,
+      cellY + 145,
+      12,
+      "#697386",
+      {
+        align: "middle",
+      },
+    );
+  });
 }
 
 function getApprovalPanelBottomY(totalCount: number) {
@@ -685,14 +799,34 @@ function getApprovalPanelLayout(totalCount: number) {
   };
 }
 
-function renderApprovalNotesSection() {
-  return `<text x="118" y="1390" font-family="${pdfFontFamily()}" font-size="19" font-weight="700" fill="#1f3347">결재 유의사항</text>
-  <rect x="118" y="1420" width="1004" height="128" fill="#f8fafc" stroke="#e4e8ee" stroke-width="2"/>
-  <text x="150" y="1472" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">결재자는 문서 내용과 첨부파일을 확인한 후 승인 또는 반려 처리합니다.</text>
-  <text x="150" y="1515" font-family="${pdfFontFamily()}" font-size="19" fill="#394150">최종 승인 완료 후 이 원본문서를 기준으로 보관 및 검증 절차가 진행됩니다.</text>`;
+function drawApprovalNotesSection(page: PDFPage, fonts: ApprovalPdfFonts) {
+  drawSvgText(page, fonts, "결재 유의사항", 118, 1390, 19, "#1f3347", {
+    fontWeight: 700,
+  });
+  drawSvgRect(page, 118, 1420, 1004, 128, "#f8fafc", "#e4e8ee", 2);
+  drawSvgText(
+    page,
+    fonts,
+    "결재자는 문서 내용과 첨부파일을 확인한 후 승인 또는 반려 처리합니다.",
+    150,
+    1472,
+    19,
+    "#394150",
+  );
+  drawSvgText(
+    page,
+    fonts,
+    "최종 승인 완료 후 이 원본문서를 기준으로 보관 및 검증 절차가 진행됩니다.",
+    150,
+    1515,
+    19,
+    "#394150",
+  );
 }
 
-function renderMultilineText(
+function drawSvgMultilineText(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
   lines: string[],
   x: number,
   y: number,
@@ -701,13 +835,158 @@ function renderMultilineText(
   fill: string,
   fontWeight = 400,
 ) {
-  return lines
-    .map((line, index) => {
-      const textY = y + index * lineHeight;
+  lines.forEach((line, index) => {
+    drawSvgText(
+      page,
+      fonts,
+      line,
+      x,
+      y + index * lineHeight,
+      fontSize,
+      fill,
+      { fontWeight },
+    );
+  });
+}
 
-      return `<text x="${x}" y="${textY}" font-family="${pdfFontFamily()}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}">${escapeXml(line)}</text>`;
-    })
-    .join("\n  ");
+function drawSvgRect(
+  page: PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill: string,
+  stroke?: string,
+  strokeWidth = 0,
+) {
+  page.drawRectangle({
+    x: svgToPdfX(x),
+    y: svgToPdfRectY(y, height),
+    width: svgToPdfWidth(width),
+    height: svgToPdfHeight(height),
+    color: hexColor(fill),
+    borderColor: stroke ? hexColor(stroke) : undefined,
+    borderWidth: stroke ? svgToPdfSize(strokeWidth) : undefined,
+  });
+}
+
+function drawSvgLine(
+  page: PDFPage,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  stroke: string,
+  strokeWidth: number,
+) {
+  page.drawLine({
+    start: {
+      x: svgToPdfX(x1),
+      y: svgToPdfY(y1),
+    },
+    end: {
+      x: svgToPdfX(x2),
+      y: svgToPdfY(y2),
+    },
+    thickness: svgToPdfSize(strokeWidth),
+    color: hexColor(stroke),
+  });
+}
+
+function drawSvgText(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fill: string,
+  options: {
+    align?: TextAlign;
+    fontWeight?: number;
+  } = {},
+) {
+  drawPdfText(
+    page,
+    fonts,
+    text,
+    svgToPdfX(x),
+    svgToPdfY(y),
+    svgToPdfSize(fontSize),
+    fill,
+    options,
+  );
+}
+
+function drawPdfText(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fill: string,
+  options: {
+    align?: TextAlign;
+    fontWeight?: number;
+    opacity?: number;
+  } = {},
+) {
+  if (!text) {
+    return;
+  }
+
+  const font = fonts.korean;
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  const align = options.align ?? "start";
+  const drawX =
+    align === "middle" ? x - textWidth / 2 : align === "end" ? x - textWidth : x;
+  const color = hexColor(fill);
+  const boldOffset = (options.fontWeight ?? 400) >= 700 ? fontSize * 0.018 : 0;
+
+  page.drawText(text, {
+    x: drawX,
+    y,
+    size: fontSize,
+    font,
+    color,
+    opacity: options.opacity,
+  });
+
+  if (boldOffset > 0) {
+    page.drawText(text, {
+      x: drawX + boldOffset,
+      y,
+      size: fontSize,
+      font,
+      color,
+      opacity: options.opacity,
+    });
+  }
+}
+
+function svgToPdfX(value: number) {
+  return value * pdfScaleX;
+}
+
+function svgToPdfY(value: number) {
+  return pageHeight - value * pdfScaleY;
+}
+
+function svgToPdfRectY(y: number, height: number) {
+  return pageHeight - (y + height) * pdfScaleY;
+}
+
+function svgToPdfWidth(value: number) {
+  return value * pdfScaleX;
+}
+
+function svgToPdfHeight(value: number) {
+  return value * pdfScaleY;
+}
+
+function svgToPdfSize(value: number) {
+  return value * pdfScale;
 }
 
 function wrapLines(text: string, maxChars: number, maxLines: number) {
@@ -836,48 +1115,34 @@ function sanitizeFileName(value: string) {
     .trim();
 }
 
-function pdfFontFamily() {
-  return `${pdfKoreanFontFamily}, sans-serif`;
+async function embedApprovalPdfFonts(
+  pdf: PDFDocument,
+): Promise<ApprovalPdfFonts> {
+  pdf.registerFontkit(fontkit);
+
+  return {
+    korean: await pdf.embedFont(readFileSync(pdfKoreanFontPath), {
+      subset: true,
+    }),
+  };
 }
 
-function pdfFontFaceStyle() {
-  if (!pdfKoreanFontStyle) {
-    const fontBase64 = readFileSync(pdfKoreanFontPath).toString("base64");
+function hexColor(value: string) {
+  const normalized = value.replace("#", "").trim();
+  const hex =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((character) => `${character}${character}`)
+          .join("")
+      : normalized;
+  const color = Number.parseInt(hex, 16);
 
-    // Vercel's image runtime does not provide Korean system fonts, so the
-    // generated SVG must carry its own font for sharp/librsvg rendering.
-    pdfKoreanFontStyle = `<style><![CDATA[
-@font-face {
-  font-family: ${pdfKoreanFontFamily};
-  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
-  font-weight: 400;
-  font-style: normal;
-}
-@font-face {
-  font-family: ${pdfKoreanFontFamily};
-  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
-  font-weight: 700;
-  font-style: normal;
-}
-@font-face {
-  font-family: ${pdfKoreanFontFamily};
-  src: url(data:font/truetype;base64,${fontBase64}) format("truetype");
-  font-weight: 800;
-  font-style: normal;
-}
-]]></style>`;
-  }
-
-  return pdfKoreanFontStyle;
-}
-
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return rgb(
+    ((color >> 16) & 255) / 255,
+    ((color >> 8) & 255) / 255,
+    (color & 255) / 255,
+  );
 }
 
 async function ensureGeneratedApprovalPdfAttachment(
@@ -947,38 +1212,78 @@ function getApprovalStampPlacement(order: number, approvalStepCount: number) {
   };
 }
 
-async function getApprovalStampImageBuffer(source: ApprovalStampImageSource) {
-  if (source.signatureImageStorageProvider && source.signatureImageStorageKey) {
-    const storedFile = await readStoredAttachmentFile({
-      storageProvider: source.signatureImageStorageProvider,
-      storageKey: source.signatureImageStorageKey,
-    });
+function drawGeneratedApprovalStamp(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  placement: {
+    x: number;
+    top: number;
+    size: number;
+  },
+  name: string,
+) {
+  const centerX = placement.x + placement.size / 2;
+  const centerY = page.getHeight() - placement.top - placement.size / 2;
+  const red = hexColor("#c82333");
+  const safeName = name.trim().slice(0, 5) || "승인";
 
-    return readableStreamToBuffer(storedFile.body);
-  }
-
-  return createGeneratedApprovalStampImage(source.name);
+  page.drawCircle({
+    x: centerX,
+    y: centerY,
+    size: placement.size / 2,
+    borderColor: red,
+    borderWidth: placement.size * 0.065,
+    borderOpacity: 0.92,
+  });
+  page.drawCircle({
+    x: centerX,
+    y: centerY,
+    size: placement.size * 0.4,
+    borderColor: red,
+    borderWidth: placement.size * 0.018,
+    borderOpacity: 0.62,
+  });
+  drawPdfText(
+    page,
+    fonts,
+    "승인",
+    centerX,
+    centerY + placement.size * 0.04,
+    placement.size * 0.23,
+    "#c82333",
+    {
+      align: "middle",
+      fontWeight: 800,
+      opacity: 0.92,
+    },
+  );
+  drawPdfText(
+    page,
+    fonts,
+    safeName,
+    centerX,
+    centerY - placement.size * 0.21,
+    placement.size * 0.14,
+    "#c82333",
+    {
+      align: "middle",
+      fontWeight: 700,
+      opacity: 0.92,
+    },
+  );
 }
 
-async function createGeneratedApprovalStampImage(name: string) {
-  const sharp = await getSharp();
-  const safeName = escapeXml(name.trim().slice(0, 5) || "승인");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-  <defs>
-    ${pdfFontFaceStyle()}
-  </defs>
-  <rect width="240" height="240" fill="none"/>
-  <circle cx="120" cy="120" r="94" fill="none" stroke="#c82333" stroke-width="12"/>
-  <circle cx="120" cy="120" r="76" fill="none" stroke="#c82333" stroke-width="3" opacity="0.65"/>
-  <text x="120" y="112" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="50" font-weight="800" fill="#c82333">승인</text>
-  <text x="120" y="162" text-anchor="middle" font-family="${pdfFontFamily()}" font-size="30" font-weight="700" fill="#c82333">${safeName}</text>
-</svg>`;
+async function getApprovalStampImageBuffer(source: ApprovalStampImageSource) {
+  if (!source.signatureImageStorageProvider || !source.signatureImageStorageKey) {
+    throw new Error("등록된 결재 도장/서명 이미지가 없습니다.");
+  }
 
-  return sharp(Buffer.from(svg), {
-    failOn: "none",
-  })
-    .png()
-    .toBuffer();
+  const storedFile = await readStoredAttachmentFile({
+    storageProvider: source.signatureImageStorageProvider,
+    storageKey: source.signatureImageStorageKey,
+  });
+
+  return readableStreamToBuffer(storedFile.body);
 }
 
 async function embedApprovalStampImage(
