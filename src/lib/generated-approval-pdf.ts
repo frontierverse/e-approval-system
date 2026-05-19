@@ -277,9 +277,12 @@ export async function attachStampedApprovalPdfToDocument(
     title: document.title,
   });
 
+  const visibleApprovalCount = getVisibleApprovalColumnCount(
+    document.approvalSteps.length,
+  );
   const approvedSteps = document.approvalSteps
     .filter((step) => step.status === ApprovalStepStatus.APPROVED)
-    .slice(0, 4);
+    .slice(0, visibleApprovalCount);
 
   if (approvedSteps.length === 0) {
     return null;
@@ -302,9 +305,7 @@ export async function attachStampedApprovalPdfToDocument(
     originalName,
     sourceBuffer,
     stamps,
-    visibleApprovalCount: getVisibleApprovalColumnCount(
-      document.approvalSteps.length,
-    ),
+    visibleApprovalCount,
   });
   const previousFile = existingAttachment
     ? {
@@ -540,7 +541,10 @@ async function stampFinalApprovalPdf(
 function createApprovalDocumentSvg(input: ApprovalPdfInput) {
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
-  const approvers = input.approvers.slice(0, 4);
+  const approvers = input.approvers.slice(
+    0,
+    getVisibleApprovalColumnCount(input.approvers.length),
+  );
   const bodyLines = wrapLines(input.content, 48, 22);
   const titleLines = wrapLines(input.title, 30, 2);
   const footerText =

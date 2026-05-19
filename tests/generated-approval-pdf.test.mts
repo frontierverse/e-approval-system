@@ -31,12 +31,19 @@ describe("generated approval pdf", () => {
   });
 
   test("places stamps by approval-line columns, not approved-step count", () => {
-    const columnCount = getVisibleApprovalColumnCount(4);
+    const columnCount = getVisibleApprovalColumnCount(5);
 
-    assert.equal(columnCount, 4);
+    assert.equal(columnCount, 5);
     assert.equal(getApprovalStampColumnIndex(1, columnCount), 0);
     assert.equal(getApprovalStampColumnIndex(2, columnCount), 1);
     assert.equal(getApprovalStampColumnIndex(3, columnCount), 2);
     assert.equal(getApprovalStampColumnIndex(4, columnCount), 3);
+    assert.equal(getApprovalStampColumnIndex(5, columnCount), 4);
+  });
+
+  test("keeps the generated approval table wide enough for five approvers", () => {
+    assert.equal(getVisibleApprovalColumnCount(1), 1);
+    assert.equal(getVisibleApprovalColumnCount(5), 5);
+    assert.equal(getVisibleApprovalColumnCount(6), 5);
   });
 });

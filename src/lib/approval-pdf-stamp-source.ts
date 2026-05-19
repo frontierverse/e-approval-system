@@ -17,7 +17,7 @@ export function getStampedApprovalPdfTypeLabel(status: string) {
 }
 
 export function getVisibleApprovalColumnCount(totalApprovalSteps: number) {
-  return Math.max(1, Math.min(totalApprovalSteps, 4));
+  return Math.max(1, Math.min(totalApprovalSteps, 5));
 }
 
 export function getApprovalStampColumnIndex(
