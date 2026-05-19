@@ -32,9 +32,6 @@ export function PendingOverlay({
         />
         <p className="mt-4 text-base font-semibold text-[#16181d]">{label}</p>
         <p className="mt-2 text-sm leading-6 text-[#697386]">{description}</p>
-        <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#edf1f5]">
-          <div className="h-full w-1/2 animate-pulse rounded-full bg-[#196b69]" />
-        </div>
       </div>
     </div>
   );
