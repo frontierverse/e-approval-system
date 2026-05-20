@@ -263,7 +263,6 @@ function DraftFormFields({
   pending,
 }: DraftFormFieldsProps) {
   const [title, setTitle] = useState(initialValues.title);
-  const [category, setCategory] = useState(initialValues.category);
   const [templateId, setTemplateId] = useState(initialValues.templateId);
   const [content, setContent] = useState(initialValues.content);
   const [templateFieldValues, setTemplateFieldValues] = useState<
@@ -280,7 +279,6 @@ function DraftFormFields({
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const titleHasError = Boolean(errors?.title);
-  const categoryHasError = Boolean(errors?.category);
   const templateHasError = Boolean(errors?.templateId);
   const contentHasError = Boolean(errors?.content);
   const approverHasError = Boolean(errors?.approvers);
@@ -530,29 +528,7 @@ function DraftFormFields({
           ) : null}
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <div>
-            <label
-              htmlFor="category"
-              className="text-sm font-semibold text-[#394150]"
-            >
-              문서 분류
-            </label>
-            <input
-              id="category"
-              name="category"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              placeholder="예: 구매 품의, 비용 정산"
-              className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-                categoryHasError ? ` ${errorBorderClass}` : ""
-              }`}
-            />
-            {errors?.category ? (
-              <p className="mt-2 text-sm text-[#8a1f1f]">{errors.category}</p>
-            ) : null}
-          </div>
-
+        <div className="mt-5">
           <div>
             <label
               htmlFor="templateId"

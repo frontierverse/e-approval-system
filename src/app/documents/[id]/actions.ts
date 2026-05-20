@@ -32,6 +32,7 @@ import {
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { canDeleteSignedAttachmentByPolicy } from "@/lib/approval-permissions-core";
 import { prisma } from "@/lib/prisma";
+import { parseSignedAttachmentDeleteReason } from "@/lib/signed-attachment-delete-reason";
 
 export type ApprovalDecisionState = {
   error?: string;
@@ -398,8 +399,17 @@ export async function deleteAttachmentAction(
 export async function deleteSignedAttachmentAction(
   documentId: string,
   attachmentId: string,
+  formData: FormData,
 ) {
   const user = await requireUser();
+  const deleteReasonResult = parseSignedAttachmentDeleteReason(
+    formData.get("deleteReason"),
+  );
+
+  if (!deleteReasonResult.ok) {
+    redirectWithDocumentError(documentId, deleteReasonResult.message);
+  }
+
   const attachment = await prisma.attachment.findFirst({
     where: {
       id: attachmentId,
@@ -468,7 +478,11 @@ export async function deleteSignedAttachmentAction(
         targetType: "Attachment",
         targetId: attachment.id,
         documentId: attachment.document.id,
-        message: `"${attachment.originalName}" 서명본을 삭제했습니다.`,
+        message: `"${attachment.originalName}" 서명본을 삭제했습니다. 사유: ${deleteReasonResult.reason}`,
+        metadata: {
+          deleteReason: deleteReasonResult.reason,
+          originalName: attachment.originalName,
+        },
       },
     });
 
@@ -490,6 +504,7 @@ export async function deleteSignedAttachmentAction(
   revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
+  revalidatePath("/completed");
   revalidatePath(`/documents/${documentId}`);
   redirect(`/documents/${documentId}`);
 }

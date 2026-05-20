@@ -146,7 +146,7 @@ export async function createDraftAction(
     const document = await createApprovalDocument({
       drafterId: user.id,
       title: values.title,
-      category: values.category,
+      category: template.name,
       content: values.content,
       templateId: values.templateId,
       approvers: orderedApprovers,

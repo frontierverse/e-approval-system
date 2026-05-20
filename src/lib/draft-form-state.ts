@@ -2,7 +2,6 @@ export type DraftFormState = {
   values?: DraftFormValues;
   errors?: {
     title?: string;
-    category?: string;
     templateId?: string;
     content?: string;
     approvers?: string;
@@ -32,7 +31,7 @@ export function getDraftFormValues(formData: FormData): DraftFormValues {
 
   return {
     title: String(formData.get("title") ?? "").trim(),
-    category: String(formData.get("category") ?? "").trim() || "일반",
+    category: "",
     templateId: String(formData.get("templateId") ?? "").trim(),
     content: String(formData.get("content") ?? "").trim(),
     approverIds: Array.from(new Set(approverIds)),
@@ -57,10 +56,6 @@ export function validateDraftFormValues(
 
   if (values.title.length > 120) {
     errors.title = "제목은 120자 이내로 입력하세요.";
-  }
-
-  if (values.category.length > 40) {
-    errors.category = "문서 분류는 40자 이내로 입력하세요.";
   }
 
   if (!values.templateId) {

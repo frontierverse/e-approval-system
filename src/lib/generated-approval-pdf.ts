@@ -26,6 +26,10 @@ import {
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
 import {
+  getApprovalPdfLayout,
+  type ApprovalPdfLayout,
+} from "@/lib/generated-approval-pdf-layout";
+import {
   ApprovalStepStatus,
   AuditAction,
   DocumentStatus,
@@ -595,13 +599,16 @@ function drawApprovalDocumentPage(
   fonts: ApprovalPdfFonts,
   input: ApprovalPdfInput,
 ) {
+  const layout = getApprovalPdfLayout(input.templateName);
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
   const approvers = input.approvers;
   const titleLines = wrapLines(input.title, 30, 2);
   const approvalPanelBottom = getApprovalPanelBottomY(approvers.length);
   const summaryBottom = 382 + 194;
-  const contentTop = Math.max(summaryBottom, approvalPanelBottom) + 62;
+  const focusPanelTop = Math.max(summaryBottom, approvalPanelBottom) + 34;
+  const focusPanelHeight = 118;
+  const contentTop = focusPanelTop + focusPanelHeight + 52;
   const bodyTitleY = contentTop;
   const bodyRectY = bodyTitleY + 28;
   const notesTitleY = 1390;
@@ -625,10 +632,10 @@ function drawApprovalDocumentPage(
   const footerText =
     "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 
-  drawSvgRect(page, 0, 0, svgWidth, svgHeight, "#f5f6f8");
+  drawSvgRect(page, 0, 0, svgWidth, svgHeight, layout.pageFill);
   drawSvgRect(page, 78, 72, 1084, 1610, "#ffffff", "#d6dbe3", 2);
-  drawSvgRect(page, 78, 72, 1084, 118, "#1f3347");
-  drawSvgText(page, fonts, "사내 전자결재 문서", 118, 132, 27, "#ffffff", {
+  drawSvgRect(page, 78, 72, 1084, 118, layout.headerFill);
+  drawSvgText(page, fonts, layout.headerTitle, 118, 132, 27, "#ffffff", {
     fontWeight: 700,
   });
   drawSvgText(
@@ -638,36 +645,51 @@ function drawApprovalDocumentPage(
     118,
     165,
     17,
-    "#c8d3df",
+    layout.subtitleFill,
   );
   drawSvgText(page, fonts, documentNo, 1018, 132, 17, "#ffffff", {
     align: "end",
   });
-  drawSvgText(page, fonts, issuedAt, 1018, 164, 15, "#c8d3df", {
+  drawSvgText(page, fonts, issuedAt, 1018, 164, 15, layout.subtitleFill, {
     align: "end",
   });
 
-  drawSvgText(page, fonts, input.templateName, 118, 270, 34, "#171b22", {
+  drawSvgRect(page, 118, 232, 1004, 128, layout.heroFill, layout.heroStroke, 2);
+  drawSvgRect(page, 118, 232, 14, 128, layout.accentFill);
+  drawSvgText(page, fonts, layout.badgeLabel, 154, 266, 16, layout.accentFill, {
+    fontWeight: 700,
+  });
+  drawSvgText(page, fonts, input.templateName, 154, 309, 34, "#171b22", {
     fontWeight: 800,
   });
   drawSvgMultilineText(
     page,
     fonts,
     titleLines,
-    118,
-    322,
+    154,
+    345,
     30,
     38,
     "#171b22",
     700,
   );
 
-  drawInfoPanel(page, fonts, input, documentNo, issuedAt);
-  drawApprovalPanel(page, fonts, approvers, input.approvers.length);
+  drawInfoPanel(page, fonts, input, documentNo, issuedAt, layout);
+  drawApprovalPanel(page, fonts, approvers, input.approvers.length, layout);
+  drawTemplateFocusPanel(page, fonts, input, layout, focusPanelTop);
 
-  drawSvgText(page, fonts, "기안 내용", 118, bodyTitleY, 19, "#1f3347", {
-    fontWeight: 700,
-  });
+  drawSvgText(
+    page,
+    fonts,
+    layout.bodyTitle,
+    118,
+    bodyTitleY,
+    19,
+    layout.accentFill,
+    {
+      fontWeight: 700,
+    },
+  );
   drawSvgRect(
     page,
     118,
@@ -690,7 +712,7 @@ function drawApprovalDocumentPage(
   );
 
   if (shouldRenderNotes) {
-    drawApprovalNotesSection(page, fonts);
+    drawApprovalNotesSection(page, fonts, layout);
   }
 
   drawSvgLine(page, 118, 1602, 1122, 1602, "#d6dbe3", 2);
@@ -703,22 +725,32 @@ function drawInfoPanel(
   input: ApprovalPdfInput,
   documentNo: string,
   issuedAt: string,
+  layout: ApprovalPdfLayout,
 ) {
   const rows = [
     ["문서번호", documentNo],
-    ["문서분류", input.category],
+    ["문서양식", input.category],
     ["작성자", `${input.drafter.name} / ${input.drafter.positionName ?? "-"}`],
     ["소속", input.drafter.departmentName ?? "-"],
     ["생성일시", issuedAt],
   ];
 
-  drawSvgRect(page, 118, 382, 560, 194, "#ffffff", "#d6dbe3", 2);
+  drawSvgRect(page, 118, 382, 560, 194, "#ffffff", layout.heroStroke, 2);
 
   rows.forEach((row, index) => {
     const y = 382 + index * 38;
 
-    drawSvgRect(page, 118, y, 132, 38, "#f3f6f9", "#d6dbe3", 1);
-    drawSvgRect(page, 250, y, 428, 38, "#ffffff", "#d6dbe3", 1);
+    drawSvgRect(
+      page,
+      118,
+      y,
+      132,
+      38,
+      layout.infoLabelFill,
+      layout.heroStroke,
+      1,
+    );
+    drawSvgRect(page, 250, y, 428, 38, "#ffffff", layout.heroStroke, 1);
     drawSvgText(page, fonts, row[0], 142, y + 25, 16, "#394150", {
       fontWeight: 700,
     });
@@ -731,32 +763,42 @@ function drawApprovalPanel(
   fonts: ApprovalPdfFonts,
   approvers: ApprovalPdfUser[],
   totalCount: number,
+  layout: ApprovalPdfLayout,
 ) {
-  const layout = getApprovalPanelLayout(totalCount);
-  const columnWidth = layout.width / layout.columns;
+  const panelLayout = getApprovalPanelLayout(totalCount);
+  const columnWidth = panelLayout.width / panelLayout.columns;
 
-  drawSvgText(page, fonts, "결재란", layout.x, 356, 18, "#1f3347", {
+  drawSvgText(page, fonts, "결재란", panelLayout.x, 356, 18, layout.accentFill, {
     fontWeight: 700,
   });
   drawSvgRect(
     page,
-    layout.x,
-    layout.y,
-    layout.width,
-    layout.height,
+    panelLayout.x,
+    panelLayout.y,
+    panelLayout.width,
+    panelLayout.height,
     "#ffffff",
-    "#d6dbe3",
+    layout.heroStroke,
     2,
   );
 
   approvers.forEach((approver, index) => {
-    const rowIndex = Math.floor(index / layout.columns);
-    const columnIndex = index % layout.columns;
-    const cellX = layout.x + columnIndex * columnWidth;
-    const cellY = layout.y + rowIndex * layout.rowHeight;
+    const rowIndex = Math.floor(index / panelLayout.columns);
+    const columnIndex = index % panelLayout.columns;
+    const cellX = panelLayout.x + columnIndex * columnWidth;
+    const cellY = panelLayout.y + rowIndex * panelLayout.rowHeight;
     const cellCenterX = cellX + columnWidth / 2;
 
-    drawSvgRect(page, cellX, cellY, columnWidth, 34, "#f3f6f9", "#d6dbe3", 1);
+    drawSvgRect(
+      page,
+      cellX,
+      cellY,
+      columnWidth,
+      34,
+      layout.infoLabelFill,
+      layout.heroStroke,
+      1,
+    );
     drawSvgText(
       page,
       fonts,
@@ -770,7 +812,16 @@ function drawApprovalPanel(
         fontWeight: 700,
       },
     );
-    drawSvgRect(page, cellX, cellY + 34, columnWidth, 72, "#ffffff", "#d6dbe3", 1);
+    drawSvgRect(
+      page,
+      cellX,
+      cellY + 34,
+      columnWidth,
+      72,
+      "#ffffff",
+      layout.heroStroke,
+      1,
+    );
     drawSvgText(
       page,
       fonts,
@@ -789,9 +840,9 @@ function drawApprovalPanel(
       cellX,
       cellY + 106,
       columnWidth,
-      layout.rowHeight - 106,
+      panelLayout.rowHeight - 106,
       "#ffffff",
-      "#d6dbe3",
+      layout.heroStroke,
       1,
     );
     drawSvgText(
@@ -841,15 +892,50 @@ function getApprovalPanelLayout(totalCount: number) {
   };
 }
 
-function drawApprovalNotesSection(page: PDFPage, fonts: ApprovalPdfFonts) {
-  drawSvgText(page, fonts, "결재 유의사항", 118, 1390, 19, "#1f3347", {
+function drawTemplateFocusPanel(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  input: ApprovalPdfInput,
+  layout: ApprovalPdfLayout,
+  y: number,
+) {
+  const cards = [
+    ["문서유형", layout.badgeLabel],
+    [layout.reviewLabel, layout.reviewValue],
+    ["결재선", `${input.approvers.length}명`],
+  ];
+
+  drawSvgRect(page, 118, y, 1004, 118, layout.focusFill, layout.heroStroke, 2);
+  drawSvgText(page, fonts, layout.focusTitle, 150, y + 35, 19, layout.accentFill, {
     fontWeight: 700,
   });
-  drawSvgRect(page, 118, 1420, 1004, 128, "#f8fafc", "#e4e8ee", 2);
+
+  cards.forEach(([label, value], index) => {
+    const x = 150 + index * 310;
+
+    drawSvgRect(page, x, y + 54, 270, 42, "#ffffff", layout.heroStroke, 1);
+    drawSvgText(page, fonts, label, x + 20, y + 81, 14, "#697386", {
+      fontWeight: 700,
+    });
+    drawSvgText(page, fonts, value, x + 118, y + 81, 16, "#171b22", {
+      fontWeight: 700,
+    });
+  });
+}
+
+function drawApprovalNotesSection(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  layout: ApprovalPdfLayout,
+) {
+  drawSvgText(page, fonts, layout.notesTitle, 118, 1390, 19, layout.accentFill, {
+    fontWeight: 700,
+  });
+  drawSvgRect(page, 118, 1420, 1004, 128, layout.focusFill, layout.heroStroke, 2);
   drawSvgText(
     page,
     fonts,
-    "결재자는 문서 내용과 첨부파일을 확인한 후 승인 또는 반려 처리합니다.",
+    layout.notesLines[0],
     150,
     1472,
     19,
@@ -858,7 +944,7 @@ function drawApprovalNotesSection(page: PDFPage, fonts: ApprovalPdfFonts) {
   drawSvgText(
     page,
     fonts,
-    "최종 승인 완료 후 이 원본문서를 기준으로 보관 및 검증 절차가 진행됩니다.",
+    layout.notesLines[1],
     150,
     1515,
     19,

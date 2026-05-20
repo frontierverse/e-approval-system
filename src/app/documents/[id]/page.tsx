@@ -9,6 +9,7 @@ import { DocumentAuditHistory } from "@/components/document-audit-history";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
 import { PageTitle } from "@/components/page-title";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { SignedAttachmentDeleteForm } from "@/components/signed-attachment-delete-form";
 import { StatusBadge } from "@/components/status-badge";
 import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
@@ -96,6 +97,24 @@ export default async function DocumentDetailPage({
   const signedAttachments = document.attachments.filter(
     (attachment) => attachment.signedSourceAttachmentId,
   );
+  const signedSourceIdsByCurrentUser = new Set(
+    signedAttachments
+      .filter((attachment) => attachment.signedBy?.id === user.id)
+      .map((attachment) => attachment.signedSourceAttachmentId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const unsignedSignableAttachments = canDecide
+    ? originalAttachments.filter(
+        (attachment) =>
+          !isSystemGeneratedApprovalPdf(attachment.originalName) &&
+          isSignableAttachmentFile(attachment.originalName, attachment.mimeType) &&
+          !signedSourceIdsByCurrentUser.has(attachment.id),
+      )
+    : [];
+  const unsignedSignableAttachmentIds = new Set(
+    unsignedSignableAttachments.map((attachment) => attachment.id),
+  );
+  const pendingSignatureAttachment = unsignedSignableAttachments[0] ?? null;
   const attachmentNameById = new Map(
     document.attachments.map((attachment) => [
       attachment.id,
@@ -255,7 +274,7 @@ export default async function DocumentDetailPage({
                   />
                 }
               />
-              <SummaryItem label="카테고리" value={document.category} />
+              <SummaryItem label="문서양식" value={document.category} />
               <SummaryItem
                 label="첨부파일"
                 value={
@@ -298,6 +317,11 @@ export default async function DocumentDetailPage({
                     <li key={attachment.id} className="px-4 py-3">
                       <AttachmentFileRow
                         fileName={attachment.originalName}
+                        note={
+                          unsignedSignableAttachmentIds.has(attachment.id)
+                            ? "날인 필요"
+                            : undefined
+                        }
                         size={attachment.size}
                         thumbnailHref={
                           getAttachmentPreviewKind(
@@ -461,27 +485,6 @@ export default async function DocumentDetailPage({
                             >
                               다운로드
                             </a>
-                            {canDeleteSignedAttachment ? (
-                              <form
-                                action={deleteSignedAttachmentAction.bind(
-                                  null,
-                                  document.id,
-                                  attachment.id,
-                                )}
-                              >
-                                <ConfirmSubmitButton
-                                  message="이 서명본을 삭제하시겠습니까?"
-                                  type="submit"
-                                  className={buttonClass(
-                                    buttonStyles.base,
-                                    buttonStyles.dangerOutline,
-                                    "h-9 px-3 text-sm",
-                                  )}
-                                >
-                                  삭제
-                                </ConfirmSubmitButton>
-                              </form>
-                            ) : null}
                           </div>
                         }
                       />
@@ -501,6 +504,15 @@ export default async function DocumentDetailPage({
                           <span>생성: {formatDateTime(attachment.signedAt)}</span>
                         ) : null}
                       </div>
+                      {canDeleteSignedAttachment ? (
+                        <SignedAttachmentDeleteForm
+                          action={deleteSignedAttachmentAction.bind(
+                            null,
+                            document.id,
+                            attachment.id,
+                          )}
+                        />
+                      ) : null}
                     </li>
                   );
                 })}
@@ -537,6 +549,14 @@ export default async function DocumentDetailPage({
           {canDecide ? (
             <ApprovalDecisionForm
               action={decideDocumentAction.bind(null, document.id)}
+              pendingSignatureAttachment={
+                pendingSignatureAttachment
+                  ? {
+                      fileName: pendingSignatureAttachment.originalName,
+                      signHref: `/attachments/${pendingSignatureAttachment.id}/sign`,
+                    }
+                  : undefined
+              }
             />
           ) : null}
 
@@ -561,6 +581,10 @@ export default async function DocumentDetailPage({
       </section>
     </>
   );
+}
+
+function isSystemGeneratedApprovalPdf(originalName: string) {
+  return originalName.startsWith("전자결재_원본문서_");
 }
 
 function SummaryItem({

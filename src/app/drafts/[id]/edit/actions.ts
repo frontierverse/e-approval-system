@@ -176,7 +176,7 @@ export async function updateDraftAction(
       documentId,
       actorId: user.id,
       title: values.title,
-      category: values.category,
+      category: template.name,
       content: values.content,
       templateId: values.templateId,
       approvers: orderedApprovers,

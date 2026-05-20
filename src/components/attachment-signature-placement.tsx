@@ -515,36 +515,40 @@ export function AttachmentSignaturePlacement({
           {previewKind === "pdf" ? (
             <div>
               <p className="text-sm font-semibold text-[#394150]">페이지</p>
-              <div className="mt-2 grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.neutral,
-                    "h-10 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
-                >
-                  이전
-                </button>
-                <div className="h-10 rounded-md border border-[#cfd6e3] px-3 text-center text-sm font-semibold leading-10 text-[#394150]">
+              <div className="mt-2 space-y-2">
+                <div className="flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] px-3 text-center text-sm font-semibold text-[#394150]">
                   {currentPage} / {pdfPageCount}
                 </div>
-                <button
-                  type="button"
-                  disabled={currentPage >= pdfPageCount}
-                  onClick={() =>
-                    setCurrentPage((page) => Math.min(pdfPageCount, page + 1))
-                  }
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.neutral,
-                    "h-10 px-2 text-sm disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
-                >
-                  다음
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.neutral,
+                      "h-10 min-w-0 px-3 text-sm whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
+                    )}
+                  >
+                    이전
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage >= pdfPageCount}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(pdfPageCount, page + 1))
+                    }
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.neutral,
+                      "h-10 min-w-0 px-3 text-sm whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
+                    )}
+                  >
+                    다음
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}

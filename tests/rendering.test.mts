@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import DocumentDetailLoading from "../src/app/documents/[id]/loading.tsx";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
 import { AdminLoginHistoryList } from "../src/components/admin-login-history-list.tsx";
+import { ApprovalDecisionForm } from "../src/components/approval-decision-form.tsx";
 import { ApprovalLinePreview } from "../src/components/approval-line-preview.tsx";
 import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
@@ -14,6 +15,7 @@ import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
+import { SignedAttachmentDeleteForm } from "../src/components/signed-attachment-delete-form.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
 import type {
@@ -142,6 +144,25 @@ describe("major UI rendering", () => {
 
     assert.match(html, /결재 대기 문서가 없습니다/);
     assert.match(html, /새로 도착한 결재 요청/);
+  });
+
+  test("routes approvers to unsigned attachments before approval", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ApprovalDecisionForm, {
+        action: async () => ({}),
+        pendingSignatureAttachment: {
+          fileName: "견적서.png",
+          signHref: "/attachments/attachment-001/sign",
+        },
+      }),
+    );
+
+    assert.match(html, /아직 날인하지 않은 첨부파일이 있습니다/);
+    assert.match(html, /견적서\.png/);
+    assert.match(html, /첨부파일에 날인하러 가기/);
+    assert.match(html, /href="\/attachments\/attachment-001\/sign"/);
+    assert.doesNotMatch(html, />승인</);
+    assert.match(html, />반려</);
   });
 
   test("renders document detail loading skeleton", () => {
@@ -341,6 +362,20 @@ describe("major UI rendering", () => {
     assert.match(html, /src="\/attachments\/image-1\/preview"/);
     assert.match(html, /alt="영수증\.png 미리보기"/);
     assert.match(html, /이미지 파일/);
+  });
+
+  test("requires a reason before signed attachment deletion", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(SignedAttachmentDeleteForm, {
+        action: async () => {},
+      }),
+    );
+
+    assert.match(html, /서명본 삭제 사유/);
+    assert.match(html, /name="deleteReason"/);
+    assert.match(html, /required=""/);
+    assert.match(html, /maxLength="200"/);
+    assert.match(html, />삭제<\/button>/);
   });
 
   test("renders admin audit logs with readable labels", () => {
