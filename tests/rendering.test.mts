@@ -327,6 +327,62 @@ describe("major UI rendering", () => {
     assert.match(html, /left-\[0\.9375rem\]/);
   });
 
+  test("renders draft update audit changes as structured summary chips", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DocumentAuditHistory, {
+        histories: [
+          {
+            id: "history-update-001",
+            actorId: "user-001",
+            actorName: "김민준",
+            actor: document.drafter,
+            action: "임시저장 수정",
+            createdAt: "2026-05-05T00:00:00.000Z",
+            description:
+              '임시저장 문서를 수정했습니다. 변경: 제목 "이전 제목" -> "변경 제목", 문서양식 "일반 기안서" -> "휴가신청서", 첨부파일 추가 1개(추가자료.pdf)',
+            metadata: {
+              changes: [
+                {
+                  field: "title",
+                  label: "제목",
+                  before: "이전 제목",
+                  after: "변경 제목",
+                },
+                {
+                  field: "template",
+                  label: "문서양식",
+                  before: "일반 기안서",
+                  after: "휴가신청서",
+                },
+                {
+                  field: "attachments",
+                  label: "첨부파일",
+                  added: ["추가자료.pdf"],
+                  removed: [
+                    {
+                      id: "attachment-001",
+                      originalName: "삭제자료.pdf",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    assert.match(html, /수정 내역 요약/);
+    assert.match(html, /임시저장 문서를 수정했습니다\./);
+    assert.doesNotMatch(html, /변경: 제목/);
+    assert.match(html, /제목/);
+    assert.match(html, /이전 제목 -&gt; 변경 제목/);
+    assert.match(html, /문서양식/);
+    assert.match(html, /일반 기안서 -&gt; 휴가신청서/);
+    assert.match(html, /첨부파일/);
+    assert.match(html, /추가 1개 · 삭제 1개/);
+  });
+
   test("renders attachment file icons by extension", () => {
     const pdfHtml = renderToStaticMarkup(
       React.createElement(AttachmentFileRow, {

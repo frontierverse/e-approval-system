@@ -1241,6 +1241,7 @@ function toApprovalHistory(
     action: auditActionLabels[record.action],
     createdAt: record.createdAt.toISOString(),
     description: getApprovalHistoryDescription(record, document),
+    metadata: record.metadata,
     ipAddress: record.ipAddress,
     userAgent: record.userAgent,
     browser: record.browser,

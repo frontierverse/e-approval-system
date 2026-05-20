@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { getLoginLocationLabel } from "@/lib/login-history-core";
 import { formatDateTime, type ApprovalHistory } from "@/lib/mock-data";
 
@@ -54,6 +54,7 @@ function AuditHistoryTimelineItem({
 }) {
   const tone = getAuditHistoryTone(history.action);
   const actorLabel = history.actor?.name || history.actorName || "시스템";
+  const changes = getAuditChangeItems(history);
 
   return (
     <li className="relative pb-5 pl-10 last:pb-0">
@@ -106,8 +107,9 @@ function AuditHistoryTimelineItem({
         </div>
 
         <p className="mt-3 text-sm leading-6 text-[#394150]">
-          {history.description || `${history.action} 작업이 기록되었습니다.`}
+          {getHistoryDescription(history, changes)}
         </p>
+        {changes.length > 0 ? <AuditChangePreview changes={changes} /> : null}
       </button>
     </li>
   );
@@ -124,6 +126,8 @@ function AuditHistoryDetailModal({
   const actorLabel = getActorLabel(history);
   const deviceLabel = getDeviceLabel(history);
   const locationLabel = getLoginLocationLabel(history);
+  const changes = getAuditChangeItems(history);
+  const tone = getAuditHistoryTone(history.action);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -158,7 +162,10 @@ function AuditHistoryDetailModal({
             </p>
             <h3
               id={titleId}
-              className="mt-1 text-base font-semibold text-[#16181d]"
+              className={[
+                "mt-2 inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold",
+                tone.badge,
+              ].join(" ")}
             >
               {history.action}
             </h3>
@@ -181,11 +188,11 @@ function AuditHistoryDetailModal({
           />
           <DetailRow
             label="작업 내용"
-            value={
-              history.description ||
-              `${history.action} 작업이 기록되었습니다.`
-            }
+            value={getHistoryDescription(history, changes)}
           />
+          {changes.length > 0 ? (
+            <AuditChangeDetailRows changes={changes} />
+          ) : null}
           <DetailRow label="IP" value={history.ipAddress || "기록 없음"} mono />
           <DetailRow label="위치" value={locationLabel} />
           <DetailRow label="기기" value={deviceLabel} />
@@ -201,6 +208,148 @@ function AuditHistoryDetailModal({
   );
 }
 
+type AuditChangeItem =
+  | {
+      kind: "value";
+      label: string;
+      before: string | null;
+      after: string | null;
+    }
+  | {
+      kind: "content";
+      label: string;
+      beforeLength: number;
+      afterLength: number;
+    }
+  | {
+      kind: "approvalLine";
+      label: string;
+      before: string[];
+      after: string[];
+    }
+  | {
+      kind: "attachments";
+      label: string;
+      added: string[];
+      removed: string[];
+    };
+
+function AuditChangePreview({ changes }: { changes: AuditChangeItem[] }) {
+  const visibleChanges = changes.slice(0, 4);
+  const hiddenCount = changes.length - visibleChanges.length;
+
+  return (
+    <div
+      aria-label="수정 내역 요약"
+      className="mt-3 flex max-w-full flex-wrap gap-2"
+    >
+      {visibleChanges.map((change, index) => (
+        <span
+          key={`${change.label}-${index}`}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#cfd6e3] bg-white px-2 py-1 text-xs"
+        >
+          <span className="shrink-0 font-semibold text-[#196b69]">
+            {change.label}
+          </span>
+          <span className="min-w-0 truncate text-[#394150]">
+            {getChangePreviewText(change)}
+          </span>
+        </span>
+      ))}
+      {hiddenCount > 0 ? (
+        <span className="inline-flex items-center rounded-md border border-[#cfd6e3] bg-white px-2 py-1 text-xs font-semibold text-[#697386]">
+          외 {hiddenCount}개
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function AuditChangeDetailRows({ changes }: { changes: AuditChangeItem[] }) {
+  return (
+    <DetailBlock label="수정 내역">
+      <ul className="grid gap-3">
+        {changes.map((change, index) => (
+          <li
+            key={`${change.label}-${index}`}
+            className="border-l-2 border-[#b8d9d7] pl-3"
+          >
+            <p className="text-sm font-semibold text-[#16181d]">
+              {change.label}
+            </p>
+            <AuditChangeDetail change={change} />
+          </li>
+        ))}
+      </ul>
+    </DetailBlock>
+  );
+}
+
+function AuditChangeDetail({ change }: { change: AuditChangeItem }) {
+  if (change.kind === "content") {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#697386]">
+        <ChangePill label="변경 전" value={`${change.beforeLength}자`} />
+        <span aria-hidden="true" className="text-[#8b949e]">
+          →
+        </span>
+        <ChangePill label="변경 후" value={`${change.afterLength}자`} />
+      </div>
+    );
+  }
+
+  if (change.kind === "approvalLine") {
+    return (
+      <div className="mt-2 grid gap-2 text-xs text-[#697386]">
+        <ChangePill label="변경 전" value={formatNameLine(change.before)} />
+        <ChangePill label="변경 후" value={formatNameLine(change.after)} />
+      </div>
+    );
+  }
+
+  if (change.kind === "attachments") {
+    return (
+      <div className="mt-2 grid gap-2 text-xs text-[#697386]">
+        {change.added.length > 0 ? (
+          <ChangePill
+            label="추가"
+            value={`${change.added.length}개 · ${formatNameLine(change.added)}`}
+          />
+        ) : null}
+        {change.removed.length > 0 ? (
+          <ChangePill
+            label="삭제"
+            value={`${change.removed.length}개 · ${formatNameLine(
+              change.removed,
+            )}`}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 grid gap-2 text-xs text-[#697386] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+      <ChangePill label="변경 전" value={formatNullableChange(change.before)} />
+      <span aria-hidden="true" className="hidden text-[#8b949e] sm:block">
+        →
+      </span>
+      <ChangePill label="변경 후" value={formatNullableChange(change.after)} />
+    </div>
+  );
+}
+
+function ChangePill({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-[#f7f9fc] px-2 py-1">
+      <span className="shrink-0 font-semibold text-[#697386]">{label}</span>
+      <span className="min-w-0 truncate font-medium text-[#394150]">
+        {value}
+      </span>
+    </span>
+  );
+}
+
 function DetailRow({
   label,
   value,
@@ -213,9 +362,8 @@ function DetailRow({
   wrap?: boolean;
 }) {
   return (
-    <div className="grid gap-1 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs font-semibold text-[#697386]">{label}</dt>
-      <dd
+    <DetailBlock label={label}>
+      <span
         className={[
           "min-w-0 text-sm font-medium text-[#394150]",
           mono ? "font-mono text-xs" : "",
@@ -223,9 +371,225 @@ function DetailRow({
         ].join(" ")}
       >
         {value}
-      </dd>
+      </span>
+    </DetailBlock>
+  );
+}
+
+function DetailBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-1 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-xs font-semibold text-[#697386]">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
     </div>
   );
+}
+
+function getAuditChangeItems(history: ApprovalHistory): AuditChangeItem[] {
+  const metadata = history.metadata;
+
+  if (!isPlainObject(metadata) || !Array.isArray(metadata.changes)) {
+    return [];
+  }
+
+  return metadata.changes.flatMap((change) => {
+    const item = toAuditChangeItem(change);
+
+    return item ? [item] : [];
+  });
+}
+
+function toAuditChangeItem(change: unknown): AuditChangeItem | null {
+  if (!isPlainObject(change)) {
+    return null;
+  }
+
+  const label = getChangeLabel(change);
+  const field = typeof change.field === "string" ? change.field : "";
+
+  if (
+    field === "title" ||
+    field === "template" ||
+    field === "status" ||
+    field === "documentNo"
+  ) {
+    return {
+      kind: "value",
+      label,
+      before: getNullableString(change.before),
+      after: getNullableString(change.after),
+    };
+  }
+
+  if (field === "content") {
+    return {
+      kind: "content",
+      label,
+      beforeLength: getNumber(change.beforeLength),
+      afterLength: getNumber(change.afterLength),
+    };
+  }
+
+  if (field === "approvalLine") {
+    return {
+      kind: "approvalLine",
+      label,
+      before: getApproverNames(change.before),
+      after: getApproverNames(change.after),
+    };
+  }
+
+  if (field === "attachments") {
+    return {
+      kind: "attachments",
+      label,
+      added: getStringArray(change.added),
+      removed: getAttachmentNames(change.removed),
+    };
+  }
+
+  return null;
+}
+
+function getHistoryDescription(
+  history: ApprovalHistory,
+  changes: AuditChangeItem[],
+) {
+  const fallback = `${history.action} 작업이 기록되었습니다.`;
+  const description = history.description || fallback;
+
+  if (changes.length === 0) {
+    return description;
+  }
+
+  return description.split(" 변경: ")[0] || fallback;
+}
+
+function getChangePreviewText(change: AuditChangeItem) {
+  if (change.kind === "content") {
+    return `${change.beforeLength}자 -> ${change.afterLength}자`;
+  }
+
+  if (change.kind === "approvalLine") {
+    return `${formatNameLine(change.before)} -> ${formatNameLine(change.after)}`;
+  }
+
+  if (change.kind === "attachments") {
+    return [
+      change.added.length > 0 ? `추가 ${change.added.length}개` : "",
+      change.removed.length > 0 ? `삭제 ${change.removed.length}개` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  return `${formatNullableChange(change.before)} -> ${formatNullableChange(
+    change.after,
+  )}`;
+}
+
+function getChangeLabel(change: Record<string, unknown>) {
+  if (typeof change.label === "string" && change.label.trim()) {
+    return change.label;
+  }
+
+  if (change.field === "title") {
+    return "제목";
+  }
+
+  if (change.field === "template") {
+    return "문서양식";
+  }
+
+  if (change.field === "content") {
+    return "본문";
+  }
+
+  if (change.field === "approvalLine") {
+    return "결재선";
+  }
+
+  if (change.field === "attachments") {
+    return "첨부파일";
+  }
+
+  if (change.field === "status") {
+    return "상태";
+  }
+
+  if (change.field === "documentNo") {
+    return "문서번호";
+  }
+
+  return "변경 항목";
+}
+
+function getNullableString(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return String(value);
+}
+
+function getNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function getStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function getApproverNames(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isPlainObject(item) || typeof item.name !== "string") {
+      return [];
+    }
+
+    return [item.name];
+  });
+}
+
+function getAttachmentNames(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item === "string") {
+      return [item];
+    }
+
+    if (!isPlainObject(item) || typeof item.originalName !== "string") {
+      return [];
+    }
+
+    return [item.originalName];
+  });
+}
+
+function formatNameLine(names: string[]) {
+  return names.length > 0 ? names.join(" -> ") : "없음";
+}
+
+function formatNullableChange(value: string | null) {
+  return value && value.length > 0 ? value : "없음";
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getActorLabel(history: ApprovalHistory) {

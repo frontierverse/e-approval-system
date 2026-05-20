@@ -18,6 +18,7 @@ import {
   createProxyApprovedAuditMessage,
   createProxyRejectedAuditMessage,
 } from "@/lib/approval-audit-messages";
+import { createDraftUpdateAuditDetails } from "@/lib/draft-update-audit";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import {
@@ -363,7 +364,24 @@ export async function updateDraftDocument({
         id: true,
         drafterId: true,
         documentNo: true,
+        title: true,
+        category: true,
+        content: true,
         status: true,
+        templateId: true,
+        approvalSteps: {
+          orderBy: {
+            order: "asc",
+          },
+          select: {
+            approverId: true,
+            approver: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         attachments: {
           select: {
             id: true,
@@ -426,6 +444,37 @@ export async function updateDraftDocument({
       : document.status === DocumentStatus.RECALLED
         ? null
         : document.documentNo;
+    const nextStatus = submitImmediately
+      ? DocumentStatus.SUBMITTED
+      : DocumentStatus.DRAFT;
+    const auditDetails = createDraftUpdateAuditDetails({
+      before: {
+        title: document.title,
+        category: document.category,
+        content: document.content,
+        templateId: document.templateId,
+        status: document.status,
+        documentNo: document.documentNo,
+        approvers: document.approvalSteps.map((step) => ({
+          id: step.approverId,
+          name: step.approver.name,
+        })),
+      },
+      after: {
+        title,
+        category,
+        content,
+        templateId,
+        status: nextStatus,
+        documentNo,
+        approvers,
+      },
+      addedAttachmentNames: attachments.map((attachment) => attachment.originalName),
+      removedAttachments: attachmentsToRemove.map((attachment) => ({
+        id: attachment.id,
+        originalName: attachment.originalName,
+      })),
+    });
 
     await tx.approvalStep.deleteMany({
       where: {
@@ -442,9 +491,7 @@ export async function updateDraftDocument({
         title,
         category,
         content,
-        status: submitImmediately
-          ? DocumentStatus.SUBMITTED
-          : DocumentStatus.DRAFT,
+        status: nextStatus,
         submittedAt: submitImmediately ? now : null,
         completedAt: null,
         templateId,
@@ -489,17 +536,23 @@ export async function updateDraftDocument({
         targetType: "ApprovalDocument",
         targetId: document.id,
         documentId: document.id,
-        message: submitImmediately
-          ? getSubmitMessage(approvers)
-          : "임시저장 문서를 수정했습니다.",
-        metadata:
-          attachmentsToRemove.length > 0
-            ? {
-                removedAttachmentIds: attachmentsToRemove.map(
-                  (attachment) => attachment.id,
-                ),
-              }
-            : undefined,
+        message: `${
+          submitImmediately
+            ? getSubmitMessage(approvers)
+            : "임시저장 문서를 수정했습니다."
+        } 변경: ${auditDetails.summary}`,
+        metadata: {
+          changes: auditDetails.changes,
+          addedAttachmentNames: attachments.map(
+            (attachment) => attachment.originalName,
+          ),
+          removedAttachmentIds: attachmentsToRemove.map(
+            (attachment) => attachment.id,
+          ),
+          removedAttachmentNames: attachmentsToRemove.map(
+            (attachment) => attachment.originalName,
+          ),
+        },
       },
     });
 

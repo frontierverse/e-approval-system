@@ -63,6 +63,7 @@ export type ApprovalHistory = {
   action: string;
   createdAt: string;
   description: string;
+  metadata?: unknown;
   ipAddress?: string | null;
   userAgent?: string | null;
   browser?: string | null;
