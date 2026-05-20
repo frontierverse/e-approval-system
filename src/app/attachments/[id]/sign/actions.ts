@@ -20,6 +20,7 @@ import {
   parseSignaturePlacements,
 } from "@/lib/attachment-signature-core";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -143,6 +144,8 @@ export async function createSignedAttachmentAction(
     };
   }
 
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   try {
     await prisma.$transaction(async (tx) => {
       const createdAttachment = await tx.attachment.create({
@@ -166,6 +169,7 @@ export async function createSignedAttachmentAction(
       await tx.auditLog.create({
         data: {
           actorId: user.id,
+          ...auditRequestData,
           action: AuditAction.UPDATE_DRAFT,
           targetType: "Attachment",
           targetId: createdAttachment.id,

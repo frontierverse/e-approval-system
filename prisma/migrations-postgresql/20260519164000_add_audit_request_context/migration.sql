@@ -1,0 +1,6 @@
+ALTER TABLE "AuditLog" ADD COLUMN "browser" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN "os" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN "device" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN "country" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN "region" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN "city" TEXT;

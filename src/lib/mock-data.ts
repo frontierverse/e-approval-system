@@ -63,6 +63,14 @@ export type ApprovalHistory = {
   action: string;
   createdAt: string;
   description: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  browser?: string | null;
+  os?: string | null;
+  device?: string | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
 };
 
 export type AttachmentSummary = {

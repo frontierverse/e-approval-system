@@ -3,10 +3,16 @@ import { PageTitle } from "@/components/page-title";
 export function RouteLoadingShell({
   title,
   description,
+  titleAccessory,
+  descriptionAccessory,
+  action,
   variant = "document",
 }: {
-  title: string;
-  description: string;
+  title: React.ReactNode;
+  description: React.ReactNode;
+  titleAccessory?: React.ReactNode;
+  descriptionAccessory?: React.ReactNode;
+  action?: React.ReactNode;
   variant?:
     | "home"
     | "document"
@@ -19,7 +25,13 @@ export function RouteLoadingShell({
 }) {
   return (
     <>
-      <PageTitle title={title} description={description} />
+      <PageTitle
+        title={title}
+        description={description}
+        titleAccessory={titleAccessory}
+        descriptionAccessory={descriptionAccessory}
+        action={action}
+      />
       <RouteContentSkeleton variant={variant} />
     </>
   );

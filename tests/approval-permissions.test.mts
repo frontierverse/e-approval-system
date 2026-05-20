@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  canDeleteSignedAttachmentByPolicy,
   canDeleteDraftDocumentByPolicy,
+  canManageDraftDocumentAttachmentsByPolicy,
   canReadApprovalDocument,
   canRecallDocumentByPolicy,
   getReadableDocumentWhere,
@@ -156,6 +158,92 @@ describe("document action policy", () => {
         status: "SUBMITTED",
       }),
       false,
+    );
+  });
+
+  test("allows the drafter to manage attachments only while draft or recalled", () => {
+    assert.equal(
+      canManageDraftDocumentAttachmentsByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "DRAFT",
+      }),
+      true,
+    );
+    assert.equal(
+      canManageDraftDocumentAttachmentsByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "recalled",
+      }),
+      true,
+    );
+    assert.equal(
+      canManageDraftDocumentAttachmentsByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "SUBMITTED",
+      }),
+      false,
+    );
+    assert.equal(
+      canManageDraftDocumentAttachmentsByPolicy("approver-001", {
+        drafterId: "drafter-001",
+        status: "DRAFT",
+      }),
+      false,
+    );
+  });
+
+  test("allows signed attachment deletion by draft owner, active signer, or admin", () => {
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "drafter-001",
+        actorRole: "USER",
+        document: {
+          drafterId: "drafter-001",
+          status: "RECALLED",
+        },
+        isCurrentApprover: false,
+        signedById: "approver-001",
+      }),
+      true,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "approver-001",
+        actorRole: "USER",
+        document: {
+          drafterId: "drafter-001",
+          status: "IN_PROGRESS",
+        },
+        isCurrentApprover: true,
+        signedById: "approver-001",
+      }),
+      true,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "approver-001",
+        actorRole: "USER",
+        document: {
+          drafterId: "drafter-001",
+          status: "IN_PROGRESS",
+        },
+        isCurrentApprover: false,
+        signedById: "approver-001",
+      }),
+      false,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "admin-001",
+        actorRole: "ADMIN",
+        document: {
+          drafterId: "drafter-001",
+          status: "APPROVED",
+        },
+        isCurrentApprover: false,
+        signedById: "approver-001",
+      }),
+      true,
     );
   });
 });

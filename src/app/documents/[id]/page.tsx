@@ -10,6 +10,7 @@ import { NotificationDocumentReadMarker } from "@/components/notification-docume
 import { PageTitle } from "@/components/page-title";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { StatusBadge } from "@/components/status-badge";
+import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
 import {
   getAttachmentPreviewKind,
@@ -18,6 +19,7 @@ import {
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import {
   canDeleteDraftDocumentByPolicy,
+  canManageDraftDocumentAttachmentsByPolicy,
   canRecallDocumentByPolicy,
 } from "@/lib/approval-permissions-core";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -34,6 +36,7 @@ import {
 } from "@/lib/mock-data";
 import {
   decideDocumentAction,
+  deleteAttachmentAction,
   deleteSignedAttachmentAction,
   deleteDraftDocumentAction,
   proxyApproveDocumentAction,
@@ -75,8 +78,14 @@ export default async function DocumentDetailPage({
     isOwnDocument &&
     document.approvalSteps.length > 0;
   const canEditDraft = isEditableDraft && isOwnDocument;
+  const canManageDraftAttachments = canManageDraftDocumentAttachmentsByPolicy(
+    user.id,
+    document,
+  );
   const canDeleteDraft = canDeleteDraftDocumentByPolicy(user.id, document);
   const canRecall = canRecallDocumentByPolicy(user.id, document);
+  const hasDocumentActions =
+    canEditDraft || canSubmitDraft || canRecall || canDeleteDraft;
   const canDecide =
     currentStep?.approverId === user.id &&
     (document.status === "submitted" || document.status === "in_progress");
@@ -127,77 +136,77 @@ export default async function DocumentDetailPage({
       <NotificationDocumentReadMarker documentId={document.id} />
       <PageTitle
         title={document.title}
-        description={`${documentLabel} / ${document.templateName}`}
+        titleAccessory={
+          <TitleBackLink href={listHref} />
+        }
+        descriptionAccessory={
+          <span className="inline-flex h-7 max-w-full items-center rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-2.5 text-xs font-semibold text-[#394150]">
+            {document.templateName}
+          </span>
+        }
+        description={documentLabel}
         action={
-          <div className="flex flex-wrap justify-end gap-2">
-            {canEditDraft ? (
-              <Link
-                href={`/drafts/${document.id}/edit`}
-                className={buttonClass(
-                  buttonStyles.base,
-                  buttonStyles.save,
-                  "h-10 px-4 text-sm",
-                )}
-              >
-                수정
-              </Link>
-            ) : null}
-            {canSubmitDraft ? (
-              <form action={submitDocumentAction.bind(null, document.id)}>
-                <PendingSubmitButton
-                  type="submit"
-                  pendingLabel="문서 생성 중"
+          hasDocumentActions ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {canEditDraft ? (
+                <Link
+                  href={`/drafts/${document.id}/edit`}
                   className={buttonClass(
                     buttonStyles.base,
-                    buttonStyles.primary,
+                    buttonStyles.save,
                     "h-10 px-4 text-sm",
                   )}
                 >
-                  결재 요청
-                </PendingSubmitButton>
-              </form>
-            ) : null}
-            {canRecall ? (
-              <form action={recallDocumentAction.bind(null, document.id)}>
-                <ConfirmSubmitButton
-                  message="결재 요청을 회수하시겠습니까?"
-                  type="submit"
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.dangerOutline,
-                    "h-10 px-4 text-sm",
-                  )}
-                >
-                  회수
-                </ConfirmSubmitButton>
-              </form>
-            ) : null}
-            {canDeleteDraft ? (
-              <form action={deleteDraftDocumentAction.bind(null, document.id)}>
-                <ConfirmSubmitButton
-                  message="임시저장 문서를 삭제하시겠습니까?"
-                  type="submit"
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.danger,
-                    "h-10 px-4 text-sm",
-                  )}
-                >
-                  삭제
-                </ConfirmSubmitButton>
-              </form>
-            ) : null}
-            <Link
-              href={listHref}
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 px-4 text-sm",
-              )}
-            >
-              목록으로
-            </Link>
-          </div>
+                  수정
+                </Link>
+              ) : null}
+              {canSubmitDraft ? (
+                <form action={submitDocumentAction.bind(null, document.id)}>
+                  <PendingSubmitButton
+                    type="submit"
+                    pendingLabel="문서 생성 중"
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.primary,
+                      "h-10 px-4 text-sm",
+                    )}
+                  >
+                    결재 요청
+                  </PendingSubmitButton>
+                </form>
+              ) : null}
+              {canRecall ? (
+                <form action={recallDocumentAction.bind(null, document.id)}>
+                  <ConfirmSubmitButton
+                    message="결재 요청을 회수하시겠습니까?"
+                    type="submit"
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.dangerOutline,
+                      "h-10 px-4 text-sm",
+                    )}
+                  >
+                    회수
+                  </ConfirmSubmitButton>
+                </form>
+              ) : null}
+              {canDeleteDraft ? (
+                <form action={deleteDraftDocumentAction.bind(null, document.id)}>
+                  <ConfirmSubmitButton
+                    message="임시저장 문서를 삭제하시겠습니까?"
+                    type="submit"
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.danger,
+                      "h-10 px-4 text-sm",
+                    )}
+                  >
+                    삭제
+                  </ConfirmSubmitButton>
+                </form>
+              ) : null}
+            </div>
+          ) : undefined
         }
       />
 
@@ -341,6 +350,27 @@ export default async function DocumentDetailPage({
                         >
                           다운로드
                         </a>
+                        {canManageDraftAttachments ? (
+                          <form
+                            action={deleteAttachmentAction.bind(
+                              null,
+                              document.id,
+                              attachment.id,
+                            )}
+                          >
+                            <ConfirmSubmitButton
+                              message="첨부파일을 삭제하시겠습니까? 연결된 서명본도 함께 삭제됩니다."
+                              type="submit"
+                              className={buttonClass(
+                                buttonStyles.base,
+                                buttonStyles.dangerOutline,
+                                "h-9 px-3 text-sm",
+                              )}
+                            >
+                              삭제
+                            </ConfirmSubmitButton>
+                          </form>
+                        ) : null}
                       </div>
                       {canDecide ? (
                         <form
@@ -392,6 +422,7 @@ export default async function DocumentDetailPage({
                 {signedAttachments.map((attachment) => {
                   const canDeleteSignedAttachment =
                     user.role === "ADMIN" ||
+                    canManageDraftAttachments ||
                     (canDecide && attachment.signedBy?.id === user.id);
 
                   return (

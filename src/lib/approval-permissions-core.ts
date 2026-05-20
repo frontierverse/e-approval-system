@@ -84,6 +84,48 @@ export function canRecallDocumentByPolicy(
   );
 }
 
+export function canManageDraftDocumentAttachmentsByPolicy(
+  userId: string,
+  document: DocumentActionPolicyShape,
+) {
+  const status = normalizeDocumentStatus(document.status);
+
+  return (
+    document.drafterId === userId &&
+    (status === "DRAFT" || status === "RECALLED")
+  );
+}
+
+export function canDeleteSignedAttachmentByPolicy({
+  actorId,
+  actorRole,
+  document,
+  isCurrentApprover,
+  signedById,
+}: {
+  actorId: string;
+  actorRole: ApprovalPermissionRole;
+  document: DocumentActionPolicyShape;
+  isCurrentApprover: boolean;
+  signedById?: string | null;
+}) {
+  if (actorRole === "ADMIN") {
+    return true;
+  }
+
+  if (canManageDraftDocumentAttachmentsByPolicy(actorId, document)) {
+    return true;
+  }
+
+  const status = normalizeDocumentStatus(document.status);
+
+  return (
+    signedById === actorId &&
+    isCurrentApprover &&
+    (status === "SUBMITTED" || status === "IN_PROGRESS")
+  );
+}
+
 function isPrivateDraftStatus(status: string | undefined) {
   return status === "DRAFT" || status === "RECALLED";
 }

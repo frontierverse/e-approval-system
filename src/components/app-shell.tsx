@@ -240,6 +240,11 @@ async function ShellDocumentCounts({ userId }: { userId: string }) {
       <ShellDocumentCount label="임시저장" value={documentCounts.drafts} />
       <ShellDocumentCount label="제출문서" value={documentCounts.sent} />
       <ShellDocumentCount label="완료문서" value={documentCounts.completed} />
+      <ShellDocumentCount
+        label="보관 검토"
+        value={documentCounts.archiveReview}
+        href="/completed?archiveReview=today"
+      />
     </dl>
   );
 }
@@ -251,6 +256,7 @@ function ShellDocumentCountsFallback() {
       <ShellDocumentCount label="임시저장" value="-" />
       <ShellDocumentCount label="제출문서" value="-" />
       <ShellDocumentCount label="완료문서" value="-" />
+      <ShellDocumentCount label="보관 검토" value="-" />
     </dl>
   );
 }
@@ -258,13 +264,26 @@ function ShellDocumentCountsFallback() {
 function ShellDocumentCount({
   label,
   value,
+  href,
 }: {
   label: string;
   value: number | string;
+  href?: string;
 }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="text-[#697386]">{label}</dt>
+      <dt className="text-[#697386]">
+        {href ? (
+          <Link
+            href={href}
+            className="rounded-sm transition hover:text-[#0f5553] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7eceb]"
+          >
+            {label}
+          </Link>
+        ) : (
+          label
+        )}
+      </dt>
       <dd className="font-semibold text-[#16181d]">{value}</dd>
     </div>
   );

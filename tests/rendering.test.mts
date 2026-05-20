@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import DocumentDetailLoading from "../src/app/documents/[id]/loading.tsx";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
 import { AdminLoginHistoryList } from "../src/components/admin-login-history-list.tsx";
 import { ApprovalLinePreview } from "../src/components/approval-line-preview.tsx";
@@ -13,7 +14,6 @@ import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
-import { RouteLoadingShell } from "../src/components/route-loading-shell.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
 import type {
@@ -121,11 +121,13 @@ describe("major UI rendering", () => {
       React.createElement(PageTitle, {
         title: "받은결재함",
         description: "승인 또는 반려해야 할 문서를 확인합니다.",
+        titleAccessory: React.createElement("span", null, "구매요청서"),
         action: React.createElement("a", { href: "/drafts/new" }, "새 기안"),
       }),
     );
 
     assert.match(html, /받은결재함/);
+    assert.match(html, /구매요청서/);
     assert.match(html, /승인 또는 반려해야 할 문서를 확인합니다\./);
     assert.match(html, /새 기안/);
   });
@@ -143,15 +145,10 @@ describe("major UI rendering", () => {
   });
 
   test("renders document detail loading skeleton", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(RouteLoadingShell, {
-        title: "문서 상세",
-        description: "문서 상태, 본문, 첨부파일과 결재선을 불러오는 중입니다.",
-        variant: "documentDetail",
-      }),
-    );
+    const html = renderToStaticMarkup(React.createElement(DocumentDetailLoading));
 
-    assert.match(html, /문서 상세/);
+    assert.match(html, /문서 상세 불러오는 중/);
+    assert.match(html, /문서번호 불러오는 중/);
     assert.match(html, /문서 상태/);
     assert.match(html, /문서 본문/);
     assert.match(html, /첨부파일/);

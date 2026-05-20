@@ -14,6 +14,7 @@ import {
   createProxyRejectedAuditMessage,
 } from "@/lib/approval-audit-messages";
 import { prisma } from "@/lib/prisma";
+import { getTodayArchiveReviewBaseDateRange } from "@/lib/document-archive-policy";
 import {
   type ApprovalDocument,
   type ApprovalHistory,
@@ -200,6 +201,7 @@ export type SentDocumentStatusFilter =
   | "rejected";
 export type CompletedDocumentStatusFilter = "all" | "approved" | "rejected";
 export type DocumentPageSort = "latest" | "oldest";
+export type CompletedDocumentArchiveReviewFilter = "none" | "today";
 
 export type DocumentDateRangeOptions = {
   dateFrom?: string;
@@ -233,6 +235,7 @@ export type DraftDocumentPageOptions = {
 export type CompletedDocumentPageOptions = {
   query?: string;
   status?: CompletedDocumentStatusFilter;
+  archiveReview?: CompletedDocumentArchiveReviewFilter;
   sort?: DocumentPageSort;
   page?: number;
   pageSize?: number;
@@ -390,7 +393,7 @@ export async function getCompletedDocumentPage(
 }
 
 export async function getShellDocumentCounts(userId: string) {
-  const [inbox, drafts, sent, completed] = await Promise.all([
+  const [inbox, drafts, sent, completed, archiveReview] = await Promise.all([
     prisma.approvalDocument.count({
       where: getInboxDocumentWhere(userId, {}),
     }),
@@ -403,6 +406,9 @@ export async function getShellDocumentCounts(userId: string) {
     prisma.approvalDocument.count({
       where: getCompletedDocumentWhere(userId, {}),
     }),
+    prisma.approvalDocument.count({
+      where: getCompletedDocumentWhere(userId, { archiveReview: "today" }),
+    }),
   ]);
 
   return {
@@ -410,6 +416,7 @@ export async function getShellDocumentCounts(userId: string) {
     drafts,
     sent,
     completed,
+    archiveReview,
   };
 }
 
@@ -467,6 +474,7 @@ export async function getEditableDraftDocumentById(
           mimeType: true,
           size: true,
           createdAt: true,
+          signedSourceAttachmentId: true,
         },
         orderBy: {
           createdAt: "asc",
@@ -491,6 +499,7 @@ export async function getEditableDraftDocumentById(
       id: attachment.id,
       originalName: attachment.originalName,
       mimeType: attachment.mimeType,
+      signedSourceAttachmentId: attachment.signedSourceAttachmentId,
       size: attachment.size,
       createdAt: attachment.createdAt.toISOString(),
     })),
@@ -814,6 +823,7 @@ function getCompletedDocumentWhere(
 ): Prisma.ApprovalDocumentWhereInput {
   const query = options.query?.trim();
   const status = options.status ?? "all";
+  const archiveReview = options.archiveReview ?? "none";
   const and: Prisma.ApprovalDocumentWhereInput[] = [
     {
       OR: [
@@ -832,7 +842,14 @@ function getCompletedDocumentWhere(
   if (status === "all") {
     and.push({
       status: {
-        in: [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
+        in:
+          archiveReview === "today"
+            ? [
+                DbDocumentStatus.APPROVED,
+                DbDocumentStatus.REJECTED,
+                DbDocumentStatus.RECALLED,
+              ]
+            : [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
       },
     });
   } else {
@@ -853,8 +870,53 @@ function getCompletedDocumentWhere(
     and.push(dateRangeCondition);
   }
 
+  const archiveReviewDateRangeCondition =
+    getArchiveReviewDateRangeCondition(options);
+
+  if (archiveReviewDateRangeCondition) {
+    and.push(archiveReviewDateRangeCondition);
+  }
+
   return {
     AND: and,
+  };
+}
+
+function getArchiveReviewDateRangeCondition(
+  options: CompletedDocumentPageOptions,
+): Prisma.ApprovalDocumentWhereInput | null {
+  if (options.archiveReview !== "today") {
+    return null;
+  }
+
+  const range = getTodayArchiveReviewBaseDateRange();
+
+  return {
+    OR: [
+      {
+        completedAt: {
+          not: null,
+          gte: range.from,
+          lte: range.to,
+        },
+      },
+      {
+        completedAt: null,
+        submittedAt: {
+          not: null,
+          gte: range.from,
+          lte: range.to,
+        },
+      },
+      {
+        completedAt: null,
+        submittedAt: null,
+        createdAt: {
+          gte: range.from,
+          lte: range.to,
+        },
+      },
+    ],
   };
 }
 
@@ -1179,6 +1241,14 @@ function toApprovalHistory(
     action: auditActionLabels[record.action],
     createdAt: record.createdAt.toISOString(),
     description: getApprovalHistoryDescription(record, document),
+    ipAddress: record.ipAddress,
+    userAgent: record.userAgent,
+    browser: record.browser,
+    os: record.os,
+    device: record.device,
+    country: record.country,
+    region: record.region,
+    city: record.city,
   };
 }
 

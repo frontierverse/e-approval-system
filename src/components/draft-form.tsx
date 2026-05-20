@@ -63,6 +63,7 @@ type ExistingAttachment = {
   id: string;
   mimeType?: string | null;
   originalName: string;
+  signedSourceAttachmentId?: string | null;
   size: number;
 };
 
@@ -272,6 +273,7 @@ function DraftFormFields({
     initialValues.approverIds,
   );
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -284,6 +286,8 @@ function DraftFormFields({
   const approverHasError = Boolean(errors?.approvers);
   const attachmentHasError = Boolean(attachmentError);
   const isEditMode = mode === "edit";
+  const retainedAttachmentCount =
+    getRetainedAttachmentCount(removedAttachmentIds);
   const selectedTemplateFormat = templateFormats[templateId];
   const usesStructuredTemplate = Boolean(selectedTemplateFormat && !isEditMode);
   const structuredContent =
@@ -422,7 +426,7 @@ function DraftFormFields({
     const fileError = validateAttachmentFiles(
       nextFiles,
       attachmentPolicy,
-      existingAttachments.length,
+      retainedAttachmentCount,
     );
 
     if (fileError) {
@@ -444,8 +448,26 @@ function DraftFormFields({
     setSelectedFiles(nextFiles);
     syncAttachmentInputFiles(attachmentInputRef.current, nextFiles);
     setAttachmentError(
-      validateAttachmentFiles(nextFiles, attachmentPolicy, existingAttachments.length),
+      validateAttachmentFiles(nextFiles, attachmentPolicy, retainedAttachmentCount),
     );
+  }
+
+  function toggleRemovedAttachment(attachmentId: string) {
+    setRemovedAttachmentIds((current) => {
+      const next = current.includes(attachmentId)
+        ? current.filter((id) => id !== attachmentId)
+        : [...current, attachmentId];
+
+      setAttachmentError(
+        validateAttachmentFiles(
+          selectedFiles,
+          attachmentPolicy,
+          getRetainedAttachmentCount(next),
+        ),
+      );
+
+      return next;
+    });
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -455,7 +477,7 @@ function DraftFormFields({
         ? validateAttachmentFiles(
             input.files,
             attachmentPolicy,
-            existingAttachments.length,
+            retainedAttachmentCount,
           )
         : null;
 
@@ -466,6 +488,17 @@ function DraftFormFields({
     }
 
     setAttachmentError(null);
+  }
+
+  function getRetainedAttachmentCount(removedIds: readonly string[]) {
+    return existingAttachments.filter(
+      (attachment) =>
+        !removedIds.includes(attachment.id) &&
+        !(
+          attachment.signedSourceAttachmentId &&
+          removedIds.includes(attachment.signedSourceAttachmentId)
+        ),
+    ).length;
   }
 
   return (
@@ -615,26 +648,60 @@ function DraftFormFields({
           </label>
           {existingAttachments.length > 0 ? (
             <ul className="mt-2 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
-              {existingAttachments.map((attachment) => (
-                <li
-                  key={attachment.id}
-                  className="px-3 py-2"
-                >
-                  <AttachmentFileRow
-                    fileName={attachment.originalName}
-                    note="기존 첨부"
-                    size={attachment.size}
-                    thumbnailHref={
-                      getAttachmentPreviewKind(
-                        attachment.originalName,
-                        attachment.mimeType,
-                      ) === "image"
-                        ? `/attachments/${attachment.id}/preview`
-                        : undefined
-                    }
-                  />
-                </li>
-              ))}
+              {existingAttachments.map((attachment) => {
+                const isRemoved = removedAttachmentIds.includes(attachment.id);
+
+                return (
+                  <li
+                    key={attachment.id}
+                    className={`px-3 py-2 ${isRemoved ? "opacity-50" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      hidden
+                      readOnly
+                      name="removeAttachmentIds"
+                      value={attachment.id}
+                      checked={isRemoved}
+                    />
+                    <AttachmentFileRow
+                      fileName={attachment.originalName}
+                      note={
+                        isRemoved
+                          ? "삭제 예정"
+                          : attachment.signedSourceAttachmentId
+                            ? "서명본"
+                            : "기존 첨부"
+                      }
+                      size={attachment.size}
+                      thumbnailHref={
+                        getAttachmentPreviewKind(
+                          attachment.originalName,
+                          attachment.mimeType,
+                        ) === "image"
+                          ? `/attachments/${attachment.id}/preview`
+                          : undefined
+                      }
+                      action={
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => toggleRemovedAttachment(attachment.id)}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            isRemoved
+                              ? buttonStyles.neutral
+                              : buttonStyles.dangerOutline,
+                            "h-8 px-3 text-xs",
+                          )}
+                        >
+                          {isRemoved ? "삭제 취소" : "삭제"}
+                        </button>
+                      }
+                    />
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
           <input
@@ -692,7 +759,7 @@ function DraftFormFields({
             {attachmentPolicy.maxFileSizeMb}MB 이하. 허용 확장자:{" "}
             {attachmentPolicy.allowedExtensions.join(", ")}
             {existingAttachments.length > 0
-              ? ` / 기존 ${existingAttachments.length}개 포함`
+              ? ` / 기존 ${retainedAttachmentCount}개 포함`
               : ""}
           </p>
         </div>

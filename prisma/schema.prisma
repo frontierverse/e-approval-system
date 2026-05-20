@@ -340,6 +340,12 @@ model AuditLog {
   metadata   Json?
   ipAddress  String?
   userAgent  String?
+  browser    String?
+  os         String?
+  device     String?
+  country    String?
+  region     String?
+  city       String?
   createdAt  DateTime    @default(now())
 
   actorId    String

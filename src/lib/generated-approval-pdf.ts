@@ -23,6 +23,7 @@ import {
   getAttachmentStorageConfig,
   getAttachmentStorageKeyPrefix,
 } from "@/lib/attachment-storage-core";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
 import {
   ApprovalStepStatus,
@@ -206,6 +207,7 @@ export async function attachGeneratedApprovalPdfToDocument(
         storageKey: existingAttachment.storageKey,
       }
     : null;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   try {
     await persistAttachmentFiles([file]);
@@ -243,6 +245,7 @@ export async function attachGeneratedApprovalPdfToDocument(
       await tx.auditLog.create({
         data: {
           actorId,
+          ...auditRequestData,
           action: AuditAction.UPDATE_DRAFT,
           targetType: "Attachment",
           targetId: attachment.id,
@@ -357,6 +360,7 @@ export async function attachStampedApprovalPdfToDocument(
         storageKey: existingAttachment.storageKey,
       }
     : null;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   try {
     await persistAttachmentFiles([file]);
@@ -401,6 +405,7 @@ export async function attachStampedApprovalPdfToDocument(
       await tx.auditLog.create({
         data: {
           actorId,
+          ...auditRequestData,
           action: AuditAction.UPDATE_DRAFT,
           targetType: "Attachment",
           targetId: attachment.id,

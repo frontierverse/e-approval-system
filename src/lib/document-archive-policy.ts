@@ -15,6 +15,11 @@ export type DocumentArchiveInfo = {
   reviewAt: string | null;
 };
 
+export type ArchiveReviewBaseDateRange = {
+  from: Date;
+  to: Date;
+};
+
 export function getDocumentArchiveInfo(
   document: ApprovalDocument,
   now = new Date(),
@@ -49,9 +54,41 @@ export function getArchivePolicyText(info: DocumentArchiveInfo) {
     : `${documentArchiveRetentionYears}년 보관 후 검토합니다. 자동 삭제하지 않습니다.`;
 }
 
+export function getTodayArchiveReviewBaseDateRange(
+  now = new Date(),
+): ArchiveReviewBaseDateRange {
+  const today = getKoreanDateValue(now);
+  const from = new Date(`${today}T00:00:00.000+09:00`);
+  const to = new Date(`${today}T23:59:59.999+09:00`);
+
+  return {
+    from: subtractYears(from, documentArchiveRetentionYears),
+    to: subtractYears(to, documentArchiveRetentionYears),
+  };
+}
+
 function addYears(date: Date, years: number) {
   const next = new Date(date);
   next.setFullYear(next.getFullYear() + years);
 
   return next;
+}
+
+function subtractYears(date: Date, years: number) {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() - years);
+
+  return next;
+}
+
+function getKoreanDateValue(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${values.year}-${values.month}-${values.day}`;
 }

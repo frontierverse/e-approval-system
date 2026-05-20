@@ -38,6 +38,12 @@ export async function updateDraftAction(
   const values = getDraftFormValues(formData);
   const user = await requireUser();
   const attachmentPolicy = await getAttachmentPolicy();
+  const requestedRemoveIds = new Set(
+    formData
+      .getAll("removeAttachmentIds")
+      .map((value) => String(value).trim())
+      .filter(Boolean),
+  );
   const [existingDocument, attachmentResult] = await Promise.all([
     prisma.approvalDocument.findFirst({
       where: {
@@ -45,17 +51,27 @@ export async function updateDraftAction(
         drafterId: user.id,
       },
       select: {
-        _count: {
+        attachments: {
           select: {
-            attachments: true,
+            id: true,
+            signedSourceAttachmentId: true,
           },
         },
       },
     }),
     prepareAttachmentFiles(formData.getAll("attachments"), attachmentPolicy),
   ]);
+  const retainedExistingAttachmentCount =
+    existingDocument?.attachments.filter(
+      (attachment) =>
+        !requestedRemoveIds.has(attachment.id) &&
+        !(
+          attachment.signedSourceAttachmentId &&
+          requestedRemoveIds.has(attachment.signedSourceAttachmentId)
+        ),
+    ).length ?? 0;
   const totalAttachmentCount =
-    (existingDocument?._count.attachments ?? 0) + attachmentResult.files.length;
+    retainedExistingAttachmentCount + attachmentResult.files.length;
   const attachmentError =
     attachmentResult.error ??
     (totalAttachmentCount > attachmentPolicy.maxFileCount
@@ -165,6 +181,7 @@ export async function updateDraftAction(
       templateId: values.templateId,
       approvers: orderedApprovers,
       attachments,
+      removeAttachmentIds: Array.from(requestedRemoveIds),
       submitImmediately: intent === "submit",
     });
 

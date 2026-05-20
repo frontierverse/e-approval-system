@@ -18,9 +18,11 @@ import {
   createProxyApprovedAuditMessage,
   createProxyRejectedAuditMessage,
 } from "@/lib/approval-audit-messages";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import {
   canDeleteDraftDocumentByPolicy,
+  canManageDraftDocumentAttachmentsByPolicy,
   canRecallDocumentByPolicy,
 } from "@/lib/approval-permissions-core";
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
@@ -60,7 +62,15 @@ type UpdateDraftDocumentInput = {
   templateId: string;
   approvers: OrderedApprover[];
   attachments?: AttachmentInput[];
+  removeAttachmentIds?: string[];
   submitImmediately: boolean;
+};
+
+type AttachmentRemovalRef = {
+  id: string;
+  originalName: string;
+  storageProvider: string;
+  storageKey: string;
 };
 
 type SubmitDraftResult =
@@ -87,6 +97,7 @@ export async function createApprovalDocument({
   submitImmediately,
 }: CreateApprovalDocumentInput) {
   const now = new Date();
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   return prisma.$transaction(async (tx) => {
     const documentNo = submitImmediately
@@ -137,6 +148,7 @@ export async function createApprovalDocument({
     await tx.auditLog.create({
       data: {
         actorId: drafterId,
+        ...auditRequestData,
         action: submitImmediately
           ? AuditAction.SUBMIT
           : AuditAction.CREATE_DRAFT,
@@ -176,6 +188,8 @@ export async function submitDraftDocument(
   documentId: string,
   actorId: string,
 ): Promise<SubmitDraftResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const document = await tx.approvalDocument.findUnique({
       where: {
@@ -300,6 +314,7 @@ export async function submitDraftDocument(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.SUBMIT,
         targetType: "ApprovalDocument",
         targetId: document.id,
@@ -334,9 +349,12 @@ export async function updateDraftDocument({
   templateId,
   approvers,
   attachments = [],
+  removeAttachmentIds = [],
   submitImmediately,
 }: UpdateDraftDocumentInput): Promise<DraftMutationResult> {
-  return prisma.$transaction(async (tx) => {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  const result = await prisma.$transaction(async (tx) => {
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -346,19 +364,44 @@ export async function updateDraftDocument({
         drafterId: true,
         documentNo: true,
         status: true,
+        attachments: {
+          select: {
+            id: true,
+            originalName: true,
+            storageProvider: true,
+            storageKey: true,
+            signedSourceAttachmentId: true,
+            signedCopies: {
+              select: {
+                id: true,
+                originalName: true,
+                storageProvider: true,
+                storageKey: true,
+              },
+            },
+            convertedCopies: {
+              select: {
+                id: true,
+                originalName: true,
+                storageProvider: true,
+                storageKey: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!document) {
       return {
-        ok: false,
+        ok: false as const,
         message: "문서를 찾을 수 없습니다.",
       };
     }
 
     if (document.drafterId !== actorId) {
       return {
-        ok: false,
+        ok: false as const,
         message: "작성자만 임시저장 문서를 수정할 수 있습니다.",
       };
     }
@@ -368,11 +411,15 @@ export async function updateDraftDocument({
       document.status !== DocumentStatus.RECALLED
     ) {
       return {
-        ok: false,
+        ok: false as const,
         message: "임시저장 또는 회수 상태의 문서만 수정할 수 있습니다.",
       };
     }
 
+    const attachmentsToRemove = getDocumentAttachmentsToRemove(
+      document.attachments,
+      removeAttachmentIds,
+    );
     const now = new Date();
     const documentNo = submitImmediately
       ? document.documentNo ?? (await getNextDocumentNo(tx, now))
@@ -411,25 +458,31 @@ export async function updateDraftDocument({
                 : ApprovalStepStatus.WAITING,
           })),
         },
-        attachments:
-          attachments.length > 0
-            ? {
-                create: attachments.map((attachment) => ({
-                  originalName: attachment.originalName,
-                  storageProvider: attachment.storageProvider,
-                  storageKey: attachment.storageKey,
-                  mimeType: attachment.mimeType,
-                  size: attachment.size,
-                  uploaderId: actorId,
-                })),
-              }
-            : undefined,
+        attachments: {
+          deleteMany:
+            attachmentsToRemove.length > 0
+              ? {
+                  id: {
+                    in: attachmentsToRemove.map((attachment) => attachment.id),
+                  },
+                }
+              : undefined,
+          create: attachments.map((attachment) => ({
+            originalName: attachment.originalName,
+            storageProvider: attachment.storageProvider,
+            storageKey: attachment.storageKey,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+            uploaderId: actorId,
+          })),
+        },
       },
     });
 
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: submitImmediately
           ? AuditAction.SUBMIT
           : AuditAction.UPDATE_DRAFT,
@@ -439,6 +492,14 @@ export async function updateDraftDocument({
         message: submitImmediately
           ? getSubmitMessage(approvers)
           : "임시저장 문서를 수정했습니다.",
+        metadata:
+          attachmentsToRemove.length > 0
+            ? {
+                removedAttachmentIds: attachmentsToRemove.map(
+                  (attachment) => attachment.id,
+                ),
+              }
+            : undefined,
       },
     });
 
@@ -464,16 +525,33 @@ export async function updateDraftDocument({
     }
 
     return {
-      ok: true,
+      ok: true as const,
       documentId: document.id,
+      attachmentsToRemove,
     };
   });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  try {
+    await removeStoredAttachmentFiles(result.attachmentsToRemove);
+  } catch (error) {
+    console.error("Failed to remove draft attachment files", error);
+  }
+
+  return {
+    ok: true,
+    documentId: result.documentId,
+  };
 }
 
 export async function deleteDraftDocument(
   documentId: string,
   actorId: string,
 ): Promise<DraftMutationResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
   const attachmentsToRemove = await prisma.$transaction(async (tx) => {
     const document = await tx.approvalDocument.findUnique({
       where: {
@@ -517,6 +595,7 @@ export async function deleteDraftDocument(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.DELETE_DRAFT,
         targetType: "ApprovalDocument",
         targetId: document.id,
@@ -554,10 +633,129 @@ export async function deleteDraftDocument(
   };
 }
 
+export async function deleteDocumentAttachment(
+  documentId: string,
+  attachmentId: string,
+  actorId: string,
+): Promise<DraftMutationResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+  const result = await prisma.$transaction(async (tx) => {
+    const attachment = await tx.attachment.findFirst({
+      where: {
+        id: attachmentId,
+        documentId,
+        signedSourceAttachmentId: null,
+      },
+      select: {
+        id: true,
+        originalName: true,
+        storageProvider: true,
+        storageKey: true,
+        document: {
+          select: {
+            id: true,
+            title: true,
+            drafterId: true,
+            status: true,
+          },
+        },
+        signedCopies: {
+          select: {
+            id: true,
+            originalName: true,
+            storageProvider: true,
+            storageKey: true,
+          },
+        },
+        convertedCopies: {
+          select: {
+            id: true,
+            originalName: true,
+            storageProvider: true,
+            storageKey: true,
+          },
+        },
+      },
+    });
+
+    if (!attachment) {
+      return {
+        ok: false as const,
+        message: "첨부파일을 찾을 수 없습니다.",
+      };
+    }
+
+    if (
+      !canManageDraftDocumentAttachmentsByPolicy(actorId, attachment.document)
+    ) {
+      return {
+        ok: false as const,
+        message: "임시저장 또는 회수 상태의 작성자만 첨부파일을 삭제할 수 있습니다.",
+      };
+    }
+
+    const attachmentsToRemove = getDocumentAttachmentsToRemove(
+      [attachment],
+      [attachment.id],
+    );
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_DRAFT,
+        targetType: "Attachment",
+        targetId: attachment.id,
+        documentId: attachment.document.id,
+        message: `"${attachment.originalName}" 첨부파일을 삭제했습니다.`,
+        metadata:
+          attachmentsToRemove.length > 1
+            ? {
+                removedAttachmentIds: attachmentsToRemove.map(
+                  (removedAttachment) => removedAttachment.id,
+                ),
+              }
+            : undefined,
+      },
+    });
+
+    await tx.attachment.deleteMany({
+      where: {
+        id: {
+          in: attachmentsToRemove.map((removedAttachment) => removedAttachment.id),
+        },
+      },
+    });
+
+    return {
+      ok: true as const,
+      documentId: attachment.document.id,
+      attachmentsToRemove,
+    };
+  });
+
+  if (!result.ok) {
+    return result;
+  }
+
+  try {
+    await removeStoredAttachmentFiles(result.attachmentsToRemove);
+  } catch (error) {
+    console.error("Failed to remove document attachment files", error);
+  }
+
+  return {
+    ok: true,
+    documentId: result.documentId,
+  };
+}
+
 export async function recallSubmittedDocument(
   documentId: string,
   actorId: string,
 ): Promise<DraftMutationResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const document = await tx.approvalDocument.findUnique({
       where: {
@@ -642,6 +840,7 @@ export async function recallSubmittedDocument(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.RECALL,
         targetType: "ApprovalDocument",
         targetId: document.id,
@@ -662,6 +861,8 @@ export async function approveCurrentApprovalStep(
   actorId: string,
   comment: string,
 ): Promise<ApprovalDecisionResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const document = await getDocumentForDecision(tx, documentId);
     const decisionPlan = getApprovalDecisionPlan(
@@ -698,6 +899,7 @@ export async function approveCurrentApprovalStep(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.APPROVE,
         targetType: "ApprovalStep",
         targetId: currentStep.id,
@@ -759,6 +961,7 @@ export async function approveCurrentApprovalStep(
       await tx.auditLog.create({
         data: {
           actorId,
+          ...auditRequestData,
           action: AuditAction.COMPLETE,
           targetType: "ApprovalDocument",
           targetId: decisionDocument.id,
@@ -790,6 +993,8 @@ export async function rejectCurrentApprovalStep(
   actorId: string,
   comment: string,
 ): Promise<ApprovalDecisionResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const document = await getDocumentForDecision(tx, documentId);
     const decisionPlan = getApprovalDecisionPlan(document, actorId, "reject");
@@ -828,6 +1033,7 @@ export async function rejectCurrentApprovalStep(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.REJECT,
         targetType: "ApprovalStep",
         targetId: currentStep.id,
@@ -865,6 +1071,8 @@ export async function proxyApproveApprovalStepsThrough(
   targetStepId: string,
   comment: string,
 ): Promise<ApprovalDecisionResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const [actor, document] = await Promise.all([
       tx.user.findUnique({
@@ -936,6 +1144,7 @@ export async function proxyApproveApprovalStepsThrough(
       await tx.auditLog.create({
         data: {
           actorId,
+          ...auditRequestData,
           action: isOwnApproval
             ? AuditAction.APPROVE
             : AuditAction.PROXY_APPROVE,
@@ -1014,6 +1223,7 @@ export async function proxyApproveApprovalStepsThrough(
       await tx.auditLog.create({
         data: {
           actorId,
+          ...auditRequestData,
           action: AuditAction.COMPLETE,
           targetType: "ApprovalDocument",
           targetId: decisionDocument.id,
@@ -1046,6 +1256,8 @@ export async function rejectProxyApprovedStep(
   actorId: string,
   comment: string,
 ): Promise<ApprovalDecisionResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
   return prisma.$transaction(async (tx) => {
     const [actor, document] = await Promise.all([
       tx.user.findUnique({
@@ -1145,6 +1357,7 @@ export async function rejectProxyApprovedStep(
     await tx.auditLog.create({
       data: {
         actorId,
+        ...auditRequestData,
         action: AuditAction.PROXY_REJECT,
         targetType: "ApprovalStep",
         targetId: targetStep.id,
@@ -1188,6 +1401,12 @@ type DecisionDocument = NonNullable<
 >;
 type DecisionStep = DecisionDocument["approvalSteps"][number];
 
+type AttachmentRemovalCandidate = AttachmentRemovalRef & {
+  signedSourceAttachmentId?: string | null;
+  signedCopies?: AttachmentRemovalRef[];
+  convertedCopies?: AttachmentRemovalRef[];
+};
+
 function canProxyApproveDocument(
   actorId: string,
   actorRole: UserRole,
@@ -1220,6 +1439,46 @@ function canRejectProxyApproval(
   return document.approvalSteps.some(
     (step) => step.order > targetStep.order && step.approverId === actorId,
   );
+}
+
+function getDocumentAttachmentsToRemove(
+  attachments: readonly AttachmentRemovalCandidate[],
+  removeAttachmentIds: readonly string[],
+) {
+  const requestedIds = new Set(removeAttachmentIds.filter(Boolean));
+  const removalById = new Map<string, AttachmentRemovalRef>();
+
+  for (const attachment of attachments) {
+    if (!requestedIds.has(attachment.id)) {
+      continue;
+    }
+
+    addAttachmentRemovalRef(removalById, attachment);
+
+    if (!attachment.signedSourceAttachmentId) {
+      for (const signedCopy of attachment.signedCopies ?? []) {
+        addAttachmentRemovalRef(removalById, signedCopy);
+      }
+
+      for (const convertedCopy of attachment.convertedCopies ?? []) {
+        addAttachmentRemovalRef(removalById, convertedCopy);
+      }
+    }
+  }
+
+  return Array.from(removalById.values());
+}
+
+function addAttachmentRemovalRef(
+  removalById: Map<string, AttachmentRemovalRef>,
+  attachment: AttachmentRemovalRef,
+) {
+  removalById.set(attachment.id, {
+    id: attachment.id,
+    originalName: attachment.originalName,
+    storageProvider: attachment.storageProvider,
+    storageKey: attachment.storageKey,
+  });
 }
 
 async function notifyProxyApprovalParticipants(

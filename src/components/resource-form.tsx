@@ -361,7 +361,7 @@ function ResourceFormFields({
                             "h-8 px-3 text-xs",
                           )}
                         >
-                          {isRemoved ? "유지" : "삭제"}
+                          {isRemoved ? "삭제 취소" : "삭제"}
                         </button>
                       }
                     />

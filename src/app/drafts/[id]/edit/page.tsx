@@ -70,6 +70,7 @@ export default async function EditDraftPage({
           id: attachment.id,
           mimeType: attachment.mimeType,
           originalName: attachment.originalName,
+          signedSourceAttachmentId: attachment.signedSourceAttachmentId,
           size: attachment.size,
         }))}
       />

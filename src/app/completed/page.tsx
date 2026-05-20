@@ -11,6 +11,7 @@ import {
 import { PageTitle } from "@/components/page-title";
 import {
   getCompletedDocumentPage,
+  type CompletedDocumentArchiveReviewFilter,
   type CompletedDocumentStatusFilter,
   type DocumentPageSort,
 } from "@/lib/approval-queries";
@@ -23,6 +24,7 @@ type CompletedPageSearchParams = {
   sort?: string;
   dateFrom?: string;
   dateTo?: string;
+  archiveReview?: string;
   page?: string;
 };
 
@@ -39,6 +41,7 @@ type CompletedDocumentFilters = {
   sort: DocumentPageSort;
   dateFrom: string;
   dateTo: string;
+  archiveReview: CompletedDocumentArchiveReviewFilter;
   page: number;
 };
 
@@ -50,6 +53,7 @@ const getCachedCompletedDocumentPage = cache(
     sort: DocumentPageSort,
     dateFrom: string,
     dateTo: string,
+    archiveReview: CompletedDocumentArchiveReviewFilter,
     page: number,
   ) =>
     getCompletedDocumentPage(userId, {
@@ -58,6 +62,7 @@ const getCachedCompletedDocumentPage = cache(
       sort,
       dateFrom,
       dateTo,
+      archiveReview,
       page,
       pageSize,
     }),
@@ -69,12 +74,18 @@ export default async function CompletedPage({
   searchParams: Promise<CompletedPageSearchParams>;
 }) {
   const filters = getFilters(await searchParams);
+  const archiveReviewParams = getArchiveReviewParams(filters);
+  const isArchiveReviewFilter = filters.archiveReview === "today";
 
   return (
     <>
       <PageTitle
-        title="완료문서함"
-        description="승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
+        title={isArchiveReviewFilter ? "보관 검토 목록" : "완료문서함"}
+        description={
+          isArchiveReviewFilter
+            ? "오늘 보관 검토일이 된 문서를 확인합니다."
+            : "승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
+        }
       />
 
       <DocumentListControls
@@ -84,6 +95,7 @@ export default async function CompletedPage({
         sort={filters.sort}
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
+        extraParams={archiveReviewParams}
         statusOptions={statusOptions}
         summary={
           <Suspense fallback={<DocumentListSummarySkeleton />}>
@@ -112,6 +124,7 @@ async function CompletedDocumentContent({
     filters.sort,
     filters.dateFrom,
     filters.dateTo,
+    filters.archiveReview,
     filters.page,
   );
   const hasActiveFilter = hasDocumentListFilter(
@@ -120,7 +133,7 @@ async function CompletedDocumentContent({
     filters.sort,
     filters.dateFrom,
     filters.dateTo,
-  );
+  ) || filters.archiveReview !== "none";
 
   return (
     <>
@@ -129,12 +142,16 @@ async function CompletedDocumentContent({
         empty={
           <EmptyState
             title={
-              hasActiveFilter
+              filters.archiveReview === "today"
+                ? "오늘 보관 검토할 문서가 없습니다"
+                : hasActiveFilter
                 ? "조건에 맞는 완료 문서가 없습니다"
                 : "완료된 문서가 없습니다"
             }
             description={
-              hasActiveFilter
+              filters.archiveReview === "today"
+                ? "오늘 날짜에 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
+                : hasActiveFilter
                 ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
                 : "처리가 끝난 문서가 생기면 최종 상태와 처리일이 표시됩니다."
             }
@@ -150,6 +167,7 @@ async function CompletedDocumentContent({
         sort={filters.sort}
         dateFrom={filters.dateFrom}
         dateTo={filters.dateTo}
+        extraParams={getArchiveReviewParams(filters)}
         page={completedPage.page}
         totalPages={completedPage.totalPages}
       />
@@ -170,15 +188,23 @@ async function CompletedDocumentSummary({
     filters.sort,
     filters.dateFrom,
     filters.dateTo,
+    filters.archiveReview,
     filters.page,
   );
 
   return (
-    <DocumentListSummary
-      total={completedPage.total}
-      page={completedPage.page}
-      pageSize={pageSize}
-    />
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <DocumentListSummary
+        total={completedPage.total}
+        page={completedPage.page}
+        pageSize={pageSize}
+      />
+      {filters.archiveReview === "today" ? (
+        <span className="inline-flex rounded-md border border-[#ead8a8] bg-[#fff8df] px-2 py-0.5 text-xs font-semibold text-[#82620d]">
+          오늘 보관 검토
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -191,6 +217,7 @@ function getFilters(
     sort: normalizeSort(params.sort),
     dateFrom: normalizeDate(params.dateFrom),
     dateTo: normalizeDate(params.dateTo),
+    archiveReview: normalizeArchiveReview(params.archiveReview),
     page: normalizePage(params.page),
   };
 }
@@ -217,4 +244,18 @@ function normalizePage(value: string | undefined) {
 
 function normalizeDate(value: string | undefined) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function normalizeArchiveReview(
+  value: string | undefined,
+): CompletedDocumentArchiveReviewFilter {
+  return value === "today" ? "today" : "none";
+}
+
+function getArchiveReviewParams(filters: CompletedDocumentFilters) {
+  return filters.archiveReview === "today"
+    ? {
+        archiveReview: "today",
+      }
+    : undefined;
 }

@@ -4,6 +4,7 @@ import {
   documentArchiveRetentionYears,
   getArchivePolicyText,
   getDocumentArchiveInfo,
+  getTodayArchiveReviewBaseDateRange,
 } from "../src/lib/document-archive-policy.ts";
 
 type ArchiveDocument = Parameters<typeof getDocumentArchiveInfo>[0];
@@ -93,5 +94,14 @@ describe("document archive policy", () => {
     assert.equal(info.applies, true);
     assert.equal(info.baseDate, "2026-04-02T00:00:00.000Z");
     assert.equal(info.reviewAt, "2031-04-02T00:00:00.000Z");
+  });
+
+  test("gets the base date range for documents due for review today", () => {
+    const range = getTodayArchiveReviewBaseDateRange(
+      new Date("2026-05-19T03:00:00.000Z"),
+    );
+
+    assert.equal(range.from.toISOString(), "2021-05-18T15:00:00.000Z");
+    assert.equal(range.to.toISOString(), "2021-05-19T14:59:59.999Z");
   });
 });

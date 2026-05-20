@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getLoginLocationLabel } from "@/lib/login-history-core";
 import { formatDateTime, type ApprovalHistory } from "@/lib/mock-data";
 
 type DocumentAuditHistoryProps = {
@@ -5,6 +9,9 @@ type DocumentAuditHistoryProps = {
 };
 
 export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
+  const [selectedHistory, setSelectedHistory] =
+    useState<ApprovalHistory | null>(null);
+
   return (
     <article className="rounded-md border border-[#d9dee7] bg-white p-5">
       <h2 className="text-base font-semibold">감사 이력</h2>
@@ -16,6 +23,7 @@ export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
               key={history.id}
               history={history}
               isLast={index === histories.length - 1}
+              onSelect={() => setSelectedHistory(history)}
             />
           ))}
         </ol>
@@ -24,6 +32,13 @@ export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
           아직 기록된 감사 이력이 없습니다.
         </div>
       )}
+
+      {selectedHistory ? (
+        <AuditHistoryDetailModal
+          history={selectedHistory}
+          onClose={() => setSelectedHistory(null)}
+        />
+      ) : null}
     </article>
   );
 }
@@ -31,9 +46,11 @@ export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
 function AuditHistoryTimelineItem({
   history,
   isLast,
+  onSelect,
 }: {
   history: ApprovalHistory;
   isLast: boolean;
+  onSelect: () => void;
 }) {
   const tone = getAuditHistoryTone(history.action);
   const actorLabel = history.actor?.name || history.actorName || "시스템";
@@ -56,7 +73,13 @@ function AuditHistoryTimelineItem({
         {history.action.slice(0, 1)}
       </span>
 
-      <div className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-4 py-3">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={`${history.action} 감사 이력 상세 보기`}
+        onClick={onSelect}
+        className="block w-full cursor-pointer rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-4 py-3 text-left transition hover:border-[#cfd6e3] hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span
@@ -85,8 +108,142 @@ function AuditHistoryTimelineItem({
         <p className="mt-3 text-sm leading-6 text-[#394150]">
           {history.description || `${history.action} 작업이 기록되었습니다.`}
         </p>
-      </div>
+      </button>
     </li>
+  );
+}
+
+function AuditHistoryDetailModal({
+  history,
+  onClose,
+}: {
+  history: ApprovalHistory;
+  onClose: () => void;
+}) {
+  const titleId = `audit-history-${history.id}-title`;
+  const actorLabel = getActorLabel(history);
+  const deviceLabel = getDeviceLabel(history);
+  const locationLabel = getLoginLocationLabel(history);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      aria-labelledby={titleId}
+      aria-modal="true"
+      className="fixed inset-0 z-50 grid place-items-center bg-[#0f1720]/55 p-4"
+      role="dialog"
+    >
+      <button
+        type="button"
+        aria-label="감사 이력 상세 닫기"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <section className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#697386]">
+              감사 이력 상세
+            </p>
+            <h3
+              id={titleId}
+              className="mt-1 text-base font-semibold text-[#16181d]"
+            >
+              {history.action}
+            </h3>
+          </div>
+          <button
+            type="button"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] text-lg leading-none text-[#394150] transition hover:bg-[#f7f9fc]"
+            onClick={onClose}
+            aria-label="닫기"
+          >
+            ×
+          </button>
+        </div>
+
+        <dl className="grid gap-3 px-5 py-5">
+          <DetailRow label="처리자" value={actorLabel} />
+          <DetailRow
+            label="처리 시간"
+            value={formatDateTime(history.createdAt)}
+          />
+          <DetailRow
+            label="작업 내용"
+            value={
+              history.description ||
+              `${history.action} 작업이 기록되었습니다.`
+            }
+          />
+          <DetailRow label="IP" value={history.ipAddress || "기록 없음"} mono />
+          <DetailRow label="위치" value={locationLabel} />
+          <DetailRow label="기기" value={deviceLabel} />
+          <DetailRow
+            label="User-Agent"
+            value={history.userAgent || "기록 없음"}
+            mono
+            wrap
+          />
+        </dl>
+      </section>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono = false,
+  wrap = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  wrap?: boolean;
+}) {
+  return (
+    <div className="grid gap-1 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-xs font-semibold text-[#697386]">{label}</dt>
+      <dd
+        className={[
+          "min-w-0 text-sm font-medium text-[#394150]",
+          mono ? "font-mono text-xs" : "",
+          wrap ? "break-all" : "truncate",
+        ].join(" ")}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function getActorLabel(history: ApprovalHistory) {
+  const actor = history.actor;
+
+  if (!actor) {
+    return history.actorName || "시스템";
+  }
+
+  return [actor.name, actor.positionName, actor.departmentName]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getDeviceLabel(history: ApprovalHistory) {
+  return (
+    [history.device, history.browser, history.os].filter(Boolean).join(" · ") ||
+    "기록 없음"
   );
 }
 

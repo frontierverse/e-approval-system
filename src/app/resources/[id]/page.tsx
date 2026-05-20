@@ -5,6 +5,7 @@ import { AttachmentPreviewButton } from "@/components/attachment-preview-button"
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageTitle } from "@/components/page-title";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
+import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
 import { deleteResourceAction } from "@/app/resources/actions";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
@@ -36,47 +37,38 @@ export default async function ResourceDetailPage({
       <PageTitle
         title={resource.title}
         description={`${resourceCategoryLabels[resource.category]} / ${resource.departmentName}`}
+        titleAccessory={
+          <TitleBackLink href={`/resources?category=${resource.category}`} />
+        }
         action={
-          <div className="flex flex-wrap justify-end gap-2">
-            {resource.canManage ? (
-              <>
-                <Link
-                  href={`/resources/${resource.id}/edit`}
+          resource.canManage ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Link
+                href={`/resources/${resource.id}/edit`}
+                className={buttonClass(
+                  buttonStyles.base,
+                  buttonStyles.save,
+                  "h-10 px-4 text-sm",
+                )}
+              >
+                수정
+              </Link>
+              <form action={deleteResourceAction}>
+                <input type="hidden" name="resourceId" value={resource.id} />
+                <ConfirmSubmitButton
+                  type="submit"
+                  message="이 자료를 삭제할까요?"
                   className={buttonClass(
                     buttonStyles.base,
-                    buttonStyles.save,
+                    buttonStyles.danger,
                     "h-10 px-4 text-sm",
                   )}
                 >
-                  수정
-                </Link>
-                <form action={deleteResourceAction}>
-                  <input type="hidden" name="resourceId" value={resource.id} />
-                  <ConfirmSubmitButton
-                    type="submit"
-                    message="이 자료를 삭제할까요?"
-                    className={buttonClass(
-                      buttonStyles.base,
-                      buttonStyles.danger,
-                      "h-10 px-4 text-sm",
-                    )}
-                  >
-                    삭제
-                  </ConfirmSubmitButton>
-                </form>
-              </>
-            ) : null}
-            <Link
-              href={`/resources?category=${resource.category}`}
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 px-4 text-sm",
-              )}
-            >
-              목록으로
-            </Link>
-          </div>
+                  삭제
+                </ConfirmSubmitButton>
+              </form>
+            </div>
+          ) : undefined
         }
       />
 

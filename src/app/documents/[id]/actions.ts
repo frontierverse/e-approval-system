@@ -6,10 +6,10 @@ import {
   ApprovalStepStatus,
   AuditAction,
   DocumentStatus,
-  UserRole,
 } from "@/generated/prisma/client";
 import {
   approveCurrentApprovalStep,
+  deleteDocumentAttachment,
   deleteDraftDocument,
   proxyApproveApprovalStepsThrough,
   recallSubmittedDocument,
@@ -29,6 +29,8 @@ import {
   attachStampedApprovalPdfToDocument,
   getGeneratedApprovalPdfStorageError,
 } from "@/lib/generated-approval-pdf";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
+import { canDeleteSignedAttachmentByPolicy } from "@/lib/approval-permissions-core";
 import { prisma } from "@/lib/prisma";
 
 export type ApprovalDecisionState = {
@@ -108,6 +110,7 @@ export async function uploadSignedAttachmentAction(
       document: {
         select: {
           id: true,
+          drafterId: true,
           status: true,
           approvalSteps: {
             select: {
@@ -155,6 +158,7 @@ export async function uploadSignedAttachmentAction(
   }
 
   const preparedSignedFile = preparedResult.files[0]!;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   try {
     await persistAttachmentFiles([preparedSignedFile]);
@@ -180,6 +184,7 @@ export async function uploadSignedAttachmentAction(
       await tx.auditLog.create({
         data: {
           actorId: user.id,
+          ...auditRequestData,
           action: AuditAction.UPDATE_DRAFT,
           targetType: "Attachment",
           targetId: signedAttachment.id,
@@ -365,6 +370,31 @@ export async function rejectProxyApprovalAction(
   redirect(`/documents/${result.documentId}`);
 }
 
+export async function deleteAttachmentAction(
+  documentId: string,
+  attachmentId: string,
+) {
+  const user = await requireUser();
+  const result = await deleteDocumentAttachment(
+    documentId,
+    attachmentId,
+    user.id,
+  );
+
+  revalidatePath("/");
+  revalidatePath("/drafts");
+  revalidatePath("/sent");
+  revalidatePath(`/documents/${documentId}`);
+
+  if (!result.ok) {
+    redirect(
+      `/documents/${documentId}?actionError=${encodeURIComponent(result.message)}`,
+    );
+  }
+
+  redirect(`/documents/${result.documentId}`);
+}
+
 export async function deleteSignedAttachmentAction(
   documentId: string,
   attachmentId: string,
@@ -387,6 +417,7 @@ export async function deleteSignedAttachmentAction(
       document: {
         select: {
           id: true,
+          drafterId: true,
           status: true,
           approvalSteps: {
             select: {
@@ -412,20 +443,27 @@ export async function deleteSignedAttachmentAction(
     (step) =>
       step.approverId === user.id && step.status === ApprovalStepStatus.PENDING,
   );
-  const canDeleteSignedAttachment =
-    user.role === UserRole.ADMIN ||
-    (attachment.signedById === user.id && isActiveDocument && isCurrentApprover);
+  const canDeleteSignedAttachment = canDeleteSignedAttachmentByPolicy({
+    actorId: user.id,
+    actorRole: user.role,
+    document: attachment.document,
+    isCurrentApprover: isActiveDocument && isCurrentApprover,
+    signedById: attachment.signedById,
+  });
 
   if (!canDeleteSignedAttachment) {
     redirect(
-      `/documents/${documentId}?actionError=${encodeURIComponent("현재 결재 차례에서 본인이 만든 서명본만 삭제할 수 있습니다.")}`,
+      `/documents/${documentId}?actionError=${encodeURIComponent("현재 결재 차례에서 본인이 만든 서명본 또는 임시저장/회수 문서의 작성자만 삭제할 수 있습니다.")}`,
     );
   }
+
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   await prisma.$transaction(async (tx) => {
     await tx.auditLog.create({
       data: {
         actorId: user.id,
+        ...auditRequestData,
         action: AuditAction.UPDATE_DRAFT,
         targetType: "Attachment",
         targetId: attachment.id,
@@ -449,6 +487,7 @@ export async function deleteSignedAttachmentAction(
   ]).catch(() => undefined);
 
   revalidatePath("/");
+  revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath(`/documents/${documentId}`);

@@ -13,6 +13,7 @@ type DocumentListControlsProps = {
   sort: string;
   dateFrom: string;
   dateTo: string;
+  extraParams?: Record<string, string>;
   summary: React.ReactNode;
   statusOptions: StatusOption[];
   searchPlaceholder?: string;
@@ -26,6 +27,7 @@ type DocumentPaginationProps = {
   sort: string;
   dateFrom: string;
   dateTo: string;
+  extraParams?: Record<string, string>;
   page: number;
   totalPages: number;
 };
@@ -37,20 +39,26 @@ export function DocumentListControls({
   sort,
   dateFrom,
   dateTo,
+  extraParams,
   summary,
   statusOptions,
   searchPlaceholder = "제목, 문서번호, 분류, 작성자",
 }: DocumentListControlsProps) {
+  const hiddenParams = getVisibleExtraParams(extraParams);
   const hasActiveFilter = hasDocumentListFilter(
     query,
     status,
     sort,
     dateFrom,
     dateTo,
-  );
+  ) || hiddenParams.length > 0;
   return (
     <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
       <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_10rem_10rem_auto_auto]">
+        {hiddenParams.map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
+
         <div>
           <label htmlFor="q" className="text-xs font-semibold text-[#697386]">
             검색
@@ -210,6 +218,7 @@ export function DocumentPagination({
   sort,
   dateFrom,
   dateTo,
+  extraParams,
   page,
   totalPages,
 }: DocumentPaginationProps) {
@@ -235,6 +244,7 @@ export function DocumentPagination({
             sort,
             dateFrom,
             dateTo,
+            extraParams,
             page: page - 1,
           })}
         >
@@ -249,6 +259,7 @@ export function DocumentPagination({
             sort,
             dateFrom,
             dateTo,
+            extraParams,
             page: page + 1,
           })}
         >
@@ -313,6 +324,7 @@ function getDocumentListHref({
   sort,
   dateFrom,
   dateTo,
+  extraParams,
   page,
 }: {
   basePath: string;
@@ -321,9 +333,14 @@ function getDocumentListHref({
   sort: string;
   dateFrom: string;
   dateTo: string;
+  extraParams?: Record<string, string>;
   page: number;
 }) {
   const params = new URLSearchParams();
+
+  for (const [name, value] of getVisibleExtraParams(extraParams)) {
+    params.set(name, value);
+  }
 
   if (query) {
     params.set("q", query);
@@ -352,4 +369,8 @@ function getDocumentListHref({
   const queryString = params.toString();
 
   return queryString ? `${basePath}?${queryString}` : basePath;
+}
+
+function getVisibleExtraParams(extraParams?: Record<string, string>) {
+  return Object.entries(extraParams ?? {}).filter(([, value]) => Boolean(value));
 }
