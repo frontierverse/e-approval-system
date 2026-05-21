@@ -18,6 +18,11 @@ import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
+  compileTemplateContent,
+  draftTemplateFormats,
+  type TemplateFieldDefinition,
+} from "@/lib/draft-template-content";
+import {
   getAttachmentSelectionKey,
   getFileExtension,
   mergeAttachmentSelections,
@@ -67,20 +72,6 @@ type ExistingAttachment = {
   size: number;
 };
 
-type TemplateFieldType = "date" | "number" | "text" | "textarea";
-
-type TemplateFieldDefinition = {
-  id: string;
-  label: string;
-  placeholder?: string;
-  type: TemplateFieldType;
-};
-
-type TemplateFormatDefinition = {
-  title: string;
-  fields: TemplateFieldDefinition[];
-};
-
 type DraftFormFieldsProps = DraftFormProps & {
   errors?: DraftFormState["errors"];
   formAction: (formData: FormData) => void;
@@ -89,134 +80,6 @@ type DraftFormFieldsProps = DraftFormProps & {
 };
 
 const initialState: DraftFormState = {};
-const templateFormats: Record<string, TemplateFormatDefinition> = {
-  "template-general-draft": {
-    title: "일반 기안서 입력",
-    fields: [
-      {
-        id: "purpose",
-        label: "기안 목적",
-        placeholder: "예: 운영 일정 조정 승인 요청",
-        type: "text",
-      },
-      {
-        id: "details",
-        label: "상세 내용",
-        placeholder: "검토가 필요한 배경, 진행 내용, 요청 사항을 입력하세요.",
-        type: "textarea",
-      },
-      {
-        id: "expectedEffect",
-        label: "기대 효과",
-        placeholder: "승인 후 기대되는 효과를 입력하세요.",
-        type: "textarea",
-      },
-    ],
-  },
-  "template-expense-report": {
-    title: "지출결의서 입력",
-    fields: [
-      {
-        id: "expenseDate",
-        label: "지출일",
-        type: "date",
-      },
-      {
-        id: "vendor",
-        label: "거래처",
-        placeholder: "예: ○○문구",
-        type: "text",
-      },
-      {
-        id: "amount",
-        label: "지출 금액",
-        placeholder: "예: 150000",
-        type: "number",
-      },
-      {
-        id: "accountTitle",
-        label: "계정과목",
-        placeholder: "예: 사무용품비",
-        type: "text",
-      },
-      {
-        id: "reason",
-        label: "지출 사유",
-        placeholder: "지출 목적과 산출 근거를 입력하세요.",
-        type: "textarea",
-      },
-    ],
-  },
-  "template-vacation-request": {
-    title: "휴가신청서 입력",
-    fields: [
-      {
-        id: "vacationType",
-        label: "휴가 구분",
-        placeholder: "예: 연차, 반차, 병가",
-        type: "text",
-      },
-      {
-        id: "startDate",
-        label: "시작일",
-        type: "date",
-      },
-      {
-        id: "endDate",
-        label: "종료일",
-        type: "date",
-      },
-      {
-        id: "emergencyContact",
-        label: "비상 연락처",
-        placeholder: "예: 010-0000-0000",
-        type: "text",
-      },
-      {
-        id: "reason",
-        label: "신청 사유",
-        placeholder: "휴가 신청 사유를 입력하세요.",
-        type: "textarea",
-      },
-    ],
-  },
-  "template-purchase-request": {
-    title: "구매요청서 입력",
-    fields: [
-      {
-        id: "itemName",
-        label: "구매 품목",
-        placeholder: "예: 업무용 노트북",
-        type: "text",
-      },
-      {
-        id: "quantity",
-        label: "수량",
-        placeholder: "예: 2",
-        type: "number",
-      },
-      {
-        id: "estimatedAmount",
-        label: "예상 금액",
-        placeholder: "예: 2500000",
-        type: "number",
-      },
-      {
-        id: "vendor",
-        label: "구매처",
-        placeholder: "예: ○○컴퓨터",
-        type: "text",
-      },
-      {
-        id: "reason",
-        label: "구매 사유",
-        placeholder: "구매 필요성과 활용 계획을 입력하세요.",
-        type: "textarea",
-      },
-    ],
-  },
-};
-
 export function DraftForm({
   templates,
   attachmentPolicy,
@@ -286,7 +149,7 @@ function DraftFormFields({
   const isEditMode = mode === "edit";
   const retainedAttachmentCount =
     getRetainedAttachmentCount(removedAttachmentIds);
-  const selectedTemplateFormat = templateFormats[templateId];
+  const selectedTemplateFormat = draftTemplateFormats[templateId];
   const usesStructuredTemplate = Boolean(selectedTemplateFormat && !isEditMode);
   const structuredContent =
     usesStructuredTemplate && selectedTemplateFormat
@@ -598,16 +461,14 @@ function DraftFormFields({
               </div>
             </>
           ) : (
-            <textarea
+            <LineNumberedTextarea
               id="content"
               name="content"
               value={content}
-              onChange={(event) => setContent(event.target.value)}
+              onChange={setContent}
               rows={12}
               placeholder="기안 내용을 입력하세요"
-              className={`mt-2 w-full resize-y rounded-md border border-[#cfd6e3] bg-white px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-                contentHasError ? ` ${errorBorderClass}` : ""
-              }`}
+              hasError={contentHasError}
             />
           )}
           {errors?.content ? (
@@ -1040,15 +901,14 @@ function TemplateInput({
         {field.label}
       </label>
       {field.type === "textarea" ? (
-        <textarea
+        <LineNumberedTextarea
           id={inputId}
           required
           disabled={pending}
           rows={5}
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={onChange}
           placeholder={field.placeholder}
-          className={`${baseClass} resize-y py-3 leading-6`}
         />
       ) : (
         <input
@@ -1066,17 +926,75 @@ function TemplateInput({
   );
 }
 
-function compileTemplateContent(
-  template: TemplateFormatDefinition,
-  values: Record<string, string>,
-) {
-  return template.fields
-    .map((field) => {
-      const value = values[field.id]?.trim();
+function LineNumberedTextarea({
+  disabled = false,
+  hasError = false,
+  id,
+  name,
+  onChange,
+  placeholder,
+  required = false,
+  rows,
+  value,
+}: {
+  disabled?: boolean;
+  hasError?: boolean;
+  id: string;
+  name?: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  rows: number;
+  value: string;
+}) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const lineNumbers = useMemo(() => getTextareaLineNumbers(value), [value]);
+  const borderClass = hasError
+    ? "border-[#cc1f1f] ring-2 ring-[#f4c7c7]"
+    : "border-[#cfd6e3]";
 
-      return `${field.label}: ${value || "-"}`;
-    })
-    .join("\n");
+  return (
+    <div
+      className={[
+        "mt-2 flex overflow-hidden rounded-md border bg-white text-sm transition focus-within:border-[#196b69]",
+        borderClass,
+        disabled ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      <div
+        aria-hidden="true"
+        className="relative w-12 shrink-0 overflow-hidden border-r border-[#e4e9f0] bg-[#f7f9fc] py-3 text-right font-mono text-xs leading-6 text-[#8b949e]"
+      >
+        <div style={{ transform: `translateY(-${scrollTop}px)` }}>
+          {lineNumbers.map((lineNumber) => (
+            <div key={lineNumber} className="h-6 px-2">
+              {lineNumber}
+            </div>
+          ))}
+        </div>
+      </div>
+      <textarea
+        id={id}
+        name={name}
+        required={required}
+        disabled={disabled}
+        rows={rows}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 resize-y border-0 bg-white px-3 py-3 leading-6 outline-none placeholder:text-[#9aa4b2] disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+}
+
+function getTextareaLineNumbers(value: string) {
+  const lineCount = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split(
+    "\n",
+  ).length;
+
+  return Array.from({ length: Math.max(lineCount, 1) }, (_, index) => index + 1);
 }
 
 function isApprovalCandidate(

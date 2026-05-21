@@ -7,6 +7,11 @@ import {
   type AuditActionValue,
 } from "@/lib/audit-log-display";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import {
+  generatedPdfAuditActionLabel,
+  generatedPdfAuditBadgeClass,
+  isGeneratedPdfAuditLog,
+} from "@/lib/generated-pdf-audit";
 import { UserIdentity } from "@/components/user-identity";
 
 type AdminAuditLog = {
@@ -15,6 +20,7 @@ type AdminAuditLog = {
   targetType: string;
   targetId: string;
   message: string | null;
+  metadata?: unknown;
   createdAt: Date;
   actor: {
     id: string;
@@ -105,10 +111,10 @@ export function AdminAuditLogList({
                 <span
                   className={[
                     "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold",
-                    getAuditActionBadgeClass(log.action),
+                    getAdminAuditActionBadgeClass(log),
                   ].join(" ")}
                 >
-                  {getAuditActionLabel(log.action)}
+                  {getAdminAuditActionLabel(log)}
                 </span>
               </div>
 
@@ -558,6 +564,18 @@ function hasAuditLogFilter(filters: AdminAuditLogFilters) {
     filters.actorId !== "all" ||
     filters.status !== "all"
   );
+}
+
+function getAdminAuditActionLabel(log: AdminAuditLog) {
+  return isGeneratedPdfAuditLog(log)
+    ? generatedPdfAuditActionLabel
+    : getAuditActionLabel(log.action);
+}
+
+function getAdminAuditActionBadgeClass(log: AdminAuditLog) {
+  return isGeneratedPdfAuditLog(log)
+    ? generatedPdfAuditBadgeClass
+    : getAuditActionBadgeClass(log.action);
 }
 
 function getFallbackAuditMessage(log: AdminAuditLog) {

@@ -24,6 +24,7 @@ import {
   getAttachmentStorageKeyPrefix,
 } from "@/lib/attachment-storage-core";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
+import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
 import { prisma } from "@/lib/prisma";
 import {
   getApprovalPdfLayout,
@@ -191,7 +192,7 @@ export async function attachGeneratedApprovalPdfToDocument(
     documentNo: document.documentNo,
     title: document.title,
     category: document.category,
-    content: document.content,
+    content: extractTextareaContentFromCompiledTemplate(document.content),
     templateName: document.template.name,
     drafter: {
       name: document.drafter.name,
@@ -257,6 +258,11 @@ export async function attachGeneratedApprovalPdfToDocument(
           message: existingAttachment
             ? "시스템 원본문서 PDF를 다시 생성했습니다."
             : "시스템 원본문서 PDF를 생성했습니다.",
+          metadata: {
+            generatedApprovalPdfType: "SOURCE",
+            generatedAttachmentId: attachment.id,
+            replacedAttachmentId: existingAttachment?.id ?? null,
+          },
         },
       });
 

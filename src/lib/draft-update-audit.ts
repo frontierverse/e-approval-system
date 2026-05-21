@@ -1,3 +1,5 @@
+import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
+
 export type DraftUpdateAuditApprover = {
   id: string;
   name: string;
@@ -28,6 +30,8 @@ type DraftUpdateAuditChange =
   | {
       field: "content";
       label: string;
+      before: string;
+      after: string;
       beforeLength: number;
       afterLength: number;
     }
@@ -102,11 +106,22 @@ export function createDraftUpdateAuditDetails({
   }
 
   if (before.content !== after.content) {
+    const beforeBody = extractTextareaContentFromCompiledTemplate(
+      before.content,
+      before.templateId,
+    );
+    const afterBody = extractTextareaContentFromCompiledTemplate(
+      after.content,
+      after.templateId,
+    );
+
     changes.push({
       field: "content",
       label: "본문",
-      beforeLength: before.content.length,
-      afterLength: after.content.length,
+      before: beforeBody,
+      after: afterBody,
+      beforeLength: beforeBody.length,
+      afterLength: afterBody.length,
     });
     summaryParts.push("본문 변경");
   }

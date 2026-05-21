@@ -9,6 +9,10 @@ import {
   type NavigationItem,
 } from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
+import {
+  ShellQuickStatusFallback,
+  ShellQuickStatusLinks,
+} from "@/components/shell-quick-status-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserAvatar } from "@/components/user-avatar";
 import { UserIdentity } from "@/components/user-identity";
@@ -105,7 +109,7 @@ export function AppShell({
             <p className="text-xs font-semibold uppercase text-[#697386]">
               빠른 현황
             </p>
-            <Suspense fallback={<ShellDocumentCountsFallback />}>
+            <Suspense fallback={<ShellQuickStatusFallback />}>
               <ShellDocumentCounts userId={userId} />
             </Suspense>
           </div>
@@ -233,58 +237,33 @@ function NotificationBellFallback() {
 
 async function ShellDocumentCounts({ userId }: { userId: string }) {
   const documentCounts = await getShellDocumentCounts(userId);
+  const items = [
+    {
+      label: "받은결재",
+      value: documentCounts.inbox,
+      href: "/inbox",
+    },
+    {
+      label: "임시저장",
+      value: documentCounts.drafts,
+      href: "/drafts",
+    },
+    {
+      label: "제출문서",
+      value: documentCounts.sent,
+      href: "/sent",
+    },
+    {
+      label: "완료문서",
+      value: documentCounts.completed,
+      href: "/completed",
+    },
+    {
+      label: "보관 검토",
+      value: documentCounts.archiveReview,
+      href: "/completed?archiveReview=today",
+    },
+  ];
 
-  return (
-    <dl className="mt-3 space-y-2 text-sm">
-      <ShellDocumentCount label="받은결재" value={documentCounts.inbox} />
-      <ShellDocumentCount label="임시저장" value={documentCounts.drafts} />
-      <ShellDocumentCount label="제출문서" value={documentCounts.sent} />
-      <ShellDocumentCount label="완료문서" value={documentCounts.completed} />
-      <ShellDocumentCount
-        label="보관 검토"
-        value={documentCounts.archiveReview}
-        href="/completed?archiveReview=today"
-      />
-    </dl>
-  );
-}
-
-function ShellDocumentCountsFallback() {
-  return (
-    <dl className="mt-3 space-y-2 text-sm" aria-label="빠른 현황 불러오는 중">
-      <ShellDocumentCount label="받은결재" value="-" />
-      <ShellDocumentCount label="임시저장" value="-" />
-      <ShellDocumentCount label="제출문서" value="-" />
-      <ShellDocumentCount label="완료문서" value="-" />
-      <ShellDocumentCount label="보관 검토" value="-" />
-    </dl>
-  );
-}
-
-function ShellDocumentCount({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: number | string;
-  href?: string;
-}) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-[#697386]">
-        {href ? (
-          <Link
-            href={href}
-            className="rounded-sm transition hover:text-[#0f5553] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7eceb]"
-          >
-            {label}
-          </Link>
-        ) : (
-          label
-        )}
-      </dt>
-      <dd className="font-semibold text-[#16181d]">{value}</dd>
-    </div>
-  );
+  return <ShellQuickStatusLinks items={items} />;
 }

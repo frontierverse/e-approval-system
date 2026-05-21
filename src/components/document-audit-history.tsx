@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
 import { getLoginLocationLabel } from "@/lib/login-history-core";
 import { formatDateTime, type ApprovalHistory } from "@/lib/mock-data";
+import { createLineDiffRows, type TextDiffRow } from "@/lib/text-diff";
 
 type DocumentAuditHistoryProps = {
   histories: ApprovalHistory[];
@@ -154,7 +156,7 @@ function AuditHistoryDetailModal({
         onClick={onClose}
       />
 
-      <section className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]">
+      <section className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-3xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#697386]">
@@ -211,6 +213,7 @@ function AuditHistoryDetailModal({
 type AuditChangeItem =
   | {
       kind: "value";
+      field: string;
       label: string;
       before: string | null;
       after: string | null;
@@ -218,6 +221,8 @@ type AuditChangeItem =
   | {
       kind: "content";
       label: string;
+      before: string | null;
+      after: string | null;
       beforeLength: number;
       afterLength: number;
     }
@@ -287,6 +292,15 @@ function AuditChangeDetailRows({ changes }: { changes: AuditChangeItem[] }) {
 
 function AuditChangeDetail({ change }: { change: AuditChangeItem }) {
   if (change.kind === "content") {
+    if (change.before !== null || change.after !== null) {
+      return (
+        <ChangeDiffBlock
+          before={formatNullableChange(change.before)}
+          after={formatNullableChange(change.after)}
+        />
+      );
+    }
+
     return (
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#697386]">
         <ChangePill label="변경 전" value={`${change.beforeLength}자`} />
@@ -330,13 +344,110 @@ function AuditChangeDetail({ change }: { change: AuditChangeItem }) {
 
   return (
     <div className="mt-2 grid gap-2 text-xs text-[#697386] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-      <ChangePill label="변경 전" value={formatNullableChange(change.before)} />
+      {change.field === "status" ? (
+        <StatusChangePill label="변경 전" value={change.before} />
+      ) : (
+        <ChangePill
+          label="변경 전"
+          value={formatNullableChange(change.before)}
+        />
+      )}
       <span aria-hidden="true" className="hidden text-[#8b949e] sm:block">
         →
       </span>
-      <ChangePill label="변경 후" value={formatNullableChange(change.after)} />
+      {change.field === "status" ? (
+        <StatusChangePill label="변경 후" value={change.after} />
+      ) : (
+        <ChangePill
+          label="변경 후"
+          value={formatNullableChange(change.after)}
+        />
+      )}
     </div>
   );
+}
+
+function ChangeDiffBlock({ before, after }: { before: string; after: string }) {
+  const rows = createLineDiffRows(before, after);
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-md border border-[#d9dee7] bg-white">
+      <div aria-label="본문 변경 내용" className="max-h-72 overflow-auto">
+        {rows.length > 0 ? (
+          <ol className="text-sm">
+            {rows.map((row, index) => (
+              <DiffRow key={`${row.type}-${index}`} row={row} />
+            ))}
+          </ol>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DiffRow({ row }: { row: TextDiffRow }) {
+  return (
+    <li
+      className={[
+        "grid grid-cols-[0.25rem_3.5rem_minmax(0,1fr)] border-b border-[#eef1f5] last:border-b-0",
+        getDiffRowClass(row.type),
+      ].join(" ")}
+    >
+      <span aria-hidden="true" className={getDiffRowBarClass(row.type)} />
+      <span
+        aria-hidden="true"
+        className={[
+          "select-none border-r border-[#26313d] bg-[#101820] px-2 py-1.5 text-right font-mono text-xs leading-6",
+          getDiffLineNumberClass(row.type),
+        ].join(" ")}
+      >
+        {formatDiffLineNumber(row)}
+      </span>
+      <span className="whitespace-pre-wrap break-words px-3 py-1.5 leading-6">
+        {row.text || " "}
+      </span>
+    </li>
+  );
+}
+
+function formatDiffLineNumber(row: TextDiffRow) {
+  return String(row.newLineNumber ?? row.oldLineNumber ?? "");
+}
+
+function getDiffRowBarClass(type: TextDiffRow["type"]) {
+  if (type === "removed") {
+    return "bg-[#d33a35]";
+  }
+
+  if (type === "added") {
+    return "bg-[#2ecc71]";
+  }
+
+  return "bg-transparent";
+}
+
+function getDiffLineNumberClass(type: TextDiffRow["type"]) {
+  if (type === "removed") {
+    return "text-[#ff6b63]";
+  }
+
+  if (type === "added") {
+    return "text-[#38f08f]";
+  }
+
+  return "text-[#7f8b98]";
+}
+
+function getDiffRowClass(type: TextDiffRow["type"]) {
+  if (type === "removed") {
+    return "bg-[#3b1d24] text-[#ff7a73]";
+  }
+
+  if (type === "added") {
+    return "bg-[#173624] text-[#7dffad]";
+  }
+
+  return "bg-[#111820] text-[#d9e2ec]";
 }
 
 function ChangePill({ label, value }: { label: string; value: string }) {
@@ -346,6 +457,34 @@ function ChangePill({ label, value }: { label: string; value: string }) {
       <span className="min-w-0 truncate font-medium text-[#394150]">
         {value}
       </span>
+    </span>
+  );
+}
+
+function StatusChangePill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-[#f7f9fc] px-2 py-1">
+      <span className="shrink-0 font-semibold text-[#697386]">{label}</span>
+      <StatusChangeBadge value={formatNullableChange(value)} />
+    </span>
+  );
+}
+
+function StatusChangeBadge({ value }: { value: string }) {
+  return (
+    <span
+      className={[
+        "inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-md border px-2 text-xs font-semibold",
+        getStatusChangeBadgeClass(value),
+      ].join(" ")}
+    >
+      {value}
     </span>
   );
 }
@@ -421,6 +560,7 @@ function toAuditChangeItem(change: unknown): AuditChangeItem | null {
   ) {
     return {
       kind: "value",
+      field,
       label,
       before: getNullableString(change.before),
       after: getNullableString(change.after),
@@ -428,11 +568,20 @@ function toAuditChangeItem(change: unknown): AuditChangeItem | null {
   }
 
   if (field === "content") {
+    const before = getNullableString(change.before);
+    const after = getNullableString(change.after);
+    const beforeBody =
+      before === null ? null : extractTextareaContentFromCompiledTemplate(before);
+    const afterBody =
+      after === null ? null : extractTextareaContentFromCompiledTemplate(after);
+
     return {
       kind: "content",
       label,
-      beforeLength: getNumber(change.beforeLength),
-      afterLength: getNumber(change.afterLength),
+      before: beforeBody,
+      after: afterBody,
+      beforeLength: beforeBody?.length ?? getNumber(change.beforeLength),
+      afterLength: afterBody?.length ?? getNumber(change.afterLength),
     };
   }
 
@@ -473,7 +622,7 @@ function getHistoryDescription(
 
 function getChangePreviewText(change: AuditChangeItem) {
   if (change.kind === "content") {
-    return `${change.beforeLength}자 -> ${change.afterLength}자`;
+    return "본문 변경";
   }
 
   if (change.kind === "approvalLine") {
@@ -588,6 +737,34 @@ function formatNullableChange(value: string | null) {
   return value && value.length > 0 ? value : "없음";
 }
 
+function getStatusChangeBadgeClass(value: string) {
+  if (value === "임시저장" || value === "없음") {
+    return "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]";
+  }
+
+  if (value === "결재요청") {
+    return "border-[#b8d9d7] bg-[#e5f2f1] text-[#0f5553]";
+  }
+
+  if (value === "결재진행") {
+    return "border-[#b9c9ea] bg-[#eaf0fb] text-[#274f9f]";
+  }
+
+  if (value === "승인완료") {
+    return "border-[#bddfc9] bg-[#e8f5ed] text-[#22633a]";
+  }
+
+  if (value === "반려") {
+    return "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]";
+  }
+
+  if (value === "회수") {
+    return "border-[#ddd4c6] bg-[#faf6ef] text-[#72512a]";
+  }
+
+  return "border-[#cfd6e3] bg-white text-[#394150]";
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -630,6 +807,13 @@ function getAuditHistoryTone(action: string) {
     return {
       marker: "border-[#bddfc9] bg-[#16834a] text-white",
       badge: "border-[#bddfc9] bg-[#e8f5ed] text-[#22633a]",
+    };
+  }
+
+  if (action.includes("PDF")) {
+    return {
+      marker: "border-[#bdd7f0] bg-[#245d8f] text-white",
+      badge: "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]",
     };
   }
 

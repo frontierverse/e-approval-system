@@ -13,6 +13,11 @@ import {
   createProxyApprovedAuditMessage,
   createProxyRejectedAuditMessage,
 } from "@/lib/approval-audit-messages";
+import {
+  generatedPdfAuditActionLabel,
+  isGeneratedPdfAuditLog,
+} from "@/lib/generated-pdf-audit";
+import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
 import { prisma } from "@/lib/prisma";
 import { getTodayArchiveReviewBaseDateRange } from "@/lib/document-archive-policy";
 import {
@@ -491,7 +496,10 @@ export async function getEditableDraftDocumentById(
     id: record.id,
     title: record.title,
     category: record.category,
-    content: record.content,
+    content: extractTextareaContentFromCompiledTemplate(
+      record.content,
+      record.templateId,
+    ),
     templateId: record.templateId,
     status: documentStatusMap[record.status],
     approverIds: record.approvalSteps.map((step) => step.approverId),
@@ -612,7 +620,7 @@ export async function getRecentHistories(
       profileImageUpdatedAt:
         record.actor.profileImageUpdatedAt?.toISOString() ?? null,
     },
-    action: auditActionLabels[record.action],
+    action: getApprovalHistoryActionLabel(record),
     actionValue: record.action,
     createdAt: record.createdAt.toISOString(),
     description: record.message ?? "",
@@ -1131,7 +1139,10 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
     createdAt: record.createdAt.toISOString(),
     submittedAt: record.submittedAt?.toISOString() ?? null,
     completedAt: record.completedAt?.toISOString() ?? null,
-    content: record.content,
+    content: extractTextareaContentFromCompiledTemplate(
+      record.content,
+      record.templateId,
+    ),
     attachmentCount: record._count.attachments,
     attachments: record.attachments.map((attachment) => ({
       id: attachment.id,
@@ -1238,7 +1249,7 @@ function toApprovalHistory(
       profileImageUpdatedAt:
         record.actor.profileImageUpdatedAt?.toISOString() ?? null,
     },
-    action: auditActionLabels[record.action],
+    action: getApprovalHistoryActionLabel(record),
     createdAt: record.createdAt.toISOString(),
     description: getApprovalHistoryDescription(record, document),
     metadata: record.metadata,
@@ -1251,6 +1262,17 @@ function toApprovalHistory(
     region: record.region,
     city: record.city,
   };
+}
+
+function getApprovalHistoryActionLabel(record: {
+  action: AuditAction;
+  targetType: string;
+  message?: string | null;
+  metadata?: unknown;
+}) {
+  return isGeneratedPdfAuditLog(record)
+    ? generatedPdfAuditActionLabel
+    : auditActionLabels[record.action];
 }
 
 function getApprovalHistoryDescription(

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ApprovalLinePreview } from "@/components/approval-line-preview";
 import { PageTitle } from "@/components/page-title";
+import { QuickStatusLinks } from "@/components/quick-status-links";
 import { UserIdentity } from "@/components/user-identity";
 import {
   getCompletedDocuments,
@@ -92,21 +93,7 @@ async function HomeContent() {
 
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-4">
-        {summaries.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="rounded-md border border-[#d9dee7] bg-white p-5"
-          >
-            <p className="text-sm font-medium text-[#697386]">{item.label}</p>
-            <p className="mt-4 text-3xl font-semibold text-[#16181d]">
-              {item.value}
-            </p>
-            <p className="mt-2 text-sm text-[#697386]">{item.note}</p>
-          </Link>
-        ))}
-      </section>
+      <QuickStatusLinks items={summaries} />
 
       <section className="mt-6">
         <div className="rounded-md border border-[#d9dee7] bg-white p-5">

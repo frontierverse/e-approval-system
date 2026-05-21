@@ -13,8 +13,10 @@ import { DocumentList } from "../src/components/document-list.tsx";
 import { DocumentAuditHistory } from "../src/components/document-audit-history.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
+import { QuickStatusLinks } from "../src/components/quick-status-links.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
+import { ShellQuickStatusLinks } from "../src/components/shell-quick-status-links.tsx";
 import { SignedAttachmentDeleteForm } from "../src/components/signed-attachment-delete-form.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
@@ -144,6 +146,78 @@ describe("major UI rendering", () => {
 
     assert.match(html, /결재 대기 문서가 없습니다/);
     assert.match(html, /새로 도착한 결재 요청/);
+  });
+
+  test("renders quick status cards as links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(QuickStatusLinks, {
+        items: [
+          {
+            label: "받은 결재 대기",
+            value: "3",
+            note: "처리할 문서",
+            href: "/inbox",
+          },
+          {
+            label: "완료 문서",
+            value: "7",
+            note: "승인 또는 반려",
+            href: "/completed",
+          },
+        ],
+      }),
+    );
+
+    assert.match(html, /aria-label="빠른 현황"/);
+    assert.match(html, /href="\/inbox"/);
+    assert.match(html, /aria-label="받은 결재 대기 바로가기"/);
+    assert.match(html, /href="\/completed"/);
+    assert.match(html, /받은 결재 대기/);
+    assert.match(html, /완료 문서/);
+  });
+
+  test("renders shell quick status rows as links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ShellQuickStatusLinks, {
+        items: [
+          {
+            label: "받은결재",
+            value: 0,
+            href: "/inbox",
+          },
+          {
+            label: "임시저장",
+            value: 2,
+            href: "/drafts",
+          },
+          {
+            label: "제출문서",
+            value: 3,
+            href: "/sent",
+          },
+          {
+            label: "완료문서",
+            value: 1,
+            href: "/completed",
+          },
+          {
+            label: "보관 검토",
+            value: 0,
+            href: "/completed?archiveReview=today",
+          },
+        ],
+      }),
+    );
+
+    assert.match(html, /aria-label="빠른 현황"/);
+    assert.match(html, /href="\/inbox"/);
+    assert.match(html, /href="\/drafts"/);
+    assert.match(html, /href="\/sent"/);
+    assert.match(html, /href="\/completed"/);
+    assert.match(html, /href="\/completed\?archiveReview=today"/);
+    assert.match(html, /받은결재/);
+    assert.match(html, /제출문서/);
+    assert.match(html, /tabular-nums/);
   });
 
   test("routes approvers to unsigned attachments before approval", () => {
@@ -355,6 +429,14 @@ describe("major UI rendering", () => {
                   after: "휴가신청서",
                 },
                 {
+                  field: "content",
+                  label: "본문",
+                  before: "기존 본문입니다.\n확인이 필요합니다.",
+                  after: "수정된 본문입니다.\n첨부 확인까지 반영했습니다.",
+                  beforeLength: 18,
+                  afterLength: 27,
+                },
+                {
                   field: "attachments",
                   label: "첨부파일",
                   added: ["추가자료.pdf"],
@@ -379,6 +461,7 @@ describe("major UI rendering", () => {
     assert.match(html, /이전 제목 -&gt; 변경 제목/);
     assert.match(html, /문서양식/);
     assert.match(html, /일반 기안서 -&gt; 휴가신청서/);
+    assert.match(html, /본문 변경/);
     assert.match(html, /첨부파일/);
     assert.match(html, /추가 1개 · 삭제 1개/);
   });
@@ -483,6 +566,25 @@ describe("major UI rendering", () => {
               documentNo: null,
             },
           },
+          {
+            id: "audit-004",
+            action: "UPDATE_DRAFT",
+            targetType: "Attachment",
+            targetId: "attachment-001",
+            message: "시스템 원본문서 PDF를 생성했습니다.",
+            metadata: {
+              generatedApprovalPdfType: "SOURCE",
+            },
+            createdAt: new Date("2026-05-08T04:40:00.000Z"),
+            actor: {
+              name: "김민준",
+              email: "admin@example.com",
+            },
+            document: {
+              title: "PDF 생성 문서",
+              documentNo: "EA-2026-0002",
+            },
+          },
         ],
       }),
     );
@@ -494,6 +596,8 @@ describe("major UI rendering", () => {
     assert.match(html, /승인/);
     assert.match(html, /bg-\[#e8f5ed\]/);
     assert.match(html, /임시저장/);
+    assert.match(html, /PDF 생성/);
+    assert.match(html, /시스템 원본문서 PDF를 생성했습니다\./);
     assert.doesNotMatch(html, /기안 작성/);
     assert.match(html, /EA-2026-0001/);
     assert.match(html, /시설 운영비 집행 기안/);

@@ -467,6 +467,7 @@ const adminAuditLogSelect = {
   targetType: true,
   targetId: true,
   message: true,
+  metadata: true,
   createdAt: true,
   actor: {
     select: {

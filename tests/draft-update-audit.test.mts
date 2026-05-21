@@ -65,7 +65,7 @@ describe("draft update audit", () => {
     );
   });
 
-  test("records content changes without storing full body text", () => {
+  test("records content changes with full body text", () => {
     const details = createDraftUpdateAuditDetails({
       before: baseDocument,
       after: {
@@ -79,6 +79,8 @@ describe("draft update audit", () => {
       {
         field: "content",
         label: "본문",
+        before: "기존 본문",
+        after: "바뀐 본문입니다.",
         beforeLength: 5,
         afterLength: 9,
       },
