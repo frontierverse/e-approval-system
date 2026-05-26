@@ -20,6 +20,16 @@ export type ArchiveReviewBaseDateRange = {
   to: Date;
 };
 
+export type ArchiveReviewBaseDateRangeFilter = {
+  from?: Date;
+  to?: Date;
+};
+
+export type ArchiveReviewDateRangeOptions = {
+  dateFrom?: string;
+  dateTo?: string;
+};
+
 export function getDocumentArchiveInfo(
   document: ApprovalDocument,
   now = new Date(),
@@ -58,13 +68,56 @@ export function getTodayArchiveReviewBaseDateRange(
   now = new Date(),
 ): ArchiveReviewBaseDateRange {
   const today = getKoreanDateValue(now);
-  const from = new Date(`${today}T00:00:00.000+09:00`);
-  const to = new Date(`${today}T23:59:59.999+09:00`);
+  const from = getKoreanDateBoundary(today, "start");
+  const to = getKoreanDateBoundary(today, "end");
 
   return {
     from: subtractYears(from, documentArchiveRetentionYears),
     to: subtractYears(to, documentArchiveRetentionYears),
   };
+}
+
+export function getArchiveReviewBaseDateRange(
+  options: ArchiveReviewDateRangeOptions = {},
+  now = new Date(),
+): ArchiveReviewBaseDateRangeFilter {
+  const dateFrom = normalizeDateValue(options.dateFrom);
+  const dateTo = normalizeDateValue(options.dateTo);
+
+  if (!dateFrom && !dateTo) {
+    return getTodayArchiveReviewBaseDateRange(now);
+  }
+
+  return {
+    ...(dateFrom
+      ? {
+          from: subtractYears(
+            getKoreanDateBoundary(dateFrom, "start"),
+            documentArchiveRetentionYears,
+          ),
+        }
+      : {}),
+    ...(dateTo
+      ? {
+          to: subtractYears(
+            getKoreanDateBoundary(dateTo, "end"),
+            documentArchiveRetentionYears,
+          ),
+        }
+      : {}),
+  };
+}
+
+export function getKoreanDateValue(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function addYears(date: Date, years: number) {
@@ -81,14 +134,14 @@ function subtractYears(date: Date, years: number) {
   return next;
 }
 
-function getKoreanDateValue(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+function getKoreanDateBoundary(value: string, boundary: "start" | "end") {
+  return new Date(
+    boundary === "start"
+      ? `${value}T00:00:00.000+09:00`
+      : `${value}T23:59:59.999+09:00`,
+  );
+}
 
-  return `${values.year}-${values.month}-${values.day}`;
+function normalizeDateValue(value: string | undefined) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }

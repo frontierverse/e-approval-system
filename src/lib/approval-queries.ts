@@ -19,7 +19,7 @@ import {
 } from "@/lib/generated-pdf-audit";
 import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
 import { prisma } from "@/lib/prisma";
-import { getTodayArchiveReviewBaseDateRange } from "@/lib/document-archive-policy";
+import { getArchiveReviewBaseDateRange } from "@/lib/document-archive-policy";
 import {
   type ApprovalDocument,
   type ApprovalHistory,
@@ -206,7 +206,7 @@ export type SentDocumentStatusFilter =
   | "rejected";
 export type CompletedDocumentStatusFilter = "all" | "approved" | "rejected";
 export type DocumentPageSort = "latest" | "oldest";
-export type CompletedDocumentArchiveReviewFilter = "none" | "today";
+export type CompletedDocumentArchiveReviewFilter = "none" | "review";
 
 export type DocumentDateRangeOptions = {
   dateFrom?: string;
@@ -412,7 +412,7 @@ export async function getShellDocumentCounts(userId: string) {
       where: getCompletedDocumentWhere(userId, {}),
     }),
     prisma.approvalDocument.count({
-      where: getCompletedDocumentWhere(userId, { archiveReview: "today" }),
+      where: getCompletedDocumentWhere(userId, { archiveReview: "review" }),
     }),
   ]);
 
@@ -851,7 +851,7 @@ function getCompletedDocumentWhere(
     and.push({
       status: {
         in:
-          archiveReview === "today"
+          archiveReview === "review"
             ? [
                 DbDocumentStatus.APPROVED,
                 DbDocumentStatus.REJECTED,
@@ -872,17 +872,19 @@ function getCompletedDocumentWhere(
     });
   }
 
-  const dateRangeCondition = getActivityDateRangeCondition(options);
+  if (archiveReview === "review") {
+    const archiveReviewDateRangeCondition =
+      getArchiveReviewDateRangeCondition(options);
 
-  if (dateRangeCondition) {
-    and.push(dateRangeCondition);
-  }
+    if (archiveReviewDateRangeCondition) {
+      and.push(archiveReviewDateRangeCondition);
+    }
+  } else {
+    const dateRangeCondition = getActivityDateRangeCondition(options);
 
-  const archiveReviewDateRangeCondition =
-    getArchiveReviewDateRangeCondition(options);
-
-  if (archiveReviewDateRangeCondition) {
-    and.push(archiveReviewDateRangeCondition);
+    if (dateRangeCondition) {
+      and.push(dateRangeCondition);
+    }
   }
 
   return {
@@ -893,35 +895,39 @@ function getCompletedDocumentWhere(
 function getArchiveReviewDateRangeCondition(
   options: CompletedDocumentPageOptions,
 ): Prisma.ApprovalDocumentWhereInput | null {
-  if (options.archiveReview !== "today") {
+  if (options.archiveReview !== "review") {
     return null;
   }
 
-  const range = getTodayArchiveReviewBaseDateRange();
+  const range = getArchiveReviewBaseDateRange({
+    dateFrom: options.dateFrom,
+    dateTo: options.dateTo,
+  });
+  const dateFilter = {
+    ...(range.from ? { gte: range.from } : {}),
+    ...(range.to ? { lte: range.to } : {}),
+  } satisfies Prisma.DateTimeFilter;
 
   return {
     OR: [
       {
         completedAt: {
           not: null,
-          gte: range.from,
-          lte: range.to,
+          ...dateFilter,
         },
       },
       {
         completedAt: null,
         submittedAt: {
           not: null,
-          gte: range.from,
-          lte: range.to,
+          ...dateFilter,
         },
       },
       {
         completedAt: null,
         submittedAt: null,
         createdAt: {
-          gte: range.from,
-          lte: range.to,
+          ...dateFilter,
         },
       },
     ],

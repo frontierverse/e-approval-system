@@ -19,6 +19,7 @@ import { UserIdentity } from "@/components/user-identity";
 import { getShellDocumentCounts } from "@/lib/approval-queries";
 import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
+import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 
 const approvalNavigationItems: NavigationItem[] = [
@@ -237,6 +238,7 @@ function NotificationBellFallback() {
 
 async function ShellDocumentCounts({ userId }: { userId: string }) {
   const documentCounts = await getShellDocumentCounts(userId);
+  const todayDate = getKoreanDateValue();
   const items = [
     {
       label: "받은결재",
@@ -261,7 +263,7 @@ async function ShellDocumentCounts({ userId }: { userId: string }) {
     {
       label: "보관 검토",
       value: documentCounts.archiveReview,
-      href: "/completed?archiveReview=today",
+      href: `/completed?archiveReview=review&dateFrom=${todayDate}&dateTo=${todayDate}`,
     },
   ];
 

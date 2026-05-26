@@ -16,6 +16,7 @@ import {
   type DocumentPageSort,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
+import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type CompletedPageSearchParams = {
@@ -42,6 +43,7 @@ type CompletedDocumentFilters = {
   dateFrom: string;
   dateTo: string;
   archiveReview: CompletedDocumentArchiveReviewFilter;
+  todayDate: string;
   page: number;
 };
 
@@ -75,7 +77,8 @@ export default async function CompletedPage({
 }) {
   const filters = getFilters(await searchParams);
   const archiveReviewParams = getArchiveReviewParams(filters);
-  const isArchiveReviewFilter = filters.archiveReview === "today";
+  const isArchiveReviewFilter = filters.archiveReview === "review";
+  const isTodayArchiveReview = isTodayArchiveReviewFilter(filters);
 
   return (
     <>
@@ -83,7 +86,9 @@ export default async function CompletedPage({
         title={isArchiveReviewFilter ? "보관 검토 목록" : "완료문서함"}
         description={
           isArchiveReviewFilter
-            ? "오늘 보관 검토일이 된 문서를 확인합니다."
+            ? isTodayArchiveReview
+              ? "오늘자 보관 검토가 필요한 문서를 확인합니다."
+              : "선택한 날짜 기준으로 보관 검토가 필요한 문서를 확인합니다."
             : "승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
         }
       />
@@ -134,6 +139,7 @@ async function CompletedDocumentContent({
     filters.dateFrom,
     filters.dateTo,
   ) || filters.archiveReview !== "none";
+  const isTodayArchiveReview = isTodayArchiveReviewFilter(filters);
 
   return (
     <>
@@ -142,15 +148,19 @@ async function CompletedDocumentContent({
         empty={
           <EmptyState
             title={
-              filters.archiveReview === "today"
-                ? "오늘 보관 검토할 문서가 없습니다"
+              filters.archiveReview === "review"
+                ? isTodayArchiveReview
+                  ? "오늘자 보관 검토 문서가 없습니다"
+                  : "보관 검토 문서가 없습니다"
                 : hasActiveFilter
                 ? "조건에 맞는 완료 문서가 없습니다"
                 : "완료된 문서가 없습니다"
             }
             description={
-              filters.archiveReview === "today"
-                ? "오늘 날짜에 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
+              filters.archiveReview === "review"
+                ? isTodayArchiveReview
+                  ? "오늘자 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
+                  : "선택한 날짜에 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
                 : hasActiveFilter
                 ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
                 : "처리가 끝난 문서가 생기면 최종 상태와 처리일이 표시됩니다."
@@ -199,9 +209,9 @@ async function CompletedDocumentSummary({
         page={completedPage.page}
         pageSize={pageSize}
       />
-      {filters.archiveReview === "today" ? (
+      {filters.archiveReview === "review" ? (
         <span className="inline-flex rounded-md border border-[#ead8a8] bg-[#fff8df] px-2 py-0.5 text-xs font-semibold text-[#82620d]">
-          오늘 보관 검토
+          {isTodayArchiveReviewFilter(filters) ? "오늘자 보관 검토" : "보관 검토"}
         </span>
       ) : null}
     </div>
@@ -211,13 +221,21 @@ async function CompletedDocumentSummary({
 function getFilters(
   params: CompletedPageSearchParams,
 ): CompletedDocumentFilters {
+  const archiveReview = normalizeArchiveReview(params.archiveReview);
+  const todayDate = getKoreanDateValue();
+  const dateFrom = normalizeDate(params.dateFrom);
+  const dateTo = normalizeDate(params.dateTo);
+  const shouldDefaultArchiveReviewDates =
+    archiveReview === "review" && !dateFrom && !dateTo;
+
   return {
     query: String(params.q ?? "").trim(),
     status: normalizeStatus(params.status),
     sort: normalizeSort(params.sort),
-    dateFrom: normalizeDate(params.dateFrom),
-    dateTo: normalizeDate(params.dateTo),
-    archiveReview: normalizeArchiveReview(params.archiveReview),
+    dateFrom: shouldDefaultArchiveReviewDates ? todayDate : dateFrom,
+    dateTo: shouldDefaultArchiveReviewDates ? todayDate : dateTo,
+    archiveReview,
+    todayDate,
     page: normalizePage(params.page),
   };
 }
@@ -249,13 +267,21 @@ function normalizeDate(value: string | undefined) {
 function normalizeArchiveReview(
   value: string | undefined,
 ): CompletedDocumentArchiveReviewFilter {
-  return value === "today" ? "today" : "none";
+  return value === "review" || value === "today" ? "review" : "none";
 }
 
 function getArchiveReviewParams(filters: CompletedDocumentFilters) {
-  return filters.archiveReview === "today"
+  return filters.archiveReview === "review"
     ? {
-        archiveReview: "today",
+        archiveReview: "review",
       }
     : undefined;
+}
+
+function isTodayArchiveReviewFilter(filters: CompletedDocumentFilters) {
+  return (
+    filters.archiveReview === "review" &&
+    filters.dateFrom === filters.todayDate &&
+    filters.dateTo === filters.todayDate
+  );
 }

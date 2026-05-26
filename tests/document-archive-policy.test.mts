@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  getArchiveReviewBaseDateRange,
   documentArchiveRetentionYears,
   getArchivePolicyText,
   getDocumentArchiveInfo,
@@ -103,5 +104,15 @@ describe("document archive policy", () => {
 
     assert.equal(range.from.toISOString(), "2021-05-18T15:00:00.000Z");
     assert.equal(range.to.toISOString(), "2021-05-19T14:59:59.999Z");
+  });
+
+  test("gets the base date range for a selected archive review date range", () => {
+    const range = getArchiveReviewBaseDateRange({
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-27",
+    });
+
+    assert.equal(range.from?.toISOString(), "2021-04-30T15:00:00.000Z");
+    assert.equal(range.to?.toISOString(), "2021-05-27T14:59:59.999Z");
   });
 });
