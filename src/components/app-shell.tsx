@@ -37,6 +37,10 @@ const resourceNavigationItems: NavigationItem[] = [
   { label: "바자울", href: "/resources?category=bajaul" },
 ];
 
+const youthNavigationItems: NavigationItem[] = [
+  { label: "청소년 관리", href: "/youth" },
+];
+
 const accountNavigationItems: NavigationItem[] = [
   { label: "내 계정", href: "/account" },
 ];
@@ -142,6 +146,10 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
     {
       label: "자료실",
       items: resourceNavigationItems,
+    },
+    {
+      label: "청소년 관리",
+      items: youthNavigationItems,
     },
     {
       label: "내 정보",

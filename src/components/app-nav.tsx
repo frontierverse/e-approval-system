@@ -344,6 +344,10 @@ function isRelatedGroupPath(group: NavigationGroup, pathname: string) {
     return true;
   }
 
+  if (hrefPaths.includes("/youth") && pathname.startsWith("/youth/")) {
+    return true;
+  }
+
   if (hrefPaths.includes("/account") && pathname.startsWith("/account/")) {
     return true;
   }

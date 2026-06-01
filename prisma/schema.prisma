@@ -331,6 +331,63 @@ model ResourcePostView {
   @@index([lastViewedAt])
 }
 
+model Youth {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  admissionDate String?
+  dischargeDate String?
+  age           Int?
+  phone         String?
+  familyContact String?
+  familyRelationship String?
+  familyPhone        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  familyContacts YouthFamilyContact[]
+  notes          YouthSpecialNote[]
+
+  @@index([name])
+  @@index([dischargeDate])
+}
+
+model YouthFamilyContact {
+  id           String   @id @default(cuid())
+  relationship String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  youthId String
+
+  youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+
+  @@index([youthId])
+  @@index([relationship])
+}
+
+model YouthSpecialNote {
+  id         String   @id @default(cuid())
+  title      String
+  summary    String
+  detail     String
+  category   String
+  recordedAt String
+  author     String
+  priority   String   @default("보통")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  youthId String
+
+  youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+
+  @@index([youthId])
+  @@index([category])
+  @@index([priority])
+  @@index([recordedAt])
+}
+
 model AuditLog {
   id         String      @id @default(cuid())
   action     AuditAction
