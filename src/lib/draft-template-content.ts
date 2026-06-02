@@ -5,6 +5,7 @@ export type TemplateFieldDefinition = {
   label: string;
   placeholder?: string;
   type: TemplateFieldType;
+  required?: boolean;
 };
 
 export type TemplateFormatDefinition = {
@@ -93,6 +94,7 @@ export const draftTemplateFormats: Record<string, TemplateFormatDefinition> = {
         id: "emergencyContact",
         label: "비상 연락처",
         placeholder: "예: 010-0000-0000",
+        required: false,
         type: "text",
       },
       {

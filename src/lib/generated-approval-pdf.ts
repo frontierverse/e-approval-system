@@ -75,10 +75,14 @@ const approvalPanelX = 718;
 const approvalPanelY = 382;
 const approvalPanelWidth = 404;
 const approvalPanelRowHeight = 150;
+const heroTitleMaxWidth = 430;
+const heroTitleFontSize = 19;
+const heroTitleLineHeight = 25;
+const heroTitleMaxLines = 2;
 const bodyTextFontSize = 16;
 const bodyTextLineHeight = 30;
 const bodyTextMaxChars = 58;
-const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v2/";
+const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v3/";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
@@ -609,7 +613,13 @@ function drawApprovalDocumentPage(
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
   const approvers = input.approvers;
-  const titleLines = wrapLines(input.title, 30, 2);
+  const titleLines = wrapSvgTextLines(
+    fonts,
+    input.title,
+    heroTitleFontSize,
+    heroTitleMaxWidth,
+    heroTitleMaxLines,
+  );
   const approvalPanelBottom = getApprovalPanelBottomY(approvers.length);
   const summaryBottom = 382 + 194;
   const focusPanelTop = Math.max(summaryBottom, approvalPanelBottom) + 34;
@@ -673,9 +683,9 @@ function drawApprovalDocumentPage(
     fonts,
     titleLines,
     154,
-    345,
-    30,
-    38,
+    340,
+    heroTitleFontSize,
+    heroTitleLineHeight,
     "#171b22",
     700,
   );
@@ -1135,6 +1145,161 @@ function wrapLines(text: string, maxChars: number, maxLines: number) {
   }
 
   return [...lines.slice(0, maxLines - 1), `${lines[maxLines - 1]} ...`];
+}
+
+function wrapSvgTextLines(
+  fonts: ApprovalPdfFonts,
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+  maxLines: number,
+) {
+  return wrapMeasuredLines(
+    fonts.korean,
+    text,
+    svgToPdfSize(fontSize),
+    svgToPdfWidth(maxWidth),
+    maxLines,
+  );
+}
+
+function wrapMeasuredLines(
+  font: PDFFont,
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+  maxLines: number,
+) {
+  const sourceLines = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .flatMap((line) =>
+      wrapMeasuredLine(font, line.trim(), fontSize, maxWidth),
+    );
+  const lines = sourceLines.filter(Boolean);
+
+  if (lines.length === 0) {
+    return ["-"];
+  }
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const visibleLines = lines.slice(0, maxLines);
+  visibleLines[visibleLines.length - 1] = fitMeasuredLineWithSuffix(
+    font,
+    visibleLines[visibleLines.length - 1],
+    " ...",
+    fontSize,
+    maxWidth,
+  );
+
+  return visibleLines;
+}
+
+function wrapMeasuredLine(
+  font: PDFFont,
+  line: string,
+  fontSize: number,
+  maxWidth: number,
+) {
+  if (!line) {
+    return [""];
+  }
+
+  const words = line.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+
+    if (isMeasuredTextWithinWidth(font, next, fontSize, maxWidth)) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = "";
+    }
+
+    if (isMeasuredTextWithinWidth(font, word, fontSize, maxWidth)) {
+      current = word;
+      continue;
+    }
+
+    const wordLines = wrapMeasuredWord(font, word, fontSize, maxWidth);
+    lines.push(...wordLines.slice(0, -1));
+    current = wordLines[wordLines.length - 1] ?? "";
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines;
+}
+
+function wrapMeasuredWord(
+  font: PDFFont,
+  word: string,
+  fontSize: number,
+  maxWidth: number,
+) {
+  const lines: string[] = [];
+  let current = "";
+
+  for (const character of Array.from(word)) {
+    const next = `${current}${character}`;
+
+    if (isMeasuredTextWithinWidth(font, next, fontSize, maxWidth)) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+    }
+
+    current = character;
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines;
+}
+
+function fitMeasuredLineWithSuffix(
+  font: PDFFont,
+  line: string,
+  suffix: string,
+  fontSize: number,
+  maxWidth: number,
+) {
+  let text = line.trimEnd();
+
+  while (
+    text.length > 0 &&
+    !isMeasuredTextWithinWidth(font, `${text}${suffix}`, fontSize, maxWidth)
+  ) {
+    text = Array.from(text).slice(0, -1).join("").trimEnd();
+  }
+
+  return text ? `${text}${suffix}` : suffix.trim();
+}
+
+function isMeasuredTextWithinWidth(
+  font: PDFFont,
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+) {
+  return font.widthOfTextAtSize(text, fontSize) <= maxWidth;
 }
 
 function wrapLine(line: string, maxChars: number) {

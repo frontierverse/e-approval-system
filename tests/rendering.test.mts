@@ -12,6 +12,7 @@ import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
 import { DocumentAuditHistory } from "../src/components/document-audit-history.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
+import { LineNumberedDocumentContent } from "../src/components/line-numbered-document-content.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { QuickStatusLinks } from "../src/components/quick-status-links.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
@@ -250,6 +251,22 @@ describe("major UI rendering", () => {
     assert.match(html, /감사 이력/);
     assert.match(html, /결재선/);
     assert.doesNotMatch(html, /업무 홈/);
+  });
+
+  test("renders document content with line numbers", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LineNumberedDocumentContent, {
+        content: "첫 번째 줄\n두 번째 줄",
+      }),
+    );
+
+    assert.match(html, /aria-label="문서 본문 내용"/);
+    assert.match(html, /max-w-\[53\.75rem\]/);
+    assert.match(html, /whitespace-pre-wrap/);
+    assert.match(html, />1<\/div>/);
+    assert.match(html, />2<\/div>/);
+    assert.match(html, /첫 번째 줄/);
+    assert.match(html, /두 번째 줄/);
   });
 
   test("renders document and step status badges", () => {

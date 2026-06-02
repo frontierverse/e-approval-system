@@ -6,6 +6,7 @@ import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { AttachmentPreviewButton } from "@/components/attachment-preview-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DocumentAuditHistory } from "@/components/document-audit-history";
+import { LineNumberedDocumentContent } from "@/components/line-numbered-document-content";
 import { NotificationDocumentReadMarker } from "@/components/notification-document-read-marker";
 import { PageTitle } from "@/components/page-title";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -240,7 +241,7 @@ export default async function DocumentDetailPage({
         </p>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <section className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] pb-4">
@@ -296,9 +297,7 @@ export default async function DocumentDetailPage({
 
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <h2 className="text-base font-semibold">문서 본문</h2>
-            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#394150]">
-              {document.content}
-            </p>
+            <LineNumberedDocumentContent content={document.content} />
           </article>
 
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">

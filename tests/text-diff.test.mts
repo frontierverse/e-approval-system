@@ -74,4 +74,24 @@ describe("text diff", () => {
       ],
     );
   });
+
+  test("keeps line numbers tied to source lines for long wrapped content", () => {
+    const before = "길게 접히는 이전 본문".repeat(20);
+    const after = "길게 접히는 새 본문".repeat(20);
+
+    assert.deepEqual(createLineDiffRows(before, after), [
+      {
+        type: "removed",
+        text: before,
+        oldLineNumber: 1,
+        newLineNumber: null,
+      },
+      {
+        type: "added",
+        text: after,
+        oldLineNumber: null,
+        newLineNumber: 1,
+      },
+    ]);
+  });
 });

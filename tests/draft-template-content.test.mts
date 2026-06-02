@@ -80,4 +80,13 @@ describe("draft template content", () => {
       "첫 번째 사유\n두 번째 사유",
     );
   });
+
+  test("makes emergencyContact optional in the vacation template", () => {
+    const vacationTemplate = draftTemplateFormats["template-vacation-request"];
+    const field = vacationTemplate.fields.find(
+      (field) => field.id === "emergencyContact",
+    );
+
+    assert.equal(field?.required, false);
+  });
 });

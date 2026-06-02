@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
 import { getLoginLocationLabel } from "@/lib/login-history-core";
 import { formatDateTime, type ApprovalHistory } from "@/lib/mock-data";
-import { createLineDiffRows, type TextDiffRow } from "@/lib/text-diff";
+import {
+  createLineDiffRows,
+  type TextDiffRow,
+} from "@/lib/text-diff";
+import {
+  documentContentLineNumberColumnClass,
+  documentContentTextColumnBaseClass,
+} from "@/components/line-numbered-document-content";
 
 type DocumentAuditHistoryProps = {
   histories: ApprovalHistory[];
@@ -13,6 +25,9 @@ type DocumentAuditHistoryProps = {
 export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
   const [selectedHistory, setSelectedHistory] =
     useState<ApprovalHistory | null>(null);
+  const documentContentFrameWidth = useDocumentContentFrameWidth(
+    Boolean(selectedHistory),
+  );
 
   return (
     <article className="rounded-md border border-[#d9dee7] bg-white p-5">
@@ -37,12 +52,62 @@ export function DocumentAuditHistory({ histories }: DocumentAuditHistoryProps) {
 
       {selectedHistory ? (
         <AuditHistoryDetailModal
+          documentContentFrameWidth={documentContentFrameWidth}
           history={selectedHistory}
           onClose={() => setSelectedHistory(null)}
         />
       ) : null}
     </article>
   );
+}
+
+function useDocumentContentFrameWidth(enabled: boolean) {
+  const [frameWidth, setFrameWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const frame = document.querySelector<HTMLElement>(
+      "[data-document-content-frame='true']",
+    );
+
+    if (!frame) {
+      return;
+    }
+    let animationFrame = 0;
+
+    const syncFrameWidth = () => {
+      const width = Math.round(frame.getBoundingClientRect().width);
+      setFrameWidth(width > 0 ? width : null);
+    };
+    const scheduleFrameWidthSync = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(syncFrameWidth);
+    };
+
+    scheduleFrameWidthSync();
+    window.addEventListener("resize", scheduleFrameWidthSync);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        window.cancelAnimationFrame(animationFrame);
+        window.removeEventListener("resize", scheduleFrameWidthSync);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleFrameWidthSync);
+    resizeObserver.observe(frame);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", scheduleFrameWidthSync);
+      resizeObserver.disconnect();
+    };
+  }, [enabled]);
+
+  return frameWidth;
 }
 
 function AuditHistoryTimelineItem({
@@ -118,9 +183,11 @@ function AuditHistoryTimelineItem({
 }
 
 function AuditHistoryDetailModal({
+  documentContentFrameWidth,
   history,
   onClose,
 }: {
+  documentContentFrameWidth: number | null;
   history: ApprovalHistory;
   onClose: () => void;
 }) {
@@ -156,7 +223,14 @@ function AuditHistoryDetailModal({
         onClick={onClose}
       />
 
-      <section className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-3xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]">
+      <section
+        className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-6xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]"
+        style={
+          documentContentFrameWidth
+            ? { maxWidth: `${documentContentFrameWidth + 42}px` }
+            : undefined
+        }
+      >
         <div className="flex items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#697386]">
@@ -193,7 +267,10 @@ function AuditHistoryDetailModal({
             value={getHistoryDescription(history, changes)}
           />
           {changes.length > 0 ? (
-            <AuditChangeDetailRows changes={changes} />
+            <AuditChangeDetailRows
+              changes={changes}
+              documentContentFrameWidth={documentContentFrameWidth}
+            />
           ) : null}
           <DetailRow label="IP" value={history.ipAddress || "기록 없음"} mono />
           <DetailRow label="위치" value={locationLabel} />
@@ -270,19 +347,28 @@ function AuditChangePreview({ changes }: { changes: AuditChangeItem[] }) {
   );
 }
 
-function AuditChangeDetailRows({ changes }: { changes: AuditChangeItem[] }) {
+function AuditChangeDetailRows({
+  changes,
+  documentContentFrameWidth,
+}: {
+  changes: AuditChangeItem[];
+  documentContentFrameWidth: number | null;
+}) {
   return (
-    <DetailBlock label="수정 내역">
+    <DetailBlock label="수정 내역" fullWidth>
       <ul className="grid gap-3">
         {changes.map((change, index) => (
           <li
             key={`${change.label}-${index}`}
-            className="border-l-2 border-[#b8d9d7] pl-3"
+            className="min-w-0"
           >
             <p className="text-sm font-semibold text-[#16181d]">
               {change.label}
             </p>
-            <AuditChangeDetail change={change} />
+            <AuditChangeDetail
+              change={change}
+              documentContentFrameWidth={documentContentFrameWidth}
+            />
           </li>
         ))}
       </ul>
@@ -290,12 +376,19 @@ function AuditChangeDetailRows({ changes }: { changes: AuditChangeItem[] }) {
   );
 }
 
-function AuditChangeDetail({ change }: { change: AuditChangeItem }) {
+function AuditChangeDetail({
+  change,
+  documentContentFrameWidth,
+}: {
+  change: AuditChangeItem;
+  documentContentFrameWidth: number | null;
+}) {
   if (change.kind === "content") {
     if (change.before !== null || change.after !== null) {
       return (
         <ChangeDiffBlock
           before={formatNullableChange(change.before)}
+          documentContentFrameWidth={documentContentFrameWidth}
           after={formatNullableChange(change.after)}
         />
       );
@@ -367,87 +460,155 @@ function AuditChangeDetail({ change }: { change: AuditChangeItem }) {
   );
 }
 
-function ChangeDiffBlock({ before, after }: { before: string; after: string }) {
-  const rows = createLineDiffRows(before, after);
+function ChangeDiffBlock({
+  after,
+  before,
+  documentContentFrameWidth,
+}: {
+  after: string;
+  before: string;
+  documentContentFrameWidth: number | null;
+}) {
+  const diffKey = useMemo(
+    () => createDiffContentKey(before, after),
+    [before, after],
+  );
 
   return (
-    <div className="mt-2 overflow-hidden rounded-md border border-[#d9dee7] bg-white">
-      <div aria-label="본문 변경 내용" className="max-h-72 overflow-auto">
-        {rows.length > 0 ? (
-          <ol className="text-sm">
-            {rows.map((row, index) => (
-              <DiffRow key={`${row.type}-${index}`} row={row} />
-            ))}
-          </ol>
-        ) : null}
-      </div>
+    <MeasuredChangeDiffBlock
+      key={diffKey}
+      after={after}
+      before={before}
+      documentContentFrameWidth={documentContentFrameWidth}
+    />
+  );
+}
+
+function MeasuredChangeDiffBlock({
+  after,
+  before,
+  documentContentFrameWidth,
+}: {
+  after: string;
+  before: string;
+  documentContentFrameWidth: number | null;
+}) {
+  const rows = useMemo(
+    () => createLineDiffRows(before, after),
+    [before, after],
+  );
+
+  return (
+    <div
+      className="mt-2 max-h-72 w-full max-w-[53.75rem] overflow-y-auto overflow-x-hidden rounded-md border border-[#d9dee7] bg-white text-sm"
+      style={
+        documentContentFrameWidth
+          ? {
+              maxWidth: "100%",
+              width: `${documentContentFrameWidth}px`,
+            }
+          : undefined
+      }
+    >
+      <ol aria-label="본문 변경 내용" className="w-full">
+        {rows.map((row, index) => (
+          <DiffRow
+            key={`${row.type}-${index}`}
+            row={row}
+            oldLineNumber={row.oldLineNumber}
+            newLineNumber={row.newLineNumber}
+          />
+        ))}
+      </ol>
     </div>
   );
 }
 
-function DiffRow({ row }: { row: TextDiffRow }) {
+function createDiffContentKey(before: string, after: string) {
+  return `${before.length}:${hashDiffString(before)}:${after.length}:${hashDiffString(after)}`;
+}
+
+function hashDiffString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+
+  return hash.toString(36);
+}
+
+function DiffRow({
+  newLineNumber,
+  oldLineNumber,
+  row,
+}: {
+  newLineNumber: number | null;
+  oldLineNumber: number | null;
+  row: TextDiffRow;
+}) {
   return (
     <li
       className={[
-        "grid grid-cols-[0.25rem_3.5rem_minmax(0,1fr)] border-b border-[#eef1f5] last:border-b-0",
+        "flex border-b border-[#eef1f5] last:border-b-0",
         getDiffRowClass(row.type),
       ].join(" ")}
     >
-      <span aria-hidden="true" className={getDiffRowBarClass(row.type)} />
+      <DiffLineNumberColumn
+        lineNumber={newLineNumber ?? oldLineNumber}
+        marker={getDiffMarker(row.type)}
+      />
       <span
-        aria-hidden="true"
-        className={[
-          "select-none border-r border-[#26313d] bg-[#101820] px-2 py-1.5 text-right font-mono text-xs leading-6",
-          getDiffLineNumberClass(row.type),
-        ].join(" ")}
+        className={`${documentContentTextColumnBaseClass} whitespace-pre-wrap break-words`}
       >
-        {formatDiffLineNumber(row)}
-      </span>
-      <span className="whitespace-pre-wrap break-words px-3 py-1.5 leading-6">
         {row.text || " "}
       </span>
     </li>
   );
 }
 
-function formatDiffLineNumber(row: TextDiffRow) {
-  return String(row.newLineNumber ?? row.oldLineNumber ?? "");
+function DiffLineNumberColumn({
+  lineNumber,
+  marker,
+}: {
+  lineNumber: number | null;
+  marker: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={documentContentLineNumberColumnClass}
+    >
+      {marker ? (
+        <span className="absolute left-2 text-center">{marker}</span>
+      ) : null}
+      <span className="block px-2">{lineNumber ?? ""}</span>
+    </span>
+  );
 }
 
-function getDiffRowBarClass(type: TextDiffRow["type"]) {
+function getDiffMarker(type: TextDiffRow["type"]) {
   if (type === "removed") {
-    return "bg-[#d33a35]";
+    return "-";
   }
 
   if (type === "added") {
-    return "bg-[#2ecc71]";
+    return "+";
   }
 
-  return "bg-transparent";
-}
-
-function getDiffLineNumberClass(type: TextDiffRow["type"]) {
-  if (type === "removed") {
-    return "text-[#ff6b63]";
-  }
-
-  if (type === "added") {
-    return "text-[#38f08f]";
-  }
-
-  return "text-[#7f8b98]";
+  return "";
 }
 
 function getDiffRowClass(type: TextDiffRow["type"]) {
   if (type === "removed") {
-    return "bg-[#3b1d24] text-[#ff7a73]";
+    return "bg-[#fff1f1] text-[#8a1f1f]";
   }
 
   if (type === "added") {
-    return "bg-[#173624] text-[#7dffad]";
+    return "bg-[#e8f5ed] text-[#22633a]";
   }
 
-  return "bg-[#111820] text-[#d9e2ec]";
+  return "bg-white text-[#394150]";
 }
 
 function ChangePill({ label, value }: { label: string; value: string }) {
@@ -518,12 +679,22 @@ function DetailRow({
 function DetailBlock({
   label,
   children,
+  fullWidth = false,
 }: {
   label: string;
   children: ReactNode;
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="grid gap-1 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3">
+    <div
+      className={[
+        "grid gap-1",
+        fullWidth
+          ? ""
+          : "rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2",
+        fullWidth ? "" : "sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3",
+      ].join(" ")}
+    >
       <dt className="text-xs font-semibold text-[#697386]">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>

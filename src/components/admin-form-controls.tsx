@@ -140,11 +140,13 @@ export function AdminEditModal({
   title,
   description,
   trigger,
+  triggerClassName,
   children,
 }: {
   title: string;
   description?: string;
   trigger: ReactNode;
+  triggerClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -175,7 +177,10 @@ export function AdminEditModal({
         type="button"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
-        className="block w-full cursor-pointer px-5 py-4 text-left transition hover:bg-[#fbfcfd] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+        className={
+          triggerClassName ??
+          "block w-full cursor-pointer px-5 py-4 text-left transition hover:bg-[#fbfcfd] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+        }
       >
         {trigger}
       </button>

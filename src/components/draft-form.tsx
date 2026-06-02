@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   type FormEvent,
   useActionState,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,10 @@ import {
 } from "react";
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import {
+  documentContentLineNumberColumnClass,
+  documentContentTextColumnBaseClass,
+} from "@/components/line-numbered-document-content";
 import { useAttachmentThumbnailUrls } from "@/components/use-attachment-thumbnail-urls";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { UserIdentity } from "@/components/user-identity";
@@ -366,7 +371,7 @@ function DraftFormFields({
     <form
       action={formAction}
       onSubmit={handleSubmit}
-      className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]"
+      className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
       <section className="rounded-md border border-[#d9dee7] bg-white p-5">
         <div>
@@ -892,6 +897,7 @@ function TemplateInput({
   value: string;
 }) {
   const inputId = `template-field-${field.id}`;
+  const isRequired = field.required !== false;
   const baseClass =
     "mt-2 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 
@@ -903,7 +909,7 @@ function TemplateInput({
       {field.type === "textarea" ? (
         <LineNumberedTextarea
           id={inputId}
-          required
+          required={isRequired}
           disabled={pending}
           rows={5}
           value={value}
@@ -913,7 +919,7 @@ function TemplateInput({
       ) : (
         <input
           id={inputId}
-          required
+          required={isRequired}
           disabled={pending}
           type={field.type}
           value={value}
@@ -948,22 +954,53 @@ function LineNumberedTextarea({
   value: string;
 }) {
   const [scrollTop, setScrollTop] = useState(0);
-  const lineNumbers = useMemo(() => getTextareaLineNumbers(value), [value]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [lineNumbers, setLineNumbers] = useState(() =>
+    getTextareaLineNumbers(value),
+  );
   const borderClass = hasError
     ? "border-[#cc1f1f] ring-2 ring-[#f4c7c7]"
     : "border-[#cfd6e3]";
+  const syncLineNumbers = useCallback(() => {
+    const nextLineNumbers = textareaRef.current
+      ? getTextareaVisualLineNumbers(textareaRef.current)
+      : getTextareaLineNumbers(value);
+
+    setLineNumbers((currentLineNumbers) =>
+      areLineNumbersEqual(currentLineNumbers, nextLineNumbers)
+        ? currentLineNumbers
+        : nextLineNumbers,
+    );
+  }, [value]);
+
+  useEffect(() => {
+    syncLineNumbers();
+  }, [syncLineNumbers]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(syncLineNumbers);
+    resizeObserver.observe(textarea);
+
+    return () => resizeObserver.disconnect();
+  }, [syncLineNumbers]);
 
   return (
     <div
       className={[
-        "mt-2 flex overflow-hidden rounded-md border bg-white text-sm transition focus-within:border-[#196b69]",
+        "mt-2 flex w-full max-w-[53.75rem] overflow-hidden rounded-md border bg-white text-sm transition focus-within:border-[#196b69]",
         borderClass,
         disabled ? "opacity-60" : "",
       ].join(" ")}
     >
       <div
         aria-hidden="true"
-        className="relative w-12 shrink-0 overflow-hidden border-r border-[#e4e9f0] bg-[#f7f9fc] py-3 text-right font-mono text-xs leading-6 text-[#8b949e]"
+        className={documentContentLineNumberColumnClass}
       >
         <div style={{ transform: `translateY(-${scrollTop}px)` }}>
           {lineNumbers.map((lineNumber) => (
@@ -974,6 +1011,7 @@ function LineNumberedTextarea({
         </div>
       </div>
       <textarea
+        ref={textareaRef}
         id={id}
         name={name}
         required={required}
@@ -983,10 +1021,93 @@ function LineNumberedTextarea({
         onChange={(event) => onChange(event.target.value)}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 resize-y border-0 bg-white px-3 py-3 leading-6 outline-none placeholder:text-[#9aa4b2] disabled:cursor-not-allowed"
+        className={`${documentContentTextColumnBaseClass} resize-y border-0 bg-white outline-none placeholder:text-[#9aa4b2] disabled:cursor-not-allowed`}
       />
     </div>
   );
+}
+
+function getTextareaVisualLineNumbers(textarea: HTMLTextAreaElement) {
+  const lineCount = getTextareaVisualLineCount(textarea);
+
+  return Array.from({ length: lineCount }, (_, index) => index + 1);
+}
+
+function getTextareaVisualLineCount(textarea: HTMLTextAreaElement) {
+  if (typeof window === "undefined" || textarea.clientWidth === 0) {
+    return getTextareaLineNumbers(textarea.value).length;
+  }
+
+  const computedStyle = window.getComputedStyle(textarea);
+  const lineHeight = getComputedLineHeight(computedStyle);
+  const paddingTop = getPixelValue(computedStyle.paddingTop);
+  const paddingBottom = getPixelValue(computedStyle.paddingBottom);
+  const measuringTextarea = document.createElement("textarea");
+
+  measuringTextarea.value = textarea.value || " ";
+  measuringTextarea.rows = 1;
+  measuringTextarea.tabIndex = -1;
+  measuringTextarea.setAttribute("aria-hidden", "true");
+
+  Object.assign(measuringTextarea.style, {
+    position: "absolute",
+    top: "0",
+    left: "-9999px",
+    width: `${textarea.clientWidth}px`,
+    height: "0",
+    minHeight: "0",
+    maxHeight: "none",
+    padding: computedStyle.padding,
+    border: "0",
+    boxSizing: "border-box",
+    font: computedStyle.font,
+    letterSpacing: computedStyle.letterSpacing,
+    lineHeight: computedStyle.lineHeight,
+    overflow: "hidden",
+    pointerEvents: "none",
+    resize: "none",
+    textTransform: computedStyle.textTransform,
+    visibility: "hidden",
+    whiteSpace: "pre-wrap",
+    wordBreak: computedStyle.wordBreak,
+  });
+  measuringTextarea.style.setProperty(
+    "overflow-wrap",
+    computedStyle.getPropertyValue("overflow-wrap"),
+  );
+  measuringTextarea.style.setProperty(
+    "tab-size",
+    computedStyle.getPropertyValue("tab-size"),
+  );
+
+  document.body.appendChild(measuringTextarea);
+
+  try {
+    const contentHeight = Math.max(
+      measuringTextarea.scrollHeight - paddingTop - paddingBottom,
+      lineHeight,
+    );
+
+    return Math.max(1, Math.round(contentHeight / lineHeight));
+  } finally {
+    measuringTextarea.remove();
+  }
+}
+
+function getComputedLineHeight(computedStyle: CSSStyleDeclaration) {
+  const lineHeight = getPixelValue(computedStyle.lineHeight);
+
+  if (lineHeight > 0) {
+    return lineHeight;
+  }
+
+  return getPixelValue(computedStyle.fontSize) * 1.2;
+}
+
+function getPixelValue(value: string) {
+  const numericValue = Number.parseFloat(value);
+
+  return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
 function getTextareaLineNumbers(value: string) {
@@ -995,6 +1116,13 @@ function getTextareaLineNumbers(value: string) {
   ).length;
 
   return Array.from({ length: Math.max(lineCount, 1) }, (_, index) => index + 1);
+}
+
+function areLineNumbersEqual(
+  currentLineNumbers: readonly number[],
+  nextLineNumbers: readonly number[],
+) {
+  return currentLineNumbers.length === nextLineNumbers.length;
 }
 
 function isApprovalCandidate(
