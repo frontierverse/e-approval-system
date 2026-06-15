@@ -246,7 +246,7 @@ function CategoryLink({
 
   if (isDisabled) {
     const base =
-      "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold text-[#8a95a6] opacity-50 cursor-not-allowed select-none";
+      "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold text-[#8a95a6] opacity-50 cursor-default select-none";
     return (
       <span className={base}>
         <span>{group.label}</span>
@@ -287,8 +287,8 @@ function NavLink({
   if (isDisabled) {
     const base =
       variant === "mobile"
-        ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-[#8a95a6] opacity-50 cursor-not-allowed select-none sm:px-3"
-        : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium text-[#8a95a6] opacity-50 cursor-not-allowed select-none";
+        ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-[#8a95a6] opacity-50 cursor-default select-none sm:px-3"
+        : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium text-[#8a95a6] opacity-50 cursor-default select-none";
     return (
       <span className={base}>
         <span>{item.label}</span>
