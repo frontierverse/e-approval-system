@@ -242,6 +242,18 @@ function CategoryLink({
   group: NavigationGroup;
   active: boolean;
 }) {
+  const isDisabled = group.label === "청소년 관리";
+
+  if (isDisabled) {
+    const base =
+      "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold text-[#8a95a6] opacity-50 cursor-not-allowed select-none";
+    return (
+      <span className={base}>
+        <span>{group.label}</span>
+      </span>
+    );
+  }
+
   const href = group.items[0]?.href ?? "/";
   const base =
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold transition";
@@ -270,6 +282,20 @@ function NavLink({
   active: boolean;
   variant: "mobile" | "desktop";
 }) {
+  const isDisabled = item.label === "청소년 관리";
+
+  if (isDisabled) {
+    const base =
+      variant === "mobile"
+        ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-[#8a95a6] opacity-50 cursor-not-allowed select-none sm:px-3"
+        : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium text-[#8a95a6] opacity-50 cursor-not-allowed select-none";
+    return (
+      <span className={base}>
+        <span>{item.label}</span>
+      </span>
+    );
+  }
+
   const base =
     variant === "mobile"
       ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition sm:px-3"
