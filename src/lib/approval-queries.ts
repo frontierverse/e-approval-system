@@ -17,7 +17,7 @@ import {
   generatedPdfAuditActionLabel,
   isGeneratedPdfAuditLog,
 } from "@/lib/generated-pdf-audit";
-import { extractTextareaContentFromCompiledTemplate } from "@/lib/draft-template-content";
+import { extractDisplayContentFromTemplate } from "@/lib/draft-template-content";
 import { prisma } from "@/lib/prisma";
 import { getArchiveReviewBaseDateRange } from "@/lib/document-archive-policy";
 import {
@@ -290,6 +290,10 @@ const auditActionLabels: Record<AuditAction, string> = {
   CREATE_RESOURCE: "자료 업로드",
   UPDATE_RESOURCE: "자료 수정",
   DELETE_RESOURCE: "자료 삭제",
+  CREATE_YOUTH: "청소년 등록",
+  UPDATE_YOUTH: "청소년 정보 수정",
+  UPDATE_YOUTH_NOTE: "청소년 특이사항 수정",
+  DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
 };
 
 export async function getInboxDocuments(userId: string) {
@@ -464,6 +468,11 @@ export async function getEditableDraftDocumentById(
       content: true,
       templateId: true,
       status: true,
+      template: {
+        select: {
+          schema: true,
+        },
+      },
       approvalSteps: {
         orderBy: {
           order: "asc",
@@ -496,9 +505,10 @@ export async function getEditableDraftDocumentById(
     id: record.id,
     title: record.title,
     category: record.category,
-    content: extractTextareaContentFromCompiledTemplate(
+    content: extractDisplayContentFromTemplate(
       record.content,
       record.templateId,
+      record.template.schema,
     ),
     templateId: record.templateId,
     status: documentStatusMap[record.status],
@@ -677,6 +687,7 @@ export async function getActiveDocumentTemplates() {
       id: true,
       name: true,
       description: true,
+      schema: true,
     },
     orderBy: {
       name: "asc",
@@ -1145,9 +1156,10 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
     createdAt: record.createdAt.toISOString(),
     submittedAt: record.submittedAt?.toISOString() ?? null,
     completedAt: record.completedAt?.toISOString() ?? null,
-    content: extractTextareaContentFromCompiledTemplate(
+    content: extractDisplayContentFromTemplate(
       record.content,
       record.templateId,
+      record.template.schema,
     ),
     attachmentCount: record._count.attachments,
     attachments: record.attachments.map((attachment) => ({

@@ -6,6 +6,7 @@ import {
   youthNotePriorities,
   type YouthActionResult,
   type YouthCreateInput,
+  type YouthUpdateInput,
   type YouthNoteInput,
   type YouthNoteCategory,
   type YouthNotePriority,
@@ -35,6 +36,10 @@ type YouthManagementBoardProps = {
     noteId: string,
   ) => Promise<YouthActionResult<{ noteId: string; youthId: string }>>;
   initialYouths: YouthProfile[];
+  updateYouth: (
+    youthId: string,
+    values: YouthUpdateInput,
+  ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   updateYouthNote: (
     noteId: string,
     values: YouthNoteInput,
@@ -55,6 +60,7 @@ export function YouthManagementBoard({
   createYouth,
   deleteYouthNote,
   initialYouths,
+  updateYouth,
   updateYouthNote,
 }: YouthManagementBoardProps) {
   const [youths, setYouths] = useState(initialYouths);
@@ -69,15 +75,47 @@ export function YouthManagementBoard({
   const [newYouthAge, setNewYouthAge] = useState("");
   const [newYouthPhoneMiddle, setNewYouthPhoneMiddle] = useState("");
   const [newYouthPhoneLast, setNewYouthPhoneLast] = useState("");
+  const newYouthPhoneLastRef = useRef<HTMLInputElement>(null);
   const familyContactKey = useRef(1);
+  const familyPhoneLastRefs = useRef<Record<string, HTMLInputElement | null>>(
+    {},
+  );
   const [newYouthFamilyContacts, setNewYouthFamilyContacts] = useState<
     FamilyContactDraft[]
   >(() => [createFamilyContactDraft(0)]);
   const [registerError, setRegisterError] = useState("");
+  const [editingYouthId, setEditingYouthId] = useState("");
+  const [editYouthName, setEditYouthName] = useState("");
+  const [editYouthAdmissionDate, setEditYouthAdmissionDate] = useState("");
+  const [editYouthDischargeDate, setEditYouthDischargeDate] = useState("");
+  const [editYouthAge, setEditYouthAge] = useState("");
+  const [editYouthPhoneMiddle, setEditYouthPhoneMiddle] = useState("");
+  const [editYouthPhoneLast, setEditYouthPhoneLast] = useState("");
+  const editYouthPhoneLastRef = useRef<HTMLInputElement>(null);
+  const editFamilyContactKey = useRef(1);
+  const editFamilyPhoneLastRefs = useRef<
+    Record<string, HTMLInputElement | null>
+  >({});
+  const [editYouthFamilyContacts, setEditYouthFamilyContacts] = useState<
+    FamilyContactDraft[]
+  >(() => [createFamilyContactDraft(0)]);
+  const [editYouthError, setEditYouthError] = useState("");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<NoteDraft>(() => emptyDraft());
   const [noteError, setNoteError] = useState("");
   const [pendingAction, startPendingAction] = useTransition();
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/youth-management-access", {
+      credentials: "same-origin",
+      method: "POST",
+      signal: controller.signal,
+    }).catch(() => undefined);
+
+    return () => controller.abort();
+  }, []);
 
   const activeYouth = useMemo(
     () => youths.find((youth) => youth.id === activeYouthId) ?? youths[0],
@@ -90,6 +128,34 @@ export function YouthManagementBoard({
   const selectedNote = useMemo(
     () => selectedYouth?.notes.find((note) => note.id === selected?.noteId),
     [selected?.noteId, selectedYouth],
+  );
+  const editedYouth = useMemo(
+    () => youths.find((youth) => youth.id === editingYouthId),
+    [editingYouthId, youths],
+  );
+  const hasEditYouthChanges = useMemo(
+    () =>
+      editedYouth
+        ? hasYouthDraftChanged(editedYouth, {
+            name: editYouthName,
+            admissionDate: editYouthAdmissionDate,
+            dischargeDate: editYouthDischargeDate,
+            age: editYouthAge,
+            phoneMiddle: editYouthPhoneMiddle,
+            phoneLast: editYouthPhoneLast,
+            familyContacts: editYouthFamilyContacts,
+          })
+        : false,
+    [
+      editYouthAdmissionDate,
+      editYouthAge,
+      editYouthDischargeDate,
+      editYouthFamilyContacts,
+      editedYouth,
+      editYouthName,
+      editYouthPhoneLast,
+      editYouthPhoneMiddle,
+    ],
   );
 
   useEffect(() => {
@@ -194,6 +260,77 @@ export function YouthManagementBoard({
     setRegisterError("");
   }
 
+  function openEditYouthModal(youth: YouthProfile) {
+    const phoneDraft = createPhoneDraftFromValue(youth.phone);
+
+    closeModal();
+    setEditingYouthId(youth.id);
+    setEditYouthName(youth.name);
+    setEditYouthAdmissionDate(youth.admissionDate ?? "");
+    setEditYouthDischargeDate(youth.dischargeDate ?? "");
+    setEditYouthAge(youth.age === null ? "" : String(youth.age));
+    setEditYouthPhoneMiddle(phoneDraft.middle);
+    setEditYouthPhoneLast(phoneDraft.last);
+    editFamilyContactKey.current = youth.familyContacts.length + 1;
+    setEditYouthFamilyContacts(
+      youth.familyContacts.length > 0
+        ? youth.familyContacts.map(createFamilyContactDraftFromProfile)
+        : [createFamilyContactDraft(0)],
+    );
+    setEditYouthError("");
+  }
+
+  function closeEditYouthModal() {
+    setEditingYouthId("");
+    resetEditYouthForm();
+    setEditYouthError("");
+  }
+
+  function resetEditYouthForm() {
+    setEditYouthName("");
+    setEditYouthAdmissionDate("");
+    setEditYouthDischargeDate("");
+    setEditYouthAge("");
+    setEditYouthPhoneMiddle("");
+    setEditYouthPhoneLast("");
+    editFamilyContactKey.current = 1;
+    setEditYouthFamilyContacts([createFamilyContactDraft(0)]);
+  }
+
+  function addEditFamilyContact() {
+    const nextKey = editFamilyContactKey.current;
+
+    editFamilyContactKey.current += 1;
+    setEditYouthFamilyContacts((current) => [
+      ...current,
+      createFamilyContactDraft(nextKey),
+    ]);
+    setEditYouthError("");
+  }
+
+  function removeEditFamilyContact(key: string) {
+    setEditYouthFamilyContacts((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      return current.filter((contact) => contact.key !== key);
+    });
+    setEditYouthError("");
+  }
+
+  function updateEditFamilyContact(
+    key: string,
+    values: Partial<Omit<FamilyContactDraft, "key">>,
+  ) {
+    setEditYouthFamilyContacts((current) =>
+      current.map((contact) =>
+        contact.key === key ? { ...contact, ...values } : contact,
+      ),
+    );
+    setEditYouthError("");
+  }
+
   function registerYouth() {
     const name = newYouthName.trim();
 
@@ -234,6 +371,67 @@ export function YouthManagementBoard({
       setYouths((current) => [...current, result.data.youth]);
       setActiveYouthId(result.data.youth.id);
       closeRegisterModal();
+    });
+  }
+
+  function saveEditedYouth() {
+    const name = editYouthName.trim();
+
+    if (!editingYouthId) {
+      return;
+    }
+
+    if (!hasEditYouthChanges) {
+      return;
+    }
+
+    if (!name) {
+      setEditYouthError("청소년 이름을 입력하세요.");
+      return;
+    }
+
+    if (
+      youths.some(
+        (youth) => youth.id !== editingYouthId && youth.name === name,
+      )
+    ) {
+      setEditYouthError("이미 등록된 청소년 이름입니다.");
+      return;
+    }
+
+    startPendingAction(async () => {
+      const result = await updateYouth(editingYouthId, {
+        name,
+        admissionDate: editYouthAdmissionDate,
+        dischargeDate: editYouthDischargeDate,
+        age: editYouthAge,
+        phone: getRegistrationPhoneValue(
+          editYouthPhoneMiddle,
+          editYouthPhoneLast,
+        ),
+        familyContacts: editYouthFamilyContacts.map((contact) => ({
+          relationship: contact.relationship,
+          phone: getRegistrationPhoneValue(
+            contact.phoneMiddle,
+            contact.phoneLast,
+          ),
+        })),
+      });
+
+      if (!result.ok) {
+        setEditYouthError(result.error);
+        return;
+      }
+
+      setYouths((current) =>
+        current
+          .map((youth) =>
+            youth.id === result.data.youth.id ? result.data.youth : youth,
+          )
+          .sort((first, second) => first.name.localeCompare(second.name, "ko")),
+      );
+      setActiveYouthId(result.data.youth.id);
+      closeEditYouthModal();
     });
   }
 
@@ -456,11 +654,19 @@ export function YouthManagementBoard({
                         <input
                           type="tel"
                           value={newYouthPhoneMiddle}
-                          onChange={(event) =>
-                            setNewYouthPhoneMiddle(
-                              normalizePhonePart(event.target.value, 4),
-                            )
-                          }
+                          onChange={(event) => {
+                            const nextValue = normalizePhonePart(
+                              event.target.value,
+                              4,
+                            );
+
+                            setNewYouthPhoneMiddle(nextValue);
+                            focusPhoneInputWhenFilled(
+                              nextValue,
+                              4,
+                              newYouthPhoneLastRef.current,
+                            );
+                          }}
                           inputMode="numeric"
                           maxLength={4}
                           aria-label="핸드폰 번호 중간자리"
@@ -468,6 +674,7 @@ export function YouthManagementBoard({
                         />
                         <input
                           type="tel"
+                          ref={newYouthPhoneLastRef}
                           value={newYouthPhoneLast}
                           onChange={(event) =>
                             setNewYouthPhoneLast(
@@ -528,14 +735,21 @@ export function YouthManagementBoard({
                               <input
                                 type="tel"
                                 value={contact.phoneMiddle}
-                                onChange={(event) =>
+                                onChange={(event) => {
+                                  const nextValue = normalizePhonePart(
+                                    event.target.value,
+                                    4,
+                                  );
+
                                   updateFamilyContact(contact.key, {
-                                    phoneMiddle: normalizePhonePart(
-                                      event.target.value,
-                                      4,
-                                    ),
-                                  })
-                                }
+                                    phoneMiddle: nextValue,
+                                  });
+                                  focusPhoneInputWhenFilled(
+                                    nextValue,
+                                    4,
+                                    familyPhoneLastRefs.current[contact.key],
+                                  );
+                                }}
                                 inputMode="numeric"
                                 maxLength={4}
                                 aria-label={`가족 ${index + 1} 연락처 중간자리`}
@@ -543,6 +757,16 @@ export function YouthManagementBoard({
                               />
                               <input
                                 type="tel"
+                                ref={(element) => {
+                                  if (element) {
+                                    familyPhoneLastRefs.current[contact.key] =
+                                      element;
+                                  } else {
+                                    delete familyPhoneLastRefs.current[
+                                      contact.key
+                                    ];
+                                  }
+                                }}
                                 value={contact.phoneLast}
                                 onChange={(event) =>
                                   updateFamilyContact(contact.key, {
@@ -563,7 +787,12 @@ export function YouthManagementBoard({
                             type="button"
                             onClick={() => removeFamilyContact(contact.key)}
                             disabled={newYouthFamilyContacts.length <= 1}
-                            className="h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-45 sm:w-16"
+                            className={[
+                              "h-11 rounded-md border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 sm:w-16",
+                              newYouthFamilyContacts.length > 1
+                                ? "border-[#b91c1c] bg-[#d92525] text-white hover:bg-[#b91c1c]"
+                                : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
+                            ].join(" ")}
                           >
                             삭제
                           </button>
@@ -586,6 +815,280 @@ export function YouthManagementBoard({
                     className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f]"
                   >
                     {pendingAction ? "등록 중" : "등록"}
+                  </button>
+                </footer>
+              </form>
+            </section>
+          </div>
+        ) : null}
+
+        {editingYouthId ? (
+          <div
+            role="presentation"
+            className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                closeEditYouthModal();
+              }
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="youth-edit-modal-title"
+              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
+            >
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveEditedYouth();
+                }}
+              >
+                <header className="relative border-b border-[#eef1f5] px-5 py-4 pr-20">
+                  <button
+                    type="button"
+                    onClick={closeEditYouthModal}
+                    className="absolute right-4 top-4 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                  >
+                    닫기
+                  </button>
+                  <h2
+                    id="youth-edit-modal-title"
+                    className="break-words text-xl font-semibold text-[#16181d] [overflow-wrap:anywhere]"
+                  >
+                    청소년 정보 수정
+                  </h2>
+                </header>
+
+                <div className="grid gap-4 px-5 py-5">
+                  <label>
+                    <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
+                      이름
+                      <span className="rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2 py-0.5 text-[11px] font-semibold text-[#196b69]">
+                        필수
+                      </span>
+                    </span>
+                    <input
+                      value={editYouthName}
+                      onChange={(event) => {
+                        setEditYouthName(event.target.value);
+                        setEditYouthError("");
+                      }}
+                      autoFocus
+                      className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                    />
+                  </label>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <OptionalRegisterField label="입소날짜">
+                      <input
+                        type="date"
+                        value={editYouthAdmissionDate}
+                        onChange={(event) =>
+                          setEditYouthAdmissionDate(event.target.value)
+                        }
+                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                      />
+                    </OptionalRegisterField>
+                    <OptionalRegisterField label="퇴소날짜">
+                      <input
+                        type="date"
+                        value={editYouthDischargeDate}
+                        onChange={(event) =>
+                          setEditYouthDischargeDate(event.target.value)
+                        }
+                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                      />
+                    </OptionalRegisterField>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <OptionalRegisterField label="나이">
+                      <input
+                        type="number"
+                        min="0"
+                        max="150"
+                        value={editYouthAge}
+                        onChange={(event) => setEditYouthAge(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                      />
+                    </OptionalRegisterField>
+                    <OptionalRegisterField label="핸드폰 번호">
+                      <div className="mt-2 grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                        <input
+                          type="tel"
+                          value="010"
+                          readOnly
+                          aria-label="수정 핸드폰 번호 앞자리"
+                          className="h-11 w-full rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 text-center text-sm font-semibold text-[#394150]"
+                        />
+                        <input
+                          type="tel"
+                          value={editYouthPhoneMiddle}
+                          onChange={(event) => {
+                            const nextValue = normalizePhonePart(
+                              event.target.value,
+                              4,
+                            );
+
+                            setEditYouthPhoneMiddle(nextValue);
+                            focusPhoneInputWhenFilled(
+                              nextValue,
+                              4,
+                              editYouthPhoneLastRef.current,
+                            );
+                          }}
+                          inputMode="numeric"
+                          maxLength={4}
+                          aria-label="수정 핸드폰 번호 중간자리"
+                          className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-center text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        />
+                        <input
+                          type="tel"
+                          ref={editYouthPhoneLastRef}
+                          value={editYouthPhoneLast}
+                          onChange={(event) =>
+                            setEditYouthPhoneLast(
+                              normalizePhonePart(event.target.value, 4),
+                            )
+                          }
+                          inputMode="numeric"
+                          maxLength={4}
+                          aria-label="수정 핸드폰 번호 끝자리"
+                          className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-center text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        />
+                      </div>
+                    </OptionalRegisterField>
+                  </div>
+
+                  <section className="rounded-md border border-[#d9dee7] bg-[#fbfcfd] p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-sm font-semibold text-[#394150]">
+                        가족 연락처
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={addEditFamilyContact}
+                        className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                      >
+                        가족 추가
+                      </button>
+                    </div>
+
+                    <div className="mt-3 grid gap-3">
+                      {editYouthFamilyContacts.map((contact, index) => (
+                        <div
+                          key={contact.key}
+                          className="grid gap-3 rounded-md border border-[#eef1f5] bg-white p-3 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)_auto] sm:items-center"
+                        >
+                          <label>
+                            <input
+                              value={contact.relationship}
+                              onChange={(event) =>
+                                updateEditFamilyContact(contact.key, {
+                                  relationship: event.target.value,
+                                })
+                              }
+                              placeholder="어머니, 아버지 등"
+                              aria-label={`수정 가족 ${index + 1} 관계`}
+                              className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                            />
+                          </label>
+                          <div>
+                            <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                              <input
+                                type="tel"
+                                value="010"
+                                readOnly
+                                aria-label={`수정 가족 ${index + 1} 연락처 앞자리`}
+                                className="h-11 w-full rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 text-center text-sm font-semibold text-[#394150]"
+                              />
+                              <input
+                                type="tel"
+                                value={contact.phoneMiddle}
+                                onChange={(event) => {
+                                  const nextValue = normalizePhonePart(
+                                    event.target.value,
+                                    4,
+                                  );
+
+                                  updateEditFamilyContact(contact.key, {
+                                    phoneMiddle: nextValue,
+                                  });
+                                  focusPhoneInputWhenFilled(
+                                    nextValue,
+                                    4,
+                                    editFamilyPhoneLastRefs.current[
+                                      contact.key
+                                    ],
+                                  );
+                                }}
+                                inputMode="numeric"
+                                maxLength={4}
+                                aria-label={`수정 가족 ${index + 1} 연락처 중간자리`}
+                                className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-center text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                              />
+                              <input
+                                type="tel"
+                                ref={(element) => {
+                                  if (element) {
+                                    editFamilyPhoneLastRefs.current[
+                                      contact.key
+                                    ] = element;
+                                  } else {
+                                    delete editFamilyPhoneLastRefs.current[
+                                      contact.key
+                                    ];
+                                  }
+                                }}
+                                value={contact.phoneLast}
+                                onChange={(event) =>
+                                  updateEditFamilyContact(contact.key, {
+                                    phoneLast: normalizePhonePart(
+                                      event.target.value,
+                                      4,
+                                    ),
+                                  })
+                                }
+                                inputMode="numeric"
+                                maxLength={4}
+                                aria-label={`수정 가족 ${index + 1} 연락처 끝자리`}
+                                className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-center text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeEditFamilyContact(contact.key)}
+                            disabled={editYouthFamilyContacts.length <= 1}
+                            className={[
+                              "h-11 rounded-md border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 sm:w-16",
+                              editYouthFamilyContacts.length > 1
+                                ? "border-[#b91c1c] bg-[#d92525] text-white hover:bg-[#b91c1c]"
+                                : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
+                            ].join(" ")}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {editYouthError ? (
+                    <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                      {editYouthError}
+                    </p>
+                  ) : null}
+                </div>
+
+                <footer className="flex justify-end gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
+                  <button
+                    type="submit"
+                    disabled={pendingAction || !hasEditYouthChanges}
+                    className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
+                  >
+                    {pendingAction ? "저장 중" : "저장"}
                   </button>
                 </footer>
               </form>
@@ -639,7 +1142,10 @@ export function YouthManagementBoard({
 
             {activeYouth ? (
               <div className="p-4">
-                <YouthMetaSummary youth={activeYouth} />
+                <YouthMetaSummary
+                  youth={activeYouth}
+                  onEdit={() => openEditYouthModal(activeYouth)}
+                />
 
                 <section
                   id={`${activeYouth.id}-panel`}
@@ -955,7 +1461,26 @@ function createFamilyContactDraft(key: number): FamilyContactDraft {
   };
 }
 
-function YouthMetaSummary({ youth }: { youth: YouthProfile }) {
+function createFamilyContactDraftFromProfile(
+  contact: YouthProfile["familyContacts"][number],
+): FamilyContactDraft {
+  const phoneDraft = createPhoneDraftFromValue(contact.phone);
+
+  return {
+    key: contact.id,
+    relationship: contact.relationship ?? "",
+    phoneMiddle: phoneDraft.middle,
+    phoneLast: phoneDraft.last,
+  };
+}
+
+function YouthMetaSummary({
+  onEdit,
+  youth,
+}: {
+  onEdit: () => void;
+  youth: YouthProfile;
+}) {
   const dday = getDischargeDday(youth.dischargeDate);
 
   return (
@@ -963,6 +1488,15 @@ function YouthMetaSummary({ youth }: { youth: YouthProfile }) {
       aria-label={`${youth.name} 기본 정보`}
       className="rounded-md border border-[#d9dee7] bg-white p-4"
     >
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="h-9 rounded-md border border-[#196b69] bg-[#196b69] px-3 text-sm font-semibold text-white transition hover:bg-[#12514f] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+        >
+          기본 정보 수정
+        </button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <YouthMetaItem label="입소 날짜" value={formatOptionalDate(youth.admissionDate)} />
         <YouthMetaItem label="퇴소 날짜" value={formatOptionalDate(youth.dischargeDate)} />
@@ -1051,8 +1585,73 @@ function getRegistrationPhoneValue(middle: string, last: string) {
   return middle || last ? `010-${middle}-${last}` : "";
 }
 
+function createPhoneDraftFromValue(value: string | null) {
+  const match = /^010-(\d{3,4})-(\d{4})$/.exec(value ?? "");
+
+  return {
+    middle: match?.[1] ?? "",
+    last: match?.[2] ?? "",
+  };
+}
+
+function hasYouthDraftChanged(
+  youth: YouthProfile,
+  draft: {
+    admissionDate: string;
+    age: string;
+    dischargeDate: string;
+    familyContacts: FamilyContactDraft[];
+    name: string;
+    phoneLast: string;
+    phoneMiddle: string;
+  },
+) {
+  const phoneDraft = createPhoneDraftFromValue(youth.phone);
+
+  return (
+    youth.name !== draft.name.trim() ||
+    (youth.admissionDate ?? "") !== draft.admissionDate ||
+    (youth.dischargeDate ?? "") !== draft.dischargeDate ||
+    (youth.age === null ? "" : String(youth.age)) !== draft.age.trim() ||
+    phoneDraft.middle !== draft.phoneMiddle ||
+    phoneDraft.last !== draft.phoneLast ||
+    JSON.stringify(getComparableFamilyContacts(youth.familyContacts)) !==
+      JSON.stringify(getComparableFamilyContactDrafts(draft.familyContacts))
+  );
+}
+
+function getComparableFamilyContacts(
+  contacts: YouthProfile["familyContacts"],
+) {
+  return contacts
+    .map((contact) => ({
+      phone: contact.phone ?? "",
+      relationship: contact.relationship ?? "",
+    }))
+    .filter((contact) => contact.relationship || contact.phone);
+}
+
+function getComparableFamilyContactDrafts(contacts: FamilyContactDraft[]) {
+  return contacts
+    .map((contact) => ({
+      phone: getRegistrationPhoneValue(contact.phoneMiddle, contact.phoneLast),
+      relationship: contact.relationship.trim(),
+    }))
+    .filter((contact) => contact.relationship || contact.phone);
+}
+
 function normalizePhonePart(value: string, maxLength: number) {
   return value.replace(/\D/g, "").slice(0, maxLength);
+}
+
+function focusPhoneInputWhenFilled(
+  value: string,
+  maxLength: number,
+  input: HTMLInputElement | null | undefined,
+) {
+  if (value.length === maxLength) {
+    input?.focus();
+  }
 }
 
 function formatDate(value: string) {

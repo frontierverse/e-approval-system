@@ -1,3 +1,10 @@
+import {
+  getSafeDocumentTemplateSchema,
+  type DocumentTemplateField,
+  type DocumentTemplateFieldType,
+  type DocumentTemplateSchemaV1,
+} from "@/lib/document-template-schema";
+
 export type TemplateFieldType = "date" | "number" | "text" | "textarea";
 
 export type TemplateFieldDefinition = {
@@ -12,6 +19,15 @@ export type TemplateFormatDefinition = {
   title: string;
   fields: TemplateFieldDefinition[];
 };
+
+export type DocumentTemplateDisplayRow = {
+  label: string;
+  name: string;
+  type: DocumentTemplateFieldType;
+  value: string;
+};
+
+export const templateFieldFormNamePrefix = "templateField:";
 
 export const draftTemplateFormats: Record<string, TemplateFormatDefinition> = {
   "template-general-draft": {
@@ -176,6 +192,195 @@ export function compileTemplateContent(
     .join("\n\n");
 }
 
+export function getTemplateFieldInputName(fieldName: string) {
+  return `${templateFieldFormNamePrefix}${fieldName}`;
+}
+
+export function getDocumentTemplateFieldValuesFromFormData(
+  formData: FormData,
+) {
+  const values: Record<string, string> = {};
+
+  for (const [name, value] of formData.entries()) {
+    if (!name.startsWith(templateFieldFormNamePrefix)) {
+      continue;
+    }
+
+    const fieldName = name.slice(templateFieldFormNamePrefix.length).trim();
+
+    if (!fieldName) {
+      continue;
+    }
+
+    values[fieldName] = String(value).trim();
+  }
+
+  return values;
+}
+
+export function getSafeRenderableDocumentTemplateFields(schema: unknown) {
+  return getRenderableDocumentTemplateFields(
+    getSafeDocumentTemplateSchema(schema).schema,
+  );
+}
+
+export function getRenderableDocumentTemplateFields(
+  schema: DocumentTemplateSchemaV1,
+) {
+  return schema.fields.filter((field) => !isDocumentTemplateShellField(field));
+}
+
+export function compileDocumentTemplateContentFromSchema(
+  schema: unknown,
+  values: Record<string, string> | undefined,
+  fallbackContent = "",
+) {
+  const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const fields = getRenderableDocumentTemplateFields(safeSchema);
+
+  if (fields.length === 0) {
+    return normalizeNewlines(fallbackContent).trim();
+  }
+
+  return compileDocumentTemplateContent(safeSchema, values ?? {});
+}
+
+export function compileDocumentTemplateContent(
+  schema: DocumentTemplateSchemaV1,
+  values: Record<string, string>,
+) {
+  const fields = getRenderableDocumentTemplateFields(schema);
+
+  if (fields.length === 1 && isPlainContentField(fields[0])) {
+    return normalizeNewlines(values[fields[0].name] ?? "").trim();
+  }
+
+  return fields
+    .map((field) => formatDocumentTemplateContentField(field, values))
+    .join("\n\n");
+}
+
+export function validateDocumentTemplateContentValues(
+  schema: unknown,
+  values: Record<string, string> | undefined,
+) {
+  const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const fieldValues = values ?? {};
+  const errors: string[] = [];
+
+  for (const field of getRenderableDocumentTemplateFields(safeSchema)) {
+    const value = fieldValues[field.name]?.trim() ?? "";
+
+    if (field.required && !isFilledTemplateFieldValue(field, value)) {
+      errors.push(`${field.label}을(를) 입력하세요.`);
+      continue;
+    }
+
+    if (!value || field.type === "checkbox") {
+      continue;
+    }
+
+    if (field.type === "number" && !Number.isFinite(Number(value))) {
+      errors.push(`${field.label}은(는) 숫자로 입력하세요.`);
+    }
+
+    if (field.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      errors.push(`${field.label}은(는) 날짜 형식으로 입력하세요.`);
+    }
+
+    if (
+      field.type === "select" &&
+      field.options &&
+      !field.options.some((option) => option.value === value)
+    ) {
+      errors.push(`${field.label} 선택값이 올바르지 않습니다.`);
+    }
+  }
+
+  return errors;
+}
+
+export function extractDocumentTemplateFieldValuesFromContent(
+  schema: unknown,
+  content: string,
+) {
+  const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const fields = getRenderableDocumentTemplateFields(safeSchema);
+
+  if (fields.length === 1 && isPlainContentField(fields[0])) {
+    return {
+      [fields[0].name]: content,
+    };
+  }
+
+  const sections = parseCompiledTemplateContent(
+    content,
+    fields.map((field) => field.label).sort((a, b) => b.length - a.length),
+  );
+  const sectionByLabel = new Map(
+    sections.map((section) => [section.label, section.value]),
+  );
+  const values: Record<string, string> = {};
+
+  for (const field of fields) {
+    const value = sectionByLabel.get(field.label);
+
+    if (value === undefined || value === "-") {
+      values[field.name] = "";
+      continue;
+    }
+
+    values[field.name] = normalizeExtractedTemplateValue(field, value);
+  }
+
+  return values;
+}
+
+export function getDocumentTemplateDisplayRows(
+  schema: unknown,
+  content: string,
+): DocumentTemplateDisplayRow[] {
+  const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const fields = getRenderableDocumentTemplateFields(safeSchema);
+  const values = extractDocumentTemplateFieldValuesFromContent(
+    safeSchema,
+    content,
+  );
+
+  return fields.map((field) => ({
+    label: field.label,
+    name: field.name,
+    type: field.type,
+    value: getDocumentTemplateDisplayValue(field, values[field.name] ?? ""),
+  }));
+}
+
+export function extractDisplayContentFromTemplate(
+  content: string,
+  templateId?: string,
+  schema?: unknown,
+) {
+  if (schema !== undefined) {
+    const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+    const fields = getRenderableDocumentTemplateFields(safeSchema);
+
+    if (fields.length === 1 && isPlainContentField(fields[0])) {
+      return extractTextareaContentFromCompiledTemplate(content, templateId);
+    }
+
+    const sections = parseCompiledTemplateContent(
+      content,
+      fields.map((field) => field.label).sort((a, b) => b.length - a.length),
+    );
+
+    if (sections.length > 0) {
+      return content;
+    }
+  }
+
+  return extractTextareaContentFromCompiledTemplate(content, templateId);
+}
+
 export function extractTextareaContentFromCompiledTemplate(
   content: string,
   templateId?: string,
@@ -206,6 +411,78 @@ export function extractTextareaContentFromCompiledTemplate(
   return sections
     .map((section) => `${section.label}\n${section.value || "-"}`)
     .join("\n\n");
+}
+
+function formatDocumentTemplateContentField(
+  field: DocumentTemplateField,
+  values: Record<string, string>,
+) {
+  const value = normalizeNewlines(values[field.name] ?? "").trim();
+  const displayValue = getDocumentTemplateDisplayValue(field, value);
+
+  if (!displayValue) {
+    return `${field.label}: -`;
+  }
+
+  if (field.type === "textarea" && displayValue.includes("\n")) {
+    return `${field.label}:\n${displayValue}`;
+  }
+
+  return `${field.label}: ${displayValue}`;
+}
+
+function getDocumentTemplateDisplayValue(
+  field: DocumentTemplateField,
+  value: string,
+) {
+  if (field.type === "checkbox") {
+    return value === "true" ? "예" : "아니오";
+  }
+
+  if (field.type === "select") {
+    return (
+      field.options?.find((option) => option.value === value)?.label ??
+      value
+    );
+  }
+
+  return value;
+}
+
+function normalizeExtractedTemplateValue(
+  field: DocumentTemplateField,
+  value: string,
+) {
+  if (field.type === "checkbox") {
+    return value === "예" || value === "true" ? "true" : "false";
+  }
+
+  if (field.type === "select") {
+    return (
+      field.options?.find((option) => option.label === value)?.value ?? value
+    );
+  }
+
+  return value;
+}
+
+function isFilledTemplateFieldValue(
+  field: DocumentTemplateField,
+  value: string,
+) {
+  if (field.type === "checkbox") {
+    return value === "true";
+  }
+
+  return Boolean(value.trim());
+}
+
+function isPlainContentField(field: DocumentTemplateField) {
+  return field.name === "content" && field.type === "textarea";
+}
+
+function isDocumentTemplateShellField(field: DocumentTemplateField) {
+  return field.name === "title" || field.name === "attachments" || field.type === "attachments";
 }
 
 function formatTemplateContentField(

@@ -38,6 +38,7 @@ export function NotificationBell({
   initialNotifications,
 }: NotificationBellProps) {
   const router = useRouter();
+  const containerRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastUnreadCountRef = useRef(initialUnreadCount);
   const [isOpen, setIsOpen] = useState(false);
@@ -48,6 +49,26 @@ export function NotificationBell({
   const buttonLabel = hasUnread
     ? `알림 ${displayUnreadCount}개`
     : "알림";
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleOutsideClick(event: PointerEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     function unlockNotificationSound() {
@@ -164,7 +185,7 @@ export function NotificationBell({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         aria-expanded={isOpen}

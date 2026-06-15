@@ -6,9 +6,18 @@ import ts from "typescript";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceExtensions = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"];
+const emptyModuleSpecifiers = new Set(["server-only", "client-only"]);
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (emptyModuleSpecifiers.has(specifier)) {
+      return {
+        shortCircuit: true,
+        url: pathToFileURL(path.join(projectRoot, "tests", "empty-module.mjs"))
+          .href,
+      };
+    }
+
     if (specifier.startsWith("@/")) {
       return resolveFile(path.join(projectRoot, "src", specifier.slice(2)));
     }

@@ -23,8 +23,8 @@ export function validatePasswordChangeFields({
     errors.currentPassword = "현재 비밀번호를 입력하세요.";
   }
 
-  if (newPassword.length < 12) {
-    errors.newPassword = "새 비밀번호는 12자 이상 입력하세요.";
+  if (newPassword.length < 4) {
+    errors.newPassword = "새 비밀번호는 4자 이상 입력하세요.";
   }
 
   if (newPassword.length > 128) {

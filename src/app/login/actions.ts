@@ -8,6 +8,7 @@ import { getLoginRequestInfo, type LoginFailureReason } from "@/lib/login-histor
 import { recordLoginHistory } from "@/lib/login-history";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { clearYouthManagementAccess } from "@/lib/youth-management-access";
 
 type LoginState = {
   error?: string;
@@ -90,5 +91,6 @@ export async function loginAction(
 
 export async function logoutAction() {
   await clearSession();
+  await clearYouthManagementAccess();
   redirect("/login");
 }

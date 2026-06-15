@@ -141,12 +141,14 @@ export function AdminEditModal({
   description,
   trigger,
   triggerClassName,
+  dialogClassName,
   children,
 }: {
   title: string;
   description?: string;
   trigger: ReactNode;
   triggerClassName?: string;
+  dialogClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -198,7 +200,10 @@ export function AdminEditModal({
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={description ? descriptionId : undefined}
-            className="relative max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
+            className={[
+              "relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl",
+              dialogClassName ?? "max-w-3xl",
+            ].join(" ")}
           >
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
               <div>

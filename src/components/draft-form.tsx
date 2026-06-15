@@ -23,10 +23,12 @@ import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
-  compileTemplateContent,
-  draftTemplateFormats,
-  type TemplateFieldDefinition,
+  compileDocumentTemplateContentFromSchema,
+  extractDocumentTemplateFieldValuesFromContent,
+  getSafeRenderableDocumentTemplateFields,
+  getTemplateFieldInputName,
 } from "@/lib/draft-template-content";
+import type { DocumentTemplateField } from "@/lib/document-template-schema";
 import {
   getAttachmentSelectionKey,
   getFileExtension,
@@ -39,6 +41,7 @@ type DraftFormProps = {
     id: string;
     name: string;
     description: string | null;
+    schema: unknown;
   }[];
   attachmentPolicy: {
     maxFileCount: number;
@@ -135,7 +138,7 @@ function DraftFormFields({
   const [content, setContent] = useState(initialValues.content);
   const [templateFieldValues, setTemplateFieldValues] = useState<
     Record<string, string>
-  >({});
+  >(() => getInitialTemplateFieldValues(initialValues, templates));
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>(
     initialValues.approverIds,
   );
@@ -154,11 +157,25 @@ function DraftFormFields({
   const isEditMode = mode === "edit";
   const retainedAttachmentCount =
     getRetainedAttachmentCount(removedAttachmentIds);
-  const selectedTemplateFormat = draftTemplateFormats[templateId];
-  const usesStructuredTemplate = Boolean(selectedTemplateFormat && !isEditMode);
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === templateId),
+    [templateId, templates],
+  );
+  const selectedTemplateFields = useMemo(
+    () =>
+      selectedTemplate
+        ? getSafeRenderableDocumentTemplateFields(selectedTemplate.schema)
+        : [],
+    [selectedTemplate],
+  );
+  const usesStructuredTemplate = selectedTemplateFields.length > 0;
   const structuredContent =
-    usesStructuredTemplate && selectedTemplateFormat
-      ? compileTemplateContent(selectedTemplateFormat, templateFieldValues)
+    usesStructuredTemplate && selectedTemplate
+      ? compileDocumentTemplateContentFromSchema(
+          selectedTemplate.schema,
+          templateFieldValues,
+          content,
+        )
       : content;
 
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
@@ -410,7 +427,13 @@ function DraftFormFields({
               value={templateId}
               onChange={(event) => {
                 setTemplateId(event.target.value);
-                setTemplateFieldValues({});
+                setTemplateFieldValues(
+                  getTemplateFieldValuesForSelectedTemplate(
+                    event.target.value,
+                    templates,
+                    "",
+                  ),
+                );
               }}
               className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
                 templateHasError ? ` ${errorBorderClass}` : ""
@@ -441,24 +464,24 @@ function DraftFormFields({
             className="text-sm font-semibold text-[#394150]"
             htmlFor={usesStructuredTemplate ? undefined : "content"}
           >
-            {usesStructuredTemplate && selectedTemplateFormat
-              ? selectedTemplateFormat.title
+            {usesStructuredTemplate && selectedTemplate
+              ? `${selectedTemplate.name} 입력`
               : "기안 내용"}
           </label>
-          {usesStructuredTemplate && selectedTemplateFormat ? (
+          {usesStructuredTemplate && selectedTemplate ? (
             <>
               <input name="content" type="hidden" value={structuredContent} />
               <div className="mt-2 grid gap-4 lg:grid-cols-2">
-                {selectedTemplateFormat.fields.map((field) => (
+                {selectedTemplateFields.map((field) => (
                   <TemplateInput
-                    key={field.id}
+                    key={field.name}
                     field={field}
                     pending={pending}
-                    value={templateFieldValues[field.id] ?? ""}
+                    value={templateFieldValues[field.name] ?? ""}
                     onChange={(value) =>
                       setTemplateFieldValues((current) => ({
                         ...current,
-                        [field.id]: value,
+                        [field.name]: value,
                       }))
                     }
                   />
@@ -871,18 +894,51 @@ function getInitialValues(
   templates: DraftFormProps["templates"],
   providedInitialValues?: DraftFormValues,
 ): DraftFormValues {
+  const templateId =
+    state.values?.templateId ??
+    providedInitialValues?.templateId ??
+    templates[0]?.id ??
+    "";
+  const content = state.values?.content ?? providedInitialValues?.content ?? "";
+
   return {
     title: state.values?.title ?? providedInitialValues?.title ?? "",
     category: state.values?.category ?? providedInitialValues?.category ?? "일반",
-    templateId:
-      state.values?.templateId ??
-      providedInitialValues?.templateId ??
-      templates[0]?.id ??
-      "",
-    content: state.values?.content ?? providedInitialValues?.content ?? "",
+    templateId,
+    content,
     approverIds:
       state.values?.approverIds ?? providedInitialValues?.approverIds ?? [],
+    templateFieldValues:
+      state.values?.templateFieldValues ??
+      providedInitialValues?.templateFieldValues ??
+      getTemplateFieldValuesForSelectedTemplate(templateId, templates, content),
   };
+}
+
+function getInitialTemplateFieldValues(
+  initialValues: DraftFormValues,
+  templates: DraftFormProps["templates"],
+) {
+  return (
+    initialValues.templateFieldValues ??
+    getTemplateFieldValuesForSelectedTemplate(
+      initialValues.templateId,
+      templates,
+      initialValues.content,
+    )
+  );
+}
+
+function getTemplateFieldValuesForSelectedTemplate(
+  templateId: string,
+  templates: DraftFormProps["templates"],
+  content: string,
+) {
+  const template = templates.find((candidate) => candidate.id === templateId);
+
+  return template
+    ? extractDocumentTemplateFieldValuesFromContent(template.schema, content)
+    : {};
 }
 
 function TemplateInput({
@@ -891,13 +947,14 @@ function TemplateInput({
   pending,
   value,
 }: {
-  field: TemplateFieldDefinition;
+  field: DocumentTemplateField;
   onChange: (value: string) => void;
   pending: boolean;
   value: string;
 }) {
-  const inputId = `template-field-${field.id}`;
-  const isRequired = field.required !== false;
+  const inputId = `template-field-${field.name}`;
+  const inputName = getTemplateFieldInputName(field.name);
+  const isRequired = field.required;
   const baseClass =
     "mt-2 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 
@@ -909,6 +966,7 @@ function TemplateInput({
       {field.type === "textarea" ? (
         <LineNumberedTextarea
           id={inputId}
+          name={inputName}
           required={isRequired}
           disabled={pending}
           rows={5}
@@ -916,9 +974,45 @@ function TemplateInput({
           onChange={onChange}
           placeholder={field.placeholder}
         />
+      ) : field.type === "select" ? (
+        <select
+          id={inputId}
+          name={inputName}
+          required={isRequired}
+          disabled={pending}
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          className={`${baseClass} h-11`}
+        >
+          <option value="">선택하세요</option>
+          {field.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ) : field.type === "checkbox" ? (
+        <label className="mt-2 flex h-11 items-center gap-2 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm text-[#394150]">
+          <input name={inputName} type="hidden" value="false" />
+          <input
+            id={inputId}
+            name={inputName}
+            type="checkbox"
+            value="true"
+            checked={value === "true"}
+            required={isRequired}
+            disabled={pending}
+            onChange={(event) =>
+              onChange(event.currentTarget.checked ? "true" : "false")
+            }
+            className="size-4 rounded border-[#cfd6e3] accent-[#196b69]"
+          />
+          <span>{field.helpText || "예"}</span>
+        </label>
       ) : (
         <input
           id={inputId}
+          name={inputName}
           required={isRequired}
           disabled={pending}
           type={field.type}

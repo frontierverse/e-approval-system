@@ -101,19 +101,25 @@ export function canDeleteSignedAttachmentByPolicy({
   actorRole,
   document,
   isCurrentApprover,
+  signedApprovalStatus,
   signedById,
 }: {
   actorId: string;
   actorRole: ApprovalPermissionRole;
   document: DocumentActionPolicyShape;
   isCurrentApprover: boolean;
+  signedApprovalStatus?: string | null;
   signedById?: string | null;
 }) {
-  if (actorRole === "ADMIN") {
-    return true;
+  if (canManageDraftDocumentAttachmentsByPolicy(actorId, document)) {
+    return !isSignedAttachmentLocked(document.status, signedApprovalStatus);
   }
 
-  if (canManageDraftDocumentAttachmentsByPolicy(actorId, document)) {
+  if (isSignedAttachmentLocked(document.status, signedApprovalStatus)) {
+    return false;
+  }
+
+  if (actorRole === "ADMIN") {
     return true;
   }
 
@@ -123,6 +129,21 @@ export function canDeleteSignedAttachmentByPolicy({
     signedById === actorId &&
     isCurrentApprover &&
     (status === "SUBMITTED" || status === "IN_PROGRESS")
+  );
+}
+
+function isSignedAttachmentLocked(
+  documentStatus: string | null | undefined,
+  signedApprovalStatus: string | null | undefined,
+) {
+  const status = normalizeDocumentStatus(documentStatus);
+  const approvalStatus = normalizeDocumentStatus(signedApprovalStatus);
+
+  return (
+    status === "APPROVED" ||
+    status === "REJECTED" ||
+    approvalStatus === "APPROVED" ||
+    approvalStatus === "REJECTED"
   );
 }
 

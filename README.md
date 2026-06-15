@@ -8,6 +8,7 @@
 - [프로젝트 기준](./docs/project-brief.md)
 - [데이터 모델 설계](./docs/data-model.md)
 - [첨부파일 도장/서명 기능 개발 계획서](./docs/attachment-signature-todo.md)
+- [문서양식 디자이너 개발 계획서](./docs/document-template-designer-todo.md)
 - [배포 준비](./docs/deployment.md)
 - [PostgreSQL 전환 기록](./docs/postgresql-transition.md)
 

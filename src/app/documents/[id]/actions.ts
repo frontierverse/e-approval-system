@@ -453,17 +453,21 @@ export async function deleteSignedAttachmentAction(
     (step) =>
       step.approverId === user.id && step.status === ApprovalStepStatus.PENDING,
   );
+  const signedApprovalStatus = attachment.document.approvalSteps.find(
+    (step) => step.approverId === attachment.signedById,
+  )?.status;
   const canDeleteSignedAttachment = canDeleteSignedAttachmentByPolicy({
     actorId: user.id,
     actorRole: user.role,
     document: attachment.document,
     isCurrentApprover: isActiveDocument && isCurrentApprover,
+    signedApprovalStatus,
     signedById: attachment.signedById,
   });
 
   if (!canDeleteSignedAttachment) {
     redirect(
-      `/documents/${documentId}?actionError=${encodeURIComponent("현재 결재 차례에서 본인이 만든 서명본 또는 임시저장/회수 문서의 작성자만 삭제할 수 있습니다.")}`,
+      `/documents/${documentId}?actionError=${encodeURIComponent("승인 또는 반려 기록에 연결된 서명본은 삭제할 수 없습니다. 결재 전 정정이 필요한 서명본만 삭제할 수 있습니다.")}`,
     );
   }
 

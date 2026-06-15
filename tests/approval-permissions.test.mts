@@ -192,7 +192,7 @@ describe("document action policy", () => {
     );
   });
 
-  test("allows signed attachment deletion by draft owner, active signer, or admin", () => {
+  test("allows signed attachment deletion only before the signature becomes evidence", () => {
     assert.equal(
       canDeleteSignedAttachmentByPolicy({
         actorId: "drafter-001",
@@ -202,6 +202,7 @@ describe("document action policy", () => {
           status: "RECALLED",
         },
         isCurrentApprover: false,
+        signedApprovalStatus: "PENDING",
         signedById: "approver-001",
       }),
       true,
@@ -215,6 +216,7 @@ describe("document action policy", () => {
           status: "IN_PROGRESS",
         },
         isCurrentApprover: true,
+        signedApprovalStatus: "PENDING",
         signedById: "approver-001",
       }),
       true,
@@ -228,6 +230,21 @@ describe("document action policy", () => {
           status: "IN_PROGRESS",
         },
         isCurrentApprover: false,
+        signedApprovalStatus: "PENDING",
+        signedById: "approver-001",
+      }),
+      false,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "approver-001",
+        actorRole: "USER",
+        document: {
+          drafterId: "drafter-001",
+          status: "IN_PROGRESS",
+        },
+        isCurrentApprover: true,
+        signedApprovalStatus: "APPROVED",
         signedById: "approver-001",
       }),
       false,
@@ -241,6 +258,21 @@ describe("document action policy", () => {
           status: "APPROVED",
         },
         isCurrentApprover: false,
+        signedApprovalStatus: "APPROVED",
+        signedById: "approver-001",
+      }),
+      false,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "admin-001",
+        actorRole: "ADMIN",
+        document: {
+          drafterId: "drafter-001",
+          status: "IN_PROGRESS",
+        },
+        isCurrentApprover: false,
+        signedApprovalStatus: "PENDING",
         signedById: "approver-001",
       }),
       true,

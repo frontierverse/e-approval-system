@@ -434,6 +434,18 @@ export async function updateDraftDocument({
       };
     }
 
+    const blockedAttachment = getSourceAttachmentWithSignedCopies(
+      document.attachments,
+      removeAttachmentIds,
+    );
+
+    if (blockedAttachment) {
+      return {
+        ok: false as const,
+        message: `"${blockedAttachment.originalName}" 첨부파일에는 서명본이 있어 삭제할 수 없습니다. 삭제 가능한 서명본을 먼저 정리하세요.`,
+      };
+    }
+
     const attachmentsToRemove = getDocumentAttachmentsToRemove(
       document.attachments,
       removeAttachmentIds,
@@ -744,6 +756,13 @@ export async function deleteDocumentAttachment(
       return {
         ok: false as const,
         message: "임시저장 또는 회수 상태의 작성자만 첨부파일을 삭제할 수 있습니다.",
+      };
+    }
+
+    if (attachment.signedCopies.length > 0) {
+      return {
+        ok: false as const,
+        message: `"${attachment.originalName}" 첨부파일에는 서명본이 있어 삭제할 수 없습니다. 삭제 가능한 서명본을 먼저 정리하세요.`,
       };
     }
 
@@ -1520,6 +1539,20 @@ function getDocumentAttachmentsToRemove(
   }
 
   return Array.from(removalById.values());
+}
+
+function getSourceAttachmentWithSignedCopies(
+  attachments: readonly AttachmentRemovalCandidate[],
+  removeAttachmentIds: readonly string[],
+) {
+  const requestedIds = new Set(removeAttachmentIds.filter(Boolean));
+
+  return attachments.find(
+    (attachment) =>
+      requestedIds.has(attachment.id) &&
+      !attachment.signedSourceAttachmentId &&
+      (attachment.signedCopies?.length ?? 0) > 0,
+  );
 }
 
 function addAttachmentRemovalRef(

@@ -1,3 +1,5 @@
+import { getDocumentTemplateFieldValuesFromFormData } from "@/lib/draft-template-content";
+
 export type DraftFormState = {
   values?: DraftFormValues;
   errors?: {
@@ -15,6 +17,7 @@ export type DraftFormValues = {
   templateId: string;
   content: string;
   approverIds: string[];
+  templateFieldValues?: Record<string, string>;
 };
 
 export type DraftFormIntent = "draft" | "submit";
@@ -35,6 +38,7 @@ export function getDraftFormValues(formData: FormData): DraftFormValues {
     templateId: String(formData.get("templateId") ?? "").trim(),
     content: String(formData.get("content") ?? "").trim(),
     approverIds: Array.from(new Set(approverIds)),
+    templateFieldValues: getDocumentTemplateFieldValuesFromFormData(formData),
   };
 }
 

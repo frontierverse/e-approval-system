@@ -19,11 +19,11 @@ describe("password change policy", () => {
   test("requires a long enough new password", () => {
     const result = validatePasswordChangeFields({
       currentPassword: "password123",
-      newPassword: "short",
-      confirmPassword: "short",
+      newPassword: "abc",
+      confirmPassword: "abc",
     });
 
-    assert.equal(result.errors.newPassword, "새 비밀번호는 12자 이상 입력하세요.");
+    assert.equal(result.errors.newPassword, "새 비밀번호는 4자 이상 입력하세요.");
   });
 
   test("requires matching confirmation", () => {

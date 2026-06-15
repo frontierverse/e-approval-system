@@ -909,7 +909,11 @@ function formatNullableChange(value: string | null) {
 }
 
 function getStatusChangeBadgeClass(value: string) {
-  if (value === "임시저장" || value === "없음") {
+  if (value === "임시저장") {
+    return "border-[#d92525] bg-[#ffe5e5] text-[#7a1313]";
+  }
+
+  if (value === "없음") {
     return "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]";
   }
 

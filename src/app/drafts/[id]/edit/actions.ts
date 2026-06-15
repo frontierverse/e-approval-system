@@ -13,6 +13,10 @@ import {
 } from "@/lib/attachment-storage";
 import { requireUser } from "@/lib/auth";
 import {
+  compileDocumentTemplateContentFromSchema,
+  validateDocumentTemplateContentValues,
+} from "@/lib/draft-template-content";
+import {
   getDraftFormIntent,
   getDraftFormValues,
   hasDraftFormErrors,
@@ -79,7 +83,28 @@ export async function updateDraftAction(
       : undefined);
   const generatedPdfStorageError =
     intent === "submit" ? getGeneratedApprovalPdfStorageError() : null;
-  const errors = validateDraftFormValues(values, {
+  const template = await prisma.documentTemplate.findFirst({
+    where: {
+      id: values.templateId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      schema: true,
+    },
+  });
+  const contentValues = template
+    ? {
+        ...values,
+        content: compileDocumentTemplateContentFromSchema(
+          template.schema,
+          values.templateFieldValues,
+          values.content,
+        ),
+      }
+    : values;
+  const errors = validateDraftFormValues(contentValues, {
     currentUserId: user.id,
     submittedApproverIds,
     attachmentError: attachmentError ?? generatedPdfStorageError ?? undefined,
@@ -89,20 +114,26 @@ export async function updateDraftAction(
     errors.form = "수정할 수 있는 임시저장 문서를 찾을 수 없습니다.";
   }
 
-  if (hasDraftFormErrors(errors)) {
-    return { values, errors };
+  if (!template) {
+    errors.templateId = "사용 가능한 문서 양식이 아닙니다.";
+  } else {
+    const templateErrors = validateDocumentTemplateContentValues(
+      template.schema,
+      values.templateFieldValues,
+    );
+
+    if (templateErrors.length > 0) {
+      errors.content = templateErrors[0];
+    }
   }
 
-  const template = await prisma.documentTemplate.findFirst({
-    where: {
-      id: values.templateId,
-      isActive: true,
-    },
-  });
+  if (hasDraftFormErrors(errors)) {
+    return { values: contentValues, errors };
+  }
 
   if (!template) {
     return {
-      values,
+      values: contentValues,
       errors: {
         templateId: "사용 가능한 문서 양식이 아닙니다.",
       },
@@ -175,10 +206,10 @@ export async function updateDraftAction(
     const result = await updateDraftDocument({
       documentId,
       actorId: user.id,
-      title: values.title,
+      title: contentValues.title,
       category: template.name,
-      content: values.content,
-      templateId: values.templateId,
+      content: contentValues.content,
+      templateId: contentValues.templateId,
       approvers: orderedApprovers,
       attachments,
       removeAttachmentIds: Array.from(requestedRemoveIds),

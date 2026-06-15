@@ -21,6 +21,7 @@ import {
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import {
   canDeleteDraftDocumentByPolicy,
+  canDeleteSignedAttachmentByPolicy,
   canManageDraftDocumentAttachmentsByPolicy,
   canRecallDocumentByPolicy,
 } from "@/lib/approval-permissions-core";
@@ -443,10 +444,18 @@ export default async function DocumentDetailPage({
             {signedAttachments.length > 0 ? (
               <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
                 {signedAttachments.map((attachment) => {
+                  const signedApprovalStatus = document.approvalSteps.find(
+                    (step) => step.approverId === attachment.signedBy?.id,
+                  )?.status;
                   const canDeleteSignedAttachment =
-                    user.role === "ADMIN" ||
-                    canManageDraftAttachments ||
-                    (canDecide && attachment.signedBy?.id === user.id);
+                    canDeleteSignedAttachmentByPolicy({
+                      actorId: user.id,
+                      actorRole: user.role,
+                      document,
+                      isCurrentApprover: canDecide,
+                      signedApprovalStatus,
+                      signedById: attachment.signedBy?.id,
+                    });
 
                   return (
                     <li

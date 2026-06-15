@@ -46,6 +46,7 @@ export default async function EditDraftPage({
           id: template.id,
           name: template.name,
           description: template.description,
+          schema: template.schema,
         }))}
         attachmentPolicy={attachmentPolicy}
         approverCandidates={approverCandidates.map((candidate) => ({

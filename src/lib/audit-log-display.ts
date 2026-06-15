@@ -22,6 +22,10 @@ export const auditActionLabels = {
   CREATE_RESOURCE: "자료 업로드",
   UPDATE_RESOURCE: "자료 수정",
   DELETE_RESOURCE: "자료 삭제",
+  CREATE_YOUTH: "청소년 등록",
+  UPDATE_YOUTH: "청소년 정보 수정",
+  UPDATE_YOUTH_NOTE: "청소년 특이사항 수정",
+  DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
 } as const;
 
 export type AuditActionValue = keyof typeof auditActionLabels;
@@ -62,6 +66,10 @@ export const auditActionBadgeClasses: Record<AuditActionValue, string> = {
   CREATE_RESOURCE: "border-[#b8d9d7] bg-[#eef7f6] text-[#196b69]",
   UPDATE_RESOURCE: "border-[#c9d6ea] bg-[#f3f7fc] text-[#3f5f8c]",
   DELETE_RESOURCE: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
+  CREATE_YOUTH: "border-[#b8d9d7] bg-[#eef7f6] text-[#196b69]",
+  UPDATE_YOUTH: "border-[#c9d6ea] bg-[#f3f7fc] text-[#3f5f8c]",
+  UPDATE_YOUTH_NOTE: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
+  DELETE_YOUTH_NOTE: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
 };
 
 export const auditActionTextClasses: Record<AuditActionValue, string> = {
@@ -88,6 +96,10 @@ export const auditActionTextClasses: Record<AuditActionValue, string> = {
   CREATE_RESOURCE: "text-[#196b69]",
   UPDATE_RESOURCE: "text-[#3f5f8c]",
   DELETE_RESOURCE: "text-[#8a1f1f]",
+  CREATE_YOUTH: "text-[#196b69]",
+  UPDATE_YOUTH: "text-[#3f5f8c]",
+  UPDATE_YOUTH_NOTE: "text-[#82620d]",
+  DELETE_YOUTH_NOTE: "text-[#8a1f1f]",
 };
 
 export function getAuditActionLabel(action: string) {

@@ -53,6 +53,8 @@ export type YouthCreateInput = {
   familyContacts: YouthFamilyContactInput[];
 };
 
+export type YouthUpdateInput = YouthCreateInput;
+
 export type YouthNoteInput = Omit<YouthSpecialNote, "id">;
 
 export type YouthActionResult<T> =

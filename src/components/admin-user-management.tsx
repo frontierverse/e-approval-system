@@ -109,7 +109,7 @@ function UserListItem({
   return (
     <AdminEditModal
       title="사용자 수정"
-      description="권한, 상태, 조직 정보와 비밀번호를 수정합니다."
+      description="권한, 상태, 조직 정보와 비밀번호를 재설정합니다."
       trigger={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -166,7 +166,7 @@ function CreateUserForm({
     >
       <h2 className="text-base font-semibold">사용자 추가</h2>
       <p className="mt-1 text-sm text-[#697386]">
-        새 계정의 기본 조직 정보와 초기 비밀번호를 입력합니다.
+        새 계정의 기본 조직 정보를 입력합니다. (초기 비밀번호: 0000)
       </p>
 
       <div className="mt-5 grid gap-4">
@@ -183,12 +183,6 @@ function CreateUserForm({
           type="email"
           defaultValue={state.values?.email}
           placeholder="입력하지 않아도 생성됩니다"
-        />
-        <TextField
-          label="초기 비밀번호"
-          name="password"
-          type="password"
-          placeholder="8자 이상"
         />
         <SelectField
           label="부서"
@@ -317,10 +311,11 @@ function EditUserForm({
         />
 
         <TextField
-          label="새 비밀번호"
+          label="새 비밀번호 재설정"
+          description="현재 비밀번호 불필요"
           name="password"
           type="password"
-          placeholder="변경 시 입력"
+          placeholder="4자 이상 입력 시 변경"
         />
 
         <div className="flex min-w-0 items-end sm:col-span-2">

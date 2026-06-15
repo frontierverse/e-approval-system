@@ -74,7 +74,7 @@ async function AccountContent() {
       <article className="rounded-md border border-[#d9dee7] bg-white p-5">
         <h2 className="text-base font-semibold">비밀번호 변경</h2>
         <p className="mt-2 text-sm text-[#697386]">
-          새 비밀번호는 12자 이상 입력하세요.
+          새 비밀번호는 4자 이상 입력하세요.
         </p>
         <div className="mt-5">
           <ChangePasswordForm />

@@ -40,6 +40,7 @@ async function DraftFormContent() {
         id: template.id,
         name: template.name,
         description: template.description,
+        schema: template.schema,
       }))}
       attachmentPolicy={attachmentPolicy}
       approverCandidates={approverCandidates.map((candidate) => ({

@@ -6,7 +6,7 @@ import {
 } from "@/lib/mock-data";
 
 const documentTone: Record<DocumentStatus, string> = {
-  draft: "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]",
+  draft: "border-[#d92525] bg-[#ffe5e5] text-[#7a1313]",
   submitted: "border-[#b8d9d7] bg-[#e5f2f1] text-[#0f5553]",
   in_progress: "border-[#b9c9ea] bg-[#eaf0fb] text-[#274f9f]",
   approved: "border-[#bddfc9] bg-[#e8f5ed] text-[#22633a]",

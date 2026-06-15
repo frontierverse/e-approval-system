@@ -8,6 +8,7 @@ import {
   UserRole,
   UserStatus,
 } from "../src/generated/prisma/client";
+import { getDefaultDocumentTemplateSchema } from "../src/lib/document-template-schema";
 import { hashPassword } from "../src/lib/password";
 
 const adapter = new PrismaPg({
@@ -15,23 +16,7 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 const demoPasswordHash = hashPassword("password123");
-const defaultDocumentTemplateSchema = {
-  fields: [
-    { name: "title", label: "제목", type: "text", required: true },
-    {
-      name: "content",
-      label: "기안 내용",
-      type: "textarea",
-      required: true,
-    },
-    {
-      name: "attachments",
-      label: "첨부파일",
-      type: "attachments",
-      required: false,
-    },
-  ],
-};
+const defaultDocumentTemplateSchema = getDefaultDocumentTemplateSchema();
 const defaultAllowedAttachmentExtensions = [
   ".pdf",
   ".png",

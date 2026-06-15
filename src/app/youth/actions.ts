@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { AuditAction } from "@/generated/prisma/client";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
+import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
   isYouthNoteCategory,
@@ -12,16 +16,65 @@ import {
   type YouthNoteInput,
   type YouthProfile,
   type YouthSpecialNote,
+  type YouthUpdateInput,
 } from "@/lib/youth-management-core";
 import {
   mapYouthProfile,
   mapYouthSpecialNote,
 } from "@/lib/youth-management";
+import {
+  createYouthManagementAccess,
+  verifyYouthManagementAccessValue,
+} from "@/lib/youth-management-access";
+
+export type YouthManagementAccessState = {
+  error?: string;
+};
+
+const youthManagementAccessExpiredError =
+  "청소년 관리 접근 인증이 필요합니다. 비밀번호를 다시 입력하세요.";
+
+export async function verifyYouthManagementAccessAction(
+  _state: YouthManagementAccessState,
+  formData: FormData,
+): Promise<YouthManagementAccessState> {
+  const user = await requireUser();
+  const password = String(formData.get("password") ?? "");
+
+  if (!password) {
+    return {
+      error: "비밀번호를 입력하세요.",
+    };
+  }
+
+  if (!user.passwordHash) {
+    return {
+      error: "비밀번호가 설정된 계정만 청소년 관리에 접근할 수 있습니다.",
+    };
+  }
+
+  if (!verifyPassword(password, user.passwordHash)) {
+    return {
+      error: "비밀번호가 올바르지 않습니다.",
+    };
+  }
+
+  await createYouthManagementAccess(user.id);
+  redirect("/youth");
+}
 
 export async function createYouthAction(
+  accessToken: string,
   values: YouthCreateInput,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
-  await requireUser();
+  const access = await getYouthManagementActionAccess(accessToken);
+
+  if (!access.ok) {
+    return access;
+  }
+
+  const user = access.user;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
 
@@ -135,6 +188,21 @@ export async function createYouthAction(
       `;
     }
 
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.CREATE_YOUTH,
+        targetType: "Youth",
+        targetId: createdYouth.id,
+        message: `${normalizedName} 청소년을 등록했습니다.`,
+        metadata: {
+          familyContactCount: familyContacts.length,
+          hasPhone: Boolean(normalizedPhone.value),
+        },
+      },
+    });
+
     return {
       ...createdYouth,
       familyContacts,
@@ -151,11 +219,200 @@ export async function createYouthAction(
   };
 }
 
+export async function updateYouthAction(
+  accessToken: string,
+  youthId: string,
+  values: YouthUpdateInput,
+): Promise<YouthActionResult<{ youth: YouthProfile }>> {
+  const access = await getYouthManagementActionAccess(accessToken);
+
+  if (!access.ok) {
+    return access;
+  }
+
+  const user = access.user;
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  const normalizedName = values.name.trim();
+
+  if (!normalizedName) {
+    return {
+      ok: false,
+      error: "청소년 이름을 입력하세요.",
+    };
+  }
+
+  const existingYouth = await prisma.youth.findUnique({
+    where: {
+      id: youthId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingYouth) {
+    return {
+      ok: false,
+      error: "수정할 청소년을 찾을 수 없습니다.",
+    };
+  }
+
+  const existingName = await prisma.youth.findUnique({
+    where: {
+      name: normalizedName,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingName && existingName.id !== youthId) {
+    return {
+      ok: false,
+      error: "이미 등록된 청소년 이름입니다.",
+    };
+  }
+
+  const parsedAge = parseOptionalAge(values.age);
+  const normalizedPhone = normalizeOptionalPhone(values.phone);
+  const normalizedFamilyContacts = normalizeFamilyContacts(
+    values.familyContacts,
+  );
+  const normalizedAdmissionDate = normalizeOptionalDate(values.admissionDate);
+  const normalizedDischargeDate = normalizeOptionalDate(values.dischargeDate);
+
+  if (parsedAge.error) {
+    return {
+      ok: false,
+      error: parsedAge.error,
+    };
+  }
+
+  if (normalizedPhone.error) {
+    return {
+      ok: false,
+      error: normalizedPhone.error,
+    };
+  }
+
+  if (normalizedFamilyContacts.error) {
+    return {
+      ok: false,
+      error: normalizedFamilyContacts.error,
+    };
+  }
+
+  if (normalizedAdmissionDate.error || normalizedDischargeDate.error) {
+    return {
+      ok: false,
+      error: "날짜는 YYYY-MM-DD 형식으로 입력하세요.",
+    };
+  }
+
+  const firstFamilyContact = normalizedFamilyContacts.value[0];
+
+  const youth = await prisma.$transaction(async (tx) => {
+    const updatedYouth = await tx.youth.update({
+      where: {
+        id: youthId,
+      },
+      data: {
+        name: normalizedName,
+        admissionDate: normalizedAdmissionDate.value,
+        dischargeDate: normalizedDischargeDate.value,
+        age: parsedAge.value,
+        phone: normalizedPhone.value,
+        familyRelationship: firstFamilyContact?.relationship ?? null,
+        familyPhone: firstFamilyContact?.phone ?? null,
+        familyContact: firstFamilyContact?.phone ?? null,
+      },
+      include: {
+        notes: {
+          orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+        },
+      },
+    });
+
+    await tx.$executeRaw`
+      DELETE FROM "YouthFamilyContact"
+      WHERE "youthId" = ${youthId}
+    `;
+
+    const familyContacts = normalizedFamilyContacts.value.map(
+      (contact, index) => ({
+        id: `family-contact-${youthId}-${index + 1}`,
+        youthId,
+        relationship: contact.relationship,
+        phone: contact.phone,
+      }),
+    );
+
+    for (const contact of familyContacts) {
+      await tx.$executeRaw`
+        INSERT INTO "YouthFamilyContact" (
+          "id",
+          "relationship",
+          "phone",
+          "createdAt",
+          "updatedAt",
+          "youthId"
+        )
+        VALUES (
+          ${contact.id},
+          ${contact.relationship},
+          ${contact.phone},
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          ${contact.youthId}
+        )
+      `;
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "Youth",
+        targetId: updatedYouth.id,
+        message: `${normalizedName} 청소년 기본 정보를 수정했습니다.`,
+        metadata: {
+          familyContactCount: familyContacts.length,
+          hasPhone: Boolean(normalizedPhone.value),
+        },
+      },
+    });
+
+    return {
+      ...updatedYouth,
+      familyContacts,
+    };
+  });
+
+  revalidatePath("/youth");
+
+  return {
+    ok: true,
+    data: {
+      youth: mapYouthProfile(youth),
+    },
+  };
+}
+
 export async function updateYouthNoteAction(
+  accessToken: string,
   noteId: string,
   values: YouthNoteInput,
 ): Promise<YouthActionResult<{ note: YouthSpecialNote }>> {
-  await requireUser();
+  const access = await getYouthManagementActionAccess(accessToken);
+
+  if (!access.ok) {
+    return access;
+  }
+
+  const user = access.user;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   const error = validateYouthNoteInput(values);
 
@@ -172,6 +429,13 @@ export async function updateYouthNoteAction(
     },
     select: {
       id: true,
+      title: true,
+      youth: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -182,19 +446,38 @@ export async function updateYouthNoteAction(
     };
   }
 
-  const note = await prisma.youthSpecialNote.update({
-    where: {
-      id: noteId,
-    },
-    data: {
-      title: values.title.trim(),
-      summary: values.summary.trim(),
-      detail: values.detail.trim(),
-      category: values.category,
-      recordedAt: values.recordedAt,
-      author: values.author.trim(),
-      priority: values.priority,
-    },
+  const note = await prisma.$transaction(async (tx) => {
+    const updatedNote = await tx.youthSpecialNote.update({
+      where: {
+        id: noteId,
+      },
+      data: {
+        title: values.title.trim(),
+        summary: values.summary.trim(),
+        detail: values.detail.trim(),
+        category: values.category,
+        recordedAt: values.recordedAt,
+        author: values.author.trim(),
+        priority: values.priority,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH_NOTE,
+        targetType: "YouthSpecialNote",
+        targetId: noteId,
+        message: `${existing.youth.name} 청소년의 "${updatedNote.title}" 특이사항을 수정했습니다.`,
+        metadata: {
+          youthId: existing.youth.id,
+          previousTitle: existing.title,
+        },
+      },
+    });
+
+    return updatedNote;
   });
 
   revalidatePath("/youth");
@@ -208,9 +491,17 @@ export async function updateYouthNoteAction(
 }
 
 export async function deleteYouthNoteAction(
+  accessToken: string,
   noteId: string,
 ): Promise<YouthActionResult<{ noteId: string; youthId: string }>> {
-  await requireUser();
+  const access = await getYouthManagementActionAccess(accessToken);
+
+  if (!access.ok) {
+    return access;
+  }
+
+  const user = access.user;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
   const note = await prisma.youthSpecialNote.findUnique({
     where: {
@@ -218,7 +509,13 @@ export async function deleteYouthNoteAction(
     },
     select: {
       id: true,
+      title: true,
       youthId: true,
+      youth: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -229,10 +526,26 @@ export async function deleteYouthNoteAction(
     };
   }
 
-  await prisma.youthSpecialNote.delete({
-    where: {
-      id: noteId,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.DELETE_YOUTH_NOTE,
+        targetType: "YouthSpecialNote",
+        targetId: note.id,
+        message: `${note.youth.name} 청소년의 "${note.title}" 특이사항을 삭제했습니다.`,
+        metadata: {
+          youthId: note.youthId,
+        },
+      },
+    });
+
+    await tx.youthSpecialNote.delete({
+      where: {
+        id: noteId,
+      },
+    });
   });
 
   revalidatePath("/youth");
@@ -243,6 +556,22 @@ export async function deleteYouthNoteAction(
       noteId: note.id,
       youthId: note.youthId,
     },
+  };
+}
+
+async function getYouthManagementActionAccess(accessToken: string) {
+  const user = await requireUser();
+
+  if (!verifyYouthManagementAccessValue(accessToken, user.id)) {
+    return {
+      ok: false as const,
+      error: youthManagementAccessExpiredError,
+    };
+  }
+
+  return {
+    ok: true as const,
+    user,
   };
 }
 

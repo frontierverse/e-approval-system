@@ -602,6 +602,32 @@ describe("major UI rendering", () => {
               documentNo: "EA-2026-0002",
             },
           },
+          {
+            id: "audit-005",
+            action: "CREATE_YOUTH",
+            targetType: "Youth",
+            targetId: "youth-001",
+            message: "김하늘 청소년을 등록했습니다.",
+            createdAt: new Date("2026-05-08T04:30:00.000Z"),
+            actor: {
+              name: "김민준",
+              email: "admin@example.com",
+            },
+            document: null,
+          },
+          {
+            id: "audit-006",
+            action: "DELETE_YOUTH_NOTE",
+            targetType: "YouthSpecialNote",
+            targetId: "note-001",
+            message: "김하늘 청소년의 특이사항을 삭제했습니다.",
+            createdAt: new Date("2026-05-08T04:20:00.000Z"),
+            actor: {
+              name: "김민준",
+              email: "admin@example.com",
+            },
+            document: null,
+          },
         ],
       }),
     );
@@ -615,6 +641,9 @@ describe("major UI rendering", () => {
     assert.match(html, /임시저장/);
     assert.match(html, /PDF 생성/);
     assert.match(html, /시스템 원본문서 PDF를 생성했습니다\./);
+    assert.match(html, /청소년 등록/);
+    assert.match(html, /김하늘 청소년을 등록했습니다\./);
+    assert.match(html, /청소년 특이사항 삭제/);
     assert.doesNotMatch(html, /기안 작성/);
     assert.match(html, /EA-2026-0001/);
     assert.match(html, /시설 운영비 집행 기안/);

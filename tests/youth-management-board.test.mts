@@ -78,6 +78,25 @@ describe("YouthManagementBoard", () => {
           data: { noteId, youthId: "youth-test-001" },
         }),
         initialYouths: youths,
+        updateYouth: async (_youthId, values) => ({
+          ok: true,
+          data: {
+            youth: {
+              id: "youth-test-001",
+              name: values.name,
+              admissionDate: values.admissionDate || null,
+              dischargeDate: values.dischargeDate || null,
+              age: values.age ? Number(values.age) : null,
+              phone: values.phone || null,
+              familyContacts: values.familyContacts.map((contact, index) => ({
+                id: `updated-family-contact-${index}`,
+                relationship: contact.relationship || null,
+                phone: contact.phone || null,
+              })),
+              notes: [],
+            },
+          },
+        }),
         updateYouthNote: async (_noteId, values) => ({
           ok: true,
           data: { note: { id: "note-test-001", ...values } },
@@ -92,6 +111,7 @@ describe("YouthManagementBoard", () => {
     assert.match(html, /이도현/);
     assert.match(html, /입소 날짜/);
     assert.match(html, /퇴소까지/);
+    assert.match(html, /기본 정보 수정/);
     assert.match(html, /가족 연락처/);
     assert.match(html, /010-3333-4444/);
     assert.match(html, /010-7777-8888/);

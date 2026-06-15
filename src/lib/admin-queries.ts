@@ -205,6 +205,7 @@ export async function getAdminDocumentTemplates() {
       id: true,
       name: true,
       description: true,
+      schema: true,
       isActive: true,
       _count: {
         select: {

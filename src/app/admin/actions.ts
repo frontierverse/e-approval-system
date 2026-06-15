@@ -2,7 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { AuditAction, UserRole, UserStatus } from "@/generated/prisma/client";
+import {
+  AuditAction,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from "@/generated/prisma/client";
 import {
   attachmentPolicyId,
   parseExtensionText,
@@ -11,6 +16,10 @@ import {
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { maxAttachmentPolicyTotalSizeMb } from "@/lib/attachment-limits";
 import { requireAdmin } from "@/lib/auth";
+import {
+  getDefaultDocumentTemplateSchema,
+  validateDocumentTemplateSchema,
+} from "@/lib/document-template-schema";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 
@@ -59,6 +68,14 @@ export type AdminTemplateFormState = {
   };
 };
 
+export type AdminTemplateSchemaFormState = {
+  success?: string;
+  error?: string;
+  values?: {
+    schemaJson?: string;
+  };
+};
+
 export type AdminAttachmentPolicyFormState = {
   success?: string;
   error?: string;
@@ -75,7 +92,7 @@ export async function createAdminUserAction(
 ): Promise<AdminUserFormState> {
   const admin = await requireAdmin();
   const values = getUserFormValues(formData);
-  const password = String(formData.get("password") ?? "");
+  const password = String(formData.get("password") ?? "") || "0000";
   const error = await validateUserFormValues(values, {
     requireEmail: false,
     requirePassword: true,
@@ -148,6 +165,7 @@ export async function updateAdminUserAction(
   const admin = await requireAdmin();
   const values = getUserFormValues(formData);
   const password = String(formData.get("password") ?? "");
+  const willResetPassword = Boolean(password);
   const error = await validateUserFormValues(values, {
     requireEmail: false,
     requirePassword: false,
@@ -210,14 +228,18 @@ export async function updateAdminUserAction(
       action: AuditAction.UPDATE_USER,
       targetType: "User",
       targetId: userId,
-      message: `${values.name} 사용자 정보를 수정했습니다.`,
+      message: willResetPassword
+        ? `${values.name} 사용자 비밀번호를 재설정했습니다.`
+        : `${values.name} 사용자 정보를 수정했습니다.`,
     },
   });
 
   revalidatePath("/admin");
 
   return {
-    success: "사용자 정보를 수정했습니다.",
+    success: willResetPassword
+      ? "사용자 비밀번호를 재설정했습니다."
+      : "사용자 정보를 수정했습니다.",
   };
 }
 
@@ -672,6 +694,81 @@ export async function updateAdminTemplateAction(
   };
 }
 
+export async function updateAdminTemplateSchemaAction(
+  templateId: string,
+  _state: AdminTemplateSchemaFormState,
+  formData: FormData,
+): Promise<AdminTemplateSchemaFormState> {
+  const admin = await requireAdmin();
+  const values = getTemplateSchemaFormValues(formData);
+  const parsedSchema = parseTemplateSchemaJson(values.schemaJson);
+
+  if (!parsedSchema.ok) {
+    return {
+      error: parsedSchema.error,
+      values,
+    };
+  }
+
+  const validation = validateDocumentTemplateSchema(parsedSchema.schema);
+
+  if (!validation.ok) {
+    return {
+      error: `양식 구성이 올바르지 않습니다. ${validation.errors.slice(0, 3).join(" ")}`,
+      values,
+    };
+  }
+
+  const target = await prisma.documentTemplate.findUnique({
+    where: {
+      id: templateId,
+    },
+    select: {
+      id: true,
+      name: true,
+      schema: true,
+    },
+  });
+
+  if (!target) {
+    return {
+      error: "수정할 문서 양식을 찾을 수 없습니다.",
+      values,
+    };
+  }
+
+  await prisma.documentTemplate.update({
+    where: {
+      id: templateId,
+    },
+    data: {
+      schema: validation.schema as Prisma.InputJsonValue,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      action: AuditAction.UPDATE_TEMPLATE,
+      targetType: "DocumentTemplate",
+      targetId: templateId,
+      message: `${target.name} 문서 양식 구성을 수정했습니다.`,
+      metadata: {
+        previousFieldCount: getTemplateSchemaFieldCount(target.schema),
+        nextFieldCount: validation.schema.fields.length,
+        fieldNames: validation.schema.fields.map((field) => field.name),
+      },
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/drafts/new");
+
+  return {
+    success: "문서 양식 구성을 저장했습니다.",
+  };
+}
+
 export async function updateAdminAttachmentPolicyAction(
   _state: AdminAttachmentPolicyFormState,
   formData: FormData,
@@ -747,12 +844,12 @@ async function validateUserFormValues(
     return "이메일 형식이 올바르지 않습니다.";
   }
 
-  if (options.requirePassword && options.password.length < 8) {
-    return "초기 비밀번호는 8자 이상 입력하세요.";
+  if (options.requirePassword && options.password.length < 4) {
+    return "초기 비밀번호는 4자 이상 입력하세요.";
   }
 
-  if (!options.requirePassword && options.password && options.password.length < 8) {
-    return "새 비밀번호는 8자 이상 입력하세요.";
+  if (!options.requirePassword && options.password && options.password.length < 4) {
+    return "새 비밀번호는 4자 이상 입력하세요.";
   }
 
   const [department, position] = await Promise.all([
@@ -910,24 +1007,49 @@ function validateTemplateFormValues(
   return null;
 }
 
-function getDefaultTemplateSchema() {
+function getTemplateSchemaFormValues(formData: FormData) {
   return {
-    fields: [
-      { name: "title", label: "제목", type: "text", required: true },
-      {
-        name: "content",
-        label: "기안 내용",
-        type: "textarea",
-        required: true,
-      },
-      {
-        name: "attachments",
-        label: "첨부파일",
-        type: "attachments",
-        required: false,
-      },
-    ],
+    schemaJson: String(formData.get("schemaJson") ?? "").trim(),
   };
+}
+
+function parseTemplateSchemaJson(schemaJson: string):
+  | {
+      ok: true;
+      schema: unknown;
+    }
+  | {
+      ok: false;
+      error: string;
+    } {
+  if (!schemaJson) {
+    return {
+      ok: false,
+      error: "저장할 양식 구성이 없습니다.",
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      schema: JSON.parse(schemaJson),
+    };
+  } catch {
+    return {
+      ok: false,
+      error: "양식 구성 데이터 형식이 올바르지 않습니다.",
+    };
+  }
+}
+
+function getTemplateSchemaFieldCount(schema: unknown) {
+  const validation = validateDocumentTemplateSchema(schema);
+
+  return validation.ok ? validation.schema.fields.length : 0;
+}
+
+function getDefaultTemplateSchema() {
+  return getDefaultDocumentTemplateSchema();
 }
 
 function getAttachmentPolicyFormValues(formData: FormData) {
