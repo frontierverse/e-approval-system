@@ -26,7 +26,6 @@ export function LoginForm() {
           id="name"
           name="name"
           type="text"
-          defaultValue="김민준"
           autoComplete="name"
           className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         />
@@ -43,7 +42,6 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
-          defaultValue="password123"
           autoComplete="current-password"
           className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         />

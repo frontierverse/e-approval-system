@@ -29,11 +29,8 @@ export default async function LoginPage() {
 
         <LoginForm />
 
-        <div className="mt-6 rounded-md bg-[#f7f9fc] px-4 py-3 text-sm leading-6 text-[#697386]">
-          <p className="font-semibold text-[#394150]">테스트 계정</p>
-          <p>관리자: 김민준</p>
-          <p>일반 사용자: 이서연</p>
-          <p>비밀번호: password123</p>
+        <div className="mt-6 rounded-md bg-[#f7f9fc] px-4 py-3 text-center text-sm leading-6 text-[#697386]">
+          <p>초기비밀번호는 숫자 0000</p>
         </div>
       </section>
     </main>
