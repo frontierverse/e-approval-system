@@ -472,6 +472,10 @@ function DraftFormFields({
 
       formData.delete("attachments");
       formData.set("uploadedAttachmentsJson", JSON.stringify(uploadedAttachments));
+      formData.set("title", title);
+      formData.set("templateId", templateId);
+      formData.set("content", structuredContent);
+      setTemplateFieldFormDataValues(formData, templateFieldValues);
 
       if (submitIntent) {
         formData.set("intent", submitIntent);
@@ -1197,6 +1201,15 @@ function getSubmitIntent(
   }
 
   return null;
+}
+
+function setTemplateFieldFormDataValues(
+  formData: FormData,
+  values: Record<string, string>,
+) {
+  for (const [fieldName, value] of Object.entries(values)) {
+    formData.set(getTemplateFieldInputName(fieldName), value);
+  }
 }
 
 function getTemplateFieldValuesForSelectedTemplate(
