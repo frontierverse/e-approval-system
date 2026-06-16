@@ -25,7 +25,7 @@ export type AttachmentPolicyConfig = {
 };
 
 export const defaultMaxAttachmentFiles = 5;
-export const defaultMaxAttachmentFileSizeMb = 10;
+export const defaultMaxAttachmentFileSizeMb = 30;
 export const defaultAttachmentPolicy: AttachmentPolicyConfig = {
   maxFileCount: defaultMaxAttachmentFiles,
   maxFileSizeMb: defaultMaxAttachmentFileSizeMb,
