@@ -1,2 +1,2 @@
-export const maxAttachmentPolicyTotalSizeMb = 150;
-export const serverActionBodySizeLimitMb = 200;
+export const maxAttachmentPolicyTotalSizeMb = 300;
+export const serverActionBodySizeLimitMb = 350;

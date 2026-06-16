@@ -158,7 +158,7 @@ async function main() {
     data: {
       id: "default",
       maxFileCount: 10,
-      maxFileSizeMb: 15,
+      maxFileSizeMb: 30,
       allowedExtensions: defaultAllowedAttachmentExtensions,
     },
   });
