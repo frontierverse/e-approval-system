@@ -9,6 +9,7 @@ import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles,
   prepareAttachmentFiles,
+  prepareClientUploadedAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
 import type { AttachmentStorageProvider } from "@/lib/attachment-storage-core";
@@ -66,24 +67,10 @@ export async function createDraftAction(
     error?: string | null;
   };
   if (uploadedAttachmentsJson) {
-    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
-      originalName: string;
-      storageProvider: string;
-      storageKey: string;
-      mimeType: string;
-      size: number;
-    }>;
-    attachmentResult = {
-      files: uploadedFiles.map((file) => ({
-        originalName: file.originalName,
-        storageProvider: file.storageProvider as AttachmentStorageProvider,
-        storageKey: file.storageKey,
-        mimeType: file.mimeType,
-        size: file.size,
-        buffer: Buffer.alloc(0),
-      })),
-      error: null,
-    };
+    attachmentResult = prepareClientUploadedAttachmentFiles(
+      JSON.parse(String(uploadedAttachmentsJson)),
+      attachmentPolicy,
+    );
   } else {
     attachmentResult = await prepareAttachmentFiles(
       formData.getAll("attachments"),
@@ -134,10 +121,18 @@ export async function createDraftAction(
   }
 
   if (hasDraftFormErrors(errors)) {
+    if (isClientUploaded) {
+      await removeUploadedAttachmentFiles(attachmentResult.files);
+    }
+
     return { values: contentValues, errors };
   }
 
   if (!template) {
+    if (isClientUploaded) {
+      await removeUploadedAttachmentFiles(attachmentResult.files);
+    }
+
     return {
       values: contentValues,
       errors: {
@@ -166,6 +161,10 @@ export async function createDraftAction(
   });
 
   if (approvers.length !== values.approverIds.length) {
+    if (isClientUploaded) {
+      await removeUploadedAttachmentFiles(attachmentResult.files);
+    }
+
     return {
       values,
       errors: {
@@ -189,6 +188,10 @@ export async function createDraftAction(
   );
 
   if (approvalLineError) {
+    if (isClientUploaded) {
+      await removeUploadedAttachmentFiles(attachmentResult.files);
+    }
+
     return {
       values,
       errors: {
@@ -253,6 +256,17 @@ export async function createDraftAction(
   revalidatePath("/inbox");
   revalidatePath("/sent");
   redirect(`/documents/${createdDocumentId}`);
+}
+
+async function removeUploadedAttachmentFiles(
+  files: Awaited<ReturnType<typeof prepareAttachmentFiles>>["files"],
+) {
+  await removeStoredAttachmentFiles(
+    files.map((file) => ({
+      storageProvider: file.storageProvider,
+      storageKey: file.storageKey,
+    })),
+  );
 }
 
 function isApprover(

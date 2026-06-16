@@ -41,6 +41,14 @@ export type PreparedAttachmentFile = {
   buffer: Buffer;
 };
 
+export type ClientUploadedAttachmentInput = {
+  originalName: string;
+  storageProvider: string;
+  storageKey: string;
+  mimeType: string;
+  size: number;
+};
+
 export type StoredAttachmentRef = {
   storageKey: string;
   storageProvider?: AttachmentStorageProvider | string | null;
@@ -135,6 +143,93 @@ export async function prepareAttachmentFiles(
   return {
     files: preparedFiles,
   };
+}
+
+export function prepareClientUploadedAttachmentFiles(
+  values: unknown,
+  policy: AttachmentPolicyConfig = defaultAttachmentPolicy,
+  existingFileCount = 0,
+): { files: PreparedAttachmentFile[]; error?: string | null } {
+  if (!Array.isArray(values)) {
+    return {
+      error: "첨부파일 정보가 올바르지 않습니다.",
+      files: [],
+    };
+  }
+
+  if (values.length + existingFileCount > policy.maxFileCount) {
+    return {
+      error: `첨부파일은 최대 ${policy.maxFileCount}개까지 등록할 수 있습니다.`,
+      files: [],
+    };
+  }
+
+  const allowedExtensions = policy.allowedExtensions.map((extension) =>
+    extension.toLowerCase(),
+  );
+  const maxFileSize = policy.maxFileSizeMb * 1024 * 1024;
+  const files: PreparedAttachmentFile[] = [];
+
+  for (const value of values) {
+    if (!isClientUploadedAttachmentInput(value)) {
+      return {
+        error: "첨부파일 정보가 올바르지 않습니다.",
+        files: [],
+      };
+    }
+
+    const originalName = sanitizeOriginalName(value.originalName);
+    const extension = path.extname(originalName).toLowerCase();
+    const storageProvider = resolveAttachmentStorageProvider(
+      value.storageProvider,
+    );
+
+    if (storageProvider !== supabaseStorageAttachmentStorageProvider) {
+      return {
+        error: "첨부파일 저장소 정보가 올바르지 않습니다.",
+        files: [],
+      };
+    }
+
+    if (!allowedExtensions.includes(extension)) {
+      return {
+        error: `허용되지 않는 파일 형식입니다: ${originalName}`,
+        files: [],
+      };
+    }
+
+    if (!isValidSupabaseAttachmentStorageKey(value.storageKey, extension)) {
+      return {
+        error: "첨부파일 저장 경로가 올바르지 않습니다.",
+        files: [],
+      };
+    }
+
+    if (!Number.isSafeInteger(value.size) || value.size <= 0) {
+      return {
+        error: `첨부파일 크기 정보가 올바르지 않습니다: ${originalName}`,
+        files: [],
+      };
+    }
+
+    if (value.size > maxFileSize) {
+      return {
+        error: `파일은 ${policy.maxFileSizeMb}MB 이하만 등록할 수 있습니다: ${originalName}`,
+        files: [],
+      };
+    }
+
+    files.push({
+      originalName,
+      storageProvider,
+      storageKey: value.storageKey,
+      mimeType: value.mimeType || "application/octet-stream",
+      size: value.size,
+      buffer: Buffer.alloc(0),
+    });
+  }
+
+  return { files };
 }
 
 export async function persistAttachmentFiles(files: PreparedAttachmentFile[]) {
@@ -252,6 +347,36 @@ export function formatFileSize(size: number) {
 
 function isNonEmptyFile(value: FormDataEntryValue): value is File {
   return typeof value !== "string" && value.size > 0;
+}
+
+function isClientUploadedAttachmentInput(
+  value: unknown,
+): value is ClientUploadedAttachmentInput {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Partial<ClientUploadedAttachmentInput>;
+
+  return (
+    typeof record.originalName === "string" &&
+    typeof record.storageProvider === "string" &&
+    typeof record.storageKey === "string" &&
+    typeof record.mimeType === "string" &&
+    typeof record.size === "number"
+  );
+}
+
+function isValidSupabaseAttachmentStorageKey(
+  storageKey: string,
+  extension: string,
+) {
+  const escapedExtension = extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  return new RegExp(
+    `^attachments/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}${escapedExtension}$`,
+    "i",
+  ).test(storageKey);
 }
 
 function sanitizeOriginalName(name: string) {

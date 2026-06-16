@@ -9,6 +9,7 @@ import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles,
   prepareAttachmentFiles,
+  prepareClientUploadedAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
 import type { AttachmentStorageProvider } from "@/lib/attachment-storage-core";
@@ -64,22 +65,8 @@ export async function updateDraftAction(
   }>;
 
   if (uploadedAttachmentsJson) {
-    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
-      originalName: string;
-      storageProvider: string;
-      storageKey: string;
-      mimeType: string;
-      size: number;
-    }>;
     attachmentResultPromise = Promise.resolve({
-      files: uploadedFiles.map((file) => ({
-        originalName: file.originalName,
-        storageProvider: file.storageProvider as AttachmentStorageProvider,
-        storageKey: file.storageKey,
-        mimeType: file.mimeType,
-        size: file.size,
-        buffer: Buffer.alloc(0),
-      })),
+      files: [],
       error: null,
     });
   } else {
@@ -115,10 +102,17 @@ export async function updateDraftAction(
           requestedRemoveIds.has(attachment.signedSourceAttachmentId)
         ),
     ).length ?? 0;
+  const resolvedAttachmentResult = uploadedAttachmentsJson
+    ? prepareClientUploadedAttachmentFiles(
+        JSON.parse(String(uploadedAttachmentsJson)),
+        attachmentPolicy,
+        retainedExistingAttachmentCount,
+      )
+    : attachmentResult;
   const totalAttachmentCount =
-    retainedExistingAttachmentCount + attachmentResult.files.length;
+    retainedExistingAttachmentCount + resolvedAttachmentResult.files.length;
   const attachmentError =
-    attachmentResult.error ??
+    resolvedAttachmentResult.error ??
     (totalAttachmentCount > attachmentPolicy.maxFileCount
       ? `첨부파일은 최대 ${attachmentPolicy.maxFileCount}개까지 등록할 수 있습니다.`
       : undefined);
@@ -169,10 +163,18 @@ export async function updateDraftAction(
   }
 
   if (hasDraftFormErrors(errors)) {
+    if (isClientUploaded) {
+      await removePreparedAttachments(resolvedAttachmentResult.files);
+    }
+
     return { values: contentValues, errors };
   }
 
   if (!template) {
+    if (isClientUploaded) {
+      await removePreparedAttachments(resolvedAttachmentResult.files);
+    }
+
     return {
       values: contentValues,
       errors: {
@@ -201,6 +203,10 @@ export async function updateDraftAction(
   });
 
   if (approvers.length !== values.approverIds.length) {
+    if (isClientUploaded) {
+      await removePreparedAttachments(resolvedAttachmentResult.files);
+    }
+
     return {
       values,
       errors: {
@@ -224,6 +230,10 @@ export async function updateDraftAction(
   );
 
   if (approvalLineError) {
+    if (isClientUploaded) {
+      await removePreparedAttachments(resolvedAttachmentResult.files);
+    }
+
     return {
       values,
       errors: {
@@ -232,7 +242,7 @@ export async function updateDraftAction(
     };
   }
 
-  const attachments = attachmentResult.files.map((file) => ({
+  const attachments = resolvedAttachmentResult.files.map((file) => ({
     originalName: file.originalName,
     storageProvider: file.storageProvider,
     storageKey: file.storageKey,
@@ -243,7 +253,7 @@ export async function updateDraftAction(
 
   try {
     if (!isClientUploaded) {
-      await persistAttachmentFiles(attachmentResult.files);
+      await persistAttachmentFiles(resolvedAttachmentResult.files);
     }
 
     const result = await updateDraftDocument({
@@ -260,7 +270,7 @@ export async function updateDraftAction(
     });
 
     if (!result.ok) {
-      await removePreparedAttachments(attachmentResult.files);
+      await removePreparedAttachments(resolvedAttachmentResult.files);
 
       return {
         values,
@@ -281,7 +291,7 @@ export async function updateDraftAction(
       });
     }
   } catch {
-    await removePreparedAttachments(attachmentResult.files);
+    await removePreparedAttachments(resolvedAttachmentResult.files);
 
     return {
       values,

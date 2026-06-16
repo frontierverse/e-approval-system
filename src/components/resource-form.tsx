@@ -217,6 +217,7 @@ function ResourceFormFields({
           const signResult = await createSignedUploadUrlAction(
             file.name,
             file.type || "application/octet-stream",
+            file.size,
             { storageKeyPrefix: "resources/" }
           );
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   type FormEvent,
+  startTransition,
   useActionState,
   useCallback,
   useEffect,
@@ -11,6 +12,7 @@ import {
   useState,
 } from "react";
 import { createDraftAction } from "@/app/drafts/new/actions";
+import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { PendingOverlay } from "@/components/form-pending-overlay";
 import {
@@ -64,6 +66,14 @@ type DraftFormAction = (
 ) => Promise<DraftFormState>;
 
 type DraftSubmitIntent = "draft" | "submit" | null;
+
+type UploadedAttachmentMetadata = {
+  originalName: string;
+  storageProvider: string;
+  storageKey: string;
+  mimeType: string;
+  size: number;
+};
 
 type ApprovalCandidate = {
   id: string;
@@ -152,7 +162,9 @@ function DraftFormFields({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [activeSubmitIntent, setActiveSubmitIntent] =
     useState<DraftSubmitIntent>(null);
+  const [isClientSubmitting, setIsClientSubmitting] = useState(false);
   const hadPendingSinceSubmitRef = useRef(false);
+  const clientActionPendingRef = useRef(false);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const titleHasError = Boolean(errors?.title);
@@ -264,7 +276,10 @@ function DraftFormFields({
   useEffect(() => {
     if (pending && activeSubmitIntent) {
       hadPendingSinceSubmitRef.current = true;
-      return;
+    }
+
+    if (pending && isClientSubmitting) {
+      clientActionPendingRef.current = true;
     }
 
     if (
@@ -275,7 +290,12 @@ function DraftFormFields({
       hadPendingSinceSubmitRef.current = false;
       setActiveSubmitIntent(null);
     }
-  }, [activeSubmitIntent, pending]);
+
+    if (!pending && isClientSubmitting && clientActionPendingRef.current) {
+      clientActionPendingRef.current = false;
+      setIsClientSubmitting(false);
+    }
+  }, [activeSubmitIntent, isClientSubmitting, pending]);
 
   function setSubmitIntent(intent: DraftSubmitIntent) {
     if (intent) {
@@ -410,7 +430,8 @@ function DraftFormFields({
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    const input = event.currentTarget.elements.namedItem("attachments");
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("attachments");
     const submitter = (event.nativeEvent as unknown as {
       submitter?: HTMLElement | null;
     }).submitter;
@@ -435,6 +456,40 @@ function DraftFormFields({
 
     setAttachmentError(null);
     setSubmitIntent(submitIntent);
+
+    if (!attachmentInput?.files || attachmentInput.files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsClientSubmitting(true);
+
+    try {
+      const uploadedAttachments = await uploadAttachmentFiles(
+        Array.from(attachmentInput.files),
+      );
+      const formData = new FormData(form);
+
+      formData.delete("attachments");
+      formData.set("uploadedAttachmentsJson", JSON.stringify(uploadedAttachments));
+
+      if (submitIntent) {
+        formData.set("intent", submitIntent);
+      }
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      console.error("Client-side attachment upload failed", error);
+      clearSubmitIntent();
+      setIsClientSubmitting(false);
+      setAttachmentError(
+        error instanceof Error
+          ? error.message
+          : "첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.",
+      );
+    }
   }
 
   function getRetainedAttachmentCount(removedIds: readonly string[]) {
@@ -450,6 +505,7 @@ function DraftFormFields({
 
   const isSubmitPending = activeSubmitIntent === "submit";
   const isDraftPending = activeSubmitIntent === "draft";
+  const isBusy = pending || isClientSubmitting;
 
   return (
     <form
@@ -544,7 +600,7 @@ function DraftFormFields({
                   <TemplateInput
                     key={field.name}
                     field={field}
-                    pending={pending}
+                    pending={isBusy}
                     value={templateFieldValues[field.name] ?? ""}
                     onChange={(value) =>
                       setTemplateFieldValues((current) => ({
@@ -618,7 +674,7 @@ function DraftFormFields({
                       action={
                         <button
                           type="button"
-                          disabled={pending}
+                          disabled={isBusy}
                           onClick={() => toggleRemovedAttachment(attachment.id)}
                           className={buttonClass(
                             buttonStyles.base,
@@ -644,7 +700,7 @@ function DraftFormFields({
             ref={attachmentInputRef}
             multiple
             accept={attachmentPolicy.allowedExtensions.join(",")}
-            disabled={pending}
+            disabled={isBusy}
             onChange={(event) => handleAttachmentChange(event.currentTarget.files)}
             className={`mt-2 block w-full rounded-md border border-dashed bg-[#fbfcfd] px-4 py-4 text-sm text-[#394150] file:mr-4 file:h-9 file:rounded-md file:border-0 file:bg-[#0f6f8f] file:px-3 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0b5973] disabled:cursor-not-allowed disabled:opacity-60${
               attachmentHasError
@@ -666,7 +722,7 @@ function DraftFormFields({
                     action={
                       <button
                         type="button"
-                        disabled={pending}
+                        disabled={isBusy}
                         onClick={() =>
                           removeSelectedFile(getAttachmentSelectionKey(file))
                         }
@@ -720,7 +776,7 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="draft"
-            disabled={pending || templates.length === 0}
+            disabled={isBusy || templates.length === 0}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.save,
@@ -733,7 +789,7 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="submit"
-            disabled={pending || !canSubmitForApproval}
+            disabled={isBusy || !canSubmitForApproval}
             title={submitBlockReason ?? undefined}
             className={buttonClass(
               buttonStyles.base,
@@ -816,7 +872,7 @@ function DraftFormFields({
                 />
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={isBusy}
                   onClick={() => addApprover(candidate.id)}
                   className={buttonClass(
                     buttonStyles.base,
@@ -889,7 +945,7 @@ function DraftFormFields({
                           type="button"
                           title="위로 이동"
                           aria-label={`${approver.name} 위로 이동`}
-                          disabled={pending || index === 0}
+                          disabled={isBusy || index === 0}
                           onClick={() => moveApprover(approver.id, -1)}
                           className={buttonClass(
                             buttonStyles.base,
@@ -904,7 +960,7 @@ function DraftFormFields({
                           title="아래로 이동"
                           aria-label={`${approver.name} 아래로 이동`}
                           disabled={
-                            pending || index === selectedApprovers.length - 1
+                            isBusy || index === selectedApprovers.length - 1
                           }
                           onClick={() => moveApprover(approver.id, 1)}
                           className={buttonClass(
@@ -919,7 +975,7 @@ function DraftFormFields({
                           type="button"
                           title="삭제"
                           aria-label={`${approver.name} 삭제`}
-                          disabled={pending}
+                          disabled={isBusy}
                           onClick={() => removeApprover(approver.id)}
                           className={buttonClass(
                             buttonStyles.base,
@@ -961,6 +1017,56 @@ function DraftFormFields({
       />
     </form>
   );
+}
+
+async function uploadAttachmentFiles(
+  files: readonly File[],
+): Promise<UploadedAttachmentMetadata[]> {
+  const uploadedAttachments: UploadedAttachmentMetadata[] = [];
+
+  for (const file of files) {
+    const mimeType = file.type || "application/octet-stream";
+    const signResult = await createSignedUploadUrlAction(
+      file.name,
+      mimeType,
+      file.size,
+    );
+
+    if (!signResult.ok) {
+      throw new Error(
+        signResult.error ??
+          "첨부파일 직접 업로드 설정이 올바르지 않습니다. 관리자에게 문의해 주세요.",
+      );
+    }
+
+    const response = await fetch(signResult.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": mimeType,
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      const message = await response.text().catch(() => "");
+
+      throw new Error(
+        message
+          ? `첨부파일 업로드에 실패했습니다: ${message}`
+          : "첨부파일 업로드에 실패했습니다. 다시 시도해 주세요.",
+      );
+    }
+
+    uploadedAttachments.push({
+      originalName: file.name,
+      storageProvider: signResult.provider,
+      storageKey: signResult.storageKey,
+      mimeType,
+      size: file.size,
+    });
+  }
+
+  return uploadedAttachments;
 }
 
 function getInitialValues(
