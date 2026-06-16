@@ -72,6 +72,13 @@ export function ResourceForm({
     category: state.values?.category ?? initialValues?.category ?? "bajaul",
   };
 
+  useEffect(() => {
+    if (!pending && isUploading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsUploading(false);
+    }
+  }, [pending, isUploading]);
+
   return (
     <ResourceFormFields
       action={formAction}
@@ -178,6 +185,9 @@ function ResourceFormFields({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const form = event.currentTarget;
     const input = form.elements.namedItem("attachments");
+    const submitter = (event.nativeEvent as unknown as {
+      submitter?: HTMLElement | null;
+    }).submitter;
     const fileError =
       input instanceof HTMLInputElement
         ? validateAttachmentFiles(
@@ -247,10 +257,18 @@ function ResourceFormFields({
         const dataTransfer = new DataTransfer();
         input.files = dataTransfer.files;
 
-        form.requestSubmit();
+        if (submitter) {
+          form.requestSubmit(submitter);
+        } else {
+          form.requestSubmit();
+        }
       } catch (error) {
         if (error instanceof Error && error.message === "fallback") {
-          form.requestSubmit();
+          if (submitter) {
+            form.requestSubmit(submitter);
+          } else {
+            form.requestSubmit();
+          }
         } else {
           console.error("Client-side upload error:", error);
           setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
