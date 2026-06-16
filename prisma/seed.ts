@@ -157,8 +157,8 @@ async function main() {
   await prisma.attachmentPolicy.create({
     data: {
       id: "default",
-      maxFileCount: 5,
-      maxFileSizeMb: 30,
+      maxFileCount: 10,
+      maxFileSizeMb: 15,
       allowedExtensions: defaultAllowedAttachmentExtensions,
     },
   });

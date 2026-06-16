@@ -159,8 +159,8 @@ model DocumentTemplate {
 
 model AttachmentPolicy {
   id                String   @id
-  maxFileCount      Int      @default(5)
-  maxFileSizeMb     Int      @default(30)
+  maxFileCount      Int      @default(10)
+  maxFileSizeMb     Int      @default(15)
   allowedExtensions Json
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
