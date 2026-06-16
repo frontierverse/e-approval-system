@@ -10,9 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
 import { createDraftAction } from "@/app/drafts/new/actions";
-import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { PendingOverlay } from "@/components/form-pending-overlay";
 import {
@@ -91,8 +89,6 @@ type DraftFormFieldsProps = DraftFormProps & {
   formAction: (formData: FormData) => void;
   initialValues: DraftFormValues;
   pending: boolean;
-  isUploading: boolean;
-  setIsUploading: (value: boolean) => void;
 };
 
 const initialState: DraftFormState = {};
@@ -110,26 +106,7 @@ export function DraftForm({
     action,
     initialState,
   );
-  const [isUploading, setIsUploading] = useState(false);
-  const actionWasPendingAfterUploadRef = useRef(false);
   const initialValues = getInitialValues(state, templates, providedInitialValues);
-
-  useEffect(() => {
-    if (!isUploading) {
-      actionWasPendingAfterUploadRef.current = false;
-      return;
-    }
-
-    if (pending) {
-      actionWasPendingAfterUploadRef.current = true;
-      return;
-    }
-
-    if (actionWasPendingAfterUploadRef.current) {
-      actionWasPendingAfterUploadRef.current = false;
-      setIsUploading(false);
-    }
-  }, [pending, isUploading]);
 
   return (
     <DraftFormFields
@@ -142,9 +119,7 @@ export function DraftForm({
       formAction={formAction}
       initialValues={initialValues}
       mode={mode}
-      pending={pending || isUploading}
-      isUploading={isUploading}
-      setIsUploading={setIsUploading}
+      pending={pending}
     />
   );
 }
@@ -160,7 +135,6 @@ function DraftFormFields({
   initialValues,
   mode = "create",
   pending,
-  setIsUploading,
 }: DraftFormFieldsProps) {
   const [title, setTitle] = useState(initialValues.title);
   const [templateId, setTemplateId] = useState(initialValues.templateId);
@@ -172,14 +146,12 @@ function DraftFormFields({
     initialValues.approverIds,
   );
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const skipClientUploadOnceRef = useRef(false);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [activeSubmitIntent, setActiveSubmitIntent] =
     useState<DraftSubmitIntent>(null);
-  const activeSubmitIntentRef = useRef<DraftSubmitIntent>(null);
   const hadPendingSinceSubmitRef = useRef(false);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -301,24 +273,19 @@ function DraftFormFields({
       hadPendingSinceSubmitRef.current
     ) {
       hadPendingSinceSubmitRef.current = false;
-      activeSubmitIntentRef.current = null;
       setActiveSubmitIntent(null);
     }
   }, [activeSubmitIntent, pending]);
 
-  function setSubmitIntentImmediately(intent: DraftSubmitIntent) {
+  function setSubmitIntent(intent: DraftSubmitIntent) {
     if (intent) {
       hadPendingSinceSubmitRef.current = false;
     }
 
-    activeSubmitIntentRef.current = intent;
-    flushSync(() => {
-      setActiveSubmitIntent(intent);
-    });
+    setActiveSubmitIntent(intent);
   }
 
   function clearSubmitIntent() {
-    activeSubmitIntentRef.current = null;
     setActiveSubmitIntent(null);
   }
 
@@ -443,13 +410,11 @@ function DraftFormFields({
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    const form = event.currentTarget;
-    const input = form.elements.namedItem("attachments");
+    const input = event.currentTarget.elements.namedItem("attachments");
     const submitter = (event.nativeEvent as unknown as {
       submitter?: HTMLElement | null;
     }).submitter;
-    const submitIntent =
-      getSubmitIntent(submitter) ?? activeSubmitIntentRef.current;
+    const submitIntent = getSubmitIntent(submitter);
     const attachmentInput =
       input instanceof HTMLInputElement ? input : null;
     const fileError =
@@ -461,11 +426,6 @@ function DraftFormFields({
           )
         : null;
 
-    if (submitIntent) {
-      setSubmitIntentImmediately(submitIntent);
-      setHiddenFormValue(form, "intent", submitIntent);
-    }
-
     if (fileError) {
       event.preventDefault();
       clearSubmitIntent();
@@ -474,86 +434,7 @@ function DraftFormFields({
     }
 
     setAttachmentError(null);
-
-    const inputFiles = attachmentInput?.files ?? null;
-    const shouldSkipClientUpload = skipClientUploadOnceRef.current;
-
-    if (shouldSkipClientUpload) {
-      skipClientUploadOnceRef.current = false;
-    }
-
-    if (
-      attachmentInput &&
-      inputFiles &&
-      inputFiles.length > 0 &&
-      !shouldSkipClientUpload
-    ) {
-      event.preventDefault();
-      setIsUploading(true);
-
-      try {
-        const filesToUpload = Array.from(inputFiles);
-        const uploadedFilesList = [];
-
-        for (const file of filesToUpload) {
-          const signResult = await createSignedUploadUrlAction(
-            file.name,
-            file.type || "application/octet-stream"
-          );
-
-          if (!signResult.ok) {
-            throw new Error("fallback");
-          }
-
-          const uploadResponse = await fetch(signResult.uploadUrl, {
-            method: "PUT",
-            headers: {
-              "Content-Type": file.type || "application/octet-stream",
-            },
-            body: file,
-          });
-
-          if (!uploadResponse.ok) {
-            throw new Error(`Failed to upload file to storage: ${uploadResponse.statusText}`);
-          }
-
-          uploadedFilesList.push({
-            originalName: file.name,
-            storageProvider: signResult.provider,
-            storageKey: signResult.storageKey,
-            mimeType: file.type || "application/octet-stream",
-            size: file.size,
-          });
-        }
-
-        let hiddenInput = form.querySelector('input[name="uploadedAttachmentsJson"]') as HTMLInputElement | null;
-        if (!hiddenInput) {
-          hiddenInput = document.createElement("input");
-          hiddenInput.type = "hidden";
-          hiddenInput.name = "uploadedAttachmentsJson";
-          form.appendChild(hiddenInput);
-        }
-        hiddenInput.value = JSON.stringify(uploadedFilesList);
-
-        const dataTransfer = new DataTransfer();
-        attachmentInput.files = dataTransfer.files;
-
-        form.requestSubmit();
-      } catch (error) {
-        if (error instanceof Error && error.message === "fallback") {
-          skipClientUploadOnceRef.current = true;
-          flushSync(() => {
-            setIsUploading(false);
-          });
-          form.requestSubmit();
-        } else {
-          console.error("Client-side upload error:", error);
-          setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
-          clearSubmitIntent();
-          setIsUploading(false);
-        }
-      }
-    }
+    setSubmitIntent(submitIntent);
   }
 
   function getRetainedAttachmentCount(removedIds: readonly string[]) {
@@ -839,7 +720,6 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="draft"
-            onClick={() => setSubmitIntentImmediately("draft")}
             disabled={pending || templates.length === 0}
             className={buttonClass(
               buttonStyles.base,
@@ -853,7 +733,6 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="submit"
-            onClick={() => setSubmitIntentImmediately("submit")}
             disabled={pending || !canSubmitForApproval}
             title={submitBlockReason ?? undefined}
             className={buttonClass(
@@ -1212,26 +1091,6 @@ function getSubmitIntent(
   }
 
   return null;
-}
-
-function setHiddenFormValue(
-  form: HTMLFormElement,
-  name: string,
-  value: string,
-) {
-  let input = form.querySelector<HTMLInputElement>(
-    `input[type="hidden"][name="${name}"][data-draft-form-hidden="true"]`,
-  );
-
-  if (!input) {
-    input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.dataset.draftFormHidden = "true";
-    form.appendChild(input);
-  }
-
-  input.value = value;
 }
 
 function getTemplateFieldValuesForSelectedTemplate(
