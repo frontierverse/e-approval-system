@@ -427,10 +427,12 @@ function DraftFormFields({
     }).submitter;
     const submitIntent =
       getSubmitIntent(submitter) ?? activeSubmitIntentRef.current;
+    const attachmentInput =
+      input instanceof HTMLInputElement ? input : null;
     const fileError =
-      input instanceof HTMLInputElement
+      attachmentInput
         ? validateAttachmentFiles(
-            input.files,
+            attachmentInput.files,
             attachmentPolicy,
             retainedAttachmentCount,
           )
@@ -450,22 +452,24 @@ function DraftFormFields({
 
     setAttachmentError(null);
 
-    const shouldClientUpload =
-      input instanceof HTMLInputElement &&
-      input.files &&
-      input.files.length > 0 &&
-      !skipClientUploadOnceRef.current;
+    const inputFiles = attachmentInput?.files ?? null;
+    const shouldSkipClientUpload = skipClientUploadOnceRef.current;
 
-    if (skipClientUploadOnceRef.current) {
+    if (shouldSkipClientUpload) {
       skipClientUploadOnceRef.current = false;
     }
 
-    if (shouldClientUpload) {
+    if (
+      attachmentInput &&
+      inputFiles &&
+      inputFiles.length > 0 &&
+      !shouldSkipClientUpload
+    ) {
       event.preventDefault();
       setIsUploading(true);
 
       try {
-        const filesToUpload = Array.from(input.files);
+        const filesToUpload = Array.from(inputFiles);
         const uploadedFilesList = [];
 
         for (const file of filesToUpload) {
@@ -509,7 +513,7 @@ function DraftFormFields({
         hiddenInput.value = JSON.stringify(uploadedFilesList);
 
         const dataTransfer = new DataTransfer();
-        input.files = dataTransfer.files;
+        attachmentInput.files = dataTransfer.files;
 
         form.requestSubmit();
       } catch (error) {
