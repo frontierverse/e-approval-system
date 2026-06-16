@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
@@ -165,6 +166,7 @@ function DraftFormFields({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [activeSubmitIntent, setActiveSubmitIntent] =
     useState<DraftSubmitIntent>(null);
+  const hadPendingSinceSubmitRef = useRef(false);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const titleHasError = Boolean(errors?.title);
@@ -252,11 +254,30 @@ function DraftFormFields({
   }, [errors, selectedFiles]);
 
   useEffect(() => {
-    if (!pending && activeSubmitIntent) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (pending && activeSubmitIntent) {
+      hadPendingSinceSubmitRef.current = true;
+      return;
+    }
+
+    if (
+      !pending &&
+      activeSubmitIntent &&
+      hadPendingSinceSubmitRef.current
+    ) {
+      hadPendingSinceSubmitRef.current = false;
       setActiveSubmitIntent(null);
     }
   }, [activeSubmitIntent, pending]);
+
+  function setSubmitIntentImmediately(intent: DraftSubmitIntent) {
+    if (intent) {
+      hadPendingSinceSubmitRef.current = false;
+    }
+
+    flushSync(() => {
+      setActiveSubmitIntent(intent);
+    });
+  }
 
   function addApprover(approverId: string) {
     if (selectedApproverIds.includes(approverId)) {
@@ -394,7 +415,7 @@ function DraftFormFields({
           )
         : null;
 
-    setActiveSubmitIntent(submitIntent);
+    setSubmitIntentImmediately(submitIntent);
 
     if (fileError) {
       event.preventDefault();
@@ -489,12 +510,13 @@ function DraftFormFields({
     ).length;
   }
 
-  const isSubmitPending = pending && activeSubmitIntent === "submit";
-  const isDraftPending = pending && activeSubmitIntent === "draft";
+  const isSubmitPending = activeSubmitIntent === "submit";
+  const isDraftPending = activeSubmitIntent === "draft";
 
   return (
     <form
       action={formAction}
+      onInvalidCapture={() => setActiveSubmitIntent(null)}
       onSubmit={handleSubmit}
       className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
@@ -760,6 +782,7 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="draft"
+            onClick={() => setSubmitIntentImmediately("draft")}
             disabled={pending || templates.length === 0}
             className={buttonClass(
               buttonStyles.base,
@@ -773,6 +796,7 @@ function DraftFormFields({
             type="submit"
             name="intent"
             value="submit"
+            onClick={() => setSubmitIntentImmediately("submit")}
             disabled={pending || templates.length === 0}
             className={buttonClass(
               buttonStyles.base,
