@@ -13,6 +13,7 @@ import {
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { PendingOverlay } from "@/components/form-pending-overlay";
 import {
   documentContentLineNumberColumnClass,
   documentContentTextColumnBaseClass,
@@ -61,6 +62,8 @@ type DraftFormAction = (
   state: DraftFormState,
   formData: FormData,
 ) => Promise<DraftFormState>;
+
+type DraftSubmitIntent = "draft" | "submit" | null;
 
 type ApprovalCandidate = {
   id: string;
@@ -160,6 +163,8 @@ function DraftFormFields({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [activeSubmitIntent, setActiveSubmitIntent] =
+    useState<DraftSubmitIntent>(null);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const titleHasError = Boolean(errors?.title);
@@ -245,6 +250,13 @@ function DraftFormFields({
   useEffect(() => {
     syncAttachmentInputFiles(attachmentInputRef.current, selectedFiles);
   }, [errors, selectedFiles]);
+
+  useEffect(() => {
+    if (!pending && activeSubmitIntent) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveSubmitIntent(null);
+    }
+  }, [activeSubmitIntent, pending]);
 
   function addApprover(approverId: string) {
     if (selectedApproverIds.includes(approverId)) {
@@ -372,6 +384,7 @@ function DraftFormFields({
     const submitter = (event.nativeEvent as unknown as {
       submitter?: HTMLElement | null;
     }).submitter;
+    const submitIntent = getSubmitIntent(submitter);
     const fileError =
       input instanceof HTMLInputElement
         ? validateAttachmentFiles(
@@ -381,8 +394,11 @@ function DraftFormFields({
           )
         : null;
 
+    setActiveSubmitIntent(submitIntent);
+
     if (fileError) {
       event.preventDefault();
+      setActiveSubmitIntent(null);
       setAttachmentError(fileError);
       return;
     }
@@ -455,6 +471,7 @@ function DraftFormFields({
         } else {
           console.error("Client-side upload error:", error);
           setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
+          setActiveSubmitIntent(null);
           setIsUploading(false);
         }
       }
@@ -471,6 +488,9 @@ function DraftFormFields({
         ),
     ).length;
   }
+
+  const isSubmitPending = pending && activeSubmitIntent === "submit";
+  const isDraftPending = pending && activeSubmitIntent === "draft";
 
   return (
     <form
@@ -747,7 +767,7 @@ function DraftFormFields({
               "h-10 px-4 text-sm",
             )}
           >
-            {pending ? "저장 중" : isEditMode ? "수정 저장" : "임시저장"}
+            {isDraftPending ? "저장 중" : isEditMode ? "수정 저장" : "임시저장"}
           </button>
           <button
             type="submit"
@@ -760,7 +780,7 @@ function DraftFormFields({
               "h-10 px-4 text-sm",
             )}
           >
-            {pending ? "처리 중" : "결재 요청"}
+            {isSubmitPending ? "결재 요청 중" : "결재 요청"}
           </button>
         </div>
       </section>
@@ -973,6 +993,11 @@ function DraftFormFields({
           </p>
         </div>
       </aside>
+      <PendingOverlay
+        description="서버에서 문서 저장과 결재 요청을 처리하는 중입니다. 완료되면 문서 화면으로 이동합니다."
+        label="결재 요청 중"
+        show={isSubmitPending}
+      />
     </form>
   );
 }
@@ -1015,6 +1040,20 @@ function getInitialTemplateFieldValues(
       initialValues.content,
     )
   );
+}
+
+function getSubmitIntent(
+  submitter: HTMLElement | null | undefined,
+): DraftSubmitIntent {
+  if (
+    submitter instanceof HTMLButtonElement &&
+    submitter.name === "intent" &&
+    (submitter.value === "draft" || submitter.value === "submit")
+  ) {
+    return submitter.value;
+  }
+
+  return null;
 }
 
 function getTemplateFieldValuesForSelectedTemplate(
