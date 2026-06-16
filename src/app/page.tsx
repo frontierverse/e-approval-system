@@ -15,6 +15,7 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import { getAuditActionBadgeClass } from "@/lib/audit-log-display";
 
 export default function Home() {
   return (
@@ -105,6 +106,12 @@ async function HomeContent() {
           </div>
           <ol className="mt-5 divide-y divide-[#eef1f5]">
             {recentHistories.map((history) => {
+              const isPdfCreation = history.action === "PDF 생성";
+              const badgeLabel = isPdfCreation ? "시스템 PDF 생성" : history.action;
+              const badgeClass = isPdfCreation
+                ? "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]"
+                : getAuditActionBadgeClass((history as any).actionValue ?? "");
+
               return (
                 <li key={history.id} className="py-1 first:pt-0 last:pb-0">
                   <Link
@@ -112,9 +119,19 @@ async function HomeContent() {
                     className="group block rounded-md px-3 py-3 transition hover:bg-[#f7fbfb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
-                        {history.title}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={[
+                            "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
+                            badgeClass,
+                          ].join(" ")}
+                        >
+                          {badgeLabel}
+                        </span>
+                        <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
+                          {history.title}
+                        </p>
+                      </div>
                       <time className="text-xs text-[#697386]">
                         {formatDateTime(history.createdAt)}
                       </time>
