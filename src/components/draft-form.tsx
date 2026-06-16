@@ -110,11 +110,22 @@ export function DraftForm({
     initialState,
   );
   const [isUploading, setIsUploading] = useState(false);
+  const actionWasPendingAfterUploadRef = useRef(false);
   const initialValues = getInitialValues(state, templates, providedInitialValues);
 
   useEffect(() => {
-    if (!pending && isUploading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!isUploading) {
+      actionWasPendingAfterUploadRef.current = false;
+      return;
+    }
+
+    if (pending) {
+      actionWasPendingAfterUploadRef.current = true;
+      return;
+    }
+
+    if (actionWasPendingAfterUploadRef.current) {
+      actionWasPendingAfterUploadRef.current = false;
       setIsUploading(false);
     }
   }, [pending, isUploading]);
@@ -166,6 +177,7 @@ function DraftFormFields({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [activeSubmitIntent, setActiveSubmitIntent] =
     useState<DraftSubmitIntent>(null);
+  const activeSubmitIntentRef = useRef<DraftSubmitIntent>(null);
   const hadPendingSinceSubmitRef = useRef(false);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -265,6 +277,7 @@ function DraftFormFields({
       hadPendingSinceSubmitRef.current
     ) {
       hadPendingSinceSubmitRef.current = false;
+      activeSubmitIntentRef.current = null;
       setActiveSubmitIntent(null);
     }
   }, [activeSubmitIntent, pending]);
@@ -274,9 +287,15 @@ function DraftFormFields({
       hadPendingSinceSubmitRef.current = false;
     }
 
+    activeSubmitIntentRef.current = intent;
     flushSync(() => {
       setActiveSubmitIntent(intent);
     });
+  }
+
+  function clearSubmitIntent() {
+    activeSubmitIntentRef.current = null;
+    setActiveSubmitIntent(null);
   }
 
   function addApprover(approverId: string) {
@@ -405,7 +424,8 @@ function DraftFormFields({
     const submitter = (event.nativeEvent as unknown as {
       submitter?: HTMLElement | null;
     }).submitter;
-    const submitIntent = getSubmitIntent(submitter);
+    const submitIntent =
+      getSubmitIntent(submitter) ?? activeSubmitIntentRef.current;
     const fileError =
       input instanceof HTMLInputElement
         ? validateAttachmentFiles(
@@ -415,11 +435,13 @@ function DraftFormFields({
           )
         : null;
 
-    setSubmitIntentImmediately(submitIntent);
+    if (submitIntent) {
+      setSubmitIntentImmediately(submitIntent);
+    }
 
     if (fileError) {
       event.preventDefault();
-      setActiveSubmitIntent(null);
+      clearSubmitIntent();
       setAttachmentError(fileError);
       return;
     }
@@ -492,7 +514,7 @@ function DraftFormFields({
         } else {
           console.error("Client-side upload error:", error);
           setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
-          setActiveSubmitIntent(null);
+          clearSubmitIntent();
           setIsUploading(false);
         }
       }
@@ -516,7 +538,7 @@ function DraftFormFields({
   return (
     <form
       action={formAction}
-      onInvalidCapture={() => setActiveSubmitIntent(null)}
+      onInvalidCapture={clearSubmitIntent}
       onSubmit={handleSubmit}
       className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
