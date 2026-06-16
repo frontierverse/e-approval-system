@@ -30,6 +30,7 @@ import {
   extractDocumentTemplateFieldValuesFromContent,
   getSafeRenderableDocumentTemplateFields,
   getTemplateFieldInputName,
+  validateDocumentTemplateContentValues,
 } from "@/lib/draft-template-content";
 import type { DocumentTemplateField } from "@/lib/document-template-schema";
 import {
@@ -230,6 +231,28 @@ function DraftFormFields({
         .filter(isApprovalCandidate),
     [approverCandidates, selectedApproverIds],
   );
+  const submitBlockReason = useMemo(
+    () =>
+      getDraftSubmitBlockReason({
+        attachmentError,
+        content: structuredContent,
+        selectedApproverIds,
+        selectedApprovers,
+        selectedTemplate,
+        templateFieldValues,
+        title,
+      }),
+    [
+      attachmentError,
+      selectedApproverIds,
+      selectedApprovers,
+      selectedTemplate,
+      structuredContent,
+      templateFieldValues,
+      title,
+    ],
+  );
+  const canSubmitForApproval = submitBlockReason === null;
 
   const availableApprovers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
@@ -831,7 +854,8 @@ function DraftFormFields({
             name="intent"
             value="submit"
             onClick={() => setSubmitIntentImmediately("submit")}
-            disabled={pending || templates.length === 0}
+            disabled={pending || !canSubmitForApproval}
+            title={submitBlockReason ?? undefined}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.primary,
@@ -1098,6 +1122,82 @@ function getInitialTemplateFieldValues(
       initialValues.content,
     )
   );
+}
+
+function getDraftSubmitBlockReason({
+  attachmentError,
+  content,
+  selectedApproverIds,
+  selectedApprovers,
+  selectedTemplate,
+  templateFieldValues,
+  title,
+}: {
+  attachmentError: string | null;
+  content: string;
+  selectedApproverIds: string[];
+  selectedApprovers: ApprovalCandidate[];
+  selectedTemplate: DraftFormProps["templates"][number] | undefined;
+  templateFieldValues: Record<string, string>;
+  title: string;
+}) {
+  const trimmedTitle = title.trim();
+  const trimmedContent = content.trim();
+
+  if (trimmedTitle.length < 2) {
+    return "제목은 2자 이상 입력하세요.";
+  }
+
+  if (trimmedTitle.length > 120) {
+    return "제목은 120자 이내로 입력하세요.";
+  }
+
+  if (!selectedTemplate) {
+    return "문서 양식을 선택하세요.";
+  }
+
+  const templateErrors = validateDocumentTemplateContentValues(
+    selectedTemplate.schema,
+    templateFieldValues,
+  );
+
+  if (templateErrors.length > 0) {
+    return templateErrors[0];
+  }
+
+  if (trimmedContent.length < 10) {
+    return "기안 내용은 10자 이상 입력하세요.";
+  }
+
+  if (trimmedContent.length > 5000) {
+    return "기안 내용은 5000자 이내로 입력하세요.";
+  }
+
+  if (selectedApproverIds.length === 0) {
+    return "결재자를 1명 이상 지정하세요.";
+  }
+
+  if (new Set(selectedApproverIds).size !== selectedApproverIds.length) {
+    return "같은 결재자는 한 번만 지정할 수 있습니다.";
+  }
+
+  if (selectedApprovers.length !== selectedApproverIds.length) {
+    return "사용 가능한 결재자만 지정할 수 있습니다.";
+  }
+
+  const approvalLineError = getApprovalLinePolicyError(
+    selectedApprovers.map((approver) => ({
+      name: approver.name,
+      positionName: approver.positionName,
+      positionLevel: approver.positionLevel,
+    })),
+  );
+
+  if (approvalLineError) {
+    return approvalLineError;
+  }
+
+  return attachmentError;
 }
 
 function getSubmitIntent(
