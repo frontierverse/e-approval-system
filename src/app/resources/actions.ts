@@ -9,6 +9,7 @@ import {
   prepareAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
+import type { AttachmentStorageProvider } from "@/lib/attachment-storage-core";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -25,16 +26,50 @@ export async function createResourceAction(
 ): Promise<ResourceFormState> {
   const values = getResourceFormValues(formData);
   const user = await requireUser();
+  const uploadedAttachmentsJson = formData.get("uploadedAttachmentsJson");
+  const isClientUploaded = Boolean(uploadedAttachmentsJson);
   const attachmentPolicy = await getAttachmentPolicy();
-  const attachmentResult = await prepareAttachmentFiles(
-    formData.getAll("attachments"),
-    attachmentPolicy,
-    {
-      storageKeyPrefix: "resources/",
-    },
-  );
+  let attachmentResult: {
+    files: Array<{
+      originalName: string;
+      storageProvider: AttachmentStorageProvider;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+      buffer: Buffer;
+    }>;
+    error?: string | null;
+  };
+  if (uploadedAttachmentsJson) {
+    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
+      originalName: string;
+      storageProvider: string;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+    }>;
+    attachmentResult = {
+      files: uploadedFiles.map((file) => ({
+        originalName: file.originalName,
+        storageProvider: file.storageProvider as AttachmentStorageProvider,
+        storageKey: file.storageKey,
+        mimeType: file.mimeType,
+        size: file.size,
+        buffer: Buffer.alloc(0),
+      })),
+      error: null,
+    };
+  } else {
+    attachmentResult = await prepareAttachmentFiles(
+      formData.getAll("attachments"),
+      attachmentPolicy,
+      {
+        storageKeyPrefix: "resources/",
+      },
+    );
+  }
   const errors = validateResourceFormValues(values, {
-    attachmentError: attachmentResult.error,
+    attachmentError: attachmentResult.error ?? undefined,
   });
 
   if (hasResourceFormErrors(errors)) {
@@ -42,7 +77,9 @@ export async function createResourceAction(
   }
 
   try {
-    await persistAttachmentFiles(attachmentResult.files);
+    if (!isClientUploaded) {
+      await persistAttachmentFiles(attachmentResult.files);
+    }
 
     await prisma.$transaction(async (tx) => {
       const resource = await tx.resourcePost.create({
@@ -132,17 +169,51 @@ export async function updateResourceAction(
   );
   const retainedAttachmentCount =
     existingResource.attachments.length - removableAttachments.length;
-  const attachmentResult = await prepareAttachmentFiles(
-    formData.getAll("attachments"),
-    attachmentPolicy,
-    {
-      storageKeyPrefix: "resources/",
-    },
-  );
+  const uploadedAttachmentsJson = formData.get("uploadedAttachmentsJson");
+  const isClientUploaded = Boolean(uploadedAttachmentsJson);
+  let attachmentResult: {
+    files: Array<{
+      originalName: string;
+      storageProvider: AttachmentStorageProvider;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+      buffer: Buffer;
+    }>;
+    error?: string | null;
+  };
+  if (uploadedAttachmentsJson) {
+    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
+      originalName: string;
+      storageProvider: string;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+    }>;
+    attachmentResult = {
+      files: uploadedFiles.map((file) => ({
+        originalName: file.originalName,
+        storageProvider: file.storageProvider as AttachmentStorageProvider,
+        storageKey: file.storageKey,
+        mimeType: file.mimeType,
+        size: file.size,
+        buffer: Buffer.alloc(0),
+      })),
+      error: null,
+    };
+  } else {
+    attachmentResult = await prepareAttachmentFiles(
+      formData.getAll("attachments"),
+      attachmentPolicy,
+      {
+        storageKeyPrefix: "resources/",
+      },
+    );
+  }
   const totalAttachmentCount =
     retainedAttachmentCount + attachmentResult.files.length;
   const attachmentError =
-    attachmentResult.error ??
+    (attachmentResult.error ?? undefined) ??
     (totalAttachmentCount > attachmentPolicy.maxFileCount
       ? `첨부파일은 최대 ${attachmentPolicy.maxFileCount}개까지 등록할 수 있습니다.`
       : undefined);
@@ -155,7 +226,9 @@ export async function updateResourceAction(
   }
 
   try {
-    await persistAttachmentFiles(attachmentResult.files);
+    if (!isClientUploaded) {
+      await persistAttachmentFiles(attachmentResult.files);
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.resourcePost.update({

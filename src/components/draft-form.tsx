@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { createDraftAction } from "@/app/drafts/new/actions";
+import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import {
   documentContentLineNumberColumnClass,
@@ -85,6 +86,8 @@ type DraftFormFieldsProps = DraftFormProps & {
   formAction: (formData: FormData) => void;
   initialValues: DraftFormValues;
   pending: boolean;
+  isUploading: boolean;
+  setIsUploading: (value: boolean) => void;
 };
 
 const initialState: DraftFormState = {};
@@ -102,6 +105,7 @@ export function DraftForm({
     action,
     initialState,
   );
+  const [isUploading, setIsUploading] = useState(false);
   const initialValues = getInitialValues(state, templates, providedInitialValues);
 
   return (
@@ -109,14 +113,15 @@ export function DraftForm({
       templates={templates}
       attachmentPolicy={attachmentPolicy}
       approverCandidates={approverCandidates}
-      action={action}
-      errors={state.errors}
       cancelHref={cancelHref}
+      errors={state.errors}
       existingAttachments={existingAttachments}
       formAction={formAction}
       initialValues={initialValues}
       mode={mode}
-      pending={pending}
+      pending={pending || isUploading}
+      isUploading={isUploading}
+      setIsUploading={setIsUploading}
     />
   );
 }
@@ -132,6 +137,7 @@ function DraftFormFields({
   initialValues,
   mode = "create",
   pending,
+  setIsUploading,
 }: DraftFormFieldsProps) {
   const [title, setTitle] = useState(initialValues.title);
   const [templateId, setTemplateId] = useState(initialValues.templateId);
@@ -353,8 +359,9 @@ function DraftFormFields({
     });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    const input = event.currentTarget.elements.namedItem("attachments");
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("attachments");
     const fileError =
       input instanceof HTMLInputElement
         ? validateAttachmentFiles(
@@ -371,6 +378,69 @@ function DraftFormFields({
     }
 
     setAttachmentError(null);
+
+    if (input instanceof HTMLInputElement && input.files && input.files.length > 0) {
+      event.preventDefault();
+      setIsUploading(true);
+
+      try {
+        const filesToUpload = Array.from(input.files);
+        const uploadedFilesList = [];
+
+        for (const file of filesToUpload) {
+          const signResult = await createSignedUploadUrlAction(
+            file.name,
+            file.type || "application/octet-stream"
+          );
+
+          if (!signResult.ok) {
+            throw new Error("fallback");
+          }
+
+          const uploadResponse = await fetch(signResult.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": file.type || "application/octet-stream",
+            },
+            body: file,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error(`Failed to upload file to storage: ${uploadResponse.statusText}`);
+          }
+
+          uploadedFilesList.push({
+            originalName: file.name,
+            storageProvider: signResult.provider,
+            storageKey: signResult.storageKey,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          });
+        }
+
+        let hiddenInput = form.querySelector('input[name="uploadedAttachmentsJson"]') as HTMLInputElement | null;
+        if (!hiddenInput) {
+          hiddenInput = document.createElement("input");
+          hiddenInput.type = "hidden";
+          hiddenInput.name = "uploadedAttachmentsJson";
+          form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = JSON.stringify(uploadedFilesList);
+
+        const dataTransfer = new DataTransfer();
+        input.files = dataTransfer.files;
+
+        form.requestSubmit();
+      } catch (error) {
+        if (error instanceof Error && error.message === "fallback") {
+          form.requestSubmit();
+        } else {
+          console.error("Client-side upload error:", error);
+          setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
+          setIsUploading(false);
+        }
+      }
+    }
   }
 
   function getRetainedAttachmentCount(removedIds: readonly string[]) {

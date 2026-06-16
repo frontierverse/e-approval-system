@@ -11,6 +11,7 @@ import {
   prepareAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
+import type { AttachmentStorageProvider } from "@/lib/attachment-storage-core";
 import { requireUser } from "@/lib/auth";
 import {
   compileDocumentTemplateContentFromSchema,
@@ -48,6 +49,46 @@ export async function updateDraftAction(
       .map((value) => String(value).trim())
       .filter(Boolean),
   );
+  const uploadedAttachmentsJson = formData.get("uploadedAttachmentsJson");
+  const isClientUploaded = Boolean(uploadedAttachmentsJson);
+  let attachmentResultPromise: Promise<{
+    files: Array<{
+      originalName: string;
+      storageProvider: AttachmentStorageProvider;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+      buffer: Buffer;
+    }>;
+    error?: string | null;
+  }>;
+
+  if (uploadedAttachmentsJson) {
+    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
+      originalName: string;
+      storageProvider: string;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+    }>;
+    attachmentResultPromise = Promise.resolve({
+      files: uploadedFiles.map((file) => ({
+        originalName: file.originalName,
+        storageProvider: file.storageProvider as AttachmentStorageProvider,
+        storageKey: file.storageKey,
+        mimeType: file.mimeType,
+        size: file.size,
+        buffer: Buffer.alloc(0),
+      })),
+      error: null,
+    });
+  } else {
+    attachmentResultPromise = prepareAttachmentFiles(
+      formData.getAll("attachments"),
+      attachmentPolicy,
+    );
+  }
+
   const [existingDocument, attachmentResult] = await Promise.all([
     prisma.approvalDocument.findFirst({
       where: {
@@ -63,7 +104,7 @@ export async function updateDraftAction(
         },
       },
     }),
-    prepareAttachmentFiles(formData.getAll("attachments"), attachmentPolicy),
+    attachmentResultPromise,
   ]);
   const retainedExistingAttachmentCount =
     existingDocument?.attachments.filter(
@@ -201,7 +242,9 @@ export async function updateDraftAction(
   let updatedDocumentId = documentId;
 
   try {
-    await persistAttachmentFiles(attachmentResult.files);
+    if (!isClientUploaded) {
+      await persistAttachmentFiles(attachmentResult.files);
+    }
 
     const result = await updateDraftDocument({
       documentId,

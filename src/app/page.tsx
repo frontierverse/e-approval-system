@@ -110,7 +110,7 @@ async function HomeContent() {
               const badgeLabel = isPdfCreation ? "시스템 PDF 생성" : history.action;
               const badgeClass = isPdfCreation
                 ? "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]"
-                : getAuditActionBadgeClass((history as any).actionValue ?? "");
+                : getAuditActionBadgeClass(history.actionValue ?? "");
 
               return (
                 <li key={history.id} className="py-1 first:pt-0 last:pb-0">

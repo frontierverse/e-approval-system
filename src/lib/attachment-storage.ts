@@ -466,3 +466,48 @@ function resolveAttachmentPath(storageKey: string) {
 
   return filePath;
 }
+
+export async function getSignedUploadUrlForAttachment(
+  originalName: string,
+  mimeType: string,
+  options: { storageKeyPrefix?: string } = {},
+) {
+  const storageConfig = getAttachmentStorageConfig(process.env);
+  if (!storageConfig.ok || storageConfig.provider !== supabaseStorageAttachmentStorageProvider) {
+    return null;
+  }
+
+  const extension = path.extname(originalName).toLowerCase();
+  const storageKey = createStorageKey(
+    extension,
+    supabaseStorageAttachmentStorageProvider,
+    options.storageKeyPrefix,
+  );
+
+  const baseUrl = getSupabaseStorageBaseUrl();
+  const bucket = getSupabaseStorageBucket();
+  
+  const signUrl = `${baseUrl}/object/upload/sign/${encodeURIComponent(bucket)}/${encodeURIComponent(storageKey)}`;
+  
+  const response = await fetch(signUrl, {
+    method: "POST",
+    headers: {
+      ...getSupabaseStorageHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ expiresIn: 900 }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to generate signed upload URL from Supabase: ${response.status} ${await response.text()}`);
+  }
+
+  const data = await response.json() as { url: string };
+  const uploadUrl = `${baseUrl}${data.url}`;
+
+  return {
+    provider: "supabase-storage" as const,
+    uploadUrl,
+    storageKey,
+  };
+}

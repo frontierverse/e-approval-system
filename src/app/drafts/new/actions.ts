@@ -11,6 +11,7 @@ import {
   prepareAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
+import type { AttachmentStorageProvider } from "@/lib/attachment-storage-core";
 import { getCurrentUser } from "@/lib/auth";
 import {
   compileDocumentTemplateContentFromSchema,
@@ -50,11 +51,45 @@ export async function createDraftAction(
     };
   }
 
+  const uploadedAttachmentsJson = formData.get("uploadedAttachmentsJson");
+  const isClientUploaded = Boolean(uploadedAttachmentsJson);
   const attachmentPolicy = await getAttachmentPolicy();
-  const attachmentResult = await prepareAttachmentFiles(
-    formData.getAll("attachments"),
-    attachmentPolicy,
-  );
+  let attachmentResult: {
+    files: Array<{
+      originalName: string;
+      storageProvider: AttachmentStorageProvider;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+      buffer: Buffer;
+    }>;
+    error?: string | null;
+  };
+  if (uploadedAttachmentsJson) {
+    const uploadedFiles = JSON.parse(String(uploadedAttachmentsJson)) as Array<{
+      originalName: string;
+      storageProvider: string;
+      storageKey: string;
+      mimeType: string;
+      size: number;
+    }>;
+    attachmentResult = {
+      files: uploadedFiles.map((file) => ({
+        originalName: file.originalName,
+        storageProvider: file.storageProvider as AttachmentStorageProvider,
+        storageKey: file.storageKey,
+        mimeType: file.mimeType,
+        size: file.size,
+        buffer: Buffer.alloc(0),
+      })),
+      error: null,
+    };
+  } else {
+    attachmentResult = await prepareAttachmentFiles(
+      formData.getAll("attachments"),
+      attachmentPolicy,
+    );
+  }
   const template = await prisma.documentTemplate.findFirst({
     where: {
       id: values.templateId,
@@ -172,7 +207,9 @@ export async function createDraftAction(
   let createdDocumentId = "";
 
   try {
-    await persistAttachmentFiles(attachmentResult.files);
+    if (!isClientUploaded) {
+      await persistAttachmentFiles(attachmentResult.files);
+    }
 
     const document = await createApprovalDocument({
       drafterId: user.id,

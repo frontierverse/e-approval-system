@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { useAttachmentThumbnailUrls } from "@/components/use-attachment-thumbnail-urls";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
@@ -64,6 +65,7 @@ export function ResourceForm({
   mode,
 }: ResourceFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [isUploading, setIsUploading] = useState(false);
   const values = {
     title: state.values?.title ?? initialValues?.title ?? "",
     summary: state.values?.summary ?? initialValues?.summary ?? "",
@@ -79,7 +81,9 @@ export function ResourceForm({
       existingAttachments={existingAttachments}
       initialValues={values}
       mode={mode}
-      pending={pending}
+      pending={pending || isUploading}
+      isUploading={isUploading}
+      setIsUploading={setIsUploading}
     />
   );
 }
@@ -93,6 +97,8 @@ function ResourceFormFields({
   initialValues,
   mode,
   pending,
+  isUploading,
+  setIsUploading,
 }: {
   action: (formData: FormData) => void;
   attachmentPolicy: AttachmentPolicyConfig;
@@ -102,6 +108,8 @@ function ResourceFormFields({
   initialValues: ResourceFormValues;
   mode: "create" | "edit";
   pending: boolean;
+  isUploading: boolean;
+  setIsUploading: (value: boolean) => void;
 }) {
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(initialValues.title);
@@ -167,8 +175,9 @@ function ResourceFormFields({
     );
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    const input = event.currentTarget.elements.namedItem("attachments");
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("attachments");
     const fileError =
       input instanceof HTMLInputElement
         ? validateAttachmentFiles(
@@ -185,6 +194,70 @@ function ResourceFormFields({
     }
 
     setAttachmentError(null);
+
+    if (input instanceof HTMLInputElement && input.files && input.files.length > 0) {
+      event.preventDefault();
+      setIsUploading(true);
+
+      try {
+        const filesToUpload = Array.from(input.files);
+        const uploadedFilesList = [];
+
+        for (const file of filesToUpload) {
+          const signResult = await createSignedUploadUrlAction(
+            file.name,
+            file.type || "application/octet-stream",
+            { storageKeyPrefix: "resources/" }
+          );
+
+          if (!signResult.ok) {
+            throw new Error("fallback");
+          }
+
+          const uploadResponse = await fetch(signResult.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": file.type || "application/octet-stream",
+            },
+            body: file,
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error(`Failed to upload file to storage: ${uploadResponse.statusText}`);
+          }
+
+          uploadedFilesList.push({
+            originalName: file.name,
+            storageProvider: signResult.provider,
+            storageKey: signResult.storageKey,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          });
+        }
+
+        let hiddenInput = form.querySelector('input[name="uploadedAttachmentsJson"]') as HTMLInputElement | null;
+        if (!hiddenInput) {
+          hiddenInput = document.createElement("input");
+          hiddenInput.type = "hidden";
+          hiddenInput.name = "uploadedAttachmentsJson";
+          form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = JSON.stringify(uploadedFilesList);
+
+        const dataTransfer = new DataTransfer();
+        input.files = dataTransfer.files;
+
+        form.requestSubmit();
+      } catch (error) {
+        if (error instanceof Error && error.message === "fallback") {
+          form.requestSubmit();
+        } else {
+          console.error("Client-side upload error:", error);
+          setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
+          setIsUploading(false);
+        }
+      }
+    }
   }
 
   return (
@@ -298,7 +371,7 @@ function ResourceFormFields({
               "h-10 px-4 text-sm",
             )}
           >
-            {pending ? "저장 중" : mode === "edit" ? "수정 저장" : "업로드"}
+            {isUploading ? "업로드 중..." : pending ? "저장 중" : mode === "edit" ? "수정 저장" : "업로드"}
           </button>
         </div>
       </section>
