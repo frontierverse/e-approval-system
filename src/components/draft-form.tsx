@@ -171,6 +171,7 @@ function DraftFormFields({
     initialValues.approverIds,
   );
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const skipClientUploadOnceRef = useRef(false);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
@@ -437,6 +438,7 @@ function DraftFormFields({
 
     if (submitIntent) {
       setSubmitIntentImmediately(submitIntent);
+      setHiddenFormValue(form, "intent", submitIntent);
     }
 
     if (fileError) {
@@ -448,7 +450,17 @@ function DraftFormFields({
 
     setAttachmentError(null);
 
-    if (input instanceof HTMLInputElement && input.files && input.files.length > 0) {
+    const shouldClientUpload =
+      input instanceof HTMLInputElement &&
+      input.files &&
+      input.files.length > 0 &&
+      !skipClientUploadOnceRef.current;
+
+    if (skipClientUploadOnceRef.current) {
+      skipClientUploadOnceRef.current = false;
+    }
+
+    if (shouldClientUpload) {
       event.preventDefault();
       setIsUploading(true);
 
@@ -499,18 +511,14 @@ function DraftFormFields({
         const dataTransfer = new DataTransfer();
         input.files = dataTransfer.files;
 
-        if (submitter) {
-          form.requestSubmit(submitter);
-        } else {
-          form.requestSubmit();
-        }
+        form.requestSubmit();
       } catch (error) {
         if (error instanceof Error && error.message === "fallback") {
-          if (submitter) {
-            form.requestSubmit(submitter);
-          } else {
-            form.requestSubmit();
-          }
+          skipClientUploadOnceRef.current = true;
+          flushSync(() => {
+            setIsUploading(false);
+          });
+          form.requestSubmit();
         } else {
           console.error("Client-side upload error:", error);
           setAttachmentError("첨부파일 업로드 중 오류가 발생했습니다. 다시 시도해 주세요.");
@@ -1100,6 +1108,26 @@ function getSubmitIntent(
   }
 
   return null;
+}
+
+function setHiddenFormValue(
+  form: HTMLFormElement,
+  name: string,
+  value: string,
+) {
+  let input = form.querySelector<HTMLInputElement>(
+    `input[type="hidden"][name="${name}"][data-draft-form-hidden="true"]`,
+  );
+
+  if (!input) {
+    input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.dataset.draftFormHidden = "true";
+    form.appendChild(input);
+  }
+
+  input.value = value;
 }
 
 function getTemplateFieldValuesForSelectedTemplate(
