@@ -24,7 +24,6 @@ import {
   signatureImagePolicy,
   signatureImageStoragePrefix,
 } from "@/lib/signature-image-policy";
-import { clearYouthManagementAccess } from "@/lib/youth-management-access";
 
 export type ChangePasswordState = {
   success?: string;
@@ -114,7 +113,6 @@ export async function changePasswordAction(
     }),
   ]);
 
-  await clearYouthManagementAccess();
   revalidatePath("/account");
 
   return {

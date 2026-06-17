@@ -105,18 +105,6 @@ export function YouthManagementBoard({
   const [noteError, setNoteError] = useState("");
   const [pendingAction, startPendingAction] = useTransition();
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch("/api/youth-management-access", {
-      credentials: "same-origin",
-      method: "POST",
-      signal: controller.signal,
-    }).catch(() => undefined);
-
-    return () => controller.abort();
-  }, []);
-
   const activeYouth = useMemo(
     () => youths.find((youth) => youth.id === activeYouthId) ?? youths[0],
     [activeYouthId, youths],

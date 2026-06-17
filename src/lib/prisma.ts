@@ -20,6 +20,7 @@ export const prisma =
   "youth" in globalForPrisma.prisma &&
   "youthFamilyContact" in globalForPrisma.prisma &&
   "youthSpecialNote" in globalForPrisma.prisma &&
+  "youthLearningSchedule" in globalForPrisma.prisma &&
   "loginHistory" in globalForPrisma.prisma
     ? globalForPrisma.prisma
     : new PrismaClient({ adapter });

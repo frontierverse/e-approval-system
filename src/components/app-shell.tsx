@@ -38,7 +38,7 @@ const resourceNavigationItems: NavigationItem[] = [
 ];
 
 const youthNavigationItems: NavigationItem[] = [
-  { label: "청소년 관리", href: "/youth" },
+  { label: "학습진도", href: "/youth/learning-progress" },
 ];
 
 const accountNavigationItems: NavigationItem[] = [

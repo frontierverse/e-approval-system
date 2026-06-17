@@ -1,6 +1,6 @@
 import { RouteLoadingShell } from "@/components/route-loading-shell";
 
-export default function YouthLoading() {
+export default function YouthLearningProgressLoading() {
   return (
     <RouteLoadingShell
       title="학습진도"

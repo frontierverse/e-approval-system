@@ -1,9 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  sessionCookieName,
-  youthManagementAccessCookieName,
-} from "@/lib/session-constants";
-import { shouldClearYouthManagementAccess } from "@/lib/youth-management-access-policy";
+import { sessionCookieName } from "@/lib/session-constants";
 
 const publicPaths = ["/login"];
 
@@ -17,34 +13,14 @@ export function proxy(request: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
 
-    return withYouthManagementAccessPolicy(request, NextResponse.redirect(url));
+    return NextResponse.redirect(url);
   }
 
   if (hasSession && isPublicPath) {
-    return withYouthManagementAccessPolicy(
-      request,
-      NextResponse.redirect(new URL("/", request.url)),
-    );
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  return withYouthManagementAccessPolicy(request, NextResponse.next());
-}
-
-function withYouthManagementAccessPolicy(
-  request: NextRequest,
-  response: NextResponse,
-) {
-  if (
-    request.cookies.get(youthManagementAccessCookieName)?.value &&
-    shouldClearYouthManagementAccess(
-      request.nextUrl.pathname,
-      request.method,
-    )
-  ) {
-    response.cookies.delete(youthManagementAccessCookieName);
-  }
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

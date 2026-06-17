@@ -39,6 +39,27 @@ export type YouthProfile = {
   notes: YouthSpecialNote[];
 };
 
+export type YouthLearningSchedule = {
+  id: string;
+  youthId: string;
+  startHour: number;
+  content: string;
+};
+
+export type YouthLearningProgressChangeLog = {
+  id: string;
+  message: string | null;
+  createdAt: string;
+  metadata: unknown;
+  actor: {
+    id: string;
+    name: string;
+    email: string | null;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
 export type YouthFamilyContactInput = {
   relationship: string;
   phone: string;
@@ -77,6 +98,17 @@ export function isYouthNotePriority(value: string): value is YouthNotePriority {
 
 export function normalizeYouthNoteCategory(value: string): YouthNoteCategory {
   return isYouthNoteCategory(value) ? value : "보호관찰";
+}
+
+export const youthLearningScheduleStartHour = 9;
+export const youthLearningScheduleEndHour = 18;
+
+export function isYouthLearningScheduleStartHour(value: number) {
+  return (
+    Number.isInteger(value) &&
+    value >= youthLearningScheduleStartHour &&
+    value < youthLearningScheduleEndHour
+  );
 }
 
 export function normalizeYouthNotePriority(value: string): YouthNotePriority {

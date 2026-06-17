@@ -1,11 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
-import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
   isYouthNoteCategory,
@@ -22,58 +20,11 @@ import {
   mapYouthProfile,
   mapYouthSpecialNote,
 } from "@/lib/youth-management";
-import {
-  createYouthManagementAccess,
-  verifyYouthManagementAccessValue,
-} from "@/lib/youth-management-access";
-
-export type YouthManagementAccessState = {
-  error?: string;
-};
-
-const youthManagementAccessExpiredError =
-  "청소년 관리 접근 인증이 필요합니다. 비밀번호를 다시 입력하세요.";
-
-export async function verifyYouthManagementAccessAction(
-  _state: YouthManagementAccessState,
-  formData: FormData,
-): Promise<YouthManagementAccessState> {
-  const user = await requireUser();
-  const password = String(formData.get("password") ?? "");
-
-  if (!password) {
-    return {
-      error: "비밀번호를 입력하세요.",
-    };
-  }
-
-  if (!user.passwordHash) {
-    return {
-      error: "비밀번호가 설정된 계정만 청소년 관리에 접근할 수 있습니다.",
-    };
-  }
-
-  if (!verifyPassword(password, user.passwordHash)) {
-    return {
-      error: "비밀번호가 올바르지 않습니다.",
-    };
-  }
-
-  await createYouthManagementAccess(user.id);
-  redirect("/youth");
-}
 
 export async function createYouthAction(
-  accessToken: string,
   values: YouthCreateInput,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
-  const access = await getYouthManagementActionAccess(accessToken);
-
-  if (!access.ok) {
-    return access;
-  }
-
-  const user = access.user;
+  const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
@@ -220,17 +171,10 @@ export async function createYouthAction(
 }
 
 export async function updateYouthAction(
-  accessToken: string,
   youthId: string,
   values: YouthUpdateInput,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
-  const access = await getYouthManagementActionAccess(accessToken);
-
-  if (!access.ok) {
-    return access;
-  }
-
-  const user = access.user;
+  const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
@@ -401,17 +345,10 @@ export async function updateYouthAction(
 }
 
 export async function updateYouthNoteAction(
-  accessToken: string,
   noteId: string,
   values: YouthNoteInput,
 ): Promise<YouthActionResult<{ note: YouthSpecialNote }>> {
-  const access = await getYouthManagementActionAccess(accessToken);
-
-  if (!access.ok) {
-    return access;
-  }
-
-  const user = access.user;
+  const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const error = validateYouthNoteInput(values);
@@ -491,16 +428,9 @@ export async function updateYouthNoteAction(
 }
 
 export async function deleteYouthNoteAction(
-  accessToken: string,
   noteId: string,
 ): Promise<YouthActionResult<{ noteId: string; youthId: string }>> {
-  const access = await getYouthManagementActionAccess(accessToken);
-
-  if (!access.ok) {
-    return access;
-  }
-
-  const user = access.user;
+  const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const note = await prisma.youthSpecialNote.findUnique({
@@ -556,22 +486,6 @@ export async function deleteYouthNoteAction(
       noteId: note.id,
       youthId: note.youthId,
     },
-  };
-}
-
-async function getYouthManagementActionAccess(accessToken: string) {
-  const user = await requireUser();
-
-  if (!verifyYouthManagementAccessValue(accessToken, user.id)) {
-    return {
-      ok: false as const,
-      error: youthManagementAccessExpiredError,
-    };
-  }
-
-  return {
-    ok: true as const,
-    user,
   };
 }
 
