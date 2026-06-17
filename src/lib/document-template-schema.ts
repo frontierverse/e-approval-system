@@ -16,6 +16,11 @@ export type DocumentTemplateFieldOption = {
   value: string;
 };
 
+export type DocumentTemplateFieldCondition = {
+  field: string;
+  values: string[];
+};
+
 export type DocumentTemplateField = {
   name: string;
   label: string;
@@ -25,6 +30,7 @@ export type DocumentTemplateField = {
   helpText?: string;
   defaultValue?: string | boolean;
   options?: DocumentTemplateFieldOption[];
+  visibleWhen?: DocumentTemplateFieldCondition;
 };
 
 export type DocumentTemplateSchemaV1 = {
@@ -48,6 +54,9 @@ const documentTemplateFieldTypeSet = new Set<string>(
 const fieldNamePattern = /^[A-Za-z][A-Za-z0-9_]*$/;
 const maxFieldCount = 50;
 const maxOptionCount = 50;
+const maxConditionValueCount = 50;
+
+export const vacationRequestTemplateId = "template-vacation-request";
 
 export function getDefaultDocumentTemplateSchema(): DocumentTemplateSchemaV1 {
   return {
@@ -59,6 +68,134 @@ export function getDefaultDocumentTemplateSchema(): DocumentTemplateSchemaV1 {
         label: "기안 내용",
         type: "textarea",
         required: true,
+      },
+      {
+        name: "attachments",
+        label: "첨부파일",
+        type: "attachments",
+        required: false,
+      },
+    ],
+  };
+}
+
+export function getVacationRequestDocumentTemplateSchema(): DocumentTemplateSchemaV1 {
+  return {
+    version: 1,
+    fields: [
+      { name: "title", label: "제목", type: "text", required: true },
+      {
+        name: "vacationType",
+        label: "휴가 종류",
+        type: "select",
+        required: true,
+        defaultValue: "annual",
+        options: [
+          { label: "연차", value: "annual" },
+          { label: "반차", value: "half_day" },
+          { label: "병가", value: "sick" },
+          { label: "경조휴가", value: "family_event" },
+          { label: "공가", value: "official" },
+          { label: "대체휴무", value: "substitute" },
+          { label: "기타", value: "other" },
+        ],
+      },
+      {
+        name: "startDate",
+        label: "시작일",
+        type: "date",
+        required: true,
+        visibleWhen: {
+          field: "vacationType",
+          values: [
+            "annual",
+            "sick",
+            "family_event",
+            "official",
+            "substitute",
+            "other",
+          ],
+        },
+      },
+      {
+        name: "endDate",
+        label: "종료일",
+        type: "date",
+        required: true,
+        visibleWhen: {
+          field: "vacationType",
+          values: [
+            "annual",
+            "sick",
+            "family_event",
+            "official",
+            "substitute",
+            "other",
+          ],
+        },
+      },
+      {
+        name: "halfDayDate",
+        label: "반차 사용일",
+        type: "date",
+        required: true,
+        visibleWhen: { field: "vacationType", values: ["half_day"] },
+      },
+      {
+        name: "halfDayPeriod",
+        label: "반차 구분",
+        type: "select",
+        required: true,
+        options: [
+          { label: "오전 (09:00~14:00)", value: "morning" },
+          { label: "오후 (14:00~18:00)", value: "afternoon" },
+        ],
+        visibleWhen: { field: "vacationType", values: ["half_day"] },
+      },
+      {
+        name: "familyEventType",
+        label: "경조 구분",
+        type: "select",
+        required: true,
+        options: [
+          { label: "결혼", value: "marriage" },
+          { label: "출산", value: "birth" },
+          { label: "장례", value: "bereavement" },
+          { label: "기타", value: "other" },
+        ],
+        visibleWhen: { field: "vacationType", values: ["family_event"] },
+      },
+      {
+        name: "eventDate",
+        label: "경조 발생일",
+        type: "date",
+        required: true,
+        visibleWhen: { field: "vacationType", values: ["family_event"] },
+      },
+      {
+        name: "emergencyContact",
+        label: "비상 연락처",
+        type: "text",
+        required: false,
+        placeholder: "010-0000-0000",
+        visibleWhen: {
+          field: "vacationType",
+          values: [
+            "annual",
+            "sick",
+            "family_event",
+            "official",
+            "substitute",
+            "other",
+          ],
+        },
+      },
+      {
+        name: "reason",
+        label: "신청 사유",
+        type: "textarea",
+        required: true,
+        placeholder: "휴가 신청 사유를 입력하세요.",
       },
       {
         name: "attachments",
@@ -214,6 +351,11 @@ function validateDocumentTemplateField(
   const required = readRequiredFlag(input, `${path}.required`, errors);
   const options = readOptions(input, type, path, errors);
   const defaultValue = readDefaultValue(input, type, options, path, errors);
+  const visibleWhen = readFieldCondition(
+    input.visibleWhen,
+    `${path}.visibleWhen`,
+    errors,
+  );
 
   if (errors.length > errorCount) {
     return null;
@@ -228,6 +370,7 @@ function validateDocumentTemplateField(
     ...(helpText ? { helpText } : {}),
     ...(defaultValue !== undefined ? { defaultValue } : {}),
     ...(options ? { options } : {}),
+    ...(visibleWhen ? { visibleWhen } : {}),
   } satisfies DocumentTemplateField;
 }
 
@@ -405,6 +548,71 @@ function readDefaultValue(
   }
 
   return defaultValue;
+}
+
+function readFieldCondition(
+  value: unknown,
+  path: string,
+  errors: string[],
+): DocumentTemplateFieldCondition | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!isPlainRecord(value)) {
+    errors.push(`${path}는 객체여야 합니다.`);
+    return undefined;
+  }
+
+  const field = readRequiredString(value.field, `${path}.field`, 64, errors);
+  const rawValues = value.values;
+
+  if (!field) {
+    return undefined;
+  }
+
+  if (!fieldNamePattern.test(field)) {
+    errors.push(`${path}.field는 올바른 필드 이름이어야 합니다.`);
+  }
+
+  if (!Array.isArray(rawValues)) {
+    errors.push(`${path}.values는 배열이어야 합니다.`);
+    return undefined;
+  }
+
+  if (rawValues.length === 0) {
+    errors.push(`${path}.values는 1개 이상이어야 합니다.`);
+    return undefined;
+  }
+
+  if (rawValues.length > maxConditionValueCount) {
+    errors.push(`${path}.values는 ${maxConditionValueCount}개 이하여야 합니다.`);
+    return undefined;
+  }
+
+  const conditionValues: string[] = [];
+  const valueSet = new Set<string>();
+
+  rawValues.forEach((rawValue, index) => {
+    const conditionValue = readRequiredString(
+      rawValue,
+      `${path}.values[${index}]`,
+      80,
+      errors,
+    );
+
+    if (!conditionValue || valueSet.has(conditionValue)) {
+      return;
+    }
+
+    valueSet.add(conditionValue);
+    conditionValues.push(conditionValue);
+  });
+
+  return {
+    field,
+    values: conditionValues,
+  };
 }
 
 function readRequiredString(

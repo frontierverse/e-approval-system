@@ -7,9 +7,11 @@ import {
   extractDocumentTemplateFieldValuesFromContent,
   extractDisplayContentFromTemplate,
   extractTextareaContentFromCompiledTemplate,
+  getDocumentTemplateInitialFieldValues,
   getDocumentTemplateDisplayRows,
   validateDocumentTemplateContentValues,
 } from "../src/lib/draft-template-content.ts";
+import { getVacationRequestDocumentTemplateSchema } from "../src/lib/document-template-schema.ts";
 
 describe("draft template content", () => {
   test("compiles template content from textarea fields only", () => {
@@ -273,6 +275,55 @@ describe("draft template content", () => {
       ),
       content,
     );
+  });
+
+  test("applies vacation defaults and hides fields that do not match the selected type", () => {
+    const schema = getVacationRequestDocumentTemplateSchema();
+    const initialValues = getDocumentTemplateInitialFieldValues(schema, "");
+    const content = compileDocumentTemplateContent(schema, {
+      vacationType: "half_day",
+      halfDayDate: "2026-06-20",
+      halfDayPeriod: "morning",
+      emergencyContact: "010-0000-0000",
+      reason: "오전 반차를 신청합니다.",
+    });
+
+    const annualContent = compileDocumentTemplateContent(schema, {
+      vacationType: "annual",
+      startDate: "2026-06-20",
+      endDate: "2026-06-20",
+      emergencyContact: "010-0000-0000",
+      reason: "?곗감瑜??좎껌?⑸땲??",
+    });
+
+    assert.equal(initialValues.vacationType, "annual");
+    assert.match(content, /휴가 종류: 반차/);
+    assert.match(content, /반차 사용일: 2026-06-20/);
+    assert.match(content, /반차 구분: 오전 \(09:00~14:00\)/);
+    assert.doesNotMatch(content, /시작일/);
+    assert.doesNotMatch(content, /종료일/);
+    assert.doesNotMatch(content, /010-0000-0000/);
+    assert.match(annualContent, /010-0000-0000/);
+  });
+
+  test("validates vacation fields by selected type", () => {
+    const schema = getVacationRequestDocumentTemplateSchema();
+    const halfDayErrors = validateDocumentTemplateContentValues(schema, {
+      vacationType: "half_day",
+      startDate: "2026-06-20",
+      endDate: "2026-06-20",
+      reason: "오전 반차를 신청합니다.",
+    });
+    const rangeErrors = validateDocumentTemplateContentValues(schema, {
+      vacationType: "annual",
+      startDate: "2026-06-21",
+      endDate: "2026-06-20",
+      reason: "연차를 신청합니다.",
+    });
+
+    assert.match(halfDayErrors.join("\n"), /반차 사용일/);
+    assert.match(halfDayErrors.join("\n"), /반차 구분/);
+    assert.deepEqual(rangeErrors, ["종료일은 시작일 이후 날짜로 선택하세요."]);
   });
 
   test("validates required schema template field values", () => {

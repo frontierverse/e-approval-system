@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   getDefaultDocumentTemplateSchema,
   getSafeDocumentTemplateSchema,
+  getVacationRequestDocumentTemplateSchema,
   validateDocumentTemplateSchema,
 } from "../src/lib/document-template-schema.ts";
 
@@ -72,6 +73,63 @@ describe("document template schema", () => {
 
     if (validation.ok) {
       assert.equal(validation.schema.fields[1].defaultValue, false);
+    }
+  });
+
+  test("validates conditional vacation request fields", () => {
+    const validation = validateDocumentTemplateSchema(
+      getVacationRequestDocumentTemplateSchema(),
+    );
+
+    assert.equal(validation.ok, true);
+
+    if (validation.ok) {
+      const halfDayDate = validation.schema.fields.find(
+        (field) => field.name === "halfDayDate",
+      );
+      const halfDayPeriod = validation.schema.fields.find(
+        (field) => field.name === "halfDayPeriod",
+      );
+      const startDate = validation.schema.fields.find(
+        (field) => field.name === "startDate",
+      );
+      const emergencyContact = validation.schema.fields.find(
+        (field) => field.name === "emergencyContact",
+      );
+      const familyEventType = validation.schema.fields.find(
+        (field) => field.name === "familyEventType",
+      );
+
+      assert.deepEqual(halfDayDate?.visibleWhen, {
+        field: "vacationType",
+        values: ["half_day"],
+      });
+      assert.deepEqual(halfDayPeriod?.options, [
+        { label: "오전 (09:00~14:00)", value: "morning" },
+        { label: "오후 (14:00~18:00)", value: "afternoon" },
+      ]);
+      assert.deepEqual(startDate?.visibleWhen?.values, [
+        "annual",
+        "sick",
+        "family_event",
+        "official",
+        "substitute",
+        "other",
+      ]);
+      assert.deepEqual(emergencyContact?.visibleWhen?.values, [
+        "annual",
+        "sick",
+        "family_event",
+        "official",
+        "substitute",
+        "other",
+      ]);
+      assert.deepEqual(familyEventType?.options, [
+        { label: "결혼", value: "marriage" },
+        { label: "출산", value: "birth" },
+        { label: "장례", value: "bereavement" },
+        { label: "기타", value: "other" },
+      ]);
     }
   });
 

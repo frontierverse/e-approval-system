@@ -8,7 +8,10 @@ import {
   UserRole,
   UserStatus,
 } from "../src/generated/prisma/client";
-import { getDefaultDocumentTemplateSchema } from "../src/lib/document-template-schema";
+import {
+  getDefaultDocumentTemplateSchema,
+  getVacationRequestDocumentTemplateSchema,
+} from "../src/lib/document-template-schema";
 import { hashPassword } from "../src/lib/password";
 
 const adapter = new PrismaPg({
@@ -17,6 +20,8 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 const demoPasswordHash = hashPassword("password123");
 const defaultDocumentTemplateSchema = getDefaultDocumentTemplateSchema();
+const vacationRequestDocumentTemplateSchema =
+  getVacationRequestDocumentTemplateSchema();
 const defaultAllowedAttachmentExtensions = [
   ".pdf",
   ".png",
@@ -143,7 +148,7 @@ async function main() {
         id: "template-vacation-request",
         name: "휴가신청서",
         description: "연차, 반차 등 휴가 사용을 요청하는 양식",
-        schema: defaultDocumentTemplateSchema,
+        schema: vacationRequestDocumentTemplateSchema,
       },
       {
         id: "template-purchase-request",

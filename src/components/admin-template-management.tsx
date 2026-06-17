@@ -74,6 +74,7 @@ type EditableTemplateField = {
   placeholder: string;
   helpText: string;
   options: DocumentTemplateFieldOption[];
+  visibleWhen?: DocumentTemplateField["visibleWhen"];
 };
 
 type TemplateDesignerPreviewMode = "form" | "pdf";
@@ -1649,6 +1650,7 @@ function toEditableTemplateField(
     placeholder: field.placeholder ?? "",
     helpText: field.helpText ?? "",
     options: field.options ?? [],
+    visibleWhen: field.visibleWhen,
   };
 }
 
@@ -1666,6 +1668,7 @@ function getSchemaFromEditableFields(
         ? { placeholder: field.placeholder.trim() }
         : {}),
       ...(field.helpText.trim() ? { helpText: field.helpText.trim() } : {}),
+      ...(field.visibleWhen ? { visibleWhen: field.visibleWhen } : {}),
       ...(field.type === "select"
         ? {
             options: field.options.map((option) => ({

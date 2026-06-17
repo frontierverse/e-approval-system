@@ -224,10 +224,44 @@ export function getSafeRenderableDocumentTemplateFields(schema: unknown) {
   );
 }
 
+export function getSafeVisibleRenderableDocumentTemplateFields(
+  schema: unknown,
+  values: Record<string, string> | undefined,
+) {
+  return getVisibleRenderableDocumentTemplateFields(
+    getSafeDocumentTemplateSchema(schema).schema,
+    values,
+  );
+}
+
 export function getRenderableDocumentTemplateFields(
   schema: DocumentTemplateSchemaV1,
 ) {
   return schema.fields.filter((field) => !isDocumentTemplateShellField(field));
+}
+
+export function getVisibleRenderableDocumentTemplateFields(
+  schema: DocumentTemplateSchemaV1,
+  values: Record<string, string> | undefined,
+) {
+  const fieldValues = values ?? {};
+
+  return getRenderableDocumentTemplateFields(schema).filter((field) =>
+    isDocumentTemplateFieldVisible(field, fieldValues),
+  );
+}
+
+export function getDocumentTemplateInitialFieldValues(
+  schema: unknown,
+  content: string,
+) {
+  const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const values = extractDocumentTemplateFieldValuesFromContent(
+    safeSchema,
+    content,
+  );
+
+  return applyDocumentTemplateDefaultValues(safeSchema, values);
 }
 
 export function compileDocumentTemplateContentFromSchema(
@@ -249,7 +283,7 @@ export function compileDocumentTemplateContent(
   schema: DocumentTemplateSchemaV1,
   values: Record<string, string>,
 ) {
-  const fields = getRenderableDocumentTemplateFields(schema);
+  const fields = getVisibleRenderableDocumentTemplateFields(schema, values);
 
   if (fields.length === 1 && isPlainContentField(fields[0])) {
     return normalizeNewlines(values[fields[0].name] ?? "").trim();
@@ -266,9 +300,13 @@ export function validateDocumentTemplateContentValues(
 ) {
   const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
   const fieldValues = values ?? {};
+  const fields = getVisibleRenderableDocumentTemplateFields(
+    safeSchema,
+    fieldValues,
+  );
   const errors: string[] = [];
 
-  for (const field of getRenderableDocumentTemplateFields(safeSchema)) {
+  for (const field of fields) {
     const value = fieldValues[field.name]?.trim() ?? "";
 
     if (field.required && !isFilledTemplateFieldValue(field, value)) {
@@ -295,6 +333,21 @@ export function validateDocumentTemplateContentValues(
     ) {
       errors.push(`${field.label} 선택값이 올바르지 않습니다.`);
     }
+  }
+
+  const startDate = fieldValues.startDate?.trim() ?? "";
+  const endDate = fieldValues.endDate?.trim() ?? "";
+  const hasVisibleStartDate = fields.some((field) => field.name === "startDate");
+  const hasVisibleEndDate = fields.some((field) => field.name === "endDate");
+
+  if (
+    hasVisibleStartDate &&
+    hasVisibleEndDate &&
+    isDateFieldValue(startDate) &&
+    isDateFieldValue(endDate) &&
+    startDate > endDate
+  ) {
+    errors.push("종료일은 시작일 이후 날짜로 선택하세요.");
   }
 
   return errors;
@@ -341,10 +394,13 @@ export function getDocumentTemplateDisplayRows(
   content: string,
 ): DocumentTemplateDisplayRow[] {
   const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
-  const fields = getRenderableDocumentTemplateFields(safeSchema);
   const values = extractDocumentTemplateFieldValuesFromContent(
     safeSchema,
     content,
+  );
+  const fields = getVisibleRenderableDocumentTemplateFields(
+    safeSchema,
+    values,
   );
 
   return fields.map((field) => ({
@@ -466,6 +522,50 @@ function normalizeExtractedTemplateValue(
   return value;
 }
 
+function applyDocumentTemplateDefaultValues(
+  schema: DocumentTemplateSchemaV1,
+  values: Record<string, string>,
+) {
+  const nextValues = { ...values };
+
+  for (const field of getRenderableDocumentTemplateFields(schema)) {
+    if (nextValues[field.name]) {
+      continue;
+    }
+
+    const defaultValue = getDocumentTemplateFieldDefaultValue(field);
+
+    if (defaultValue) {
+      nextValues[field.name] = defaultValue;
+    }
+  }
+
+  return nextValues;
+}
+
+function getDocumentTemplateFieldDefaultValue(field: DocumentTemplateField) {
+  if (field.defaultValue === undefined) {
+    return "";
+  }
+
+  return typeof field.defaultValue === "boolean"
+    ? String(field.defaultValue)
+    : field.defaultValue;
+}
+
+function isDocumentTemplateFieldVisible(
+  field: DocumentTemplateField,
+  values: Record<string, string>,
+) {
+  if (!field.visibleWhen) {
+    return true;
+  }
+
+  const value = values[field.visibleWhen.field]?.trim() ?? "";
+
+  return field.visibleWhen.values.includes(value);
+}
+
 function isFilledTemplateFieldValue(
   field: DocumentTemplateField,
   value: string,
@@ -479,6 +579,10 @@ function isFilledTemplateFieldValue(
 
 function isPlainContentField(field: DocumentTemplateField) {
   return field.name === "content" && field.type === "textarea";
+}
+
+function isDateFieldValue(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function isDocumentTemplateShellField(field: DocumentTemplateField) {

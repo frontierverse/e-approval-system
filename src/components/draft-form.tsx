@@ -27,12 +27,15 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
   compileDocumentTemplateContentFromSchema,
-  extractDocumentTemplateFieldValuesFromContent,
+  getDocumentTemplateInitialFieldValues,
   getSafeRenderableDocumentTemplateFields,
   getTemplateFieldInputName,
   validateDocumentTemplateContentValues,
 } from "@/lib/draft-template-content";
-import type { DocumentTemplateField } from "@/lib/document-template-schema";
+import {
+  vacationRequestTemplateId,
+  type DocumentTemplateField,
+} from "@/lib/document-template-schema";
 import {
   getAttachmentSelectionKey,
   getFileExtension,
@@ -179,14 +182,24 @@ function DraftFormFields({
     () => templates.find((template) => template.id === templateId),
     [templateId, templates],
   );
-  const selectedTemplateFields = useMemo(
-    () =>
-      selectedTemplate
-        ? getSafeRenderableDocumentTemplateFields(selectedTemplate.schema)
-        : [],
-    [selectedTemplate],
-  );
-  const usesStructuredTemplate = selectedTemplateFields.length > 0;
+  const selectedTemplateFields = useMemo(() => {
+    if (!selectedTemplate) {
+      return [];
+    }
+
+    return getSafeRenderableDocumentTemplateFields(
+      selectedTemplate.schema,
+    ).filter((field) =>
+      isDraftFormTemplateFieldVisible(
+        selectedTemplate.id,
+        field,
+        templateFieldValues,
+      ),
+    );
+  }, [selectedTemplate, templateFieldValues]);
+  const usesStructuredTemplate = selectedTemplate
+    ? getSafeRenderableDocumentTemplateFields(selectedTemplate.schema).length > 0
+    : false;
   const structuredContent =
     usesStructuredTemplate && selectedTemplate
       ? compileDocumentTemplateContentFromSchema(
@@ -1220,8 +1233,42 @@ function getTemplateFieldValuesForSelectedTemplate(
   const template = templates.find((candidate) => candidate.id === templateId);
 
   return template
-    ? extractDocumentTemplateFieldValuesFromContent(template.schema, content)
+    ? getDocumentTemplateInitialFieldValues(template.schema, content)
     : {};
+}
+
+function isDraftFormTemplateFieldVisible(
+  templateId: string,
+  field: DocumentTemplateField,
+  values: Record<string, string>,
+) {
+  if (templateId === vacationRequestTemplateId) {
+    const vacationType = values.vacationType?.trim() || "annual";
+
+    if (
+      field.name === "startDate" ||
+      field.name === "endDate" ||
+      field.name === "emergencyContact"
+    ) {
+      return vacationType !== "half_day";
+    }
+
+    if (field.name === "halfDayDate" || field.name === "halfDayPeriod") {
+      return vacationType === "half_day";
+    }
+
+    if (field.name === "familyEventType" || field.name === "eventDate") {
+      return vacationType === "family_event";
+    }
+  }
+
+  if (!field.visibleWhen) {
+    return true;
+  }
+
+  const value = values[field.visibleWhen.field]?.trim() ?? "";
+
+  return field.visibleWhen.values.includes(value);
 }
 
 function TemplateInput({
@@ -1300,13 +1347,28 @@ function TemplateInput({
           disabled={pending}
           type={field.type}
           value={value}
+          onClick={(event) => openDatePicker(event.currentTarget)}
           onChange={(event) => onChange(event.target.value)}
           placeholder={field.placeholder}
-          className={`${baseClass} h-11`}
+          className={`${baseClass} h-11 ${field.type === "date" ? "cursor-pointer" : ""}`}
         />
       )}
     </div>
   );
+}
+
+function openDatePicker(input: HTMLInputElement) {
+  if (input.type !== "date" || input.disabled || input.readOnly) {
+    return;
+  }
+
+  input.focus();
+
+  try {
+    input.showPicker?.();
+  } catch {
+    // Some browsers only allow showPicker during specific trusted gestures.
+  }
 }
 
 function LineNumberedTextarea({
