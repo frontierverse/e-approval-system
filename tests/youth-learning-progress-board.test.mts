@@ -57,6 +57,7 @@ const schedules: YouthLearningSchedule[] = [
   {
     id: "schedule-001",
     youthId: "youth-learning-001",
+    scheduleDate: "2026-06-18",
     startHour: 9,
     content: "수학 문제집 12쪽",
   },
@@ -101,31 +102,37 @@ describe("YouthLearningProgressBoard", () => {
             },
           },
         }),
-        deleteSchedule: async (youthId, startHour) => ({
+        deleteSchedule: async (youthId, scheduleDate, startHour) => ({
           ok: true,
-          data: { youthId, startHour },
+          data: { youthId, scheduleDate, startHour },
         }),
         deleteYouth: async (youthId) => ({
           ok: true,
           data: { youthId },
         }),
-        saveSchedule: async (youthId, startHour, content) => ({
+        saveSchedule: async (youthId, scheduleDate, startHour, content) => ({
           ok: true,
           data: {
             schedule: {
               id: "saved-schedule",
               youthId,
+              scheduleDate,
               startHour,
               content,
             },
           },
         }),
         schedules,
+        selectedDate: "2026-06-18",
         youths,
       }),
     );
 
     assert.match(html, /학습진도 시간표/);
+    assert.match(html, /2026\. 06\. 18\. \(목\)/);
+    assert.match(html, /href="\/youth\/learning-progress\?date=2026-06-17"/);
+    assert.match(html, /value="2026-06-18"/);
+    assert.match(html, /href="\/youth\/learning-progress\?date=2026-06-19"/);
     assert.match(html, /학생 이름/);
     assert.match(html, />추가</);
     assert.match(html, /시간/);
@@ -167,9 +174,9 @@ describe("YouthLearningProgressBoard", () => {
             },
           },
         }),
-        deleteSchedule: async (youthId, startHour) => ({
+        deleteSchedule: async (youthId, scheduleDate, startHour) => ({
           ok: true,
-          data: { youthId, startHour },
+          data: { youthId, scheduleDate, startHour },
         }),
         deleteYouth: async (youthId) => ({
           ok: true,
@@ -180,6 +187,7 @@ describe("YouthLearningProgressBoard", () => {
           data: { schedule: null },
         }),
         schedules: [],
+        selectedDate: "2026-06-18",
         youths: [],
       }),
     );

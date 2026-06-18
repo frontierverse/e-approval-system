@@ -7,18 +7,25 @@ import type { YouthLearningProgressChangeLog } from "@/lib/youth-management-core
 type YouthLearningScheduleRecord = {
   id: string;
   youthId: string;
+  scheduleDate: string;
   startHour: number;
   content: string;
 };
 
-export async function getYouthLearningSchedules(): Promise<
+export async function getYouthLearningSchedules(
+  scheduleDate: string,
+): Promise<
   YouthLearningSchedule[]
 > {
   const schedules = await prisma.youthLearningSchedule.findMany({
+    where: {
+      scheduleDate,
+    },
     orderBy: [{ startHour: "asc" }, { updatedAt: "desc" }],
     select: {
       id: true,
       youthId: true,
+      scheduleDate: true,
       startHour: true,
       content: true,
     },
@@ -83,6 +90,7 @@ function mapYouthLearningSchedule(
   return {
     id: record.id,
     youthId: record.youthId,
+    scheduleDate: record.scheduleDate,
     startHour: record.startHour,
     content: record.content,
   };

@@ -12,6 +12,8 @@ import type {
   YouthSpecialNote,
 } from "@/lib/youth-management-core";
 import {
+  getYouthLearningScheduleToday,
+  shiftYouthLearningScheduleDate,
   youthLearningScheduleEndHour,
   youthLearningScheduleStartHour,
 } from "@/lib/youth-management-core";
@@ -23,17 +25,22 @@ type YouthLearningProgressBoardProps = {
   changeLogs: YouthLearningProgressChangeLog[];
   deleteSchedule: (
     youthId: string,
+    scheduleDate: string,
     startHour: number,
-  ) => Promise<YouthActionResult<{ youthId: string; startHour: number }>>;
+  ) => Promise<
+    YouthActionResult<{ youthId: string; scheduleDate: string; startHour: number }>
+  >;
   deleteYouth: (
     youthId: string,
   ) => Promise<YouthActionResult<{ youthId: string }>>;
   saveSchedule: (
     youthId: string,
+    scheduleDate: string,
     startHour: number,
     content: string,
   ) => Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>>;
   schedules: YouthLearningSchedule[];
+  selectedDate: string;
   youths: YouthProfile[];
 };
 
@@ -83,7 +90,11 @@ export function YouthLearningProgressBoard(
   const router = useRouter();
 
   return (
-    <YouthLearningProgressBoardContent {...props} refresh={router.refresh} />
+    <YouthLearningProgressBoardContent
+      key={props.selectedDate}
+      {...props}
+      refresh={router.refresh}
+    />
   );
 }
 
@@ -95,10 +106,12 @@ export function YouthLearningProgressBoardContent({
   refresh = noop,
   saveSchedule,
   schedules,
+  selectedDate,
   youths: initialYouths,
 }: YouthLearningProgressBoardContentProps) {
   const [youths, setYouths] = useState(initialYouths);
   const [scheduleItems, setScheduleItems] = useState(schedules);
+  const [dateDraft, setDateDraft] = useState(selectedDate);
   const [newYouthName, setNewYouthName] = useState("");
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState("");
@@ -109,11 +122,23 @@ export function YouthLearningProgressBoardContent({
     const nextMap = new Map<string, YouthLearningSchedule>();
 
     for (const schedule of scheduleItems) {
-      nextMap.set(createScheduleKey(schedule.youthId, schedule.startHour), schedule);
+      nextMap.set(
+        createScheduleKey(
+          schedule.youthId,
+          schedule.scheduleDate,
+          schedule.startHour,
+        ),
+        schedule,
+      );
     }
 
     return nextMap;
   }, [scheduleItems]);
+
+  const previousDate = shiftYouthLearningScheduleDate(selectedDate, -1);
+  const nextDate = shiftYouthLearningScheduleDate(selectedDate, 1);
+  const today = getYouthLearningScheduleToday();
+  const selectedDateLabel = formatDateWithWeekday(selectedDate);
 
   const selectedYouth = selectedCell
     ? youths.find((youth) => youth.id === selectedCell.youthId)
@@ -122,7 +147,13 @@ export function YouthLearningProgressBoardContent({
     ? learningTimeSlots.find((slot) => slot.startHour === selectedCell.startHour)
     : null;
   const selectedSchedule = selectedCell
-    ? scheduleMap.get(createScheduleKey(selectedCell.youthId, selectedCell.startHour))
+    ? scheduleMap.get(
+        createScheduleKey(
+          selectedCell.youthId,
+          selectedDate,
+          selectedCell.startHour,
+        ),
+      )
     : undefined;
   const recentLearningNotes = useMemo(
     () => getRecentLearningNotes(youths),
@@ -202,7 +233,9 @@ export function YouthLearningProgressBoardContent({
   }
 
   function openScheduleModal(youthId: string, startHour: number) {
-    const schedule = scheduleMap.get(createScheduleKey(youthId, startHour));
+    const schedule = scheduleMap.get(
+      createScheduleKey(youthId, selectedDate, startHour),
+    );
 
     setSelectedCell({ youthId, startHour });
     setScheduleDraft(schedule?.content ?? "");
@@ -223,6 +256,7 @@ export function YouthLearningProgressBoardContent({
     startPendingAction(async () => {
       const result = await saveSchedule(
         selectedCell.youthId,
+        selectedDate,
         selectedCell.startHour,
         scheduleDraft,
       );
@@ -236,6 +270,7 @@ export function YouthLearningProgressBoardContent({
         mergeScheduleItems(
           current,
           selectedCell.youthId,
+          selectedDate,
           selectedCell.startHour,
           result.data.schedule,
         ),
@@ -251,7 +286,11 @@ export function YouthLearningProgressBoardContent({
     }
 
     startPendingAction(async () => {
-      const result = await deleteSchedule(selectedCell.youthId, selectedCell.startHour);
+      const result = await deleteSchedule(
+        selectedCell.youthId,
+        selectedDate,
+        selectedCell.startHour,
+      );
 
       if (!result.ok) {
         setFormError(result.error);
@@ -262,6 +301,7 @@ export function YouthLearningProgressBoardContent({
         mergeScheduleItems(
           current,
           result.data.youthId,
+          result.data.scheduleDate,
           result.data.startHour,
           null,
         ),
@@ -280,37 +320,80 @@ export function YouthLearningProgressBoardContent({
               학습진도 시간표
             </h2>
             <p className="mt-1 text-sm text-[#697386]">
-              오전 9시부터 오후 6시까지 1시간 단위로 관리합니다.
+              {selectedDateLabel} 기록을 오전 9시부터 오후 6시까지 1시간 단위로 관리합니다.
             </p>
           </div>
 
-          <form
-            className="flex w-full min-w-0 flex-col gap-2 sm:max-w-md sm:flex-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              registerYouth();
-            }}
-          >
-            <label className="min-w-0 flex-1">
-              <span className="sr-only">학생 이름</span>
-              <input
-                value={newYouthName}
-                onChange={(event) => {
-                  setNewYouthName(event.target.value);
-                  setFormError("");
-                }}
-                placeholder="학생 이름"
-                className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={pendingAction}
-              className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:max-w-2xl">
+            <form
+              action="/youth/learning-progress"
+              className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end"
+              method="get"
             >
-              추가
-            </button>
-          </form>
+              <a
+                href={createLearningProgressDateHref(previousDate)}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                이전 날
+              </a>
+              <label className="min-w-0 sm:w-44">
+                <span className="sr-only">날짜 선택</span>
+                <input
+                  type="date"
+                  name="date"
+                  value={dateDraft}
+                  onChange={(event) => setDateDraft(event.target.value)}
+                  className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                />
+              </label>
+              <button
+                type="submit"
+                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                이동
+              </button>
+              <a
+                href={createLearningProgressDateHref(today)}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                오늘
+              </a>
+              <a
+                href={createLearningProgressDateHref(nextDate)}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                다음 날
+              </a>
+            </form>
+
+            <form
+              className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end"
+              onSubmit={(event) => {
+                event.preventDefault();
+                registerYouth();
+              }}
+            >
+              <label className="min-w-0 flex-1 sm:max-w-xs">
+                <span className="sr-only">학생 이름</span>
+                <input
+                  value={newYouthName}
+                  onChange={(event) => {
+                    setNewYouthName(event.target.value);
+                    setFormError("");
+                  }}
+                  placeholder="학생 이름"
+                  className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={pendingAction}
+                className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
+              >
+                추가
+              </button>
+            </form>
+          </div>
         </div>
 
         {formError ? (
@@ -364,7 +447,7 @@ export function YouthLearningProgressBoardContent({
                     </th>
                     {youths.map((youth) => {
                       const schedule = scheduleMap.get(
-                        createScheduleKey(youth.id, slot.startHour),
+                        createScheduleKey(youth.id, selectedDate, slot.startHour),
                       );
 
                       return (
@@ -532,7 +615,7 @@ export function YouthLearningProgressBoardContent({
             >
               <header className="border-b border-[#eef1f5] px-5 py-4">
                 <p className="text-sm font-semibold text-[#697386]">
-                  {selectedYouth.name} · {selectedSlot.label}
+                  {formatDate(selectedDate)} · {selectedYouth.name} · {selectedSlot.label}
                 </p>
                 <h2
                   id="learning-schedule-modal-title"
@@ -603,12 +686,14 @@ export function YouthLearningProgressBoardContent({
 function mergeScheduleItems(
   current: YouthLearningSchedule[],
   youthId: string,
+  scheduleDate: string,
   startHour: number,
   schedule: YouthLearningSchedule | null,
 ) {
-  const key = createScheduleKey(youthId, startHour);
+  const key = createScheduleKey(youthId, scheduleDate, startHour);
   const withoutCurrent = current.filter(
-    (item) => createScheduleKey(item.youthId, item.startHour) !== key,
+    (item) =>
+      createScheduleKey(item.youthId, item.scheduleDate, item.startHour) !== key,
   );
 
   return schedule
@@ -621,13 +706,18 @@ function sortScheduleItems(
   second: YouthLearningSchedule,
 ) {
   return (
+    first.scheduleDate.localeCompare(second.scheduleDate) ||
     first.startHour - second.startHour ||
     first.youthId.localeCompare(second.youthId)
   );
 }
 
-function createScheduleKey(youthId: string, startHour: number) {
-  return `${youthId}:${startHour}`;
+function createScheduleKey(youthId: string, scheduleDate: string, startHour: number) {
+  return `${scheduleDate}:${youthId}:${startHour}`;
+}
+
+function createLearningProgressDateHref(scheduleDate: string) {
+  return `/youth/learning-progress?date=${encodeURIComponent(scheduleDate)}`;
 }
 
 function getRecentLearningNotes(youths: YouthProfile[]) {
@@ -726,4 +816,23 @@ function formatDate(value: string) {
   }
 
   return `${year}. ${month}. ${day}.`;
+}
+
+function formatDateWithWeekday(value: string) {
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(date);
+
+  return `${formatDate(value)} (${weekday})`;
 }

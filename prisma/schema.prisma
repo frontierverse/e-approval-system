@@ -394,17 +394,19 @@ model YouthSpecialNote {
 }
 
 model YouthLearningSchedule {
-  id        String   @id @default(cuid())
-  startHour Int
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  scheduleDate String
+  startHour    Int
+  content      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   youthId String
 
   youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
 
-  @@unique([youthId, startHour])
+  @@unique([youthId, scheduleDate, startHour])
+  @@index([scheduleDate, startHour])
   @@index([startHour])
 }
 

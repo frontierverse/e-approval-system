@@ -12,12 +12,25 @@ import {
   deleteYouthLearningScheduleAction,
   saveYouthLearningScheduleAction,
 } from "@/app/youth/learning-progress/actions";
+import {
+  getYouthLearningScheduleToday,
+  isYouthLearningScheduleDate,
+} from "@/lib/youth-management-core";
 
-export default async function YouthLearningProgressPage() {
+type YouthLearningProgressPageProps = {
+  searchParams: Promise<{
+    date?: string | string[];
+  }>;
+};
+
+export default async function YouthLearningProgressPage({
+  searchParams,
+}: YouthLearningProgressPageProps) {
   await requireUser();
+  const selectedDate = getSelectedScheduleDate((await searchParams).date);
   const [youthProfiles, schedules, changeLogs] = await Promise.all([
     getYouthProfiles(),
-    getYouthLearningSchedules(),
+    getYouthLearningSchedules(selectedDate),
     getYouthLearningProgressChangeLogs(),
   ]);
 
@@ -35,8 +48,17 @@ export default async function YouthLearningProgressPage() {
         deleteYouth={deleteLearningProgressYouthAction}
         saveSchedule={saveYouthLearningScheduleAction}
         schedules={schedules}
+        selectedDate={selectedDate}
         youths={youthProfiles}
       />
     </>
   );
+}
+
+function getSelectedScheduleDate(value: string | string[] | undefined) {
+  const selectedDate = Array.isArray(value) ? value[0] : value;
+
+  return selectedDate && isYouthLearningScheduleDate(selectedDate)
+    ? selectedDate
+    : getYouthLearningScheduleToday();
 }

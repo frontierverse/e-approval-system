@@ -6,6 +6,7 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  isYouthLearningScheduleDate,
   isYouthLearningScheduleStartHour,
   type YouthActionResult,
   type YouthLearningSchedule,
@@ -155,10 +156,18 @@ export async function deleteLearningProgressYouthAction(
 
 export async function saveYouthLearningScheduleAction(
   youthId: string,
+  scheduleDate: string,
   startHour: number,
   content: string,
 ): Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>> {
   const user = await requireUser();
+
+  if (!isYouthLearningScheduleDate(scheduleDate)) {
+    return {
+      ok: false,
+      error: "날짜를 다시 선택하세요.",
+    };
+  }
 
   if (!isYouthLearningScheduleStartHour(startHour)) {
     return {
@@ -189,8 +198,9 @@ export async function saveYouthLearningScheduleAction(
   if (!normalizedContent) {
     const existingSchedule = await prisma.youthLearningSchedule.findUnique({
       where: {
-        youthId_startHour: {
+        youthId_scheduleDate_startHour: {
           youthId,
+          scheduleDate,
           startHour,
         },
       },
@@ -206,8 +216,9 @@ export async function saveYouthLearningScheduleAction(
       await prisma.$transaction(async (tx) => {
         await tx.youthLearningSchedule.delete({
           where: {
-            youthId_startHour: {
+            youthId_scheduleDate_startHour: {
               youthId,
+              scheduleDate,
               startHour,
             },
           },
@@ -227,6 +238,7 @@ export async function saveYouthLearningScheduleAction(
               changeType: "schedule.delete",
               nextContent: null,
               previousContent: existingSchedule.content,
+              scheduleDate,
               source: "learning-progress",
               startHour,
               timeLabel: formatLearningScheduleSlotLabel(startHour),
@@ -252,8 +264,9 @@ export async function saveYouthLearningScheduleAction(
   const schedule = await prisma.$transaction(async (tx) => {
     const existingSchedule = await tx.youthLearningSchedule.findUnique({
       where: {
-        youthId_startHour: {
+        youthId_scheduleDate_startHour: {
           youthId,
+          scheduleDate,
           startHour,
         },
       },
@@ -267,6 +280,7 @@ export async function saveYouthLearningScheduleAction(
       return {
         id: existingSchedule.id,
         youthId,
+        scheduleDate,
         startHour,
         content: normalizedContent,
       };
@@ -274,8 +288,9 @@ export async function saveYouthLearningScheduleAction(
 
     const savedSchedule = await tx.youthLearningSchedule.upsert({
       where: {
-        youthId_startHour: {
+        youthId_scheduleDate_startHour: {
           youthId,
+          scheduleDate,
           startHour,
         },
       },
@@ -284,12 +299,14 @@ export async function saveYouthLearningScheduleAction(
       },
       create: {
         youthId,
+        scheduleDate,
         startHour,
         content: normalizedContent,
       },
       select: {
         id: true,
         youthId: true,
+        scheduleDate: true,
         startHour: true,
         content: true,
       },
@@ -309,6 +326,7 @@ export async function saveYouthLearningScheduleAction(
           changeType: existingSchedule ? "schedule.update" : "schedule.create",
           nextContent: normalizedContent,
           previousContent: existingSchedule?.content ?? null,
+          scheduleDate,
           source: "learning-progress",
           startHour,
           timeLabel: formatLearningScheduleSlotLabel(startHour),
@@ -333,9 +351,19 @@ export async function saveYouthLearningScheduleAction(
 
 export async function deleteYouthLearningScheduleAction(
   youthId: string,
+  scheduleDate: string,
   startHour: number,
-): Promise<YouthActionResult<{ youthId: string; startHour: number }>> {
+): Promise<
+  YouthActionResult<{ youthId: string; scheduleDate: string; startHour: number }>
+> {
   const user = await requireUser();
+
+  if (!isYouthLearningScheduleDate(scheduleDate)) {
+    return {
+      ok: false,
+      error: "날짜를 다시 선택하세요.",
+    };
+  }
 
   if (!isYouthLearningScheduleStartHour(startHour)) {
     return {
@@ -346,8 +374,9 @@ export async function deleteYouthLearningScheduleAction(
 
   const schedule = await prisma.youthLearningSchedule.findUnique({
     where: {
-      youthId_startHour: {
+      youthId_scheduleDate_startHour: {
         youthId,
+        scheduleDate,
         startHour,
       },
     },
@@ -368,8 +397,9 @@ export async function deleteYouthLearningScheduleAction(
     await prisma.$transaction(async (tx) => {
       await tx.youthLearningSchedule.delete({
         where: {
-          youthId_startHour: {
+          youthId_scheduleDate_startHour: {
             youthId,
+            scheduleDate,
             startHour,
           },
         },
@@ -389,6 +419,7 @@ export async function deleteYouthLearningScheduleAction(
             changeType: "schedule.delete",
             nextContent: null,
             previousContent: schedule.content,
+            scheduleDate,
             source: "learning-progress",
             startHour,
             timeLabel: formatLearningScheduleSlotLabel(startHour),
@@ -406,6 +437,7 @@ export async function deleteYouthLearningScheduleAction(
     ok: true,
     data: {
       youthId,
+      scheduleDate,
       startHour,
     },
   };

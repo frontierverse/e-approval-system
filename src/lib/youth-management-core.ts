@@ -42,6 +42,7 @@ export type YouthProfile = {
 export type YouthLearningSchedule = {
   id: string;
   youthId: string;
+  scheduleDate: string;
   startHour: number;
   content: string;
 };
@@ -109,6 +110,69 @@ export function isYouthLearningScheduleStartHour(value: number) {
     value >= youthLearningScheduleStartHour &&
     value < youthLearningScheduleEndHour
   );
+}
+
+export function isYouthLearningScheduleDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!year || !month || !day) {
+    return false;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export function getYouthLearningScheduleToday() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day
+    ? `${year}-${month}-${day}`
+    : formatYouthLearningScheduleDate(new Date());
+}
+
+export function shiftYouthLearningScheduleDate(value: string, days: number) {
+  const date = parseYouthLearningScheduleDate(value);
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return formatYouthLearningScheduleDate(date);
+}
+
+function parseYouthLearningScheduleDate(value: string) {
+  const [yearText, monthText, dayText] = value.split("-");
+
+  return new Date(
+    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
+  );
+}
+
+function formatYouthLearningScheduleDate(value: Date) {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 export function normalizeYouthNotePriority(value: string): YouthNotePriority {
