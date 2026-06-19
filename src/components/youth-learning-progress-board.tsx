@@ -153,6 +153,9 @@ export function YouthLearningProgressBoardContent({
   const [dateDraft, setDateDraft] = useState(selectedDate);
   const [newYouthName, setNewYouthName] = useState("");
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [startMinuteDraft, setStartMinuteDraft] = useState(
+    getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
+  );
   const [endMinuteDraft, setEndMinuteDraft] = useState(
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
   );
@@ -218,10 +221,7 @@ export function YouthLearningProgressBoardContent({
       )
     : null;
   const selectedTimeLabel = selectedCell
-    ? formatScheduleRangeLabel(
-        selectedCell.startMinute,
-        endMinuteDraft,
-      )
+    ? formatScheduleRangeLabel(startMinuteDraft, endMinuteDraft)
     : "";
   const selectedSchedule = selectedCell
     ? scheduleMap.get(
@@ -315,6 +315,7 @@ export function YouthLearningProgressBoardContent({
     );
 
     setSelectedCell({ youthId, startMinute });
+    setStartMinuteDraft(schedule?.startMinute ?? startMinute);
     setEndMinuteDraft(
       schedule?.endMinute ?? startMinute + 60,
     );
@@ -325,6 +326,9 @@ export function YouthLearningProgressBoardContent({
 
   function closeScheduleModal() {
     setSelectedCell(null);
+    setStartMinuteDraft(
+      getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
+    );
     setEndMinuteDraft(
       getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
     );
@@ -338,14 +342,17 @@ export function YouthLearningProgressBoardContent({
       return;
     }
 
+    const sourceStartMinute = selectedCell.startMinute;
+
     startPendingScheduleAction(async () => {
       const result = await saveSchedule(
         selectedCell.youthId,
         selectedDate,
-        selectedCell.startMinute,
+        startMinuteDraft,
         endMinuteDraft,
         scheduleDraft,
         repeatsWeeklyDraft,
+        sourceStartMinute,
       );
 
       if (!result.ok) {
@@ -358,7 +365,7 @@ export function YouthLearningProgressBoardContent({
           current,
           selectedCell.youthId,
           selectedDate,
-          selectedCell.startMinute,
+          sourceStartMinute,
           result.data.schedule,
         ),
       );
@@ -580,6 +587,25 @@ export function YouthLearningProgressBoardContent({
     event.preventDefault();
     event.stopPropagation();
     setScheduleDragState(null);
+  }
+
+  function updateStartMinuteDraft(nextStartMinute: number) {
+    const currentDuration = Math.max(
+      youthLearningScheduleMinuteStep,
+      endMinuteDraft - startMinuteDraft,
+    );
+    const nextEndMinute = Math.min(
+      getYouthLearningScheduleEndMinute(),
+      nextStartMinute + currentDuration,
+    );
+
+    setStartMinuteDraft(nextStartMinute);
+    setEndMinuteDraft(
+      nextEndMinute > nextStartMinute
+        ? nextEndMinute
+        : nextStartMinute + youthLearningScheduleMinuteStep,
+    );
+    setFormError("");
   }
 
   return (
@@ -1030,6 +1056,24 @@ export function YouthLearningProgressBoardContent({
                 </label>
                 <label>
                   <span className="text-sm font-semibold text-[#394150]">
+                    시작 시간
+                  </span>
+                  <select
+                    value={startMinuteDraft}
+                    onChange={(event) => {
+                      updateStartMinuteDraft(Number(event.target.value));
+                    }}
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  >
+                    {createLearningScheduleStartMinuteOptions().map((minute) => (
+                      <option key={minute} value={minute}>
+                        {formatMinuteLabel(minute)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="text-sm font-semibold text-[#394150]">
                     종료 시간
                   </span>
                   <select
@@ -1040,23 +1084,13 @@ export function YouthLearningProgressBoardContent({
                     }}
                     className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
                   >
-                    {selectedCell
-                      ? Array.from(
-                          {
-                            length:
-                              (getYouthLearningScheduleEndMinute() -
-                                selectedCell.startMinute) /
-                              youthLearningScheduleMinuteStep,
-                          },
-                          (_, index) =>
-                            selectedCell.startMinute +
-                            (index + 1) * youthLearningScheduleMinuteStep,
-                        ).map((minute) => (
-                          <option key={minute} value={minute}>
-                            {formatMinuteLabel(minute)}
-                          </option>
-                        ))
-                      : null}
+                    {createLearningScheduleEndMinuteOptions(startMinuteDraft).map(
+                      (minute) => (
+                        <option key={minute} value={minute}>
+                          {formatMinuteLabel(minute)}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
                 <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3">
@@ -1170,6 +1204,30 @@ function mergeScheduleItems(
   return schedule
     ? [...withoutCurrent, schedule].sort(sortScheduleItems)
     : withoutCurrent;
+}
+
+export function createLearningScheduleStartMinuteOptions() {
+  return createMinuteOptions(
+    getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
+    getYouthLearningScheduleEndMinute(),
+  );
+}
+
+export function createLearningScheduleEndMinuteOptions(startMinute: number) {
+  return createMinuteOptions(
+    startMinute + youthLearningScheduleMinuteStep,
+    getYouthLearningScheduleEndMinute() + youthLearningScheduleMinuteStep,
+  );
+}
+
+function createMinuteOptions(startMinute: number, endMinute: number) {
+  return Array.from(
+    {
+      length:
+        (endMinute - startMinute) / youthLearningScheduleMinuteStep,
+    },
+    (_, index) => startMinute + index * youthLearningScheduleMinuteStep,
+  );
 }
 
 function sortScheduleItems(

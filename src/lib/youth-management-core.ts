@@ -11,6 +11,33 @@ export const youthNotePriorities = ["보통", "긴급"] as const;
 export type YouthNoteCategory = (typeof youthNoteCategories)[number];
 export type YouthNotePriority = (typeof youthNotePriorities)[number];
 
+export const youthRuleCategories = [
+  "생활",
+  "학습",
+  "외출/외박",
+  "안전",
+  "상담",
+  "기타",
+] as const;
+
+export const youthRuleDetailMaxLength = 2000;
+
+export type YouthRuleCategory = (typeof youthRuleCategories)[number];
+
+export type YouthRule = {
+  id: string;
+  category: YouthRuleCategory;
+  detail: string;
+  targetYouthId: string | null;
+  targetYouthName: string | null;
+  createdAt: string;
+};
+
+export type YouthRuleTarget = {
+  id: string;
+  name: string;
+};
+
 export type YouthSpecialNote = {
   id: string;
   title: string;
@@ -102,8 +129,16 @@ export function isYouthNotePriority(value: string): value is YouthNotePriority {
   return youthNotePriorities.some((priority) => priority === value);
 }
 
+export function isYouthRuleCategory(value: string): value is YouthRuleCategory {
+  return youthRuleCategories.some((category) => category === value);
+}
+
 export function normalizeYouthNoteCategory(value: string): YouthNoteCategory {
   return isYouthNoteCategory(value) ? value : "보호관찰";
+}
+
+export function normalizeYouthRuleCategory(value: string): YouthRuleCategory {
+  return isYouthRuleCategory(value) ? value : "기타";
 }
 
 export const youthLearningScheduleStartHour = 9;

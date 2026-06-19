@@ -351,9 +351,26 @@ model Youth {
   familyContacts YouthFamilyContact[]
   notes          YouthSpecialNote[]
   learningSchedules YouthLearningSchedule[]
+  rules          YouthRule[]
 
   @@index([name])
   @@index([dischargeDate])
+}
+
+model YouthRule {
+  id            String   @id @default(cuid())
+  category      String
+  detail        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  targetYouthId String?
+
+  targetYouth Youth? @relation(fields: [targetYouthId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([createdAt])
+  @@index([targetYouthId])
 }
 
 model YouthFamilyContact {

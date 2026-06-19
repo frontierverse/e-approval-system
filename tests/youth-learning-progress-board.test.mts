@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { YouthLearningProgressBoardContent as YouthLearningProgressBoard } from "../src/components/youth-learning-progress-board.tsx";
+import {
+  createLearningScheduleEndMinuteOptions,
+  createLearningScheduleStartMinuteOptions,
+  YouthLearningProgressBoardContent as YouthLearningProgressBoard,
+} from "../src/components/youth-learning-progress-board.tsx";
 import type {
   YouthLearningProgressChangeLog,
   YouthLearningSchedule,
@@ -88,6 +92,18 @@ const changeLogs: YouthLearningProgressChangeLog[] = [
 ];
 
 describe("YouthLearningProgressBoard", () => {
+  test("creates start and end time options in ten-minute steps", () => {
+    const startOptions = createLearningScheduleStartMinuteOptions();
+    const endOptionsFromNine = createLearningScheduleEndMinuteOptions(540);
+    const endOptionsFromLastStart = createLearningScheduleEndMinuteOptions(1070);
+
+    assert.deepEqual(startOptions.slice(0, 3), [540, 550, 560]);
+    assert.equal(startOptions.at(-1), 1070);
+    assert.deepEqual(endOptionsFromNine.slice(0, 3), [550, 560, 570]);
+    assert.equal(endOptionsFromNine.at(-1), 1080);
+    assert.deepEqual(endOptionsFromLastStart, [1080]);
+  });
+
   test("renders editable student columns and hourly schedule cells", () => {
     const html = renderToStaticMarkup(
       React.createElement(YouthLearningProgressBoard, {
