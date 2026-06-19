@@ -397,7 +397,11 @@ model YouthLearningSchedule {
   id           String   @id @default(cuid())
   scheduleDate String
   startHour    Int
+  startMinute  Int
+  endHour      Int
+  endMinute    Int
   content      String
+  repeatsWeekly Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -405,9 +409,11 @@ model YouthLearningSchedule {
 
   youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
 
-  @@unique([youthId, scheduleDate, startHour])
-  @@index([scheduleDate, startHour])
+  @@unique([youthId, scheduleDate, startMinute])
+  @@index([scheduleDate, startMinute])
+  @@index([repeatsWeekly, scheduleDate])
   @@index([startHour])
+  @@index([startMinute])
 }
 
 model AuditLog {

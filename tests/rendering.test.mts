@@ -633,6 +633,7 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /감사 로그/);
+    assert.match(html, /05\. 08\. 14:10/);
     assert.match(html, /사용자 수정/);
     assert.match(html, /bg-\[#f6f0ff\]/);
     assert.match(html, /박서연 사용자 정보를 수정했습니다\./);

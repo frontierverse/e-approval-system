@@ -6,8 +6,11 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  getYouthLearningScheduleEndHourFromMinute,
+  getYouthLearningScheduleStartHourFromMinute,
   isYouthLearningScheduleDate,
-  isYouthLearningScheduleStartHour,
+  isYouthLearningScheduleEndMinute,
+  isYouthLearningScheduleStartMinute,
   type YouthActionResult,
   type YouthLearningSchedule,
   type YouthProfile,
@@ -157,8 +160,11 @@ export async function deleteLearningProgressYouthAction(
 export async function saveYouthLearningScheduleAction(
   youthId: string,
   scheduleDate: string,
-  startHour: number,
+  startMinute: number,
+  endMinute: number,
   content: string,
+  repeatsWeekly: boolean,
+  sourceStartMinute = startMinute,
 ): Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>> {
   const user = await requireUser();
 
@@ -169,14 +175,30 @@ export async function saveYouthLearningScheduleAction(
     };
   }
 
-  if (!isYouthLearningScheduleStartHour(startHour)) {
+  if (!isYouthLearningScheduleStartMinute(startMinute)) {
     return {
       ok: false,
       error: "시간을 다시 선택하세요.",
     };
   }
 
+  if (!isYouthLearningScheduleStartMinute(sourceStartMinute)) {
+    return {
+      ok: false,
+      error: "기존 시작 시간을 다시 선택하세요.",
+    };
+  }
+
+  if (!isYouthLearningScheduleEndMinute(endMinute, startMinute)) {
+    return {
+      ok: false,
+      error: "종료 시간을 다시 선택하세요.",
+    };
+  }
+
   const normalizedContent = content.trim();
+  const startHour = getYouthLearningScheduleStartHourFromMinute(startMinute);
+  const endHour = getYouthLearningScheduleEndHourFromMinute(endMinute);
 
   const youth = await prisma.youth.findUnique({
     where: {
@@ -196,19 +218,11 @@ export async function saveYouthLearningScheduleAction(
   }
 
   if (!normalizedContent) {
-    const existingSchedule = await prisma.youthLearningSchedule.findUnique({
-      where: {
-        youthId_scheduleDate_startHour: {
-          youthId,
-          scheduleDate,
-          startHour,
-        },
-      },
-      select: {
-        id: true,
-        content: true,
-      },
-    });
+    const existingSchedule = await findScheduleForSelectedDate(
+      youthId,
+      scheduleDate,
+      sourceStartMinute,
+    );
 
     if (existingSchedule) {
       const auditRequestData = await getCurrentAuditLogRequestData();
@@ -216,11 +230,7 @@ export async function saveYouthLearningScheduleAction(
       await prisma.$transaction(async (tx) => {
         await tx.youthLearningSchedule.delete({
           where: {
-            youthId_scheduleDate_startHour: {
-              youthId,
-              scheduleDate,
-              startHour,
-            },
+            id: existingSchedule.id,
           },
         });
 
@@ -232,16 +242,28 @@ export async function saveYouthLearningScheduleAction(
             targetType: "YouthLearningSchedule",
             targetId: existingSchedule.id,
             message: `${youth.name} ${formatLearningScheduleSlotLabel(
-              startHour,
+              existingSchedule.startMinute,
+              existingSchedule.endMinute,
             )} 스케줄을 삭제했습니다.`,
             metadata: {
               changeType: "schedule.delete",
               nextContent: null,
               previousContent: existingSchedule.content,
+              previousStartHour: existingSchedule.startHour,
+              previousStartMinute: existingSchedule.startMinute,
+              previousEndMinute: existingSchedule.endMinute,
+              previousRepeatsWeekly: existingSchedule.repeatsWeekly,
               scheduleDate,
+              sourceScheduleDate: existingSchedule.scheduleDate,
               source: "learning-progress",
-              startHour,
-              timeLabel: formatLearningScheduleSlotLabel(startHour),
+              endHour: existingSchedule.endHour,
+              endMinute: existingSchedule.endMinute,
+              startHour: existingSchedule.startHour,
+              startMinute: existingSchedule.startMinute,
+              timeLabel: formatLearningScheduleSlotLabel(
+                existingSchedule.startMinute,
+                existingSchedule.endMinute,
+              ),
               youthId,
               youthName: youth.name,
             },
@@ -260,55 +282,101 @@ export async function saveYouthLearningScheduleAction(
     };
   }
 
+  const conflictingSchedule = await findConflictingSchedule({
+    youthId,
+    scheduleDate,
+    startMinute,
+    endMinute,
+    sourceStartMinute,
+  });
+
+  if (conflictingSchedule) {
+    return {
+      ok: false,
+      error: `${formatLearningScheduleSlotLabel(
+        conflictingSchedule.startMinute,
+        conflictingSchedule.endMinute,
+      )} 스케줄과 시간이 겹칩니다.`,
+    };
+  }
+
   const auditRequestData = await getCurrentAuditLogRequestData();
   const schedule = await prisma.$transaction(async (tx) => {
     const existingSchedule = await tx.youthLearningSchedule.findUnique({
       where: {
-        youthId_scheduleDate_startHour: {
+        youthId_scheduleDate_startMinute: {
           youthId,
           scheduleDate,
-          startHour,
+          startMinute: sourceStartMinute,
         },
       },
       select: {
         id: true,
         content: true,
+        startHour: true,
+        startMinute: true,
+        endHour: true,
+        endMinute: true,
+        repeatsWeekly: true,
       },
     });
 
-    if (existingSchedule?.content === normalizedContent) {
+    if (
+      existingSchedule?.content === normalizedContent &&
+      existingSchedule.startMinute === startMinute &&
+      existingSchedule.endMinute === endMinute &&
+      existingSchedule.repeatsWeekly === repeatsWeekly
+    ) {
       return {
         id: existingSchedule.id,
         youthId,
         scheduleDate,
-        startHour,
+        startHour: existingSchedule.startHour,
+        startMinute: existingSchedule.startMinute,
+        endHour: existingSchedule.endHour,
+        endMinute: existingSchedule.endMinute,
         content: normalizedContent,
+        repeatsWeekly,
+        recurrenceSourceDate: null,
       };
     }
 
     const savedSchedule = await tx.youthLearningSchedule.upsert({
       where: {
-        youthId_scheduleDate_startHour: {
+        youthId_scheduleDate_startMinute: {
           youthId,
           scheduleDate,
-          startHour,
+          startMinute: sourceStartMinute,
         },
       },
       update: {
         content: normalizedContent,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+        repeatsWeekly,
       },
       create: {
         youthId,
         scheduleDate,
         startHour,
+        startMinute,
+        endHour,
+        endMinute,
         content: normalizedContent,
+        repeatsWeekly,
       },
       select: {
         id: true,
         youthId: true,
         scheduleDate: true,
         startHour: true,
+        startMinute: true,
+        endHour: true,
+        endMinute: true,
         content: true,
+        repeatsWeekly: true,
       },
     });
 
@@ -320,16 +388,31 @@ export async function saveYouthLearningScheduleAction(
         targetType: "YouthLearningSchedule",
         targetId: savedSchedule.id,
         message: `${youth.name} ${formatLearningScheduleSlotLabel(
-          startHour,
+          startMinute,
+          endMinute,
         )} 스케줄을 ${existingSchedule ? "변경" : "입력"}했습니다.`,
         metadata: {
           changeType: existingSchedule ? "schedule.update" : "schedule.create",
           nextContent: normalizedContent,
+          nextStartHour: startHour,
+          nextStartMinute: startMinute,
+          nextEndHour: endHour,
+          nextEndMinute: endMinute,
+          nextRepeatsWeekly: repeatsWeekly,
           previousContent: existingSchedule?.content ?? null,
+          previousStartHour: existingSchedule?.startHour ?? null,
+          previousStartMinute: existingSchedule?.startMinute ?? null,
+          previousEndHour: existingSchedule?.endHour ?? null,
+          previousEndMinute: existingSchedule?.endMinute ?? null,
+          previousRepeatsWeekly: existingSchedule?.repeatsWeekly ?? null,
           scheduleDate,
           source: "learning-progress",
+          endHour,
+          endMinute,
           startHour,
-          timeLabel: formatLearningScheduleSlotLabel(startHour),
+          startMinute,
+          sourceStartMinute,
+          timeLabel: formatLearningScheduleSlotLabel(startMinute, endMinute),
           youthId,
           youthName: youth.name,
         },
@@ -344,7 +427,10 @@ export async function saveYouthLearningScheduleAction(
   return {
     ok: true,
     data: {
-      schedule,
+      schedule: {
+        ...schedule,
+        recurrenceSourceDate: null,
+      },
     },
   };
 }
@@ -352,9 +438,9 @@ export async function saveYouthLearningScheduleAction(
 export async function deleteYouthLearningScheduleAction(
   youthId: string,
   scheduleDate: string,
-  startHour: number,
+  startMinute: number,
 ): Promise<
-  YouthActionResult<{ youthId: string; scheduleDate: string; startHour: number }>
+  YouthActionResult<{ youthId: string; scheduleDate: string; startMinute: number }>
 > {
   const user = await requireUser();
 
@@ -365,31 +451,18 @@ export async function deleteYouthLearningScheduleAction(
     };
   }
 
-  if (!isYouthLearningScheduleStartHour(startHour)) {
+  if (!isYouthLearningScheduleStartMinute(startMinute)) {
     return {
       ok: false,
       error: "시간을 다시 선택하세요.",
     };
   }
 
-  const schedule = await prisma.youthLearningSchedule.findUnique({
-    where: {
-      youthId_scheduleDate_startHour: {
-        youthId,
-        scheduleDate,
-        startHour,
-      },
-    },
-    select: {
-      id: true,
-      content: true,
-      youth: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
+  const schedule = await findScheduleForSelectedDate(
+    youthId,
+    scheduleDate,
+    startMinute,
+  );
 
   if (schedule) {
     const auditRequestData = await getCurrentAuditLogRequestData();
@@ -397,11 +470,7 @@ export async function deleteYouthLearningScheduleAction(
     await prisma.$transaction(async (tx) => {
       await tx.youthLearningSchedule.delete({
         where: {
-          youthId_scheduleDate_startHour: {
-            youthId,
-            scheduleDate,
-            startHour,
-          },
+          id: schedule.id,
         },
       });
 
@@ -413,16 +482,28 @@ export async function deleteYouthLearningScheduleAction(
           targetType: "YouthLearningSchedule",
           targetId: schedule.id,
           message: `${schedule.youth.name} ${formatLearningScheduleSlotLabel(
-            startHour,
+            schedule.startMinute,
+            schedule.endMinute,
           )} 스케줄을 삭제했습니다.`,
           metadata: {
             changeType: "schedule.delete",
             nextContent: null,
             previousContent: schedule.content,
+            previousStartHour: schedule.startHour,
+            previousStartMinute: schedule.startMinute,
+            previousEndMinute: schedule.endMinute,
+            previousRepeatsWeekly: schedule.repeatsWeekly,
             scheduleDate,
+            sourceScheduleDate: schedule.scheduleDate,
             source: "learning-progress",
-            startHour,
-            timeLabel: formatLearningScheduleSlotLabel(startHour),
+            endHour: schedule.endHour,
+            endMinute: schedule.endMinute,
+            startHour: schedule.startHour,
+            startMinute: schedule.startMinute,
+            timeLabel: formatLearningScheduleSlotLabel(
+              schedule.startMinute,
+              schedule.endMinute,
+            ),
             youthId,
             youthName: schedule.youth.name,
           },
@@ -438,13 +519,173 @@ export async function deleteYouthLearningScheduleAction(
     data: {
       youthId,
       scheduleDate,
-      startHour,
+      startMinute,
     },
   };
 }
 
-function formatLearningScheduleSlotLabel(startHour: number) {
-  return `${formatHourLabel(startHour)}-${formatHourLabel(startHour + 1)}`;
+function formatLearningScheduleSlotLabel(startMinute: number, endMinute: number) {
+  return `${formatMinuteLabel(startMinute)}-${formatMinuteLabel(endMinute)}`;
+}
+
+async function findScheduleForSelectedDate(
+  youthId: string,
+  scheduleDate: string,
+  startMinute: number,
+) {
+  const exactSchedule = await prisma.youthLearningSchedule.findUnique({
+    where: {
+      youthId_scheduleDate_startMinute: {
+        youthId,
+        scheduleDate,
+        startMinute,
+      },
+    },
+    select: {
+      id: true,
+      scheduleDate: true,
+      startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
+      content: true,
+      repeatsWeekly: true,
+      youth: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (exactSchedule) {
+    return exactSchedule;
+  }
+
+  const recurringSchedules = await prisma.youthLearningSchedule.findMany({
+    where: {
+      youthId,
+      startMinute,
+      repeatsWeekly: true,
+      scheduleDate: {
+        lt: scheduleDate,
+      },
+    },
+    orderBy: {
+      scheduleDate: "desc",
+    },
+    select: {
+      id: true,
+      scheduleDate: true,
+      startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
+      content: true,
+      repeatsWeekly: true,
+      youth: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  return (
+    recurringSchedules.find((schedule) =>
+      isSameUtcWeekday(schedule.scheduleDate, scheduleDate),
+    ) ?? null
+  );
+}
+
+async function findConflictingSchedule({
+  youthId,
+  scheduleDate,
+  startMinute,
+  endMinute,
+  sourceStartMinute,
+}: {
+  youthId: string;
+  scheduleDate: string;
+  startMinute: number;
+  endMinute: number;
+  sourceStartMinute: number;
+}) {
+  const candidates = await prisma.youthLearningSchedule.findMany({
+    where: {
+      youthId,
+      OR: [
+        {
+          scheduleDate,
+        },
+        {
+          repeatsWeekly: true,
+          scheduleDate: {
+            lt: scheduleDate,
+          },
+        },
+      ],
+    },
+    orderBy: [
+      {
+        scheduleDate: "asc",
+      },
+      {
+        startMinute: "asc",
+      },
+    ],
+    select: {
+      id: true,
+      scheduleDate: true,
+      startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
+    },
+  });
+
+  return (
+    candidates.find((candidate) => {
+      const isExactDate = candidate.scheduleDate === scheduleDate;
+
+      if (!isExactDate && !isSameUtcWeekday(candidate.scheduleDate, scheduleDate)) {
+        return false;
+      }
+
+      if (candidate.startMinute === sourceStartMinute) {
+        return false;
+      }
+
+      return areLearningScheduleRangesOverlapping(
+        startMinute,
+        endMinute,
+        candidate.startMinute,
+        candidate.endMinute,
+      );
+    }) ?? null
+  );
+}
+
+function areLearningScheduleRangesOverlapping(
+  firstStartMinute: number,
+  firstEndMinute: number,
+  secondStartMinute: number,
+  secondEndMinute: number,
+) {
+  return firstStartMinute < secondEndMinute && secondStartMinute < firstEndMinute;
+}
+
+function isSameUtcWeekday(first: string, second: string) {
+  return getUtcWeekday(first) === getUtcWeekday(second);
+}
+
+function getUtcWeekday(value: string) {
+  const [yearText, monthText, dayText] = value.split("-");
+  const date = new Date(
+    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
+  );
+
+  return date.getUTCDay();
 }
 
 function formatHourLabel(hour: number) {
@@ -452,4 +693,13 @@ function formatHourLabel(hour: number) {
   const displayHour = hour <= 12 ? hour : hour - 12;
 
   return `${period} ${displayHour}시`;
+}
+
+function formatMinuteLabel(minute: number) {
+  const hour = Math.floor(minute / 60);
+  const minutePart = minute % 60;
+
+  return minutePart === 0
+    ? formatHourLabel(hour)
+    : `${formatHourLabel(hour)} ${minutePart}분`;
 }

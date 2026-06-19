@@ -59,7 +59,12 @@ const schedules: YouthLearningSchedule[] = [
     youthId: "youth-learning-001",
     scheduleDate: "2026-06-18",
     startHour: 9,
+    startMinute: 540,
+    endHour: 11,
+    endMinute: 630,
     content: "수학 문제집 12쪽",
+    repeatsWeekly: true,
+    recurrenceSourceDate: null,
   },
 ];
 
@@ -102,23 +107,35 @@ describe("YouthLearningProgressBoard", () => {
             },
           },
         }),
-        deleteSchedule: async (youthId, scheduleDate, startHour) => ({
+        deleteSchedule: async (youthId, scheduleDate, startMinute) => ({
           ok: true,
-          data: { youthId, scheduleDate, startHour },
+          data: { youthId, scheduleDate, startMinute },
         }),
         deleteYouth: async (youthId) => ({
           ok: true,
           data: { youthId },
         }),
-        saveSchedule: async (youthId, scheduleDate, startHour, content) => ({
+        saveSchedule: async (
+          youthId,
+          scheduleDate,
+          startMinute,
+          endMinute,
+          content,
+          repeatsWeekly,
+        ) => ({
           ok: true,
           data: {
             schedule: {
               id: "saved-schedule",
               youthId,
               scheduleDate,
-              startHour,
+              startHour: Math.floor(startMinute / 60),
+              startMinute,
+              endHour: Math.ceil(endMinute / 60),
+              endMinute,
               content,
+              repeatsWeekly,
+              recurrenceSourceDate: null,
             },
           },
         }),
@@ -136,12 +153,18 @@ describe("YouthLearningProgressBoard", () => {
     assert.match(html, /학생 이름/);
     assert.match(html, />추가</);
     assert.match(html, /시간/);
-    assert.match(html, /오전 9시 - 오전 10시/);
-    assert.match(html, /오후 5시 - 오후 6시/);
+    assert.match(html, /grid-template-columns:6\.5rem/);
+    assert.match(html, /오전 9시 -/);
+    assert.match(html, /오전 10시/);
+    assert.match(html, /오후 5시 -/);
+    assert.match(html, /오후 6시/);
     assert.match(html, /김하늘/);
     assert.match(html, /최예담/);
     assert.match(html, /삭제/);
     assert.match(html, /수학 문제집 12쪽/);
+    assert.match(html, /오전 9시 - 오전 10시 30분/);
+    assert.match(html, /종료 시간 조절/);
+    assert.match(html, /매주 반복/);
     assert.match(html, /미입력/);
     assert.match(html, /최근 학습 관련 기록/);
     assert.match(html, /수학 학습 집중력 향상/);
@@ -174,16 +197,16 @@ describe("YouthLearningProgressBoard", () => {
             },
           },
         }),
-        deleteSchedule: async (youthId, scheduleDate, startHour) => ({
+        deleteSchedule: async (youthId, scheduleDate, startMinute) => ({
           ok: true,
-          data: { youthId, scheduleDate, startHour },
+          data: { youthId, scheduleDate, startMinute },
         }),
         deleteYouth: async (youthId) => ({
           ok: true,
           data: { youthId },
         }),
         saveSchedule: async () => ({
-          ok: true,
+          ok: true as const,
           data: { schedule: null },
         }),
         schedules: [],

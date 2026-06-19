@@ -44,7 +44,12 @@ export type YouthLearningSchedule = {
   youthId: string;
   scheduleDate: string;
   startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
   content: string;
+  repeatsWeekly: boolean;
+  recurrenceSourceDate: string | null;
 };
 
 export type YouthLearningProgressChangeLog = {
@@ -103,6 +108,7 @@ export function normalizeYouthNoteCategory(value: string): YouthNoteCategory {
 
 export const youthLearningScheduleStartHour = 9;
 export const youthLearningScheduleEndHour = 18;
+export const youthLearningScheduleMinuteStep = 10;
 
 export function isYouthLearningScheduleStartHour(value: number) {
   return (
@@ -110,6 +116,54 @@ export function isYouthLearningScheduleStartHour(value: number) {
     value >= youthLearningScheduleStartHour &&
     value < youthLearningScheduleEndHour
   );
+}
+
+export function isYouthLearningScheduleEndHour(
+  value: number,
+  startHour: number,
+) {
+  return (
+    Number.isInteger(value) &&
+    value > startHour &&
+    value <= youthLearningScheduleEndHour
+  );
+}
+
+export function isYouthLearningScheduleEndMinute(
+  value: number,
+  startMinute: number,
+) {
+  return (
+    Number.isInteger(value) &&
+    value > startMinute &&
+    value <= getYouthLearningScheduleEndMinute() &&
+    value % youthLearningScheduleMinuteStep === 0
+  );
+}
+
+export function isYouthLearningScheduleStartMinute(value: number) {
+  return (
+    Number.isInteger(value) &&
+    value >= getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour) &&
+    value < getYouthLearningScheduleEndMinute() &&
+    value % youthLearningScheduleMinuteStep === 0
+  );
+}
+
+export function getYouthLearningScheduleStartMinute(startHour: number) {
+  return startHour * 60;
+}
+
+export function getYouthLearningScheduleEndMinute() {
+  return youthLearningScheduleEndHour * 60;
+}
+
+export function getYouthLearningScheduleEndHourFromMinute(endMinute: number) {
+  return Math.ceil(endMinute / 60);
+}
+
+export function getYouthLearningScheduleStartHourFromMinute(startMinute: number) {
+  return Math.floor(startMinute / 60);
 }
 
 export function isYouthLearningScheduleDate(value: string) {

@@ -9,7 +9,11 @@ type YouthLearningScheduleRecord = {
   youthId: string;
   scheduleDate: string;
   startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
   content: string;
+  repeatsWeekly: boolean;
 };
 
 export async function getYouthLearningSchedules(
@@ -19,19 +23,37 @@ export async function getYouthLearningSchedules(
 > {
   const schedules = await prisma.youthLearningSchedule.findMany({
     where: {
-      scheduleDate,
+      OR: [
+        {
+          scheduleDate,
+        },
+        {
+          repeatsWeekly: true,
+          scheduleDate: {
+            lte: scheduleDate,
+          },
+        },
+      ],
     },
-    orderBy: [{ startHour: "asc" }, { updatedAt: "desc" }],
+    orderBy: [
+      { scheduleDate: "asc" },
+      { startMinute: "asc" },
+      { updatedAt: "desc" },
+    ],
     select: {
       id: true,
       youthId: true,
       scheduleDate: true,
       startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
       content: true,
+      repeatsWeekly: true,
     },
   });
 
-  return schedules.map(mapYouthLearningSchedule);
+  return mapYouthLearningSchedulesForDate(schedules, scheduleDate);
 }
 
 export async function getYouthLearningProgressChangeLogs(
@@ -84,14 +106,67 @@ export async function getYouthLearningProgressChangeLogs(
   }));
 }
 
-function mapYouthLearningSchedule(
+function mapYouthLearningSchedulesForDate(
+  records: YouthLearningScheduleRecord[],
+  selectedDate: string,
+) {
+  const scheduleMap = new Map<string, YouthLearningSchedule>();
+
+  for (const record of records) {
+    const isExactDate = record.scheduleDate === selectedDate;
+
+    if (!isExactDate && !isRecurringOnSelectedDate(record, selectedDate)) {
+      continue;
+    }
+
+    scheduleMap.set(createScheduleKey(record.youthId, record.startMinute), {
+      id: record.id,
+      youthId: record.youthId,
+      scheduleDate: selectedDate,
+      startHour: record.startHour,
+      startMinute: record.startMinute,
+      endHour: record.endHour,
+      endMinute: record.endMinute,
+      content: record.content,
+      repeatsWeekly: record.repeatsWeekly,
+      recurrenceSourceDate: isExactDate ? null : record.scheduleDate,
+    });
+  }
+
+  return [...scheduleMap.values()].sort(sortYouthLearningSchedules);
+}
+
+function isRecurringOnSelectedDate(
   record: YouthLearningScheduleRecord,
-): YouthLearningSchedule {
-  return {
-    id: record.id,
-    youthId: record.youthId,
-    scheduleDate: record.scheduleDate,
-    startHour: record.startHour,
-    content: record.content,
-  };
+  selectedDate: string,
+) {
+  return (
+    record.repeatsWeekly &&
+    record.scheduleDate < selectedDate &&
+    getUtcWeekday(record.scheduleDate) === getUtcWeekday(selectedDate)
+  );
+}
+
+function getUtcWeekday(value: string) {
+  const [yearText, monthText, dayText] = value.split("-");
+  const date = new Date(
+    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
+  );
+
+  return date.getUTCDay();
+}
+
+function createScheduleKey(youthId: string, startMinute: number) {
+  return `${youthId}:${startMinute}`;
+}
+
+function sortYouthLearningSchedules(
+  first: YouthLearningSchedule,
+  second: YouthLearningSchedule,
+) {
+  return (
+    first.startMinute - second.startMinute ||
+    first.endMinute - second.endMinute ||
+    first.youthId.localeCompare(second.youthId)
+  );
 }
