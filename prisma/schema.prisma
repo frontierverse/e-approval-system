@@ -419,6 +419,8 @@ model YouthLearningSchedule {
   endMinute    Int
   content      String
   repeatsWeekly Boolean  @default(false)
+  recurrenceSourceDate String?
+  recurrenceWeekdays String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -429,6 +431,8 @@ model YouthLearningSchedule {
   @@unique([youthId, scheduleDate, startMinute])
   @@index([scheduleDate, startMinute])
   @@index([repeatsWeekly, scheduleDate])
+  @@index([recurrenceSourceDate])
+  @@index([recurrenceWeekdays])
   @@index([startHour])
   @@index([startMinute])
 }

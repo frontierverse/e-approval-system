@@ -23,6 +23,8 @@ export const youthRuleCategories = [
 export const youthRuleDetailMaxLength = 2000;
 
 export type YouthRuleCategory = (typeof youthRuleCategories)[number];
+export type YouthRuleCategoryFilter = YouthRuleCategory | "all";
+export type YouthRuleTargetFilter = "all" | "common" | (string & {});
 
 export type YouthRule = {
   id: string;
@@ -66,6 +68,19 @@ export type YouthProfile = {
   notes: YouthSpecialNote[];
 };
 
+export const youthLearningScheduleWeekdays = [
+  { value: 1, label: "월" },
+  { value: 2, label: "화" },
+  { value: 3, label: "수" },
+  { value: 4, label: "목" },
+  { value: 5, label: "금" },
+  { value: 6, label: "토" },
+  { value: 0, label: "일" },
+] as const;
+
+export type YouthLearningScheduleWeekday =
+  (typeof youthLearningScheduleWeekdays)[number]["value"];
+
 export type YouthLearningSchedule = {
   id: string;
   youthId: string;
@@ -77,6 +92,7 @@ export type YouthLearningSchedule = {
   content: string;
   repeatsWeekly: boolean;
   recurrenceSourceDate: string | null;
+  recurrenceWeekdays: YouthLearningScheduleWeekday[];
 };
 
 export type YouthLearningProgressChangeLog = {
@@ -92,6 +108,29 @@ export type YouthLearningProgressChangeLog = {
     profileImageUpdatedAt: string | null;
   };
 };
+
+export type YouthLearningProgressChangeLogActor = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
+export type YouthLearningProgressChangeLogFilters = {
+  actorId: string;
+  page: number;
+  pageSize: number;
+  scheduleDate: string;
+  total: number;
+  totalPages: number;
+};
+
+export const hiddenYouthLearningProgressChangeLogActorNames = ["신승식"] as const;
+
+export function shouldShowYouthLearningProgressChangeLogActor(name: string) {
+  return !hiddenYouthLearningProgressChangeLogActorNames.some(
+    (hiddenName) => hiddenName === name.trim(),
+  );
+}
 
 export type YouthFamilyContactInput = {
   relationship: string;
@@ -246,6 +285,70 @@ export function shiftYouthLearningScheduleDate(value: string, days: number) {
   date.setUTCDate(date.getUTCDate() + days);
 
   return formatYouthLearningScheduleDate(date);
+}
+
+export function getYouthLearningScheduleWeekday(
+  value: string,
+): YouthLearningScheduleWeekday {
+  const weekday = parseYouthLearningScheduleDate(value).getUTCDay();
+
+  return isYouthLearningScheduleWeekday(weekday) ? weekday : 0;
+}
+
+export function isYouthLearningScheduleWeekday(
+  value: number,
+): value is YouthLearningScheduleWeekday {
+  return youthLearningScheduleWeekdays.some(
+    (weekday) => weekday.value === value,
+  );
+}
+
+export function normalizeYouthLearningScheduleWeekdays(
+  values: readonly number[],
+): YouthLearningScheduleWeekday[] {
+  const selectedWeekdays = new Set(
+    values.filter(isYouthLearningScheduleWeekday),
+  );
+
+  return youthLearningScheduleWeekdays
+    .map((weekday) => weekday.value)
+    .filter((weekday) => selectedWeekdays.has(weekday));
+}
+
+export function serializeYouthLearningScheduleWeekdays(
+  values: readonly number[],
+) {
+  const weekdays = normalizeYouthLearningScheduleWeekdays(values);
+
+  return weekdays.length > 0 ? weekdays.join(",") : null;
+}
+
+export function parseYouthLearningScheduleWeekdays(
+  value: string | null | undefined,
+  fallbackWeekday?: YouthLearningScheduleWeekday,
+) {
+  const weekdays = normalizeYouthLearningScheduleWeekdays(
+    (value ?? "")
+      .split(",")
+      .map((item) => Number(item.trim())),
+  );
+
+  if (weekdays.length > 0 || fallbackWeekday === undefined) {
+    return weekdays;
+  }
+
+  return [fallbackWeekday];
+}
+
+export function formatYouthLearningScheduleWeekdays(
+  values: readonly number[],
+) {
+  const selectedWeekdays = new Set(normalizeYouthLearningScheduleWeekdays(values));
+
+  return youthLearningScheduleWeekdays
+    .filter((weekday) => selectedWeekdays.has(weekday.value))
+    .map((weekday) => weekday.label)
+    .join("·");
 }
 
 function parseYouthLearningScheduleDate(value: string) {

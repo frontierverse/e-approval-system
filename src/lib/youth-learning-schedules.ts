@@ -1,8 +1,17 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { YouthLearningSchedule } from "@/lib/youth-management-core";
-import type { YouthLearningProgressChangeLog } from "@/lib/youth-management-core";
+import {
+  getYouthLearningScheduleWeekday,
+  hiddenYouthLearningProgressChangeLogActorNames,
+  parseYouthLearningScheduleWeekdays,
+  shouldShowYouthLearningProgressChangeLogActor,
+  type YouthLearningProgressChangeLog,
+  type YouthLearningProgressChangeLogActor,
+  type YouthLearningProgressChangeLogFilters,
+  type YouthLearningSchedule,
+} from "@/lib/youth-management-core";
 
 type YouthLearningScheduleRecord = {
   id: string;
@@ -14,7 +23,16 @@ type YouthLearningScheduleRecord = {
   endMinute: number;
   content: string;
   repeatsWeekly: boolean;
+  recurrenceSourceDate: string | null;
+  recurrenceWeekdays: string | null;
 };
+
+export type YouthLearningProgressChangeLogsResult =
+  YouthLearningProgressChangeLogFilters & {
+    logs: YouthLearningProgressChangeLog[];
+  };
+
+const youthLearningProgressChangeLogPageSize = 5;
 
 export async function getYouthLearningSchedules(
   scheduleDate: string,
@@ -50,33 +68,42 @@ export async function getYouthLearningSchedules(
       endMinute: true,
       content: true,
       repeatsWeekly: true,
+      recurrenceSourceDate: true,
+      recurrenceWeekdays: true,
     },
   });
 
   return mapYouthLearningSchedulesForDate(schedules, scheduleDate);
 }
 
-export async function getYouthLearningProgressChangeLogs(
-  limit = 20,
-): Promise<YouthLearningProgressChangeLog[]> {
+export async function getYouthLearningProgressChangeLogs({
+  actorId = "all",
+  page = 1,
+  pageSize = youthLearningProgressChangeLogPageSize,
+  scheduleDate = "",
+}: {
+  actorId?: string;
+  page?: number;
+  pageSize?: number;
+  scheduleDate?: string;
+} = {}): Promise<YouthLearningProgressChangeLogsResult> {
+  const normalizedActorId = actorId.trim() || "all";
+  const normalizedScheduleDate = scheduleDate.trim();
+  const normalizedPageSize = Math.max(1, pageSize);
+  const where = createYouthLearningProgressChangeLogWhere({
+    actorId: normalizedActorId,
+    scheduleDate: normalizedScheduleDate,
+  });
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
+  const normalizedPage = clampPage(page, totalPages);
   const logs = await prisma.auditLog.findMany({
-    where: {
-      OR: [
-        {
-          targetType: "YouthLearningSchedule",
-        },
-        {
-          metadata: {
-            path: ["source"],
-            equals: "learning-progress",
-          },
-        },
-      ],
-    },
+    where,
     orderBy: {
       createdAt: "desc",
     },
-    take: limit,
+    skip: (normalizedPage - 1) * normalizedPageSize,
+    take: normalizedPageSize,
     select: {
       id: true,
       message: true,
@@ -94,16 +121,57 @@ export async function getYouthLearningProgressChangeLogs(
     },
   });
 
-  return logs.map((log) => ({
-    id: log.id,
-    message: log.message,
-    metadata: log.metadata,
-    createdAt: log.createdAt.toISOString(),
-    actor: {
-      ...log.actor,
-      profileImageUpdatedAt: log.actor.profileImageUpdatedAt?.toISOString() ?? null,
+  return {
+    actorId: normalizedActorId,
+    logs: logs
+      .filter((log) =>
+        shouldShowYouthLearningProgressChangeLogActor(log.actor.name),
+      )
+      .map((log) => ({
+        id: log.id,
+        message: log.message,
+        metadata: log.metadata,
+        createdAt: log.createdAt.toISOString(),
+        actor: {
+          ...log.actor,
+          profileImageUpdatedAt:
+            log.actor.profileImageUpdatedAt?.toISOString() ?? null,
+        },
+      })),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    scheduleDate: normalizedScheduleDate,
+    total,
+    totalPages,
+  };
+}
+
+export async function getYouthLearningProgressChangeLogActors(): Promise<
+  YouthLearningProgressChangeLogActor[]
+> {
+  const rows = await prisma.auditLog.findMany({
+    distinct: ["actorId"],
+    where: createYouthLearningProgressChangeLogWhere(),
+    orderBy: {
+      createdAt: "desc",
     },
-  }));
+    select: {
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return rows
+    .map((row) => row.actor)
+    .filter((actor) =>
+      shouldShowYouthLearningProgressChangeLogActor(actor.name),
+    )
+    .sort((first, second) => first.name.localeCompare(second.name, "ko-KR"));
 }
 
 function mapYouthLearningSchedulesForDate(
@@ -119,6 +187,8 @@ function mapYouthLearningSchedulesForDate(
       continue;
     }
 
+    const recurrenceWeekdays = getRecordRecurrenceWeekdays(record);
+
     scheduleMap.set(createScheduleKey(record.youthId, record.startMinute), {
       id: record.id,
       youthId: record.youthId,
@@ -129,7 +199,10 @@ function mapYouthLearningSchedulesForDate(
       endMinute: record.endMinute,
       content: record.content,
       repeatsWeekly: record.repeatsWeekly,
-      recurrenceSourceDate: isExactDate ? null : record.scheduleDate,
+      recurrenceSourceDate: isExactDate
+        ? record.recurrenceSourceDate
+        : record.scheduleDate,
+      recurrenceWeekdays,
     });
   }
 
@@ -143,17 +216,23 @@ function isRecurringOnSelectedDate(
   return (
     record.repeatsWeekly &&
     record.scheduleDate < selectedDate &&
-    getUtcWeekday(record.scheduleDate) === getUtcWeekday(selectedDate)
+    getRecordRecurrenceWeekdays(record).includes(
+      getYouthLearningScheduleWeekday(selectedDate),
+    )
   );
 }
 
-function getUtcWeekday(value: string) {
-  const [yearText, monthText, dayText] = value.split("-");
-  const date = new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
+function getRecordRecurrenceWeekdays(record: YouthLearningScheduleRecord) {
+  if (!record.repeatsWeekly && !record.recurrenceSourceDate) {
+    return [];
+  }
 
-  return date.getUTCDay();
+  return parseYouthLearningScheduleWeekdays(
+    record.recurrenceWeekdays,
+    getYouthLearningScheduleWeekday(
+      record.recurrenceSourceDate ?? record.scheduleDate,
+    ),
+  );
 }
 
 function createScheduleKey(youthId: string, startMinute: number) {
@@ -169,4 +248,72 @@ function sortYouthLearningSchedules(
     first.endMinute - second.endMinute ||
     first.youthId.localeCompare(second.youthId)
   );
+}
+
+function createYouthLearningProgressChangeLogWhere({
+  actorId = "all",
+  scheduleDate = "",
+}: {
+  actorId?: string;
+  scheduleDate?: string;
+} = {}): Prisma.AuditLogWhereInput {
+  const conditions: Prisma.AuditLogWhereInput[] = [
+    {
+      OR: [
+        {
+          targetType: "YouthLearningSchedule",
+        },
+        {
+          metadata: {
+            path: ["source"],
+            equals: "learning-progress",
+          },
+        },
+      ],
+    },
+    {
+      actor: {
+        name: {
+          notIn: [...hiddenYouthLearningProgressChangeLogActorNames],
+        },
+      },
+    },
+  ];
+
+  if (actorId !== "all") {
+    conditions.push({
+      actorId,
+    });
+  }
+
+  if (scheduleDate) {
+    conditions.push({
+      OR: [
+        {
+          metadata: {
+            path: ["scheduleDate"],
+            equals: scheduleDate,
+          },
+        },
+        {
+          metadata: {
+            path: ["sourceScheduleDate"],
+            equals: scheduleDate,
+          },
+        },
+      ],
+    });
+  }
+
+  return {
+    AND: conditions,
+  };
+}
+
+function clampPage(page: number, totalPages: number) {
+  if (!Number.isInteger(page) || page < 1) {
+    return 1;
+  }
+
+  return Math.min(page, totalPages);
 }

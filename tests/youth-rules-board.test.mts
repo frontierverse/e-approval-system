@@ -2,8 +2,14 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { YouthRuleFilterControlsContent } from "../src/components/youth-rule-filter-controls.tsx";
 import { YouthRulesBoard } from "../src/components/youth-rules-board.tsx";
-import type { YouthRule } from "../src/lib/youth-management-core.ts";
+import type {
+  YouthRule,
+  YouthRuleCategoryFilter,
+  YouthRuleTarget,
+  YouthRuleTargetFilter,
+} from "../src/lib/youth-management-core.ts";
 
 const rules: YouthRule[] = [
   {
@@ -24,27 +30,31 @@ const rules: YouthRule[] = [
   },
 ];
 
+const targets: YouthRuleTarget[] = [
+  {
+    id: "youth-test-001",
+    name: "김하늘",
+  },
+  {
+    id: "youth-test-002",
+    name: "이도현",
+  },
+];
+
 describe("YouthRulesBoard", () => {
   test("renders dropdowns and detail textarea for rule creation", () => {
     const html = renderToStaticMarkup(
       React.createElement(YouthRulesBoard, {
         createRuleAction: async () => {},
         deleteRuleAction: async () => {},
+        filterControls: createRuleFilterControls(),
         page: 1,
         pageSize: 10,
         ruleError: "세부사항을 입력하세요.",
         rules,
         selectedCategory: "all",
-        targets: [
-          {
-            id: "youth-test-001",
-            name: "김하늘",
-          },
-          {
-            id: "youth-test-002",
-            name: "이도현",
-          },
-        ],
+        selectedTarget: "all",
+        targets,
         total: 12,
         totalPages: 2,
       }),
@@ -62,8 +72,16 @@ describe("YouthRulesBoard", () => {
     assert.match(html, /textarea/);
     assert.match(html, /세부사항을 입력하세요\./);
     assert.match(html, /등록된 규칙/);
+    assert.match(html, /aria-label="규칙 필터"/);
+    assert.match(html, /aria-label="규칙 대상 필터"/);
     assert.match(html, /aria-label="규칙 카테고리 필터"/);
+    assert.match(html, /<option[^>]*value="all"[^>]*>전체 대상<\/option>/);
     assert.match(html, /<option[^>]*value="all"[^>]*>전체<\/option>/);
+    assert.doesNotMatch(html, />보기</);
+    assert.ok(
+      html.indexOf('aria-label="규칙 대상 필터"') <
+        html.indexOf('aria-label="규칙 카테고리 필터"'),
+    );
     assert.match(html, /12건 중 1-10건 표시/);
     assert.match(html, /1 \/ 2 페이지/);
     assert.match(html, /href="\/youth\/rules\?page=2"/);
@@ -78,10 +96,14 @@ describe("YouthRulesBoard", () => {
       React.createElement(YouthRulesBoard, {
         createRuleAction: async () => {},
         deleteRuleAction: async () => {},
+        filterControls: createRuleFilterControls({
+          targets: [],
+        }),
         page: 1,
         pageSize: 10,
         rules: [],
         selectedCategory: "all",
+        selectedTarget: "all",
         targets: [],
         total: 0,
         totalPages: 1,
@@ -91,4 +113,63 @@ describe("YouthRulesBoard", () => {
     assert.match(html, /등록된 규칙이 없습니다/);
     assert.match(html, /표시할 규칙이 없습니다/);
   });
+
+  test("keeps target and category filters on pagination links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRulesBoard, {
+        createRuleAction: async () => {},
+        deleteRuleAction: async () => {},
+        filterControls: createRuleFilterControls({
+          selectedCategory: "학습",
+          selectedTarget: "common",
+          targets: [],
+        }),
+        page: 1,
+        pageSize: 10,
+        rules,
+        selectedCategory: "학습",
+        selectedTarget: "common",
+        targets: [],
+        total: 12,
+        totalPages: 2,
+      }),
+    );
+
+    assert.match(
+      html,
+      /href="\/youth\/rules\?target=common&amp;category=%ED%95%99%EC%8A%B5&amp;page=2"/,
+    );
+  });
+
+  test("does not add inline filter content while filters are changing", () => {
+    const html = renderToStaticMarkup(
+      createRuleFilterControls({
+        isPending: true,
+      }),
+    );
+
+    assert.match(html, /disabled=""/);
+    assert.doesNotMatch(html, /role="status"/);
+    assert.doesNotMatch(html, /목록 갱신 중/);
+  });
 });
+
+function createRuleFilterControls({
+  isPending = false,
+  selectedCategory = "all",
+  selectedTarget = "all",
+  targets: ruleTargets = targets,
+}: {
+  isPending?: boolean;
+  selectedCategory?: YouthRuleCategoryFilter;
+  selectedTarget?: YouthRuleTargetFilter;
+  targets?: YouthRuleTarget[];
+} = {}) {
+  return React.createElement(YouthRuleFilterControlsContent, {
+    isPending,
+    navigate: () => {},
+    selectedCategory,
+    selectedTarget,
+    targets: ruleTargets,
+  });
+}

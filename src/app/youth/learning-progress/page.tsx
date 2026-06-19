@@ -2,6 +2,7 @@ import { PageTitle } from "@/components/page-title";
 import { YouthLearningProgressBoard } from "@/components/youth-learning-progress-board";
 import { requireUser } from "@/lib/auth";
 import {
+  getYouthLearningProgressChangeLogActors,
   getYouthLearningProgressChangeLogs,
   getYouthLearningSchedules,
 } from "@/lib/youth-learning-schedules";
@@ -10,6 +11,7 @@ import {
   createLearningProgressYouthAction,
   deleteLearningProgressYouthAction,
   deleteYouthLearningScheduleAction,
+  getYouthLearningSchedulesAction,
   saveYouthLearningScheduleAction,
 } from "@/app/youth/learning-progress/actions";
 import {
@@ -20,6 +22,9 @@ import {
 type YouthLearningProgressPageProps = {
   searchParams: Promise<{
     date?: string | string[];
+    logDate?: string | string[];
+    logPage?: string | string[];
+    logStaff?: string | string[];
   }>;
 };
 
@@ -27,12 +32,24 @@ export default async function YouthLearningProgressPage({
   searchParams,
 }: YouthLearningProgressPageProps) {
   await requireUser();
-  const selectedDate = getSelectedScheduleDate((await searchParams).date);
-  const [youthProfiles, schedules, changeLogs] = await Promise.all([
+  const params = await searchParams;
+  const selectedDate = getSelectedScheduleDate(params.date);
+  const selectedChangeLogDate = getSelectedScheduleDateFilter(params.logDate);
+  const selectedChangeLogPage = getSelectedPage(params.logPage);
+  const [youthProfiles, schedules, changeLogActors] = await Promise.all([
     getYouthProfiles(),
     getYouthLearningSchedules(selectedDate),
-    getYouthLearningProgressChangeLogs(),
+    getYouthLearningProgressChangeLogActors(),
   ]);
+  const selectedChangeLogActorId = getSelectedChangeLogActorId(
+    params.logStaff,
+    changeLogActors,
+  );
+  const changeLogResult = await getYouthLearningProgressChangeLogs({
+    actorId: selectedChangeLogActorId,
+    page: selectedChangeLogPage,
+    scheduleDate: selectedChangeLogDate,
+  });
 
   return (
     <>
@@ -43,9 +60,19 @@ export default async function YouthLearningProgressPage({
 
       <YouthLearningProgressBoard
         createYouth={createLearningProgressYouthAction}
-        changeLogs={changeLogs}
+        changeLogActors={changeLogActors}
+        changeLogFilters={{
+          actorId: changeLogResult.actorId,
+          page: changeLogResult.page,
+          pageSize: changeLogResult.pageSize,
+          scheduleDate: changeLogResult.scheduleDate,
+          total: changeLogResult.total,
+          totalPages: changeLogResult.totalPages,
+        }}
+        changeLogs={changeLogResult.logs}
         deleteSchedule={deleteYouthLearningScheduleAction}
         deleteYouth={deleteLearningProgressYouthAction}
+        loadSchedules={getYouthLearningSchedulesAction}
         saveSchedule={saveYouthLearningScheduleAction}
         schedules={schedules}
         selectedDate={selectedDate}
@@ -61,4 +88,30 @@ function getSelectedScheduleDate(value: string | string[] | undefined) {
   return selectedDate && isYouthLearningScheduleDate(selectedDate)
     ? selectedDate
     : getYouthLearningScheduleToday();
+}
+
+function getSelectedScheduleDateFilter(value: string | string[] | undefined) {
+  const selectedDate = Array.isArray(value) ? value[0] : value;
+
+  return selectedDate && isYouthLearningScheduleDate(selectedDate)
+    ? selectedDate
+    : "";
+}
+
+function getSelectedPage(value: string | string[] | undefined) {
+  const pageValue = Array.isArray(value) ? value[0] : value;
+  const page = Number(pageValue);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function getSelectedChangeLogActorId(
+  value: string | string[] | undefined,
+  actors: Array<{ id: string }>,
+) {
+  const actorId = Array.isArray(value) ? value[0] : value;
+
+  return actorId && actors.some((actor) => actor.id === actorId)
+    ? actorId
+    : "all";
 }

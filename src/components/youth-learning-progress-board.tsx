@@ -1,34 +1,43 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import type { PointerEvent } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import type { ChangeEvent, PointerEvent } from "react";
 import { EmptyState } from "@/components/empty-state";
-import { PendingOverlay } from "@/components/form-pending-overlay";
 import { UserIdentity } from "@/components/user-identity";
 import type {
   YouthActionResult,
+  YouthLearningProgressChangeLogActor,
+  YouthLearningProgressChangeLogFilters,
   YouthLearningProgressChangeLog,
   YouthLearningSchedule,
+  YouthLearningScheduleWeekday,
   YouthProfile,
   YouthSpecialNote,
 } from "@/lib/youth-management-core";
 import {
+  formatYouthLearningScheduleWeekdays,
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartHourFromMinute,
   getYouthLearningScheduleStartMinute,
   getYouthLearningScheduleToday,
+  getYouthLearningScheduleWeekday,
+  isYouthLearningScheduleDate,
+  normalizeYouthLearningScheduleWeekdays,
   shiftYouthLearningScheduleDate,
   youthLearningScheduleEndHour,
   youthLearningScheduleMinuteStep,
   youthLearningScheduleStartHour,
+  youthLearningScheduleWeekdays,
 } from "@/lib/youth-management-core";
 
 type YouthLearningProgressBoardProps = {
   createYouth: (
     name: string,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
+  changeLogActors: YouthLearningProgressChangeLogActor[];
+  changeLogFilters: YouthLearningProgressChangeLogFilters;
   changeLogs: YouthLearningProgressChangeLog[];
   deleteSchedule: (
     youthId: string,
@@ -40,13 +49,21 @@ type YouthLearningProgressBoardProps = {
   deleteYouth: (
     youthId: string,
   ) => Promise<YouthActionResult<{ youthId: string }>>;
+  loadSchedules: (
+    scheduleDate: string,
+  ) => Promise<
+    YouthActionResult<{
+      scheduleDate: string;
+      schedules: YouthLearningSchedule[];
+    }>
+  >;
   saveSchedule: (
     youthId: string,
     scheduleDate: string,
     startMinute: number,
     endMinute: number,
     content: string,
-    repeatsWeekly: boolean,
+    recurrenceWeekdays: YouthLearningScheduleWeekday[],
     sourceStartMinute?: number,
   ) => Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>>;
   schedules: YouthLearningSchedule[];
@@ -54,10 +71,7 @@ type YouthLearningProgressBoardProps = {
   youths: YouthProfile[];
 };
 
-type YouthLearningProgressBoardContentProps =
-  YouthLearningProgressBoardProps & {
-    refresh?: () => void;
-  };
+type YouthLearningProgressBoardContentProps = YouthLearningProgressBoardProps;
 
 type LearningProgressNote = {
   note: YouthSpecialNote;
@@ -103,8 +117,6 @@ const learningScheduleTimelineHeight =
   (youthLearningScheduleEndHour - youthLearningScheduleStartHour) *
   learningScheduleSlotHeight;
 
-function noop() {}
-
 const learningTimeSlots: LearningTimeSlot[] = Array.from(
   { length: youthLearningScheduleEndHour - youthLearningScheduleStartHour },
   (_, index) => {
@@ -126,31 +138,27 @@ const learningTimeSlots: LearningTimeSlot[] = Array.from(
 export function YouthLearningProgressBoard(
   props: YouthLearningProgressBoardProps,
 ) {
-  const router = useRouter();
-
-  return (
-    <YouthLearningProgressBoardContent
-      key={props.selectedDate}
-      {...props}
-      refresh={router.refresh}
-    />
-  );
+  return <YouthLearningProgressBoardContent key={props.selectedDate} {...props} />;
 }
 
 export function YouthLearningProgressBoardContent({
   createYouth,
+  changeLogActors,
+  changeLogFilters,
   changeLogs,
   deleteSchedule,
   deleteYouth,
-  refresh = noop,
+  loadSchedules,
   saveSchedule,
   schedules,
-  selectedDate,
+  selectedDate: initialSelectedDate,
   youths: initialYouths,
 }: YouthLearningProgressBoardContentProps) {
   const [youths, setYouths] = useState(initialYouths);
   const [scheduleItems, setScheduleItems] = useState(schedules);
-  const [dateDraft, setDateDraft] = useState(selectedDate);
+  const [selectedScheduleDate, setSelectedScheduleDate] =
+    useState(initialSelectedDate);
+  const [dateDraft, setDateDraft] = useState(initialSelectedDate);
   const [newYouthName, setNewYouthName] = useState("");
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [startMinuteDraft, setStartMinuteDraft] = useState(
@@ -160,13 +168,17 @@ export function YouthLearningProgressBoardContent({
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
   );
   const [scheduleDraft, setScheduleDraft] = useState("");
-  const [repeatsWeeklyDraft, setRepeatsWeeklyDraft] = useState(false);
+  const [recurrenceWeekdayDraft, setRecurrenceWeekdayDraft] = useState<
+    YouthLearningScheduleWeekday[]
+  >([]);
   const [formError, setFormError] = useState("");
   const [scheduleDragState, setScheduleDragState] =
     useState<ScheduleDragState | null>(null);
   const [pendingAction, startPendingAction] = useTransition();
+  const [pendingTimetableAction, startPendingTimetableAction] = useTransition();
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
-  const pendingBoardAction = pendingAction || pendingScheduleAction;
+  const pendingTimetable = pendingTimetableAction || pendingScheduleAction;
+  const pendingBoardAction = pendingAction || pendingTimetable;
 
   const scheduleMap = useMemo(() => {
     const nextMap = new Map<string, YouthLearningSchedule>();
@@ -189,7 +201,7 @@ export function YouthLearningProgressBoardContent({
     const nextMap = new Map<string, YouthLearningSchedule[]>();
 
     for (const schedule of scheduleItems) {
-      if (schedule.scheduleDate !== selectedDate) {
+      if (schedule.scheduleDate !== selectedScheduleDate) {
         continue;
       }
 
@@ -203,12 +215,12 @@ export function YouthLearningProgressBoardContent({
     }
 
     return nextMap;
-  }, [scheduleItems, selectedDate]);
+  }, [scheduleItems, selectedScheduleDate]);
 
-  const previousDate = shiftYouthLearningScheduleDate(selectedDate, -1);
-  const nextDate = shiftYouthLearningScheduleDate(selectedDate, 1);
+  const previousDate = shiftYouthLearningScheduleDate(selectedScheduleDate, -1);
+  const nextDate = shiftYouthLearningScheduleDate(selectedScheduleDate, 1);
   const today = getYouthLearningScheduleToday();
-  const selectedDateLabel = formatDateWithWeekday(selectedDate);
+  const selectedDateLabel = formatDateWithWeekday(selectedScheduleDate);
 
   const selectedYouth = selectedCell
     ? youths.find((youth) => youth.id === selectedCell.youthId)
@@ -227,7 +239,7 @@ export function YouthLearningProgressBoardContent({
     ? scheduleMap.get(
         createScheduleKey(
           selectedCell.youthId,
-          selectedDate,
+          selectedScheduleDate,
           selectedCell.startMinute,
         ),
       )
@@ -236,6 +248,56 @@ export function YouthLearningProgressBoardContent({
     () => getRecentLearningNotes(youths),
     [youths],
   );
+  const loadScheduleDate = useCallback(
+    (
+      nextScheduleDate: string,
+      { updateHistory = true }: { updateHistory?: boolean } = {},
+    ) => {
+      startPendingTimetableAction(async () => {
+        const result = await loadSchedules(nextScheduleDate);
+
+        if (!result.ok) {
+          setFormError(result.error);
+          setDateDraft(selectedScheduleDate);
+          return;
+        }
+
+        setSelectedScheduleDate(result.data.scheduleDate);
+        setDateDraft(result.data.scheduleDate);
+        setScheduleItems(result.data.schedules);
+        setSelectedCell(null);
+        setScheduleDragState(null);
+        setFormError("");
+
+        if (updateHistory) {
+          window.history.pushState(
+            { learningProgressDate: result.data.scheduleDate },
+            "",
+            createLearningProgressDateHref(result.data.scheduleDate),
+          );
+        }
+      });
+    },
+    [loadSchedules, selectedScheduleDate],
+  );
+
+  useEffect(() => {
+    window.history.replaceState(
+      { learningProgressDate: selectedScheduleDate },
+      "",
+      createLearningProgressDateHref(selectedScheduleDate),
+    );
+
+    function loadDateFromHistory() {
+      loadScheduleDate(getLearningProgressDateFromLocation(), {
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadDateFromHistory);
+
+    return () => window.removeEventListener("popstate", loadDateFromHistory);
+  }, [loadScheduleDate, selectedScheduleDate]);
 
   useEffect(() => {
     if (!selectedCell) {
@@ -281,7 +343,6 @@ export function YouthLearningProgressBoardContent({
       );
       setNewYouthName("");
       setFormError("");
-      refresh();
     });
   }
 
@@ -305,13 +366,12 @@ export function YouthLearningProgressBoardContent({
         current.filter((schedule) => schedule.youthId !== result.data.youthId),
       );
       setFormError("");
-      refresh();
     });
   }
 
   function openScheduleModal(youthId: string, startMinute: number) {
     const schedule = scheduleMap.get(
-      createScheduleKey(youthId, selectedDate, startMinute),
+      createScheduleKey(youthId, selectedScheduleDate, startMinute),
     );
 
     setSelectedCell({ youthId, startMinute });
@@ -320,7 +380,11 @@ export function YouthLearningProgressBoardContent({
       schedule?.endMinute ?? startMinute + 60,
     );
     setScheduleDraft(schedule?.content ?? "");
-    setRepeatsWeeklyDraft(schedule?.repeatsWeekly ?? false);
+    setRecurrenceWeekdayDraft(
+      schedule
+        ? schedule.recurrenceWeekdays
+        : [getYouthLearningScheduleWeekday(selectedScheduleDate)],
+    );
     setFormError("");
   }
 
@@ -333,7 +397,7 @@ export function YouthLearningProgressBoardContent({
       getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
     );
     setScheduleDraft("");
-    setRepeatsWeeklyDraft(false);
+    setRecurrenceWeekdayDraft([]);
     setFormError("");
   }
 
@@ -347,11 +411,11 @@ export function YouthLearningProgressBoardContent({
     startPendingScheduleAction(async () => {
       const result = await saveSchedule(
         selectedCell.youthId,
-        selectedDate,
+        selectedScheduleDate,
         startMinuteDraft,
         endMinuteDraft,
         scheduleDraft,
-        repeatsWeeklyDraft,
+        recurrenceWeekdayDraft,
         sourceStartMinute,
       );
 
@@ -364,13 +428,12 @@ export function YouthLearningProgressBoardContent({
         mergeScheduleItems(
           current,
           selectedCell.youthId,
-          selectedDate,
+          selectedScheduleDate,
           sourceStartMinute,
           result.data.schedule,
         ),
       );
       closeScheduleModal();
-      refresh();
     });
   }
 
@@ -382,7 +445,7 @@ export function YouthLearningProgressBoardContent({
     startPendingScheduleAction(async () => {
       const result = await deleteSchedule(
         selectedCell.youthId,
-        selectedDate,
+        selectedScheduleDate,
         selectedCell.startMinute,
       );
 
@@ -401,7 +464,6 @@ export function YouthLearningProgressBoardContent({
         ),
       );
       closeScheduleModal();
-      refresh();
     });
   }
 
@@ -537,7 +599,7 @@ export function YouthLearningProgressBoardContent({
       mergeScheduleItems(
         current,
         schedule.youthId,
-        selectedDate,
+        selectedScheduleDate,
         schedule.startMinute,
         optimisticSchedule,
       ),
@@ -547,11 +609,11 @@ export function YouthLearningProgressBoardContent({
     startPendingScheduleAction(async () => {
       const result = await saveSchedule(
         schedule.youthId,
-        selectedDate,
+        selectedScheduleDate,
         nextStartMinute,
         nextEndMinute,
         schedule.content,
-        schedule.repeatsWeekly,
+        schedule.recurrenceWeekdays,
         schedule.startMinute,
       );
 
@@ -560,7 +622,7 @@ export function YouthLearningProgressBoardContent({
           mergeScheduleItems(
             current,
             schedule.youthId,
-            selectedDate,
+            selectedScheduleDate,
             nextStartMinute,
             schedule,
           ),
@@ -573,13 +635,12 @@ export function YouthLearningProgressBoardContent({
         mergeScheduleItems(
           current,
           schedule.youthId,
-          selectedDate,
+          selectedScheduleDate,
           nextStartMinute,
           result.data.schedule,
         ),
       );
       setFormError("");
-      refresh();
     });
   }
 
@@ -608,6 +669,17 @@ export function YouthLearningProgressBoardContent({
     setFormError("");
   }
 
+  function toggleRecurrenceWeekday(weekday: YouthLearningScheduleWeekday) {
+    setRecurrenceWeekdayDraft((current) =>
+      current.includes(weekday)
+        ? normalizeYouthLearningScheduleWeekdays(
+            current.filter((currentWeekday) => currentWeekday !== weekday),
+          )
+        : normalizeYouthLearningScheduleWeekdays([...current, weekday]),
+    );
+    setFormError("");
+  }
+
   return (
     <section aria-label="청소년 학습진도" className="space-y-6">
       <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
@@ -623,16 +695,20 @@ export function YouthLearningProgressBoardContent({
 
           <div className="flex w-full min-w-0 flex-col gap-3 lg:max-w-2xl">
             <form
-              action="/youth/learning-progress"
               className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end"
-              method="get"
+              onSubmit={(event) => {
+                event.preventDefault();
+                loadScheduleDate(dateDraft);
+              }}
             >
-              <a
-                href={createLearningProgressDateHref(previousDate)}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              <button
+                type="button"
+                onClick={() => loadScheduleDate(previousDate)}
+                disabled={pendingTimetable}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 이전 날
-              </a>
+              </button>
               <label className="min-w-0 sm:w-44">
                 <span className="sr-only">날짜 선택</span>
                 <input
@@ -640,27 +716,33 @@ export function YouthLearningProgressBoardContent({
                   name="date"
                   value={dateDraft}
                   onChange={(event) => setDateDraft(event.target.value)}
-                  className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  disabled={pendingTimetable}
+                  className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:bg-[#f7f9fc] disabled:text-[#697386]"
                 />
               </label>
               <button
                 type="submit"
-                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+                disabled={pendingTimetable}
+                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 이동
               </button>
-              <a
-                href={createLearningProgressDateHref(today)}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              <button
+                type="button"
+                onClick={() => loadScheduleDate(today)}
+                disabled={pendingTimetable}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 오늘
-              </a>
-              <a
-                href={createLearningProgressDateHref(nextDate)}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              </button>
+              <button
+                type="button"
+                onClick={() => loadScheduleDate(nextDate)}
+                disabled={pendingTimetable}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 다음 날
-              </a>
+              </button>
             </form>
 
             <form
@@ -699,272 +781,325 @@ export function YouthLearningProgressBoardContent({
           </p>
         ) : null}
 
-        {youths.length > 0 ? (
-          <div className="overflow-x-auto">
-            <div
-              className="grid min-w-[680px] text-sm"
-              style={{
-                gridTemplateColumns: `6.5rem repeat(${youths.length}, minmax(12rem, 1fr))`,
-              }}
-            >
-              <div className="sticky left-0 z-30 border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-left text-xs font-semibold text-[#394150]">
-                시간
-              </div>
-              {youths.map((youth) => (
-                <div
-                  key={youth.id}
-                  className="border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-left text-xs font-semibold text-[#394150]"
-                >
-                  <span className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                      {youth.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeYouth(youth)}
-                      disabled={pendingBoardAction}
-                      className="h-8 shrink-0 rounded-md border border-[#efb4b4] bg-white px-2 text-xs font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      삭제
-                    </button>
-                  </span>
-                </div>
-              ))}
-
+        <div className="relative">
+          {youths.length > 0 ? (
+            <>
               <div
-                className="sticky left-0 z-20 border-r border-[#d9dee7] bg-white"
-                style={{ height: learningScheduleTimelineHeight }}
+                aria-hidden={pendingTimetable}
+                inert={pendingTimetable ? true : undefined}
+                className={[
+                  "overflow-x-auto",
+                  pendingTimetable ? "invisible" : "",
+                ].join(" ")}
               >
-                {learningTimeSlots.map((slot) => (
-                  <div
-                    key={slot.startHour}
-                    className="flex h-20 items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#394150]"
-                  >
-                    <TimeSlotLabel slot={slot} />
+                <div
+                  className="grid min-w-[680px] text-sm"
+                  style={{
+                    gridTemplateColumns: `6.5rem repeat(${youths.length}, minmax(12rem, 1fr))`,
+                  }}
+                >
+                  <div className="sticky left-0 z-30 border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-left text-xs font-semibold text-[#394150]">
+                    시간
                   </div>
-                ))}
-              </div>
+                  {youths.map((youth) => (
+                    <div
+                      key={youth.id}
+                      className="border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-left text-xs font-semibold text-[#394150]"
+                    >
+                      <span className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                          {youth.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeYouth(youth)}
+                          disabled={pendingBoardAction}
+                          className="h-8 shrink-0 rounded-md border border-[#efb4b4] bg-white px-2 text-xs font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          삭제
+                        </button>
+                      </span>
+                    </div>
+                  ))}
 
-              {youths.map((youth) => {
-                const youthSchedules = schedulesByYouth.get(youth.id) ?? [];
-
-                return (
                   <div
-                    key={youth.id}
-                    className="relative border-r border-[#eef1f5] bg-white"
+                    className="sticky left-0 z-20 border-r border-[#d9dee7] bg-white"
                     style={{ height: learningScheduleTimelineHeight }}
                   >
-                    <div className="absolute inset-0">
-                      {learningTimeSlots.map((slot) => (
-                        <button
-                          key={slot.startHour}
-                          type="button"
-                          aria-label={`${youth.name} ${slot.label} 스케줄 입력`}
-                          onClick={() => openScheduleModal(youth.id, slot.startMinute)}
-                          className="block h-20 w-full border-b border-[#eef1f5] px-3 py-3 text-left text-xs text-[#9aa4b2] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d7eceb]"
-                        >
-                          미입력
-                        </button>
-                      ))}
-                    </div>
-
-                    {youthSchedules.map((schedule) => {
-                      const isDragging =
-                        scheduleDragState?.scheduleId === schedule.id;
-                      const previewStartMinute = isDragging
-                        ? scheduleDragState.previewStartMinute
-                        : schedule.startMinute;
-                      const previewEndMinute =
-                        isDragging
-                          ? scheduleDragState.previewEndMinute
-                          : schedule.endMinute;
-                      const scheduleTop =
-                        (previewStartMinute -
-                          getYouthLearningScheduleStartMinute(
-                            youthLearningScheduleStartHour,
-                          )) *
-                          learningScheduleMinuteHeight +
-                        4;
-                      const scheduleHeight = Math.max(
-                        48,
-                        (previewEndMinute - previewStartMinute) *
-                          learningScheduleMinuteHeight -
-                          8,
-                      );
-
-                      return (
-                        <div
-                          key={schedule.id}
-                          className={[
-                            "absolute left-2 right-2 z-10 overflow-hidden rounded-md border shadow-sm transition-colors",
-                            isDragging
-                              ? "border-[#196b69] bg-[#e5f4f3] ring-2 ring-[#bfe1df]"
-                              : "border-[#9fc9c5] bg-[#f4fbfa]",
-                          ].join(" ")}
-                          style={{
-                            height: scheduleHeight,
-                            top: scheduleTop,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            aria-label={`${formatScheduleRangeLabel(
-                              previewStartMinute,
-                              previewEndMinute,
-                            )} 시작 시간 조절`}
-                            title="시작 시간 조절"
-                            onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "resize-start")
-                            }
-                            onPointerMove={moveScheduleDrag}
-                            onPointerUp={(event) =>
-                              finishScheduleDrag(event, schedule)
-                            }
-                            onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 top-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-1 w-8 rounded-full bg-[#196b69]"
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                openScheduleModal(
-                                  schedule.youthId,
-                                  schedule.startMinute,
-                                );
-                              }
-                            }}
-                            onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "move")
-                            }
-                            onPointerMove={moveScheduleDrag}
-                            onPointerUp={(event) =>
-                              finishScheduleDrag(event, schedule)
-                            }
-                            onPointerCancel={cancelScheduleDrag}
-                            className="relative z-10 block h-full w-full cursor-move touch-none px-3 pb-6 pt-6 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                          >
-                            <span className="block text-[11px] font-semibold text-[#196b69]">
-                              {formatScheduleRangeLabel(
-                                previewStartMinute,
-                                previewEndMinute,
-                              )}
-                            </span>
-                            <span className="mt-1 line-clamp-2 whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#26333f] [overflow-wrap:anywhere]">
-                              {schedule.content}
-                            </span>
-                            {schedule.repeatsWeekly ? (
-                              <span className="mt-1 inline-flex h-5 items-center rounded-full border border-[#b9c9ea] bg-[#f0f5ff] px-2 text-[11px] font-semibold text-[#274f9f]">
-                                매주 반복
-                              </span>
-                            ) : null}
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`${formatScheduleRangeLabel(
-                              previewStartMinute,
-                              previewEndMinute,
-                            )} 종료 시간 조절`}
-                            title="종료 시간 조절"
-                            onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "resize-end")
-                            }
-                            onPointerMove={moveScheduleDrag}
-                            onPointerUp={(event) =>
-                              finishScheduleDrag(event, schedule)
-                            }
-                            onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 bottom-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-1 w-8 rounded-full bg-[#196b69]"
-                            />
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {learningTimeSlots.map((slot) => (
+                      <div
+                        key={slot.startHour}
+                        className="flex h-20 items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#394150]"
+                      >
+                        <TimeSlotLabel slot={slot} />
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+
+                  {youths.map((youth) => {
+                    const youthSchedules = schedulesByYouth.get(youth.id) ?? [];
+
+                    return (
+                      <div
+                        key={youth.id}
+                        className="relative border-r border-[#eef1f5] bg-white"
+                        style={{ height: learningScheduleTimelineHeight }}
+                      >
+                        <div className="absolute inset-0">
+                          {learningTimeSlots.map((slot) => (
+                            <button
+                              key={slot.startHour}
+                              type="button"
+                              aria-label={`${youth.name} ${slot.label} 스케줄 입력`}
+                              onClick={() =>
+                                openScheduleModal(youth.id, slot.startMinute)
+                              }
+                              className="block h-20 w-full border-b border-[#eef1f5] px-3 py-3 text-left text-xs text-[#9aa4b2] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d7eceb]"
+                            >
+                              미입력
+                            </button>
+                          ))}
+                        </div>
+
+                        {youthSchedules.map((schedule) => {
+                          const isDragging =
+                            scheduleDragState?.scheduleId === schedule.id;
+                          const previewStartMinute = isDragging
+                            ? scheduleDragState.previewStartMinute
+                            : schedule.startMinute;
+                          const previewEndMinute = isDragging
+                            ? scheduleDragState.previewEndMinute
+                            : schedule.endMinute;
+                          const scheduleTop =
+                            (previewStartMinute -
+                              getYouthLearningScheduleStartMinute(
+                                youthLearningScheduleStartHour,
+                              )) *
+                              learningScheduleMinuteHeight +
+                            4;
+                          const scheduleHeight = Math.max(
+                            48,
+                            (previewEndMinute - previewStartMinute) *
+                              learningScheduleMinuteHeight -
+                              8,
+                          );
+                          const recurrenceWeekdayLabel =
+                            formatYouthLearningScheduleWeekdays(
+                              schedule.recurrenceWeekdays,
+                            );
+
+                          return (
+                            <div
+                              key={schedule.id}
+                              className={[
+                                "absolute left-2 right-2 z-10 overflow-hidden rounded-md border shadow-sm transition-colors",
+                                isDragging
+                                  ? "border-[#196b69] bg-[#e5f4f3] ring-2 ring-[#bfe1df]"
+                                  : "border-[#9fc9c5] bg-[#f4fbfa]",
+                              ].join(" ")}
+                              style={{
+                                height: scheduleHeight,
+                                top: scheduleTop,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                aria-label={`${formatScheduleRangeLabel(
+                                  previewStartMinute,
+                                  previewEndMinute,
+                                )} 시작 시간 조절`}
+                                title="시작 시간 조절"
+                                onPointerDown={(event) =>
+                                  startScheduleDrag(
+                                    event,
+                                    schedule,
+                                    "resize-start",
+                                  )
+                                }
+                                onPointerMove={moveScheduleDrag}
+                                onPointerUp={(event) =>
+                                  finishScheduleDrag(event, schedule)
+                                }
+                                onPointerCancel={cancelScheduleDrag}
+                                className="absolute inset-x-0 top-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="h-1 w-8 rounded-full bg-[#196b69]"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
+                                    event.preventDefault();
+                                    openScheduleModal(
+                                      schedule.youthId,
+                                      schedule.startMinute,
+                                    );
+                                  }
+                                }}
+                                onPointerDown={(event) =>
+                                  startScheduleDrag(event, schedule, "move")
+                                }
+                                onPointerMove={moveScheduleDrag}
+                                onPointerUp={(event) =>
+                                  finishScheduleDrag(event, schedule)
+                                }
+                                onPointerCancel={cancelScheduleDrag}
+                                className="relative z-10 block h-full w-full cursor-move touch-none px-3 pb-6 pt-6 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                              >
+                                <span className="block text-[11px] font-semibold text-[#196b69]">
+                                  {formatScheduleRangeLabel(
+                                    previewStartMinute,
+                                    previewEndMinute,
+                                  )}
+                                </span>
+                                <span className="mt-1 line-clamp-2 whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#26333f] [overflow-wrap:anywhere]">
+                                  {schedule.content}
+                                </span>
+                                {recurrenceWeekdayLabel ? (
+                                  <span className="mt-1 inline-flex h-5 items-center rounded-full border border-[#b9c9ea] bg-[#f0f5ff] px-2 text-[11px] font-semibold text-[#274f9f]">
+                                    매주 {recurrenceWeekdayLabel}
+                                  </span>
+                                ) : null}
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`${formatScheduleRangeLabel(
+                                  previewStartMinute,
+                                  previewEndMinute,
+                                )} 종료 시간 조절`}
+                                title="종료 시간 조절"
+                                onPointerDown={(event) =>
+                                  startScheduleDrag(
+                                    event,
+                                    schedule,
+                                    "resize-end",
+                                  )
+                                }
+                                onPointerMove={moveScheduleDrag}
+                                onPointerUp={(event) =>
+                                  finishScheduleDrag(event, schedule)
+                                }
+                                onPointerCancel={cancelScheduleDrag}
+                                className="absolute inset-x-0 bottom-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="h-1 w-8 rounded-full bg-[#196b69]"
+                                />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {pendingTimetable ? (
+                <TimetableSkeleton overlay youthCount={youths.length} />
+              ) : null}
+            </>
+          ) : (
+            <div className="p-5">
+              <EmptyState
+                title="등록된 학생이 없습니다."
+                description="학생을 추가하면 시간표를 입력할 수 있습니다."
+              />
             </div>
-          </div>
-        ) : (
-          <div className="p-5">
-            <EmptyState
-              title="등록된 학생이 없습니다."
-              description="학생을 추가하면 시간표를 입력할 수 있습니다."
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {changeLogs.length > 0 ? (
-        <section aria-label="최근 변경 내역">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <section aria-label="최근 변경 내역">
+        <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+          <div>
             <h2 className="text-base font-semibold text-[#16181d]">
               최근 변경 내역
             </h2>
-            <p className="text-sm text-[#697386]">
-              누가 언제 무엇을 변경했는지 기록합니다.
-            </p>
+            <ChangeLogListSummary filters={changeLogFilters} />
           </div>
+          <ChangeLogFilterControls
+            actors={changeLogActors}
+            filters={changeLogFilters}
+            selectedDate={selectedScheduleDate}
+          />
+        </div>
+        {changeLogs.length > 0 ? (
           <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
             {changeLogs.map((log) => {
-              const detail = getChangeLogDetail(log.metadata);
+            const detail = getChangeLogDetail(log.metadata);
 
-              return (
-                <li
-                  key={log.id}
-                  className="grid gap-3 px-4 py-3 lg:grid-cols-[12rem_1fr]"
-                >
-                  <div className="min-w-0">
-                    <time
-                      dateTime={log.createdAt}
-                      className="text-sm font-semibold text-[#394150]"
-                    >
-                      {formatDateTime(log.createdAt)}
-                    </time>
-                    <UserIdentity
-                      user={log.actor}
-                      size="xs"
-                      meta={log.actor.email ?? "이메일 미등록"}
-                      className="mt-2"
-                      nameClassName="text-[#394150]"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                      {log.message ?? "학습진도 변경 내역이 기록되었습니다."}
-                    </p>
-                    {detail ? (
-                      <div className="mt-2 grid gap-2 text-xs text-[#697386] sm:grid-cols-2">
-                        {detail.previousContent !== null ? (
-                          <ChangeLogValue
-                            label="변경 전"
-                            value={detail.previousContent}
-                          />
-                        ) : null}
-                        {detail.nextContent !== null ? (
-                          <ChangeLogValue
-                            label="변경 후"
-                            value={detail.nextContent}
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+            return (
+              <li
+                key={log.id}
+                className="grid gap-3 px-4 py-3 lg:grid-cols-[12rem_1fr]"
+              >
+                <div className="min-w-0">
+                  <time
+                    dateTime={log.createdAt}
+                    className="text-sm font-semibold text-[#394150]"
+                  >
+                    {formatDateTime(log.createdAt)}
+                  </time>
+                  <UserIdentity
+                    user={log.actor}
+                    size="xs"
+                    meta={log.actor.email ?? "이메일 미등록"}
+                    className="mt-2"
+                    nameClassName="text-[#394150]"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                    {log.message ?? "학습진도 변경 내역이 기록되었습니다."}
+                  </p>
+                  {detail ? (
+                    <>
+                      {detail.scheduleDate ? (
+                        <p className="mt-1 text-xs font-medium text-[#697386]">
+                          시간표 날짜 {formatDateWithWeekday(detail.scheduleDate)}
+                        </p>
+                      ) : null}
+                      {detail.previousContent !== null ||
+                      detail.nextContent !== null ? (
+                        <div className="mt-2 grid gap-2 text-xs text-[#697386] sm:grid-cols-2">
+                          {detail.previousContent !== null ? (
+                            <ChangeLogValue
+                              label="변경 전"
+                              value={detail.previousContent}
+                            />
+                          ) : null}
+                          {detail.nextContent !== null ? (
+                            <ChangeLogValue
+                              label="변경 후"
+                              value={detail.nextContent}
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
           </ol>
-        </section>
-      ) : null}
+        ) : (
+          <p className="mt-3 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+            조건에 맞는 변경 내역이 없습니다.
+          </p>
+        )}
+        <ChangeLogPagination
+          filters={changeLogFilters}
+          selectedDate={selectedScheduleDate}
+        />
+      </section>
 
       {recentLearningNotes.length > 0 ? (
         <section aria-label="최근 학습 관련 기록">
@@ -1028,7 +1163,8 @@ export function YouthLearningProgressBoardContent({
             >
               <header className="border-b border-[#eef1f5] px-5 py-4">
                 <p className="text-sm font-semibold text-[#697386]">
-                  {formatDate(selectedDate)} · {selectedYouth.name} · {selectedTimeLabel}
+                  {formatDate(selectedScheduleDate)} · {selectedYouth.name} ·{" "}
+                  {selectedTimeLabel}
                 </p>
                 <h2
                   id="learning-schedule-modal-title"
@@ -1093,52 +1229,35 @@ export function YouthLearningProgressBoardContent({
                     )}
                   </select>
                 </label>
-                <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3">
-                  <span className="text-sm font-semibold text-[#394150]">
-                    매주 반복
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={repeatsWeeklyDraft}
-                    aria-label="매주 반복"
-                    onClick={() => setRepeatsWeeklyDraft((current) => !current)}
-                    className={[
-                      "relative h-8 w-16 rounded-full border text-[10px] font-bold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb] focus:ring-offset-2",
-                      repeatsWeeklyDraft
-                        ? "border-[#196b69] bg-[#196b69] text-white"
-                        : "border-[#cfd6e3] bg-[#e6ebf2] text-[#697386]",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "absolute top-1/2 -translate-y-1/2 transition-opacity",
-                        repeatsWeeklyDraft
-                          ? "left-2 opacity-100"
-                          : "left-2 opacity-0",
-                      ].join(" ")}
-                    >
-                      ON
-                    </span>
-                    <span
-                      className={[
-                        "absolute top-1/2 -translate-y-1/2 transition-opacity",
-                        repeatsWeeklyDraft
-                          ? "right-2 opacity-0"
-                          : "right-2 opacity-100",
-                      ].join(" ")}
-                    >
-                      OFF
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className={[
-                        "absolute left-0 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform",
-                        repeatsWeeklyDraft ? "translate-x-8" : "translate-x-1",
-                      ].join(" ")}
-                    />
-                  </button>
-                </div>
+                <fieldset className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 pb-3 pt-2">
+                  <legend className="px-1 text-sm font-semibold text-[#394150]">
+                    반복 요일
+                  </legend>
+                  <div className="mt-2 grid grid-cols-7 gap-2">
+                    {youthLearningScheduleWeekdays.map((weekday) => {
+                      const selected = recurrenceWeekdayDraft.includes(
+                        weekday.value,
+                      );
+
+                      return (
+                        <button
+                          key={weekday.value}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => toggleRecurrenceWeekday(weekday.value)}
+                          className={[
+                            "h-9 rounded-md border text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
+                            selected
+                              ? "border-[#196b69] bg-[#196b69] text-white"
+                              : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
+                          ].join(" ")}
+                        >
+                          {weekday.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
                 {formError ? (
                   <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
                     {formError}
@@ -1178,13 +1297,322 @@ export function YouthLearningProgressBoardContent({
         </div>
       ) : null}
 
-      <PendingOverlay
-        description="시간표 변경사항을 저장하는 중입니다. 완료될 때까지 잠시만 기다려주세요."
-        label="시간표 저장 중"
-        show={pendingScheduleAction}
-      />
     </section>
   );
+}
+
+export function TimetableSkeleton({
+  overlay = false,
+  youthCount,
+}: {
+  overlay?: boolean;
+  youthCount: number;
+}) {
+  const columnCount = Math.max(1, youthCount);
+  const columns = Array.from({ length: columnCount }, (_, index) => index);
+  const skeletonBlocks = [0, 2, 5].map((slotIndex) => ({
+    height: slotIndex === 2 ? 104 : 72,
+    top: slotIndex * learningScheduleSlotHeight + 8,
+  }));
+
+  return (
+    <div
+      aria-busy="true"
+      aria-label="시간표 불러오는 중"
+      className={
+        overlay
+          ? "pointer-events-none absolute inset-0 z-40 overflow-hidden"
+          : "overflow-x-auto"
+      }
+      role="status"
+    >
+      <div
+        className="grid min-w-[680px] text-sm"
+        style={{
+          gridTemplateColumns: `6.5rem repeat(${columnCount}, minmax(12rem, 1fr))`,
+        }}
+      >
+        <div className="sticky left-0 z-30 border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3">
+          <span className="flex h-8 items-center">
+            <span className="block h-3 w-10 animate-pulse rounded bg-[#dce3ec] dark:bg-[#30363d]" />
+          </span>
+        </div>
+        {columns.map((column) => (
+          <div
+            key={`skeleton-header-${column}`}
+            className="border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3"
+          >
+            <span className="flex h-8 items-center justify-between gap-2">
+              <span className="block h-3 w-20 animate-pulse rounded bg-[#dce3ec] dark:bg-[#30363d]" />
+              <span className="block h-8 w-10 animate-pulse rounded-md bg-white dark:bg-[#21262d]" />
+            </span>
+          </div>
+        ))}
+
+        <div
+          className="sticky left-0 z-20 border-r border-[#d9dee7] bg-white"
+          style={{ height: learningScheduleTimelineHeight }}
+        >
+          {learningTimeSlots.map((slot) => (
+            <div
+              key={`skeleton-time-${slot.startHour}`}
+              className="flex h-20 items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#9aa4b2] dark:text-[#8b949e]"
+            >
+              <TimeSlotLabel slot={slot} />
+            </div>
+          ))}
+        </div>
+
+        {columns.map((column) => (
+          <div
+            key={`skeleton-column-${column}`}
+            className="relative border-r border-[#eef1f5] bg-white"
+            style={{ height: learningScheduleTimelineHeight }}
+          >
+            <div className="absolute inset-0">
+              {learningTimeSlots.map((slot) => (
+                <div
+                  key={`skeleton-cell-${column}-${slot.startHour}`}
+                  className="h-20 border-b border-[#eef1f5]"
+                />
+              ))}
+            </div>
+            {skeletonBlocks.map((block, blockIndex) => (
+              <div
+                key={`skeleton-block-${column}-${blockIndex}`}
+                className="absolute left-2 right-2 overflow-hidden rounded-md border border-[#d6e6e4] bg-[#f5fbfa] shadow-sm dark:border-[#30363d] dark:bg-[#161b22]"
+                style={{
+                  height: block.height,
+                  top: block.top,
+                }}
+              >
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 flex h-5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
+                >
+                  <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 flex h-5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
+                >
+                  <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
+                </div>
+                <div className="animate-pulse px-3 pb-7 pt-7">
+                  <span className="block h-2.5 w-20 rounded bg-[#cddfdd] dark:bg-[#30363d]" />
+                  <span className="mt-3 block h-3 w-28 rounded bg-[#d7e6e4] dark:bg-[#21262d]" />
+                  <span className="mt-2 block h-3 w-16 rounded bg-[#d7e6e4] dark:bg-[#21262d]" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChangeLogListSummary({
+  filters,
+}: {
+  filters: YouthLearningProgressChangeLogFilters;
+}) {
+  if (filters.total === 0) {
+    return (
+      <p className="mt-1 text-sm text-[#697386]">
+        표시할 변경 내역이 없습니다.
+      </p>
+    );
+  }
+
+  const firstItem = (filters.page - 1) * filters.pageSize + 1;
+  const lastItem = Math.min(filters.page * filters.pageSize, filters.total);
+
+  return (
+    <p className="mt-1 text-sm text-[#697386]">
+      {filters.total}건 중 {firstItem}-{lastItem}건 표시
+    </p>
+  );
+}
+
+function ChangeLogFilterControls({
+  actors,
+  filters,
+  selectedDate,
+}: {
+  actors: YouthLearningProgressChangeLogActor[];
+  filters: YouthLearningProgressChangeLogFilters;
+  selectedDate: string;
+}) {
+  const hasFilters = filters.actorId !== "all" || filters.scheduleDate !== "";
+
+  function submitFilter(
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    event.currentTarget.form?.requestSubmit();
+  }
+
+  return (
+    <form
+      action="/youth/learning-progress"
+      className="flex min-w-0 flex-wrap items-end gap-2"
+      key={`${filters.actorId}:${filters.scheduleDate}`}
+      method="get"
+    >
+      <input name="date" type="hidden" value={selectedDate} />
+      <label>
+        <span className="block text-xs font-semibold text-[#697386]">직원</span>
+        <select
+          aria-label="변경내역 직원 필터"
+          name="logStaff"
+          defaultValue={filters.actorId}
+          onChange={submitFilter}
+          className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+        >
+          <option value="all">전체 직원</option>
+          {actors.map((actor) => (
+            <option key={actor.id} value={actor.id}>
+              {actor.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span className="block text-xs font-semibold text-[#697386]">날짜</span>
+        <input
+          aria-label="변경내역 날짜 필터"
+          name="logDate"
+          type="date"
+          defaultValue={filters.scheduleDate}
+          onChange={submitFilter}
+          className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+        />
+      </label>
+      <button
+        type="submit"
+        className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      >
+        적용
+      </button>
+      {hasFilters ? (
+        <Link
+          href={createChangeLogHref({
+            actorId: "all",
+            page: 1,
+            scheduleDate: "",
+            selectedDate,
+          })}
+          className="inline-flex h-10 items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          초기화
+        </Link>
+      ) : null}
+    </form>
+  );
+}
+
+function ChangeLogPagination({
+  filters,
+  selectedDate,
+}: {
+  filters: YouthLearningProgressChangeLogFilters;
+  selectedDate: string;
+}) {
+  if (filters.totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="변경내역 페이지"
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d9dee7] border-t border-[#eef1f5] bg-white px-4 py-3"
+    >
+      <p className="text-sm text-[#697386]">
+        {filters.page} / {filters.totalPages} 페이지
+      </p>
+      <div className="flex gap-2">
+        <ChangeLogPaginationLink
+          disabled={filters.page <= 1}
+          href={createChangeLogHref({
+            actorId: filters.actorId,
+            page: filters.page - 1,
+            scheduleDate: filters.scheduleDate,
+            selectedDate,
+          })}
+        >
+          이전
+        </ChangeLogPaginationLink>
+        <ChangeLogPaginationLink
+          disabled={filters.page >= filters.totalPages}
+          href={createChangeLogHref({
+            actorId: filters.actorId,
+            page: filters.page + 1,
+            scheduleDate: filters.scheduleDate,
+            selectedDate,
+          })}
+        >
+          다음
+        </ChangeLogPaginationLink>
+      </div>
+    </nav>
+  );
+}
+
+function ChangeLogPaginationLink({
+  children,
+  disabled,
+  href,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  href: string;
+}) {
+  if (disabled) {
+    return (
+      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function createChangeLogHref({
+  actorId,
+  page,
+  scheduleDate,
+  selectedDate,
+}: {
+  actorId: string;
+  page: number;
+  scheduleDate: string;
+  selectedDate: string;
+}) {
+  const params = new URLSearchParams();
+
+  params.set("date", selectedDate);
+
+  if (actorId !== "all") {
+    params.set("logStaff", actorId);
+  }
+
+  if (scheduleDate) {
+    params.set("logDate", scheduleDate);
+  }
+
+  if (page > 1) {
+    params.set("logPage", String(page));
+  }
+
+  return `/youth/learning-progress?${params.toString()}`;
 }
 
 function mergeScheduleItems(
@@ -1312,7 +1740,22 @@ function createScheduleKey(
 }
 
 function createLearningProgressDateHref(scheduleDate: string) {
-  return `/youth/learning-progress?date=${encodeURIComponent(scheduleDate)}`;
+  const params =
+    typeof window === "undefined"
+      ? new URLSearchParams()
+      : new URLSearchParams(window.location.search);
+
+  params.set("date", scheduleDate);
+
+  return `/youth/learning-progress?${params.toString()}`;
+}
+
+function getLearningProgressDateFromLocation() {
+  const selectedDate = new URL(window.location.href).searchParams.get("date");
+
+  return selectedDate && isYouthLearningScheduleDate(selectedDate)
+    ? selectedDate
+    : getYouthLearningScheduleToday();
 }
 
 function getRecentLearningNotes(youths: YouthProfile[]) {
@@ -1367,14 +1810,20 @@ function getChangeLogDetail(metadata: unknown) {
     "previousContent",
   );
   const nextContent = getNullableStringValue(metadata, "nextContent");
+  const scheduleDate = getScheduleDateValue(metadata);
 
-  if (previousContent === undefined && nextContent === undefined) {
+  if (
+    previousContent === undefined &&
+    nextContent === undefined &&
+    !scheduleDate
+  ) {
     return null;
   }
 
   return {
     previousContent: previousContent ?? null,
     nextContent: nextContent ?? null,
+    scheduleDate,
   };
 }
 
@@ -1393,6 +1842,19 @@ function getNullableStringValue(
   }
 
   return undefined;
+}
+
+function getScheduleDateValue(value: object) {
+  const record = value as Record<string, unknown>;
+  const scheduleDate =
+    typeof record.scheduleDate === "string" ? record.scheduleDate : null;
+  const sourceScheduleDate =
+    typeof record.sourceScheduleDate === "string"
+      ? record.sourceScheduleDate
+      : null;
+  const candidate = scheduleDate ?? sourceScheduleDate;
+
+  return candidate && isYouthLearningScheduleDate(candidate) ? candidate : null;
 }
 
 function formatHourLabel(hour: number) {

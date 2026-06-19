@@ -1,23 +1,31 @@
 import Link from "next/link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import {
+  YouthRuleFilterControls,
+  YouthRuleListTransitionProvider,
+  YouthRulePendingOverlay,
+} from "@/components/youth-rule-filter-controls";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   youthRuleCategories,
   youthRuleDetailMaxLength,
   type YouthRule,
+  type YouthRuleCategoryFilter,
   type YouthRuleTarget,
+  type YouthRuleTargetFilter,
 } from "@/lib/youth-management-core";
-import type { YouthRuleCategoryFilter } from "@/lib/youth-rules";
 
 type YouthRulesBoardProps = {
   createRuleAction: (formData: FormData) => Promise<void>;
   deleteRuleAction: (ruleId: string) => Promise<void>;
+  filterControls?: React.ReactNode;
   page: number;
   pageSize: number;
   ruleError?: string;
   rules: YouthRule[];
   selectedCategory: YouthRuleCategoryFilter;
+  selectedTarget: YouthRuleTargetFilter;
   targets: YouthRuleTarget[];
   total: number;
   totalPages: number;
@@ -26,15 +34,21 @@ type YouthRulesBoardProps = {
 export function YouthRulesBoard({
   createRuleAction,
   deleteRuleAction,
+  filterControls,
   page,
   pageSize,
   ruleError,
   rules,
   selectedCategory,
+  selectedTarget,
   targets,
   total,
   totalPages,
 }: YouthRulesBoardProps) {
+  const RulesListWrapper = filterControls
+    ? StaticRulesListWrapper
+    : YouthRuleListTransitionProvider;
+
   return (
     <section
       aria-label="청소년 규칙 관리"
@@ -113,107 +127,88 @@ export function YouthRulesBoard({
         </div>
       </form>
 
-      <section className="rounded-md border border-[#d9dee7] bg-white">
-        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-[#16181d]">
-              등록된 규칙
-            </h2>
-            <RuleListSummary
-              page={page}
-              pageSize={pageSize}
-              total={total}
-            />
-          </div>
-          <form
-            action="/youth/rules"
-            aria-label="규칙 카테고리 필터"
-            className="flex min-w-0 flex-wrap items-end gap-2"
-            method="get"
-          >
-            <label>
-              <span className="text-xs font-semibold text-[#697386]">
-                카테고리
-              </span>
-              <select
-                name="category"
-                defaultValue={selectedCategory}
-                className="mt-1 h-10 w-36 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-              >
-                <option value="all">전체</option>
-                {youthRuleCategories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="submit"
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 px-4 text-sm",
-              )}
-            >
-              보기
-            </button>
-          </form>
-        </header>
+      <RulesListWrapper>
+        <section className="relative overflow-hidden rounded-md border border-[#d9dee7] bg-white">
+          <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eef1f5] px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-[#16181d]">
+                등록된 규칙
+              </h2>
+              <RuleListSummary
+                page={page}
+                pageSize={pageSize}
+                total={total}
+              />
+            </div>
+            {filterControls ?? (
+              <YouthRuleFilterControls
+                selectedCategory={selectedCategory}
+                selectedTarget={selectedTarget}
+                targets={targets}
+              />
+            )}
+          </header>
 
-        {rules.length > 0 ? (
-          <ul className="divide-y divide-[#eef1f5]">
-            {rules.map((rule) => (
-              <li key={rule.id} className="grid gap-3 px-5 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="inline-flex h-7 items-center rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2.5 text-xs font-semibold text-[#196b69]">
-                      {rule.category}
-                    </span>
-                    <span className={getTargetBadgeClass(rule.targetYouthId)}>
-                      {rule.targetYouthName ?? "공통"}
-                    </span>
-                    <time
-                      dateTime={rule.createdAt}
-                      className="text-xs font-medium text-[#697386]"
-                    >
-                      {formatDateTime(rule.createdAt)}
-                    </time>
+          {rules.length > 0 ? (
+            <ul className="divide-y divide-[#eef1f5]">
+              {rules.map((rule) => (
+                <li key={rule.id} className="grid gap-3 px-5 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="inline-flex h-7 items-center rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2.5 text-xs font-semibold text-[#196b69]">
+                        {rule.category}
+                      </span>
+                      <span className={getTargetBadgeClass(rule.targetYouthId)}>
+                        {rule.targetYouthName ?? "공통"}
+                      </span>
+                      <time
+                        dateTime={rule.createdAt}
+                        className="text-xs font-medium text-[#697386]"
+                      >
+                        {formatDateTime(rule.createdAt)}
+                      </time>
+                    </div>
+                    <form action={deleteRuleAction.bind(null, rule.id)}>
+                      <ConfirmSubmitButton
+                        message="이 규칙을 삭제하시겠습니까?"
+                        type="submit"
+                        className={buttonClass(
+                          buttonStyles.base,
+                          buttonStyles.dangerOutline,
+                          "h-8 px-3 text-xs",
+                        )}
+                      >
+                        삭제
+                      </ConfirmSubmitButton>
+                    </form>
                   </div>
-                  <form action={deleteRuleAction.bind(null, rule.id)}>
-                    <ConfirmSubmitButton
-                      message="이 규칙을 삭제하시겠습니까?"
-                      type="submit"
-                      className={buttonClass(
-                        buttonStyles.base,
-                        buttonStyles.dangerOutline,
-                        "h-8 px-3 text-xs",
-                      )}
-                    >
-                      삭제
-                    </ConfirmSubmitButton>
-                  </form>
-                </div>
-                <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#394150] [overflow-wrap:anywhere]">
-                  {rule.detail}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="m-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
-            등록된 규칙이 없습니다.
-          </p>
-        )}
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#394150] [overflow-wrap:anywhere]">
+                    {rule.detail}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="m-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+              등록된 규칙이 없습니다.
+            </p>
+          )}
 
-        <YouthRulesPagination
-          page={page}
-          selectedCategory={selectedCategory}
-          totalPages={totalPages}
-        />
-      </section>
+          <YouthRulesPagination
+            page={page}
+            selectedCategory={selectedCategory}
+            selectedTarget={selectedTarget}
+            totalPages={totalPages}
+          />
+          <YouthRulePendingOverlay />
+        </section>
+      </RulesListWrapper>
     </section>
   );
+}
+
+function StaticRulesListWrapper({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 function RuleListSummary({
@@ -242,10 +237,12 @@ function RuleListSummary({
 function YouthRulesPagination({
   page,
   selectedCategory,
+  selectedTarget,
   totalPages,
 }: {
   page: number;
   selectedCategory: YouthRuleCategoryFilter;
+  selectedTarget: YouthRuleTargetFilter;
   totalPages: number;
 }) {
   if (totalPages <= 1) {
@@ -266,6 +263,7 @@ function YouthRulesPagination({
           href={getYouthRulesPageHref({
             category: selectedCategory,
             page: page - 1,
+            target: selectedTarget,
           })}
         >
           이전
@@ -275,6 +273,7 @@ function YouthRulesPagination({
           href={getYouthRulesPageHref({
             category: selectedCategory,
             page: page + 1,
+            target: selectedTarget,
           })}
         >
           다음
@@ -318,11 +317,17 @@ function YouthRulesPaginationLink({
 function getYouthRulesPageHref({
   category,
   page,
+  target,
 }: {
   category: YouthRuleCategoryFilter;
   page: number;
+  target: YouthRuleTargetFilter;
 }) {
   const params = new URLSearchParams();
+
+  if (target !== "all") {
+    params.set("target", target);
+  }
 
   if (category !== "all") {
     params.set("category", category);

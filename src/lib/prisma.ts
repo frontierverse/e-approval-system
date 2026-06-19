@@ -6,24 +6,38 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+const requiredPrismaDelegates = [
+  "attachmentPolicy",
+  "notification",
+  "resourcePost",
+  "resourceAttachment",
+  "resourcePostView",
+  "youth",
+  "youthFamilyContact",
+  "youthSpecialNote",
+  "youthLearningSchedule",
+  "youthRule",
+  "loginHistory",
+] as const;
+
+const requiredYouthLearningScheduleFields = [
+  "recurrenceSourceDate",
+  "recurrenceWeekdays",
+] as const;
+
 const adapter = new PrismaPg({
   connectionString: getDatabaseUrl(),
 });
 
-export const prisma =
-  globalForPrisma.prisma &&
-  "attachmentPolicy" in globalForPrisma.prisma &&
-  "notification" in globalForPrisma.prisma &&
-  "resourcePost" in globalForPrisma.prisma &&
-  "resourceAttachment" in globalForPrisma.prisma &&
-  "resourcePostView" in globalForPrisma.prisma &&
-  "youth" in globalForPrisma.prisma &&
-  "youthFamilyContact" in globalForPrisma.prisma &&
-  "youthSpecialNote" in globalForPrisma.prisma &&
-  "youthLearningSchedule" in globalForPrisma.prisma &&
-  "loginHistory" in globalForPrisma.prisma
-    ? globalForPrisma.prisma
-    : new PrismaClient({ adapter });
+const cachedPrisma = globalForPrisma.prisma;
+
+export const prisma = isReusablePrismaClient(cachedPrisma)
+  ? cachedPrisma
+  : new PrismaClient({ adapter });
+
+if (cachedPrisma && cachedPrisma !== prisma) {
+  void cachedPrisma.$disconnect().catch(() => undefined);
+}
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
@@ -37,4 +51,46 @@ function getDatabaseUrl() {
   }
 
   return databaseUrl;
+}
+
+function isReusablePrismaClient(
+  client: PrismaClient | undefined,
+): client is PrismaClient {
+  if (!client) {
+    return false;
+  }
+
+  return (
+    hasRequiredPrismaDelegates(client) &&
+    hasRequiredYouthLearningScheduleFields(client)
+  );
+}
+
+function hasRequiredPrismaDelegates(client: PrismaClient) {
+  const record = client as unknown as Record<string, unknown>;
+
+  return requiredPrismaDelegates.every((delegate) => delegate in record);
+}
+
+function hasRequiredYouthLearningScheduleFields(client: PrismaClient) {
+  const model = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: {
+          YouthLearningSchedule?: {
+            fields?: Array<{ name?: string }>;
+          };
+        };
+      };
+    }
+  )._runtimeDataModel?.models?.YouthLearningSchedule;
+  const fieldNames = new Set(
+    (model?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+
+  return requiredYouthLearningScheduleFields.every((field) =>
+    fieldNames.has(field),
+  );
 }

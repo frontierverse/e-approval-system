@@ -5,6 +5,7 @@ import {
   getYouthRules,
   getYouthRuleTargets,
   type YouthRuleCategoryFilter,
+  type YouthRuleTargetFilter,
 } from "@/lib/youth-rules";
 import { isYouthRuleCategory } from "@/lib/youth-management-core";
 import {
@@ -17,6 +18,7 @@ type YouthRulesPageProps = {
     category?: string | string[];
     page?: string | string[];
     ruleError?: string | string[];
+    target?: string | string[];
   }>;
 };
 
@@ -27,13 +29,13 @@ export default async function YouthRulesPage({
   const params = await searchParams;
   const selectedCategory = getSelectedRuleCategory(params.category);
   const selectedPage = getSelectedPage(params.page);
-  const [ruleResult, targets] = await Promise.all([
-    getYouthRules({
-      category: selectedCategory,
-      page: selectedPage,
-    }),
-    getYouthRuleTargets(),
-  ]);
+  const targets = await getYouthRuleTargets();
+  const selectedTarget = getSelectedRuleTarget(params.target, targets);
+  const ruleResult = await getYouthRules({
+    category: selectedCategory,
+    page: selectedPage,
+    target: selectedTarget,
+  });
 
   return (
     <>
@@ -50,6 +52,7 @@ export default async function YouthRulesPage({
         ruleError={getRuleError(params.ruleError)}
         rules={ruleResult.rules}
         selectedCategory={ruleResult.category}
+        selectedTarget={ruleResult.target}
         targets={targets}
         total={ruleResult.total}
         totalPages={ruleResult.totalPages}
@@ -71,6 +74,19 @@ function getSelectedPage(value: string | string[] | undefined) {
   const page = Number(pageValue);
 
   return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function getSelectedRuleTarget(
+  value: string | string[] | undefined,
+  targets: Array<{ id: string }>,
+): YouthRuleTargetFilter {
+  const target = Array.isArray(value) ? value[0] : value;
+
+  if (target === "common") {
+    return "common";
+  }
+
+  return target && targets.some((item) => item.id === target) ? target : "all";
 }
 
 function getRuleError(value: string | string[] | undefined) {

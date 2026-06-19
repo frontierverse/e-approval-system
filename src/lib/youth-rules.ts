@@ -6,17 +6,19 @@ import {
   isYouthRuleCategory,
   normalizeYouthRuleCategory,
   type YouthRule,
-  type YouthRuleCategory,
+  type YouthRuleCategoryFilter,
   type YouthRuleTarget,
+  type YouthRuleTargetFilter,
 } from "@/lib/youth-management-core";
 
-export type YouthRuleCategoryFilter = YouthRuleCategory | "all";
+export type { YouthRuleCategoryFilter, YouthRuleTargetFilter };
 
 export type YouthRulesResult = {
   category: YouthRuleCategoryFilter;
   page: number;
   pageSize: number;
   rules: YouthRule[];
+  target: YouthRuleTargetFilter;
   total: number;
   totalPages: number;
 };
@@ -36,17 +38,20 @@ export async function getYouthRules({
   category = "all",
   page = 1,
   pageSize = youthRulesPageSize,
+  target = "all",
 }: {
   category?: YouthRuleCategoryFilter;
   page?: number;
   pageSize?: number;
+  target?: YouthRuleTargetFilter;
 } = {}): Promise<YouthRulesResult> {
   const normalizedCategory = isYouthRuleCategory(category) ? category : "all";
+  const normalizedTarget = normalizeYouthRuleTargetFilter(target);
   const normalizedPageSize = Math.max(1, pageSize);
-  const whereClause =
-    normalizedCategory === "all"
-      ? Prisma.empty
-      : Prisma.sql`WHERE rule."category" = ${normalizedCategory}`;
+  const whereClause = createYouthRuleWhereClause({
+    category: normalizedCategory,
+    target: normalizedTarget,
+  });
   const countRows = await prisma.$queryRaw<Array<{ total: number }>>(
     Prisma.sql`
       SELECT COUNT(*)::int AS "total"
@@ -81,6 +86,7 @@ export async function getYouthRules({
     page: normalizedPage,
     pageSize: normalizedPageSize,
     rules: rules.map(mapYouthRule),
+    target: normalizedTarget,
     total,
     totalPages,
   };
@@ -114,4 +120,36 @@ function clampPage(page: number, totalPages: number) {
   }
 
   return Math.min(page, totalPages);
+}
+
+function createYouthRuleWhereClause({
+  category,
+  target,
+}: {
+  category: YouthRuleCategoryFilter;
+  target: YouthRuleTargetFilter;
+}) {
+  const conditions: Prisma.Sql[] = [];
+
+  if (category !== "all") {
+    conditions.push(Prisma.sql`rule."category" = ${category}`);
+  }
+
+  if (target === "common") {
+    conditions.push(Prisma.sql`rule."targetYouthId" IS NULL`);
+  } else if (target !== "all") {
+    conditions.push(Prisma.sql`rule."targetYouthId" = ${target}`);
+  }
+
+  return conditions.length > 0
+    ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+    : Prisma.empty;
+}
+
+function normalizeYouthRuleTargetFilter(
+  target: YouthRuleTargetFilter,
+): YouthRuleTargetFilter {
+  const normalizedTarget = target.trim();
+
+  return normalizedTarget ? normalizedTarget : "all";
 }
