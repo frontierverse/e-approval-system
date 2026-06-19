@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { DatePickerInput } from "@/components/date-picker-input";
 
 export type AdminFormMessageState = {
   success?: string;
@@ -38,16 +39,28 @@ export function TextField({
           </span>
         ) : null}
       </span>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue ?? ""}
-        placeholder={placeholder}
-        min={min}
-        max={max}
-        aria-describedby={description ? descriptionId : undefined}
-        className="mt-2 h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-      />
+      {type === "date" ? (
+        <DatePickerInput
+          name={name}
+          defaultValue={defaultValue ?? ""}
+          placeholder={placeholder}
+          min={typeof min === "number" ? String(min) : undefined}
+          max={typeof max === "number" ? String(max) : undefined}
+          aria-describedby={description ? descriptionId : undefined}
+          className="mt-2 h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          defaultValue={defaultValue ?? ""}
+          placeholder={placeholder}
+          min={min}
+          max={max}
+          aria-describedby={description ? descriptionId : undefined}
+          className="mt-2 h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+        />
+      )}
     </label>
   );
 }

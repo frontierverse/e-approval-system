@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DatePickerInput } from "@/components/date-picker-input";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
 type StatusOption = {
@@ -80,10 +81,9 @@ export function DocumentListControls({
           >
             시작일
           </label>
-          <input
+          <DatePickerInput
             id="dateFrom"
             name="dateFrom"
-            type="date"
             defaultValue={dateFrom}
             className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />
@@ -96,10 +96,9 @@ export function DocumentListControls({
           >
             종료일
           </label>
-          <input
+          <DatePickerInput
             id="dateTo"
             name="dateTo"
-            type="date"
             defaultValue={dateTo}
             className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />

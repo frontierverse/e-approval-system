@@ -6,6 +6,9 @@ import {
   isYouthRuleCategory,
   normalizeYouthRuleCategory,
   type YouthRule,
+  type YouthRuleChangeLogActor,
+  type YouthRuleChangeLog,
+  type YouthRuleChangeLogFilters,
   type YouthRuleCategoryFilter,
   type YouthRuleTarget,
   type YouthRuleTargetFilter,
@@ -23,6 +26,10 @@ export type YouthRulesResult = {
   totalPages: number;
 };
 
+export type YouthRuleChangeLogsResult = YouthRuleChangeLogFilters & {
+  logs: YouthRuleChangeLog[];
+};
+
 type YouthRuleRecord = {
   id: string;
   category: string;
@@ -33,6 +40,7 @@ type YouthRuleRecord = {
 };
 
 const youthRulesPageSize = 10;
+const youthRuleChangeLogPageSize = 10;
 
 export async function getYouthRules({
   category = "all",
@@ -100,6 +108,102 @@ export async function getYouthRuleTargets(): Promise<YouthRuleTarget[]> {
   `;
 }
 
+export async function getYouthRuleChangeLogs({
+  actorId = "all",
+  category = "all",
+  page = 1,
+  pageSize = youthRuleChangeLogPageSize,
+  target = "all",
+}: {
+  actorId?: string;
+  category?: YouthRuleCategoryFilter;
+  page?: number;
+  pageSize?: number;
+  target?: YouthRuleTargetFilter;
+} = {}): Promise<YouthRuleChangeLogsResult> {
+  const normalizedActorId = actorId.trim() || "all";
+  const normalizedCategory = isYouthRuleCategory(category) ? category : "all";
+  const normalizedTarget = normalizeYouthRuleTargetFilter(target);
+  const normalizedPageSize = Math.max(1, pageSize);
+  const where = createYouthRuleChangeLogWhere({
+    actorId: normalizedActorId,
+    category: normalizedCategory,
+    target: normalizedTarget,
+  });
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
+  const normalizedPage = clampPage(page, totalPages);
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (normalizedPage - 1) * normalizedPageSize,
+    take: normalizedPageSize,
+    select: {
+      id: true,
+      message: true,
+      metadata: true,
+      createdAt: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+        },
+      },
+    },
+  });
+
+  return {
+    actorId: normalizedActorId,
+    category: normalizedCategory,
+    logs: logs.map((log) => ({
+      id: log.id,
+      message: log.message,
+      metadata: log.metadata,
+      createdAt: log.createdAt.toISOString(),
+      actor: {
+        ...log.actor,
+        profileImageUpdatedAt:
+          log.actor.profileImageUpdatedAt?.toISOString() ?? null,
+      },
+    })),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    target: normalizedTarget,
+    total,
+    totalPages,
+  };
+}
+
+export async function getYouthRuleChangeLogActors(): Promise<
+  YouthRuleChangeLogActor[]
+> {
+  const rows = await prisma.auditLog.findMany({
+    distinct: ["actorId"],
+    where: createYouthRuleChangeLogWhere(),
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return rows
+    .map((row) => row.actor)
+    .sort((first, second) => first.name.localeCompare(second.name, "ko-KR"));
+}
+
 export function mapYouthRule(record: YouthRuleRecord): YouthRule {
   return {
     id: record.id,
@@ -144,6 +248,67 @@ function createYouthRuleWhereClause({
   return conditions.length > 0
     ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
     : Prisma.empty;
+}
+
+function createYouthRuleChangeLogWhere({
+  actorId = "all",
+  category = "all",
+  target = "all",
+}: {
+  actorId?: string;
+  category?: YouthRuleCategoryFilter;
+  target?: YouthRuleTargetFilter;
+} = {}): Prisma.AuditLogWhereInput {
+  const conditions: Prisma.AuditLogWhereInput[] = [
+    {
+      OR: [
+        {
+          targetType: "YouthRule",
+        },
+        {
+          metadata: {
+            path: ["source"],
+            equals: "youth-rules",
+          },
+        },
+      ],
+    },
+  ];
+
+  if (actorId !== "all") {
+    conditions.push({
+      actorId,
+    });
+  }
+
+  if (category !== "all") {
+    conditions.push({
+      metadata: {
+        path: ["category"],
+        equals: category,
+      },
+    });
+  }
+
+  if (target === "common") {
+    conditions.push({
+      metadata: {
+        path: ["targetYouthId"],
+        equals: Prisma.JsonNull,
+      },
+    });
+  } else if (target !== "all") {
+    conditions.push({
+      metadata: {
+        path: ["targetYouthId"],
+        equals: target,
+      },
+    });
+  }
+
+  return {
+    AND: conditions,
+  };
 }
 
 function normalizeYouthRuleTargetFilter(

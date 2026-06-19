@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { YouthRuleChangeLogFilterControlsContent } from "../src/components/youth-rule-change-log-filter-controls.tsx";
 import { YouthRuleFilterControlsContent } from "../src/components/youth-rule-filter-controls.tsx";
-import { YouthRulesBoard } from "../src/components/youth-rules-board.tsx";
+import {
+  YouthRuleChangeLogList,
+  YouthRulesBoard,
+} from "../src/components/youth-rules-board.tsx";
 import type {
   YouthRule,
+  YouthRuleChangeLogActor,
+  YouthRuleChangeLog,
+  YouthRuleChangeLogFilters,
   YouthRuleCategoryFilter,
   YouthRuleTarget,
   YouthRuleTargetFilter,
@@ -40,6 +47,50 @@ const targets: YouthRuleTarget[] = [
     name: "이도현",
   },
 ];
+
+const changeLogs: YouthRuleChangeLog[] = [
+  {
+    id: "rule-change-log-001",
+    message: "김하늘 대상 학습 규칙을 생성했습니다.",
+    metadata: {
+      category: "학습",
+      source: "youth-rules",
+      targetYouthId: "youth-test-001",
+      targetYouthName: "김하늘",
+    },
+    createdAt: "2026-06-19T04:00:00.000Z",
+    actor: {
+      id: "user-test-001",
+      name: "최윤서",
+      email: "staff@example.com",
+      profileImageStorageKey: null,
+      profileImageUpdatedAt: null,
+    },
+  },
+];
+
+const changeLogActors: YouthRuleChangeLogActor[] = [
+  {
+    id: "user-test-001",
+    name: "최윤서",
+    email: "staff@example.com",
+  },
+  {
+    id: "user-test-002",
+    name: "정하리",
+    email: "teacher@example.com",
+  },
+];
+
+const changeLogFilters: YouthRuleChangeLogFilters = {
+  actorId: "all",
+  category: "all",
+  page: 1,
+  pageSize: 10,
+  target: "all",
+  total: 16,
+  totalPages: 2,
+};
 
 describe("YouthRulesBoard", () => {
   test("renders dropdowns and detail textarea for rule creation", () => {
@@ -89,6 +140,7 @@ describe("YouthRulesBoard", () => {
     assert.match(html, /공통/);
     assert.match(html, /저녁 학습 시간에는 휴대폰을 보관/);
     assert.match(html, />삭제</);
+    assert.doesNotMatch(html, /규칙 변경 내역/);
   });
 
   test("renders an empty state when no youth rules exist", () => {
@@ -153,6 +205,134 @@ describe("YouthRulesBoard", () => {
     assert.doesNotMatch(html, /목록 갱신 중/);
   });
 });
+
+describe("YouthRuleChangeLogList", () => {
+  test("renders change logs with ten items per page pagination", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRuleChangeLogList, {
+        actors: changeLogActors,
+        filterControls: createChangeLogFilterControls(),
+        filters: changeLogFilters,
+        logs: changeLogs,
+        targets,
+      }),
+    );
+
+    assert.match(html, /규칙 변경 내역/);
+    assert.match(html, /16건 중 1-10건 표시/);
+    assert.match(html, /name="historyTarget"/);
+    assert.match(html, /name="historyCategory"/);
+    assert.match(html, /name="historyStaff"/);
+    assert.doesNotMatch(html, /action="\/youth\/rules"/);
+    assert.doesNotMatch(html, /method="get"/);
+    assert.match(html, /<option[^>]*value="all"[^>]*>전체 대상<\/option>/);
+    assert.match(html, /<option[^>]*value="common"[^>]*>공통<\/option>/);
+    assert.match(html, /<option[^>]*value="youth-test-001">김하늘<\/option>/);
+    assert.match(html, /<option[^>]*value="all"[^>]*>전체<\/option>/);
+    assert.match(html, /<option[^>]*value="학습"/);
+    assert.match(html, /<option[^>]*value="all"[^>]*>전체 직원<\/option>/);
+    assert.match(html, /<option[^>]*value="user-test-001">최윤서<\/option>/);
+    assert.match(html, /김하늘 대상 학습 규칙을 생성했습니다/);
+    assert.match(html, /최윤서/);
+    assert.match(html, /staff@example\.com/);
+    assert.match(
+      html,
+      /href="\/youth\/rules\?tab=history&amp;historyPage=2"/,
+    );
+  });
+
+  test("renders an empty state when no rule change logs exist", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRuleChangeLogList, {
+        actors: [],
+        filterControls: createChangeLogFilterControls({
+          actors: [],
+          filters: {
+            actorId: "all",
+            category: "all",
+            page: 1,
+            pageSize: 10,
+            target: "all",
+            total: 0,
+            totalPages: 1,
+          },
+          targets: [],
+        }),
+        filters: {
+          actorId: "all",
+          category: "all",
+          page: 1,
+          pageSize: 10,
+          target: "all",
+          total: 0,
+          totalPages: 1,
+        },
+        logs: [],
+        targets: [],
+      }),
+    );
+
+    assert.match(html, /기록된 규칙 변경 내역이 없습니다/);
+    assert.match(html, /표시할 변경 내역이 없습니다/);
+  });
+
+  test("uses the history tab URL on change history pagination links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRuleChangeLogList, {
+        actors: changeLogActors,
+        filterControls: createChangeLogFilterControls({
+          filters: {
+            actorId: "user-test-001",
+            category: "학습",
+            page: 2,
+            pageSize: 10,
+            target: "common",
+            total: 21,
+            totalPages: 3,
+          },
+        }),
+        filters: {
+          actorId: "user-test-001",
+          category: "학습",
+          page: 2,
+          pageSize: 10,
+          target: "common",
+          total: 21,
+          totalPages: 3,
+        },
+        logs: changeLogs,
+        targets,
+      }),
+    );
+
+    assert.match(html, /21건 중 11-20건 표시/);
+    assert.match(html, /초기화/);
+    assert.match(
+      html,
+      /href="\/youth\/rules\?tab=history&amp;historyTarget=common&amp;historyCategory=%ED%95%99%EC%8A%B5&amp;historyStaff=user-test-001&amp;historyPage=3"/,
+    );
+  });
+});
+
+function createChangeLogFilterControls({
+  actors = changeLogActors,
+  filters = changeLogFilters,
+  isPending = false,
+  targets: ruleTargets = targets,
+}: {
+  actors?: YouthRuleChangeLogActor[];
+  filters?: YouthRuleChangeLogFilters;
+  isPending?: boolean;
+  targets?: YouthRuleTarget[];
+} = {}) {
+  return React.createElement(YouthRuleChangeLogFilterControlsContent, {
+    actors,
+    filters,
+    isPending,
+    navigate: () => {},
+    targets: ruleTargets,
+  });
+}
 
 function createRuleFilterControls({
   isPending = false,

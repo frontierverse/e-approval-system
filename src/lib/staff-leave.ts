@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import {
   formatStaffLeaveDays,
   getStaffLeaveAccrualEntries,
+  getLegacyVacationLeaveDeductionFromContent,
   getVacationLeaveDeduction,
   staffLeaveEntryTypes,
 } from "@/lib/staff-leave-core";
@@ -46,13 +47,12 @@ export async function ensureStaffLeaveAccruals(
       id: userId,
     },
     select: {
-      createdAt: true,
       hireDate: true,
       resignationDate: true,
     },
   });
 
-  if (!user) {
+  if (!user?.hireDate) {
     return;
   }
 
@@ -67,7 +67,6 @@ export async function ensureStaffLeaveAccruals(
       sourceKey: true,
     },
   });
-  const hireDate = user.hireDate ?? getKoreanDateValue(user.createdAt);
   const accrualUntil =
     user.resignationDate && user.resignationDate < today
       ? user.resignationDate
@@ -76,7 +75,7 @@ export async function ensureStaffLeaveAccruals(
     existingSourceKeys: existingEntries
       .map((entry) => entry.sourceKey)
       .filter((sourceKey): sourceKey is string => Boolean(sourceKey)),
-    hireDate,
+    hireDate: user.hireDate,
     today: accrualUntil,
   });
 
@@ -137,7 +136,9 @@ export async function recordApprovedVacationLeaveDeduction(
     document.template.schema,
     document.content,
   );
-  const deduction = getVacationLeaveDeduction(values);
+  const deduction =
+    getVacationLeaveDeduction(values) ??
+    getLegacyVacationLeaveDeductionFromContent(document.content);
 
   if (!deduction) {
     return;

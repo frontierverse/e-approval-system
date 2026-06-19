@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   formatStaffLeaveDays,
   getAnnualLeaveGrantDays,
+  getLegacyVacationLeaveDeductionFromContent,
   getStaffLeaveAccrualEntries,
   getVacationLeaveDeduction,
 } from "../src/lib/staff-leave-core.ts";
@@ -53,6 +54,37 @@ describe("staff leave core", () => {
       eventDate: "2026-06-22",
       leaveType: "half_day",
       reason: "오후 반차 2026-06-22",
+    });
+  });
+
+  test("creates half-day deductions from legacy vacation request content", () => {
+    const deduction = getLegacyVacationLeaveDeductionFromContent(
+      [
+        "휴가 신청서",
+        "1. 신청자 : 심태호",
+        "2. 휴가 일시 및 종류 : 2026년 6월 19일 금요일 오후 반차",
+        "3. 휴가 사유 : 개인 일정",
+      ].join("\n"),
+    );
+
+    assert.deepEqual(deduction, {
+      amountHalfDays: -1,
+      eventDate: "2026-06-19",
+      leaveType: "half_day",
+      reason: "오후 반차 2026-06-19",
+    });
+  });
+
+  test("creates annual deductions from legacy vacation request content", () => {
+    const deduction = getLegacyVacationLeaveDeductionFromContent(
+      "연차 사용 기간: 2026년 6월 22일 ~ 2026년 6월 24일",
+    );
+
+    assert.deepEqual(deduction, {
+      amountHalfDays: -6,
+      eventDate: "2026-06-22",
+      leaveType: "annual",
+      reason: "연차 2026-06-22~2026-06-24",
     });
   });
 

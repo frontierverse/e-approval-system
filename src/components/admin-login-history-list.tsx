@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DatePickerInput } from "@/components/date-picker-input";
 import { UserIdentity } from "@/components/user-identity";
 import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -229,10 +230,9 @@ function LoginHistoryFilters({
           >
             시작일
           </label>
-          <input
+          <DatePickerInput
             id="dateFrom"
             name="dateFrom"
-            type="date"
             defaultValue={filters.dateFrom}
             className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />
@@ -245,10 +245,9 @@ function LoginHistoryFilters({
           >
             종료일
           </label>
-          <input
+          <DatePickerInput
             id="dateTo"
             name="dateTo"
-            type="date"
             defaultValue={filters.dateTo}
             className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />

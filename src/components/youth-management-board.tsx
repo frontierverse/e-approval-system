@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { DatePickerInput } from "@/components/date-picker-input";
 import {
   youthNoteCategories,
   youthNotePriorities,
@@ -598,8 +599,7 @@ export function YouthManagementBoard({
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <OptionalRegisterField label="입소날짜">
-                      <input
-                        type="date"
+                      <DatePickerInput
                         value={newYouthAdmissionDate}
                         onChange={(event) =>
                           setNewYouthAdmissionDate(event.target.value)
@@ -608,8 +608,7 @@ export function YouthManagementBoard({
                       />
                     </OptionalRegisterField>
                     <OptionalRegisterField label="퇴소날짜">
-                      <input
-                        type="date"
+                      <DatePickerInput
                         value={newYouthDischargeDate}
                         onChange={(event) =>
                           setNewYouthDischargeDate(event.target.value)
@@ -869,8 +868,7 @@ export function YouthManagementBoard({
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <OptionalRegisterField label="입소날짜">
-                      <input
-                        type="date"
+                      <DatePickerInput
                         value={editYouthAdmissionDate}
                         onChange={(event) =>
                           setEditYouthAdmissionDate(event.target.value)
@@ -879,8 +877,7 @@ export function YouthManagementBoard({
                       />
                     </OptionalRegisterField>
                     <OptionalRegisterField label="퇴소날짜">
-                      <input
-                        type="date"
+                      <DatePickerInput
                         value={editYouthDischargeDate}
                         onChange={(event) =>
                           setEditYouthDischargeDate(event.target.value)
@@ -1286,8 +1283,7 @@ export function YouthManagementBoard({
                   </NoteField>
                   <NoteField label="기록일">
                     {editing ? (
-                      <input
-                        type="date"
+                      <DatePickerInput
                         value={draft.recordedAt}
                         onChange={(event) =>
                           setDraft((current) => ({

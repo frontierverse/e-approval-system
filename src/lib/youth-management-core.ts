@@ -40,6 +40,36 @@ export type YouthRuleTarget = {
   name: string;
 };
 
+export type YouthRuleChangeLog = {
+  id: string;
+  message: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string;
+    email: string | null;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
+export type YouthRuleChangeLogFilters = {
+  actorId: string;
+  category: YouthRuleCategoryFilter;
+  page: number;
+  pageSize: number;
+  target: YouthRuleTargetFilter;
+  total: number;
+  totalPages: number;
+};
+
+export type YouthRuleChangeLogActor = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
 export type YouthSpecialNote = {
   id: string;
   title: string;

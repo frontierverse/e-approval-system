@@ -14,6 +14,7 @@ import {
 import { createDraftAction } from "@/app/drafts/new/actions";
 import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { DatePickerInput } from "@/components/date-picker-input";
 import { PendingOverlay } from "@/components/form-pending-overlay";
 import {
   documentContentLineNumberColumnClass,
@@ -1339,6 +1340,17 @@ function TemplateInput({
           />
           <span>{field.helpText || "예"}</span>
         </label>
+      ) : field.type === "date" ? (
+        <DatePickerInput
+          id={inputId}
+          name={inputName}
+          required={isRequired}
+          disabled={pending}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.placeholder}
+          className={`${baseClass} h-11`}
+        />
       ) : (
         <input
           id={inputId}
@@ -1347,28 +1359,13 @@ function TemplateInput({
           disabled={pending}
           type={field.type}
           value={value}
-          onClick={(event) => openDatePicker(event.currentTarget)}
           onChange={(event) => onChange(event.target.value)}
           placeholder={field.placeholder}
-          className={`${baseClass} h-11 ${field.type === "date" ? "cursor-pointer" : ""}`}
+          className={`${baseClass} h-11`}
         />
       )}
     </div>
   );
-}
-
-function openDatePicker(input: HTMLInputElement) {
-  if (input.type !== "date" || input.disabled || input.readOnly) {
-    return;
-  }
-
-  input.focus();
-
-  try {
-    input.showPicker?.();
-  } catch {
-    // Some browsers only allow showPicker during specific trusted gestures.
-  }
 }
 
 function LineNumberedTextarea({

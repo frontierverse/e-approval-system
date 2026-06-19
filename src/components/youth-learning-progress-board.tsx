@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { ChangeEvent, PointerEvent } from "react";
+import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
 import { UserIdentity } from "@/components/user-identity";
 import type {
@@ -711,8 +712,7 @@ export function YouthLearningProgressBoardContent({
               </button>
               <label className="min-w-0 sm:w-44">
                 <span className="sr-only">날짜 선택</span>
-                <input
-                  type="date"
+                <DatePickerInput
                   name="date"
                   value={dateDraft}
                   onChange={(event) => setDateDraft(event.target.value)}
@@ -1479,10 +1479,9 @@ function ChangeLogFilterControls({
       </label>
       <label>
         <span className="block text-xs font-semibold text-[#697386]">날짜</span>
-        <input
+        <DatePickerInput
           aria-label="변경내역 날짜 필터"
           name="logDate"
-          type="date"
           defaultValue={filters.scheduleDate}
           onChange={submitFilter}
           className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"

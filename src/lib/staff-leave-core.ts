@@ -143,6 +143,57 @@ export function getVacationLeaveDeduction(
   return null;
 }
 
+export function getLegacyVacationLeaveDeductionFromContent(
+  content: string,
+): StaffLeaveVacationDeduction | null {
+  const normalizedContent = normalizeLegacyVacationContent(content);
+  const dates = extractLegacyVacationDates(normalizedContent);
+
+  if (dates.length === 0) {
+    return null;
+  }
+
+  if (normalizedContent.includes("반차")) {
+    const period = getLegacyHalfDayPeriod(normalizedContent);
+
+    if (!period) {
+      return null;
+    }
+
+    const periodLabel = period === "afternoon" ? "오후" : "오전";
+
+    return {
+      amountHalfDays: -1,
+      eventDate: dates[0],
+      leaveType: "half_day",
+      reason: `${periodLabel} 반차 ${dates[0]}`,
+    };
+  }
+
+  if (!normalizedContent.includes("연차")) {
+    return null;
+  }
+
+  const startDate = dates[0];
+  const endDate = dates[1] ?? startDate;
+
+  if (startDate > endDate) {
+    return null;
+  }
+
+  const days = countInclusiveDays(startDate, endDate);
+
+  return {
+    amountHalfDays: -days * staffLeaveHalfDaysPerDay,
+    eventDate: startDate,
+    leaveType: "annual",
+    reason:
+      startDate === endDate
+        ? `연차 ${startDate}`
+        : `연차 ${startDate}~${endDate}`,
+  };
+}
+
 export function formatStaffLeaveDays(amountHalfDays: number) {
   const days = amountHalfDays / staffLeaveHalfDaysPerDay;
 
@@ -170,6 +221,45 @@ function countInclusiveDays(startDate: string, endDate: string) {
   }
 
   return days;
+}
+
+function normalizeLegacyVacationContent(content: string) {
+  return content.replace(/\s+/g, " ").trim();
+}
+
+function extractLegacyVacationDates(content: string) {
+  const dates: string[] = [];
+  const seenDates = new Set<string>();
+  const patterns = [
+    /(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/g,
+    /(\d{4})[-./](\d{1,2})[-./](\d{1,2})/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of content.matchAll(pattern)) {
+      const date = toDateValue(match[1], match[2], match[3]);
+
+      if (!isDateValue(date) || seenDates.has(date)) {
+        continue;
+      }
+
+      dates.push(date);
+      seenDates.add(date);
+    }
+  }
+
+  return dates;
+}
+
+function getLegacyHalfDayPeriod(content: string) {
+  const hasMorning = content.includes("오전");
+  const hasAfternoon = content.includes("오후");
+
+  if (hasMorning === hasAfternoon) {
+    return null;
+  }
+
+  return hasAfternoon ? "afternoon" : "morning";
 }
 
 function addYears(value: string, years: number) {
@@ -211,6 +301,14 @@ function getDateParts(value: string): [number, number, number] {
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function toDateValue(year: string, month: string, day: string) {
+  return [
+    year.padStart(4, "0"),
+    month.padStart(2, "0"),
+    day.padStart(2, "0"),
+  ].join("-");
 }
 
 function formatDateValue(value: Date) {

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { YouthRuleChangeLogFilterControls } from "@/components/youth-rule-change-log-filter-controls";
+import { UserIdentity } from "@/components/user-identity";
 import {
   YouthRuleFilterControls,
   YouthRuleListTransitionProvider,
@@ -11,6 +13,9 @@ import {
   youthRuleCategories,
   youthRuleDetailMaxLength,
   type YouthRule,
+  type YouthRuleChangeLogActor,
+  type YouthRuleChangeLog,
+  type YouthRuleChangeLogFilters,
   type YouthRuleCategoryFilter,
   type YouthRuleTarget,
   type YouthRuleTargetFilter,
@@ -340,6 +345,214 @@ function getYouthRulesPageHref({
   const queryString = params.toString();
 
   return queryString ? `/youth/rules?${queryString}` : "/youth/rules";
+}
+
+export function YouthRuleChangeLogList({
+  actors,
+  filterControls,
+  filters,
+  logs,
+  targets,
+}: {
+  actors: YouthRuleChangeLogActor[];
+  filterControls?: React.ReactNode;
+  filters: YouthRuleChangeLogFilters;
+  logs: YouthRuleChangeLog[];
+  targets: YouthRuleTarget[];
+}) {
+  return (
+    <section
+      aria-label="규칙 변경 내역"
+      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white xl:col-span-2"
+    >
+      <header className="border-b border-[#eef1f5] px-5 py-4">
+        <h2 className="text-base font-semibold text-[#16181d]">
+          규칙 변경 내역
+        </h2>
+        <RuleChangeLogListSummary filters={filters} />
+      </header>
+
+      {filterControls ?? (
+        <YouthRuleChangeLogFilterControls
+          actors={actors}
+          filters={filters}
+          targets={targets}
+        />
+      )}
+
+      {logs.length > 0 ? (
+        <ol className="divide-y divide-[#eef1f5]">
+          {logs.map((log) => {
+            const detail = getRuleChangeLogDetail(log.metadata);
+
+            return (
+              <li
+                key={log.id}
+                className="grid gap-3 px-5 py-4 lg:grid-cols-[12rem_minmax(0,1fr)]"
+              >
+                <div className="min-w-0">
+                  <time
+                    dateTime={log.createdAt}
+                    className="text-sm font-semibold text-[#394150]"
+                  >
+                    {formatDateTime(log.createdAt)}
+                  </time>
+                  <UserIdentity
+                    user={log.actor}
+                    size="xs"
+                    meta={log.actor.email ?? "이메일 미등록"}
+                    className="mt-2"
+                    nameClassName="text-[#394150]"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                    {detail?.category ? (
+                      <span className="inline-flex h-7 items-center rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2.5 text-xs font-semibold text-[#196b69]">
+                        {detail.category}
+                      </span>
+                    ) : null}
+                    {detail?.targetLabel ? (
+                      <span className={getTargetBadgeClass(detail.targetYouthId)}>
+                        {detail.targetLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="break-words text-sm font-semibold leading-6 text-[#16181d] [overflow-wrap:anywhere]">
+                    {log.message ?? "규칙 변경 내역이 기록되었습니다."}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="m-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+          기록된 규칙 변경 내역이 없습니다.
+        </p>
+      )}
+
+      <YouthRuleChangeLogPagination
+        filters={filters}
+      />
+    </section>
+  );
+}
+
+function RuleChangeLogListSummary({
+  filters,
+}: {
+  filters: YouthRuleChangeLogFilters;
+}) {
+  if (filters.total === 0) {
+    return (
+      <p className="mt-1 text-sm text-[#697386]">
+        표시할 변경 내역이 없습니다.
+      </p>
+    );
+  }
+
+  const firstItem = (filters.page - 1) * filters.pageSize + 1;
+  const lastItem = Math.min(filters.page * filters.pageSize, filters.total);
+
+  return (
+    <p className="mt-1 text-sm text-[#697386]">
+      {filters.total}건 중 {firstItem}-{lastItem}건 표시
+    </p>
+  );
+}
+
+function YouthRuleChangeLogPagination({
+  filters,
+}: {
+  filters: YouthRuleChangeLogFilters;
+}) {
+  if (filters.totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="규칙 변경 내역 페이지"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1f5] px-5 py-4"
+    >
+      <p className="text-sm text-[#697386]">
+        {filters.page} / {filters.totalPages} 페이지
+      </p>
+      <div className="flex gap-2">
+        <YouthRulesPaginationLink
+          disabled={filters.page <= 1}
+          href={getYouthRuleChangeLogPageHref(filters, filters.page - 1)}
+        >
+          이전
+        </YouthRulesPaginationLink>
+        <YouthRulesPaginationLink
+          disabled={filters.page >= filters.totalPages}
+          href={getYouthRuleChangeLogPageHref(filters, filters.page + 1)}
+        >
+          다음
+        </YouthRulesPaginationLink>
+      </div>
+    </nav>
+  );
+}
+
+function getYouthRuleChangeLogPageHref(
+  filters: YouthRuleChangeLogFilters,
+  page: number,
+) {
+  const params = new URLSearchParams({
+    tab: "history",
+  });
+
+  if (filters.target !== "all") {
+    params.set("historyTarget", filters.target);
+  }
+
+  if (filters.category !== "all") {
+    params.set("historyCategory", filters.category);
+  }
+
+  if (filters.actorId !== "all") {
+    params.set("historyStaff", filters.actorId);
+  }
+
+  if (page > 1) {
+    params.set("historyPage", String(page));
+  }
+
+  return `/youth/rules?${params.toString()}`;
+}
+
+function getRuleChangeLogDetail(metadata: unknown) {
+  if (!isPlainObject(metadata)) {
+    return null;
+  }
+
+  const category =
+    typeof metadata.category === "string" ? metadata.category : null;
+  const targetYouthId =
+    typeof metadata.targetYouthId === "string" ? metadata.targetYouthId : null;
+  const targetYouthName =
+    typeof metadata.targetYouthName === "string"
+      ? metadata.targetYouthName
+      : null;
+  const hasTargetMetadata = "targetYouthId" in metadata;
+  const targetLabel = targetYouthName ?? (hasTargetMetadata ? "공통" : null);
+
+  if (!category && !targetLabel) {
+    return null;
+  }
+
+  return {
+    category,
+    targetLabel,
+    targetYouthId,
+  };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getTargetBadgeClass(targetYouthId: string | null) {
