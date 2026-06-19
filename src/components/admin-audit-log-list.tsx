@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { adminListStyles } from "@/lib/admin-list-styles";
-import { DatePickerInput } from "@/components/date-picker-input";
 import {
-  auditActionOptions,
+  AdminAuditLogFilterControls,
+  type AdminAuditActor,
+  type AdminAuditLogFilters,
+} from "@/components/admin-audit-log-filter-controls";
+import { adminListStyles } from "@/lib/admin-list-styles";
+import {
   getAuditActionBadgeClass,
   getAuditActionLabel,
-  type AuditActionValue,
 } from "@/lib/audit-log-display";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -36,24 +38,11 @@ type AdminAuditLog = {
   } | null;
 };
 
-type AdminAuditActor = {
-  id: string;
-  name: string;
-  email: string | null;
-};
-
-type AdminAuditLogFilters = {
-  query: string;
-  status: "all" | AuditActionValue;
-  actorId: string;
-  dateFrom: string;
-  dateTo: string;
-};
-
 type AdminAuditLogListProps = {
   logs: AdminAuditLog[];
   actors?: AdminAuditActor[];
   filters?: AdminAuditLogFilters;
+  filterControls?: React.ReactNode;
   page?: number;
   pageSize?: number;
   total?: number;
@@ -72,6 +61,7 @@ export function AdminAuditLogList({
   logs,
   actors = [],
   filters = defaultFilters,
+  filterControls,
   page = 1,
   pageSize = 12,
   total = logs.length,
@@ -95,7 +85,13 @@ export function AdminAuditLogList({
         </span>
       </div>
 
-      <AuditLogFilters actors={actors} filters={filters} total={total} />
+      {filterControls ?? (
+        <AdminAuditLogFilterControls
+          actors={actors}
+          filters={filters}
+          total={total}
+        />
+      )}
 
       {logs.length > 0 ? (
         <ol className="divide-y divide-[#eef1f5]">
@@ -182,158 +178,6 @@ export function AdminAuditLogList({
         totalPages={totalPages}
       />
     </section>
-  );
-}
-
-function AuditLogFilters({
-  actors,
-  filters,
-  total,
-}: {
-  actors: AdminAuditActor[];
-  filters: AdminAuditLogFilters;
-  total: number;
-}) {
-  const selectedActorExists =
-    filters.actorId === "all" ||
-    actors.some((actor) => actor.id === filters.actorId);
-  const hasActiveFilter = hasAuditLogFilter(filters);
-
-  return (
-    <div className="border-b border-[#eef1f5] bg-white p-4">
-      <form
-        action="/admin"
-        className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_13rem_11rem_auto_auto]"
-      >
-        <input type="hidden" name="tab" value="audit" />
-
-        <div>
-          <label htmlFor="q" className="text-xs font-semibold text-[#697386]">
-            검색
-          </label>
-          <input
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={filters.query}
-            placeholder="메시지, 문서명, 문서번호, 사용자"
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateFrom"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            시작일
-          </label>
-          <DatePickerInput
-            id="dateFrom"
-            name="dateFrom"
-            defaultValue={filters.dateFrom}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateTo"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            종료일
-          </label>
-          <DatePickerInput
-            id="dateTo"
-            name="dateTo"
-            defaultValue={filters.dateTo}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="user"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            사용자
-          </label>
-          <select
-            id="user"
-            name="user"
-            defaultValue={filters.actorId}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            <option value="all">전체 사용자</option>
-            {!selectedActorExists ? (
-              <option value={filters.actorId}>선택한 사용자</option>
-            ) : null}
-            {actors.map((actor) => (
-              <option key={actor.id} value={actor.id}>
-                {actor.name} · {formatOptionalEmail(actor.email)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="status"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            상태
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={filters.status}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            {auditActionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            type="submit"
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.filter,
-              "h-10 w-full px-4 text-sm",
-            )}
-          >
-            검색
-          </button>
-        </div>
-
-        <div className="flex items-end">
-          {hasActiveFilter ? (
-            <Link
-              href="/admin?tab=audit"
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 w-full px-4 text-sm",
-              )}
-            >
-              초기화
-            </Link>
-          ) : (
-            <span className="hidden xl:block" />
-          )}
-        </div>
-      </form>
-
-      <p className="mt-3 text-xs text-[#697386]">
-        {total > 0
-          ? `${total}건의 감사 로그가 검색되었습니다.`
-          : "검색 결과가 없습니다."}
-      </p>
-    </div>
   );
 }
 

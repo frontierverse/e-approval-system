@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import type { ChangeEvent, PointerEvent } from "react";
+import type { ChangeEvent, FormEvent, PointerEvent } from "react";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
 import { UserIdentity } from "@/components/user-identity";
@@ -38,6 +39,7 @@ type YouthLearningProgressBoardProps = {
     name: string,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   changeLogActors: YouthLearningProgressChangeLogActor[];
+  changeLogFilterControls?: React.ReactNode;
   changeLogFilters: YouthLearningProgressChangeLogFilters;
   changeLogs: YouthLearningProgressChangeLog[];
   deleteSchedule: (
@@ -145,6 +147,7 @@ export function YouthLearningProgressBoard(
 export function YouthLearningProgressBoardContent({
   createYouth,
   changeLogActors,
+  changeLogFilterControls,
   changeLogFilters,
   changeLogs,
   deleteSchedule,
@@ -1024,11 +1027,13 @@ export function YouthLearningProgressBoardContent({
             </h2>
             <ChangeLogListSummary filters={changeLogFilters} />
           </div>
-          <ChangeLogFilterControls
-            actors={changeLogActors}
-            filters={changeLogFilters}
-            selectedDate={selectedScheduleDate}
-          />
+          {changeLogFilterControls ?? (
+            <ChangeLogFilterControls
+              actors={changeLogActors}
+              filters={changeLogFilters}
+              selectedDate={selectedScheduleDate}
+            />
+          )}
         </div>
         {changeLogs.length > 0 ? (
           <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
@@ -1435,16 +1440,56 @@ function ChangeLogListSummary({
   );
 }
 
-function ChangeLogFilterControls({
-  actors,
-  filters,
-  selectedDate,
-}: {
+type ChangeLogFilterControlsProps = {
   actors: YouthLearningProgressChangeLogActor[];
   filters: YouthLearningProgressChangeLogFilters;
   selectedDate: string;
+};
+
+function ChangeLogFilterControls(props: ChangeLogFilterControlsProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function navigate(href: string) {
+    startTransition(() => {
+      router.replace(href, { scroll: false });
+    });
+  }
+
+  return (
+    <YouthLearningProgressChangeLogFilterControlsContent
+      {...props}
+      isPending={isPending}
+      navigate={navigate}
+    />
+  );
+}
+
+export function YouthLearningProgressChangeLogFilterControlsContent({
+  actors,
+  filters,
+  isPending = false,
+  navigate,
+  selectedDate,
+}: ChangeLogFilterControlsProps & {
+  isPending?: boolean;
+  navigate: (href: string) => void;
 }) {
   const hasFilters = filters.actorId !== "all" || filters.scheduleDate !== "";
+
+  function submitFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    navigate(
+      createChangeLogHref({
+        actorId: String(formData.get("logStaff") ?? "all"),
+        page: 1,
+        scheduleDate: String(formData.get("logDate") ?? ""),
+        selectedDate,
+      }),
+    );
+  }
 
   function submitFilter(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -1454,10 +1499,9 @@ function ChangeLogFilterControls({
 
   return (
     <form
-      action="/youth/learning-progress"
       className="flex min-w-0 flex-wrap items-end gap-2"
       key={`${filters.actorId}:${filters.scheduleDate}`}
-      method="get"
+      onSubmit={submitFilters}
     >
       <input name="date" type="hidden" value={selectedDate} />
       <label>
@@ -1466,6 +1510,7 @@ function ChangeLogFilterControls({
           aria-label="변경내역 직원 필터"
           name="logStaff"
           defaultValue={filters.actorId}
+          disabled={isPending}
           onChange={submitFilter}
           className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         >
@@ -1483,28 +1528,36 @@ function ChangeLogFilterControls({
           aria-label="변경내역 날짜 필터"
           name="logDate"
           defaultValue={filters.scheduleDate}
+          disabled={isPending}
           onChange={submitFilter}
           className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         />
       </label>
       <button
         type="submit"
+        disabled={isPending}
         className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
       >
-        적용
+        {isPending ? "적용 중" : "적용"}
       </button>
       {hasFilters ? (
-        <Link
-          href={createChangeLogHref({
-            actorId: "all",
-            page: 1,
-            scheduleDate: "",
-            selectedDate,
-          })}
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() =>
+            navigate(
+              createChangeLogHref({
+                actorId: "all",
+                page: 1,
+                scheduleDate: "",
+                selectedDate,
+              }),
+            )
+          }
           className="inline-flex h-10 items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
         >
           초기화
-        </Link>
+        </button>
       ) : null}
     </form>
   );

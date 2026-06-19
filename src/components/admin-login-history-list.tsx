@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { DatePickerInput } from "@/components/date-picker-input";
+import {
+  AdminLoginHistoryFilterControls,
+  type AdminLoginHistoryFilters,
+  type AdminLoginHistoryUser,
+} from "@/components/admin-login-history-filter-controls";
 import { UserIdentity } from "@/components/user-identity";
 import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -31,24 +35,11 @@ type AdminLoginHistory = {
   } | null;
 };
 
-type AdminLoginHistoryUser = {
-  id: string;
-  name: string;
-  email: string | null;
-};
-
-type AdminLoginHistoryFilters = {
-  query: string;
-  result: "all" | "success" | "failure";
-  userId: string;
-  dateFrom: string;
-  dateTo: string;
-};
-
 type AdminLoginHistoryListProps = {
   histories: AdminLoginHistory[];
   users?: AdminLoginHistoryUser[];
   filters?: AdminLoginHistoryFilters;
+  filterControls?: React.ReactNode;
   page?: number;
   pageSize?: number;
   total?: number;
@@ -63,16 +54,11 @@ const defaultFilters: AdminLoginHistoryFilters = {
   dateTo: "",
 };
 
-const resultOptions = [
-  { value: "all", label: "전체" },
-  { value: "success", label: "성공" },
-  { value: "failure", label: "실패" },
-] as const;
-
 export function AdminLoginHistoryList({
   histories,
   users = [],
   filters = defaultFilters,
+  filterControls,
   page = 1,
   pageSize = 12,
   total = histories.length,
@@ -94,7 +80,13 @@ export function AdminLoginHistoryList({
         <span className={adminListStyles.count}>총 {total}건</span>
       </div>
 
-      <LoginHistoryFilters filters={filters} total={total} users={users} />
+      {filterControls ?? (
+        <AdminLoginHistoryFilterControls
+          filters={filters}
+          total={total}
+          users={users}
+        />
+      )}
 
       {histories.length > 0 ? (
         <ol className="divide-y divide-[#eef1f5]">
@@ -184,158 +176,6 @@ export function AdminLoginHistoryList({
         totalPages={totalPages}
       />
     </section>
-  );
-}
-
-function LoginHistoryFilters({
-  filters,
-  total,
-  users,
-}: {
-  filters: AdminLoginHistoryFilters;
-  total: number;
-  users: AdminLoginHistoryUser[];
-}) {
-  const selectedUserExists =
-    filters.userId === "all" ||
-    users.some((user) => user.id === filters.userId);
-  const hasActiveFilter = hasLoginHistoryFilter(filters);
-
-  return (
-    <div className="border-b border-[#eef1f5] bg-white p-4">
-      <form
-        action="/admin"
-        className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_13rem_9rem_auto_auto]"
-      >
-        <input type="hidden" name="tab" value="login-history" />
-
-        <div>
-          <label htmlFor="q" className="text-xs font-semibold text-[#697386]">
-            검색
-          </label>
-          <input
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={filters.query}
-            placeholder="이름, IP, 브라우저, 위치"
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateFrom"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            시작일
-          </label>
-          <DatePickerInput
-            id="dateFrom"
-            name="dateFrom"
-            defaultValue={filters.dateFrom}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateTo"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            종료일
-          </label>
-          <DatePickerInput
-            id="dateTo"
-            name="dateTo"
-            defaultValue={filters.dateTo}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="user"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            사용자
-          </label>
-          <select
-            id="user"
-            name="user"
-            defaultValue={filters.userId}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            <option value="all">전체 사용자</option>
-            {!selectedUserExists ? (
-              <option value={filters.userId}>선택한 사용자</option>
-            ) : null}
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name} · {formatOptionalEmail(user.email)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="result"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            결과
-          </label>
-          <select
-            id="result"
-            name="result"
-            defaultValue={filters.result}
-            className="mt-2 h-10 w-full cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            {resultOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            type="submit"
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.filter,
-              "h-10 w-full px-4 text-sm",
-            )}
-          >
-            검색
-          </button>
-        </div>
-
-        <div className="flex items-end">
-          {hasActiveFilter ? (
-            <Link
-              href="/admin?tab=login-history"
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 w-full px-4 text-sm",
-              )}
-            >
-              초기화
-            </Link>
-          ) : (
-            <span className="hidden xl:block" />
-          )}
-        </div>
-      </form>
-
-      <p className="mt-3 text-xs text-[#697386]">
-        {total > 0
-          ? `${total}건의 로그인 이력이 검색되었습니다.`
-          : "검색 결과가 없습니다."}
-      </p>
-    </div>
   );
 }
 

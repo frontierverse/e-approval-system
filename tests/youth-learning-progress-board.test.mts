@@ -6,6 +6,7 @@ import {
   createLearningScheduleEndMinuteOptions,
   createLearningScheduleStartMinuteOptions,
   TimetableSkeleton,
+  YouthLearningProgressChangeLogFilterControlsContent,
   YouthLearningProgressBoardContent as YouthLearningProgressBoard,
 } from "../src/components/youth-learning-progress-board.tsx";
 import {
@@ -119,6 +120,23 @@ const changeLogFilters: YouthLearningProgressChangeLogFilters = {
   totalPages: 2,
 };
 
+function createChangeLogFilterControls({
+  actors = changeLogActors,
+  filters = changeLogFilters,
+  selectedDate = "2026-06-18",
+}: {
+  actors?: YouthLearningProgressChangeLogActor[];
+  filters?: YouthLearningProgressChangeLogFilters;
+  selectedDate?: string;
+} = {}) {
+  return React.createElement(YouthLearningProgressChangeLogFilterControlsContent, {
+    actors,
+    filters,
+    navigate: () => {},
+    selectedDate,
+  });
+}
+
 describe("YouthLearningProgressBoard", () => {
   test("creates start and end time options in ten-minute steps", () => {
     const startOptions = createLearningScheduleStartMinuteOptions();
@@ -171,6 +189,7 @@ describe("YouthLearningProgressBoard", () => {
     const html = renderToStaticMarkup(
       React.createElement(YouthLearningProgressBoard, {
         changeLogActors,
+        changeLogFilterControls: createChangeLogFilterControls(),
         changeLogFilters,
         changeLogs,
         createYouth: async (name) => ({
@@ -285,17 +304,23 @@ describe("YouthLearningProgressBoard", () => {
   });
 
   test("keeps the add-student form visible when there are no students", () => {
+    const emptyChangeLogFilters = {
+      actorId: "all",
+      page: 1,
+      pageSize: 5,
+      scheduleDate: "",
+      total: 0,
+      totalPages: 1,
+    } satisfies YouthLearningProgressChangeLogFilters;
+
     const html = renderToStaticMarkup(
       React.createElement(YouthLearningProgressBoard, {
         changeLogActors: [],
-        changeLogFilters: {
-          actorId: "all",
-          page: 1,
-          pageSize: 5,
-          scheduleDate: "",
-          total: 0,
-          totalPages: 1,
-        },
+        changeLogFilterControls: createChangeLogFilterControls({
+          actors: [],
+          filters: emptyChangeLogFilters,
+        }),
+        changeLogFilters: emptyChangeLogFilters,
         changeLogs: [],
         createYouth: async (name) => ({
           ok: true,

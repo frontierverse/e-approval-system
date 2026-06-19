@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageTitle } from "@/components/page-title";
+import { ResourceLibraryFilterControls } from "@/components/resource-library-filter-controls";
 import { ResourceLibraryList } from "@/components/resource-library-list";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -79,57 +80,10 @@ export default async function ResourcesPage({
       />
 
       <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
-        <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-          <input type="hidden" name="category" value={filters.category} />
-          <div>
-            <label
-              htmlFor="resourceSearch"
-              className="text-xs font-semibold text-[#697386]"
-            >
-              검색
-            </label>
-            <input
-              id="resourceSearch"
-              name="q"
-              type="search"
-              defaultValue={filters.query}
-              placeholder="제목, 내용, 작성자, 첨부파일"
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.filter,
-                "h-10 w-full px-4 text-sm",
-              )}
-            >
-              검색
-            </button>
-          </div>
-
-          <div className="flex items-end">
-            {hasActiveFilter ? (
-              <Link
-                href={getResourcePageHref({
-                  category: filters.category,
-                  page: 1,
-                  query: "",
-                })}
-                className={buttonClass(
-                  buttonStyles.base,
-                  buttonStyles.neutral,
-                  "h-10 w-full px-4 text-sm",
-                )}
-              >
-                초기화
-              </Link>
-            ) : null}
-          </div>
-        </form>
+        <ResourceLibraryFilterControls
+          category={filters.category}
+          query={filters.query}
+        />
 
         <ResourceListSummary
           page={resourcePage.page}

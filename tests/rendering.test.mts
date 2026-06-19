@@ -3,6 +3,8 @@ import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import DocumentDetailLoading from "../src/app/documents/[id]/loading.tsx";
+import { AdminAuditLogFilterControlsContent } from "../src/components/admin-audit-log-filter-controls.tsx";
+import { AdminLoginHistoryFilterControlsContent } from "../src/components/admin-login-history-filter-controls.tsx";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
 import { AdminLoginHistoryList } from "../src/components/admin-login-history-list.tsx";
 import { ApprovalDecisionForm } from "../src/components/approval-decision-form.tsx";
@@ -530,6 +532,13 @@ describe("major UI rendering", () => {
   });
 
   test("renders admin audit logs with readable labels", () => {
+    const filters = {
+      query: "",
+      status: "all" as const,
+      actorId: "all",
+      dateFrom: "",
+      dateTo: "",
+    };
     const html = renderToStaticMarkup(
       React.createElement(AdminAuditLogList, {
         logs: [
@@ -646,6 +655,12 @@ describe("major UI rendering", () => {
             document: null,
           },
         ],
+        filterControls: React.createElement(AdminAuditLogFilterControlsContent, {
+          actors: [],
+          filters,
+          navigate: () => {},
+          total: 6,
+        }),
       }),
     );
 
@@ -679,6 +694,20 @@ describe("major UI rendering", () => {
   });
 
   test("renders admin audit filters and pagination links", () => {
+    const actors = [
+      {
+        id: "user-003",
+        name: "이도윤",
+        email: "approver@example.com",
+      },
+    ];
+    const filters = {
+      query: "approval",
+      status: "APPROVE" as const,
+      actorId: "user-003",
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-08",
+    };
     const html = renderToStaticMarkup(
       React.createElement(AdminAuditLogList, {
         logs: [
@@ -699,20 +728,14 @@ describe("major UI rendering", () => {
             },
           },
         ],
-        actors: [
-          {
-            id: "user-003",
-            name: "이도윤",
-            email: "approver@example.com",
-          },
-        ],
-        filters: {
-          query: "approval",
-          status: "APPROVE",
-          actorId: "user-003",
-          dateFrom: "2026-05-01",
-          dateTo: "2026-05-08",
-        },
+        actors,
+        filterControls: React.createElement(AdminAuditLogFilterControlsContent, {
+          actors,
+          filters,
+          navigate: () => {},
+          total: 25,
+        }),
+        filters,
         page: 2,
         pageSize: 12,
         total: 25,
@@ -721,6 +744,7 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /name="tab" value="audit"/);
+    assert.doesNotMatch(html, /<form[^>]*action="\/admin"/);
     assert.match(html, /defaultValue="approval"|value="approval"/);
     assert.match(html, /이도윤 · approver@example\.com/);
     assert.match(html, /승인/);
@@ -739,6 +763,20 @@ describe("major UI rendering", () => {
   });
 
   test("renders admin login history filters and results", () => {
+    const users = [
+      {
+        id: "user-001",
+        name: "김민준",
+        email: "minjun@example.com",
+      },
+    ];
+    const filters = {
+      query: "Chrome",
+      result: "failure" as const,
+      userId: "user-001",
+      dateFrom: "2026-05-14",
+      dateTo: "2026-05-14",
+    };
     const html = renderToStaticMarkup(
       React.createElement(AdminLoginHistoryList, {
         histories: [
@@ -763,20 +801,17 @@ describe("major UI rendering", () => {
             },
           },
         ],
-        users: [
+        users,
+        filterControls: React.createElement(
+          AdminLoginHistoryFilterControlsContent,
           {
-            id: "user-001",
-            name: "김민준",
-            email: "minjun@example.com",
+            filters,
+            navigate: () => {},
+            total: 13,
+            users,
           },
-        ],
-        filters: {
-          query: "Chrome",
-          result: "failure",
-          userId: "user-001",
-          dateFrom: "2026-05-14",
-          dateTo: "2026-05-14",
-        },
+        ),
+        filters,
         page: 1,
         pageSize: 12,
         total: 13,
@@ -785,6 +820,7 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /name="tab" value="login-history"/);
+    assert.doesNotMatch(html, /<form[^>]*action="\/admin"/);
     assert.match(html, /로그인 이력/);
     assert.match(html, /실패/);
     assert.match(html, /이름 또는 비밀번호 불일치/);

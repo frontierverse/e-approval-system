@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { DatePickerInput } from "@/components/date-picker-input";
+import {
+  DocumentListFilterControls,
+  type DocumentListStatusOption,
+} from "@/components/document-list-filter-controls";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
-
-type StatusOption = {
-  value: string;
-  label: string;
-};
 
 type DocumentListControlsProps = {
   basePath: string;
@@ -15,8 +13,9 @@ type DocumentListControlsProps = {
   dateFrom: string;
   dateTo: string;
   extraParams?: Record<string, string>;
+  filterControls?: React.ReactNode;
   summary: React.ReactNode;
-  statusOptions: StatusOption[];
+  statusOptions: DocumentListStatusOption[];
   searchPlaceholder?: string;
 };
 
@@ -41,138 +40,26 @@ export function DocumentListControls({
   dateFrom,
   dateTo,
   extraParams,
+  filterControls,
   summary,
   statusOptions,
   searchPlaceholder = "제목, 문서번호, 분류, 작성자",
 }: DocumentListControlsProps) {
-  const hiddenParams = getVisibleExtraParams(extraParams);
-  const hasActiveFilter = hasDocumentListFilter(
-    query,
-    status,
-    sort,
-    dateFrom,
-    dateTo,
-  ) || hiddenParams.length > 0;
   return (
     <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
-      <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_10rem_10rem_auto_auto]">
-        {hiddenParams.map(([name, value]) => (
-          <input key={name} type="hidden" name={name} value={value} />
-        ))}
-
-        <div>
-          <label htmlFor="q" className="text-xs font-semibold text-[#697386]">
-            검색
-          </label>
-          <input
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={query}
-            placeholder={searchPlaceholder}
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateFrom"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            시작일
-          </label>
-          <DatePickerInput
-            id="dateFrom"
-            name="dateFrom"
-            defaultValue={dateFrom}
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="dateTo"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            종료일
-          </label>
-          <DatePickerInput
-            id="dateTo"
-            name="dateTo"
-            defaultValue={dateTo}
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="status"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            상태
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status}
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="sort"
-            className="text-xs font-semibold text-[#697386]"
-          >
-            정렬
-          </label>
-          <select
-            id="sort"
-            name="sort"
-            defaultValue={sort}
-            className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-          >
-            <option value="latest">최신순</option>
-            <option value="oldest">오래된순</option>
-          </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            type="submit"
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.filter,
-              "h-10 w-full px-4 text-sm",
-            )}
-          >
-            적용
-          </button>
-        </div>
-
-        <div className="flex items-end">
-          {hasActiveFilter ? (
-            <Link
-              href={basePath}
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.neutral,
-                "h-10 w-full px-4 text-sm",
-              )}
-            >
-              초기화
-            </Link>
-          ) : (
-            <span className="hidden lg:block" />
-          )}
-        </div>
-      </form>
+      {filterControls ?? (
+        <DocumentListFilterControls
+          basePath={basePath}
+          query={query}
+          status={status}
+          sort={sort}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          extraParams={extraParams}
+          statusOptions={statusOptions}
+          searchPlaceholder={searchPlaceholder}
+        />
+      )}
 
       <div className="mt-3 min-h-4">{summary}</div>
     </section>

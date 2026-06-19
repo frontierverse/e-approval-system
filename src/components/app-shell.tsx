@@ -153,6 +153,10 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       label: "내 정보",
       items: accountNavigationItems,
     },
+    {
+      label: "청소년 관리",
+      items: youthNavigationItems,
+    },
     ...(isAdmin
       ? [
           {
@@ -161,10 +165,6 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
           },
         ]
       : []),
-    {
-      label: "청소년 관리",
-      items: youthNavigationItems,
-    },
   ];
 }
 
