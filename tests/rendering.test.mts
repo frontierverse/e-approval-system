@@ -22,6 +22,10 @@ import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
 import { ShellQuickStatusLinks } from "../src/components/shell-quick-status-links.tsx";
 import { SignedAttachmentDeleteForm } from "../src/components/signed-attachment-delete-form.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
+import {
+  getUserAvatarColorClass,
+  UserAvatar,
+} from "../src/components/user-avatar.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
 import type {
   ResourceLibraryItem,
@@ -149,6 +153,26 @@ describe("major UI rendering", () => {
 
     assert.match(html, /결재 대기 문서가 없습니다/);
     assert.match(html, /새로 도착한 결재 요청/);
+  });
+
+  test("renders fallback user avatars with initial-based colors", () => {
+    const kimColorClass = getUserAvatarColorClass("김민준");
+    const kangColorClass = getUserAvatarColorClass("강하늘");
+    const leeColorClass = getUserAvatarColorClass("이도윤");
+    const html = renderToStaticMarkup(
+      React.createElement(UserAvatar, {
+        user: {
+          id: "user-avatar-001",
+          name: "김민준",
+          profileImageStorageKey: null,
+          profileImageUpdatedAt: null,
+        },
+      }),
+    );
+
+    assert.equal(kimColorClass, kangColorClass);
+    assert.notEqual(kimColorClass, leeColorClass);
+    assert.ok(html.includes(kimColorClass));
   });
 
   test("renders quick status cards as links", () => {
