@@ -152,6 +152,7 @@ export function AdminAuditLogList({
                         </>
                       )}
                 </div>
+                <AdminAuditChangeList log={log} />
               </div>
             </li>
           ))}
@@ -580,6 +581,100 @@ function getAdminAuditActionBadgeClass(log: AdminAuditLog) {
 
 function getFallbackAuditMessage(log: AdminAuditLog) {
   return `${getAuditActionLabel(log.action)} 작업을 수행했습니다.`;
+}
+
+function AdminAuditChangeList({ log }: { log: AdminAuditLog }) {
+  const changes = getAdminAuditChangeItems(log);
+
+  if (changes.length === 0) {
+    return null;
+  }
+
+  return (
+    <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+      {changes.map((change) => (
+        <div
+          key={`${log.id}-${change.field}`}
+          className="min-w-0 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2"
+        >
+          <dt className="text-xs font-semibold text-[#697386]">
+            {change.label}
+          </dt>
+          <dd className="mt-1 flex min-w-0 items-center gap-2 text-xs text-[#394150]">
+            <span className="min-w-0 truncate">
+              {formatAuditChangeValue(change.before)}
+            </span>
+            <span aria-hidden="true" className="text-[#9aa4b2]">
+              -&gt;
+            </span>
+            <span className="min-w-0 truncate font-semibold text-[#16181d]">
+              {formatAuditChangeValue(change.after)}
+            </span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function getAdminAuditChangeItems(log: AdminAuditLog) {
+  if (log.targetType !== "User" || !isPlainObject(log.metadata)) {
+    return [];
+  }
+
+  const changes = log.metadata.changes;
+
+  if (!Array.isArray(changes)) {
+    return [];
+  }
+
+  return changes.flatMap((change) => {
+    if (!isPlainObject(change)) {
+      return [];
+    }
+
+    const field = typeof change.field === "string" ? change.field : "";
+    const label = typeof change.label === "string" ? change.label : "";
+    const before = getNullableAuditValue(change.before);
+    const after = getNullableAuditValue(change.after);
+
+    if (!field || !label) {
+      return [];
+    }
+
+    return [
+      {
+        after,
+        before,
+        field,
+        label,
+      },
+    ];
+  });
+}
+
+function getNullableAuditValue(value: unknown) {
+  if (value === null || typeof value === "undefined") {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return null;
+}
+
+function formatAuditChangeValue(value: string | null) {
+  return value || "미등록";
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getTargetLabel(targetType: string) {

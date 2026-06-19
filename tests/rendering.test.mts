@@ -539,6 +539,28 @@ describe("major UI rendering", () => {
             targetType: "User",
             targetId: "user-002",
             message: "박서연 사용자 정보를 수정했습니다.",
+            metadata: {
+              changes: [
+                {
+                  field: "name",
+                  label: "이름",
+                  before: "박서연",
+                  after: "박소연",
+                },
+                {
+                  field: "hireDate",
+                  label: "입사일",
+                  before: null,
+                  after: "2026-06-19",
+                },
+                {
+                  field: "password",
+                  label: "비밀번호",
+                  before: "기존 비밀번호",
+                  after: "재설정됨",
+                },
+              ],
+            },
             createdAt: new Date("2026-05-08T05:10:00.000Z"),
             actor: {
               name: "김민준",
@@ -632,6 +654,14 @@ describe("major UI rendering", () => {
     assert.match(html, /사용자 수정/);
     assert.match(html, /bg-\[#f6f0ff\]/);
     assert.match(html, /박서연 사용자 정보를 수정했습니다\./);
+    assert.match(html, /이름/);
+    assert.match(html, /박서연/);
+    assert.match(html, /박소연/);
+    assert.match(html, /입사일/);
+    assert.match(html, /미등록/);
+    assert.match(html, /2026-06-19/);
+    assert.match(html, /비밀번호/);
+    assert.match(html, /재설정됨/);
     assert.match(html, /승인/);
     assert.match(html, /bg-\[#e8f5ed\]/);
     assert.match(html, /임시저장/);

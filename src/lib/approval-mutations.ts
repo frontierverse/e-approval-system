@@ -29,6 +29,7 @@ import {
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { recordApprovedVacationLeaveDeduction } from "@/lib/staff-leave";
 
 type OrderedApprover = {
   id: string;
@@ -1042,6 +1043,11 @@ export async function approveCurrentApprovalStep(
         },
       });
 
+      await recordApprovedVacationLeaveDeduction(tx, {
+        actorId,
+        document: decisionDocument,
+      });
+
       if (decisionDocument.drafterId !== actorId) {
         await createDocumentNotification(tx, {
           userId: decisionDocument.drafterId,
@@ -1302,6 +1308,11 @@ export async function proxyApproveApprovalStepsThrough(
           documentId: decisionDocument.id,
           message: "최종 결재가 대리결재를 포함하여 완료되었습니다.",
         },
+      });
+
+      await recordApprovedVacationLeaveDeduction(tx, {
+        actorId,
+        document: decisionDocument,
       });
 
       await notifyProxyApprovalParticipants(tx, {
@@ -1619,8 +1630,16 @@ async function getDocumentForDecision(
     select: {
       id: true,
       title: true,
+      content: true,
       drafterId: true,
+      templateId: true,
       status: true,
+      template: {
+        select: {
+          name: true,
+          schema: true,
+        },
+      },
       drafter: {
         select: {
           name: true,

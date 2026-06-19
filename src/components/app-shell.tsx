@@ -21,6 +21,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
+import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
 
 const approvalNavigationItems: NavigationItem[] = [
   { label: "전자결재 홈", href: "/" },
@@ -175,13 +176,14 @@ async function ShellUserSummary() {
   }
 
   const roleLabel = user.role === UserRole.ADMIN ? "관리자" : "사용자";
+  const leaveBalance = await getStaffLeaveBalanceLabel(user.id);
 
   return (
     <>
       <UserIdentity
         user={user}
         size="sm"
-        meta={`${user.department.name} · ${user.position.name} · ${roleLabel}`}
+        meta={`${user.department.name} · ${user.position.name} · ${roleLabel} · 연차 ${leaveBalance}일`}
         className="hidden sm:flex"
         nameClassName="text-[#16181d]"
       />

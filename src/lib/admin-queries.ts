@@ -87,6 +87,8 @@ export async function getAdminUsers() {
       email: true,
       role: true,
       status: true,
+      hireDate: true,
+      resignationDate: true,
       profileImageStorageKey: true,
       profileImageUpdatedAt: true,
       departmentId: true,

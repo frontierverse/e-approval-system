@@ -8,6 +8,7 @@ import { getLoginRequestInfo, type LoginFailureReason } from "@/lib/login-histor
 import { recordLoginHistory } from "@/lib/login-history";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { ensureStaffLeaveAccrualsForUser } from "@/lib/staff-leave";
 
 type LoginState = {
   error?: string;
@@ -83,6 +84,7 @@ export async function loginAction(
     success: true,
     requestInfo,
   });
+  await ensureStaffLeaveAccrualsForUser(user.id);
 
   await createSession(user.id);
   redirect("/");

@@ -29,6 +29,8 @@ type AdminUser = {
   email: string | null;
   role: "USER" | "ADMIN";
   status: "ACTIVE" | "INACTIVE";
+  hireDate: string | null;
+  resignationDate: string | null;
   profileImageStorageKey: string | null;
   profileImageUpdatedAt: string | null;
   departmentId: string;
@@ -126,6 +128,9 @@ function UserListItem({
                 작성 문서 {user._count.draftedDocuments}건 · 결재 참여{" "}
                 {user._count.approvalSteps}건
               </p>
+              <p className="mt-1 text-xs text-[#697386]">
+                {formatEmploymentPeriod(user)}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -184,6 +189,22 @@ function CreateUserForm({
           defaultValue={state.values?.email}
           placeholder="입력하지 않아도 생성됩니다"
         />
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <TextField
+            label="입사일"
+            description="선택"
+            name="hireDate"
+            type="date"
+            defaultValue={state.values?.hireDate}
+          />
+          <TextField
+            label="퇴사일"
+            description="선택"
+            name="resignationDate"
+            type="date"
+            defaultValue={state.values?.resignationDate}
+          />
+        </div>
         <SelectField
           label="부서"
           name="departmentId"
@@ -305,6 +326,25 @@ function EditUserForm({
           />
         </div>
 
+        <div className="grid min-w-0 gap-3 sm:col-span-2 sm:grid-cols-2">
+          <TextField
+            label="입사일"
+            description="선택"
+            name="hireDate"
+            type="date"
+            defaultValue={state.values?.hireDate ?? user.hireDate ?? ""}
+          />
+          <TextField
+            label="퇴사일"
+            description="선택"
+            name="resignationDate"
+            type="date"
+            defaultValue={
+              state.values?.resignationDate ?? user.resignationDate ?? ""
+            }
+          />
+        </div>
+
         <RoleStatusFields
           role={state.values?.role ?? user.role}
           status={state.values?.status ?? user.status}
@@ -341,6 +381,8 @@ function EditUserForm({
         <span>
           현재 {user.department.name} / {user.position.name}
         </span>
+        <span>·</span>
+        <span>{formatEmploymentPeriod(user)}</span>
       </div>
 
       <FormMessage state={state} />
@@ -366,6 +408,22 @@ function RolePill({ role }: { role: "USER" | "ADMIN" }) {
 
 function formatUserEmail(email: string | null) {
   return email || "이메일 미등록";
+}
+
+function formatEmploymentPeriod({
+  hireDate,
+  resignationDate,
+}: Pick<AdminUser, "hireDate" | "resignationDate">) {
+  const hireLabel = hireDate ? `입사 ${formatDateValue(hireDate)}` : "입사일 미등록";
+  const resignationLabel = resignationDate
+    ? `퇴사 ${formatDateValue(resignationDate)}`
+    : "재직 중";
+
+  return `${hireLabel} · ${resignationLabel}`;
+}
+
+function formatDateValue(value: string) {
+  return value.replaceAll("-", ". ") + ".";
 }
 
 function StatusPill({ active }: { active: boolean }) {

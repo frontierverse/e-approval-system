@@ -78,6 +78,8 @@ model User {
   passwordHash                  String?
   role                          UserRole   @default(USER)
   status                        UserStatus @default(ACTIVE)
+  hireDate                      String?
+  resignationDate               String?
   profileImageStorageProvider   String?
   profileImageStorageKey        String?
   profileImageMimeType          String?
@@ -111,9 +113,13 @@ model User {
   notifications        Notification[]
   signedAttachments    Attachment[]         @relation("AttachmentSigner")
   convertedAttachments Attachment[]         @relation("AttachmentConverter")
+  leaveLedgerEntries   StaffLeaveLedger[]   @relation("StaffLeaveUser")
+  createdLeaveEntries  StaffLeaveLedger[]   @relation("StaffLeaveActor")
 
   @@index([departmentId])
   @@index([positionId])
+  @@index([hireDate])
+  @@index([resignationDate])
 }
 
 model Department {
@@ -189,6 +195,7 @@ model ApprovalDocument {
   attachments   Attachment[]
   auditLogs     AuditLog[]
   notifications Notification[]
+  leaveLedgerEntries StaffLeaveLedger[]
 
   @@index([status])
   @@index([templateId])
@@ -488,6 +495,31 @@ model LoginHistory {
   @@index([userId, createdAt])
   @@index([attemptedName])
   @@index([success, createdAt])
+  @@index([createdAt])
+}
+
+model StaffLeaveLedger {
+  id             String   @id @default(cuid())
+  entryType      String
+  sourceKey      String?
+  eventDate      String
+  amountHalfDays Int
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  userId     String
+  actorId    String?
+  documentId String?
+
+  user     User              @relation("StaffLeaveUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor    User?             @relation("StaffLeaveActor", fields: [actorId], references: [id], onDelete: SetNull)
+  document ApprovalDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceKey])
+  @@unique([documentId])
+  @@index([userId, eventDate])
+  @@index([entryType])
+  @@index([actorId])
   @@index([createdAt])
 }
 

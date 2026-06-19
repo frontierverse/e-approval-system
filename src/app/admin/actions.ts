@@ -22,6 +22,8 @@ import {
 } from "@/lib/document-template-schema";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { ensureStaffLeaveAccrualsForUser } from "@/lib/staff-leave";
+import { isDateValue, staffLeaveEntryTypes } from "@/lib/staff-leave-core";
 
 export type AdminUserFormState = {
   success?: string;
@@ -31,9 +33,26 @@ export type AdminUserFormState = {
     email?: string;
     departmentId?: string;
     positionId?: string;
+    hireDate?: string;
+    resignationDate?: string;
     role?: string;
     status?: string;
   };
+};
+
+const automaticLeaveAccrualEntryTypes = [
+  staffLeaveEntryTypes.monthlyAccrual,
+  staffLeaveEntryTypes.annualAccrual,
+];
+
+const userRoleLabels: Record<string, string> = {
+  [UserRole.ADMIN]: "관리자",
+  [UserRole.USER]: "사용자",
+};
+
+const userStatusLabels: Record<string, string> = {
+  [UserStatus.ACTIVE]: "활성",
+  [UserStatus.INACTIVE]: "비활성",
 };
 
 export type AdminDepartmentFormState = {
@@ -131,6 +150,8 @@ export async function createAdminUserAction(
       passwordHash: hashPassword(password),
       role: values.role,
       status: values.status,
+      hireDate: values.hireDate || null,
+      resignationDate: values.resignationDate || null,
       departmentId: values.departmentId,
       positionId: values.positionId,
     },
@@ -139,6 +160,8 @@ export async function createAdminUserAction(
       name: true,
     },
   });
+
+  await ensureStaffLeaveAccrualsForUser(user.id);
 
   await prisma.auditLog.create({
     data: {
@@ -188,6 +211,20 @@ export async function updateAdminUserAction(
       name: true,
       role: true,
       status: true,
+      hireDate: true,
+      resignationDate: true,
+      departmentId: true,
+      positionId: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -208,32 +245,97 @@ export async function updateAdminUserAction(
     };
   }
 
-  await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
+  const nextHireDate = values.hireDate || null;
+  const nextResignationDate = values.resignationDate || null;
+  const employmentDatesChanged =
+    target.hireDate !== nextHireDate ||
+    target.resignationDate !== nextResignationDate;
+  const [nextDepartment, nextPosition] = await Promise.all([
+    prisma.department.findUnique({
+      where: {
+        id: values.departmentId,
+      },
+      select: {
+        name: true,
+      },
+    }),
+    prisma.position.findUnique({
+      where: {
+        id: values.positionId,
+      },
+      select: {
+        name: true,
+      },
+    }),
+  ]);
+  const auditChanges = createUserUpdateAuditChanges({
+    after: {
+      departmentId: values.departmentId,
+      departmentName: nextDepartment?.name ?? values.departmentId,
+      hireDate: nextHireDate,
       name: values.name,
+      positionId: values.positionId,
+      positionName: nextPosition?.name ?? values.positionId,
+      resignationDate: nextResignationDate,
       role: values.role,
       status: values.status,
-      departmentId: values.departmentId,
-      positionId: values.positionId,
-      ...(password ? { passwordHash: hashPassword(password) } : {}),
     },
+    before: target,
+    passwordChanged: willResetPassword,
   });
 
-  await prisma.auditLog.create({
-    data: {
-      actorId: admin.id,
-      action: AuditAction.UPDATE_USER,
-      targetType: "User",
-      targetId: userId,
-      message: willResetPassword
-        ? `${values.name} 사용자 비밀번호를 재설정했습니다.`
-        : `${values.name} 사용자 정보를 수정했습니다.`,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        name: values.name,
+        role: values.role,
+        status: values.status,
+        hireDate: nextHireDate,
+        resignationDate: nextResignationDate,
+        departmentId: values.departmentId,
+        positionId: values.positionId,
+        ...(password ? { passwordHash: hashPassword(password) } : {}),
+      },
+    });
+
+    if (employmentDatesChanged) {
+      await tx.staffLeaveLedger.deleteMany({
+        where: {
+          userId,
+          entryType: {
+            in: automaticLeaveAccrualEntryTypes,
+          },
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: admin.id,
+        action: AuditAction.UPDATE_USER,
+        targetType: "User",
+        targetId: userId,
+        message: willResetPassword
+          ? `${values.name} 사용자 비밀번호를 재설정했습니다.`
+          : `${values.name} 사용자 정보를 수정했습니다.`,
+        metadata:
+          auditChanges.length > 0
+            ? {
+                changes: auditChanges,
+              }
+            : undefined,
+      },
+    });
   });
 
+  if (employmentDatesChanged) {
+    await ensureStaffLeaveAccrualsForUser(userId);
+  }
+
+  revalidatePath("/");
   revalidatePath("/admin");
 
   return {
@@ -815,6 +917,8 @@ function getUserFormValues(formData: FormData) {
     email: String(formData.get("email") ?? "").trim().toLowerCase(),
     departmentId: String(formData.get("departmentId") ?? "").trim(),
     positionId: String(formData.get("positionId") ?? "").trim(),
+    hireDate: String(formData.get("hireDate") ?? "").trim(),
+    resignationDate: String(formData.get("resignationDate") ?? "").trim(),
     role:
       formData.get("role") === UserRole.ADMIN ? UserRole.ADMIN : UserRole.USER,
     status:
@@ -822,6 +926,126 @@ function getUserFormValues(formData: FormData) {
         ? UserStatus.INACTIVE
         : UserStatus.ACTIVE,
   };
+}
+
+function createUserUpdateAuditChanges({
+  after,
+  before,
+  passwordChanged,
+}: {
+  after: {
+    departmentId: string;
+    departmentName: string;
+    hireDate: string | null;
+    name: string;
+    positionId: string;
+    positionName: string;
+    resignationDate: string | null;
+    role: string;
+    status: string;
+  };
+  before: {
+    department: {
+      name: string;
+    };
+    departmentId: string;
+    hireDate: string | null;
+    name: string;
+    position: {
+      name: string;
+    };
+    positionId: string;
+    resignationDate: string | null;
+    role: string;
+    status: string;
+  };
+  passwordChanged: boolean;
+}) {
+  const changes: Array<{
+    field: string;
+    label: string;
+    before: string | null;
+    after: string | null;
+  }> = [];
+
+  pushAuditChange(changes, "name", "이름", before.name, after.name);
+  pushAuditChange(
+    changes,
+    "role",
+    "권한",
+    userRoleLabels[before.role] ?? before.role,
+    userRoleLabels[after.role] ?? after.role,
+  );
+  pushAuditChange(
+    changes,
+    "status",
+    "상태",
+    userStatusLabels[before.status] ?? before.status,
+    userStatusLabels[after.status] ?? after.status,
+  );
+  pushAuditChange(
+    changes,
+    "department",
+    "부서",
+    before.departmentId === after.departmentId ? after.departmentName : before.department.name,
+    after.departmentName,
+  );
+  pushAuditChange(
+    changes,
+    "position",
+    "직급",
+    before.positionId === after.positionId ? after.positionName : before.position.name,
+    after.positionName,
+  );
+  pushAuditChange(
+    changes,
+    "hireDate",
+    "입사일",
+    before.hireDate,
+    after.hireDate,
+  );
+  pushAuditChange(
+    changes,
+    "resignationDate",
+    "퇴사일",
+    before.resignationDate,
+    after.resignationDate,
+  );
+
+  if (passwordChanged) {
+    changes.push({
+      field: "password",
+      label: "비밀번호",
+      before: "기존 비밀번호",
+      after: "재설정됨",
+    });
+  }
+
+  return changes;
+}
+
+function pushAuditChange(
+  changes: Array<{
+    field: string;
+    label: string;
+    before: string | null;
+    after: string | null;
+  }>,
+  field: string,
+  label: string,
+  before: string | null,
+  after: string | null,
+) {
+  if (before === after) {
+    return;
+  }
+
+  changes.push({
+    field,
+    label,
+    before,
+    after,
+  });
 }
 
 async function validateUserFormValues(
@@ -850,6 +1074,22 @@ async function validateUserFormValues(
 
   if (!options.requirePassword && options.password && options.password.length < 4) {
     return "새 비밀번호는 4자 이상 입력하세요.";
+  }
+
+  if (values.hireDate && !isDateValue(values.hireDate)) {
+    return "입사일은 날짜 형식으로 선택하세요.";
+  }
+
+  if (values.resignationDate && !isDateValue(values.resignationDate)) {
+    return "퇴사일은 날짜 형식으로 선택하세요.";
+  }
+
+  if (
+    values.hireDate &&
+    values.resignationDate &&
+    values.resignationDate < values.hireDate
+  ) {
+    return "퇴사일은 입사일 이후 날짜로 선택하세요.";
   }
 
   const [department, position] = await Promise.all([
