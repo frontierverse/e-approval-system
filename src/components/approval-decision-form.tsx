@@ -1,32 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { FormEvent } from "react";
 import type { ApprovalDecisionState } from "@/app/documents/[id]/actions";
 import { PendingOverlay } from "@/components/form-pending-overlay";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
-type PendingSignatureAttachment = {
-  fileName: string;
-  signHref: string;
-};
-
 type ApprovalDecisionFormProps = {
   action: (
     state: ApprovalDecisionState,
     formData: FormData,
   ) => Promise<ApprovalDecisionState>;
-  pendingSignatureAttachment?: PendingSignatureAttachment | null;
 };
 
 const initialState: ApprovalDecisionState = {};
 type ApprovalDecision = "approve" | "reject";
 
-export function ApprovalDecisionForm({
-  action,
-  pendingSignatureAttachment,
-}: ApprovalDecisionFormProps) {
+export function ApprovalDecisionForm({ action }: ApprovalDecisionFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
@@ -37,12 +27,6 @@ export function ApprovalDecisionForm({
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
 
     if (!(submitter instanceof HTMLButtonElement)) {
-      return;
-    }
-
-    if (submitter.value === "approve" && pendingSignatureAttachment) {
-      event.preventDefault();
-      setPendingDecision(null);
       return;
     }
 
@@ -71,26 +55,6 @@ export function ApprovalDecisionForm({
       className="rounded-md border border-[#d9dee7] bg-white p-5"
     >
       <h2 className="text-base font-semibold">결재 처리</h2>
-      {pendingSignatureAttachment ? (
-        <div className="mt-4 rounded-md border border-[#ead8a8] bg-[#fff8df] p-3">
-          <p className="text-sm font-semibold text-[#6b4f0b]">
-            아직 날인하지 않은 첨부파일이 있습니다.
-          </p>
-          <p className="mt-1 truncate text-xs text-[#82620d]">
-            {pendingSignatureAttachment.fileName}
-          </p>
-          <Link
-            href={pendingSignatureAttachment.signHref}
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.save,
-              "mt-3 h-9 px-3 text-sm",
-            )}
-          >
-            첨부파일에 날인하러 가기
-          </Link>
-        </div>
-      ) : null}
       <label
         htmlFor="approvalComment"
         className="mt-4 block text-xs font-semibold text-[#697386]"
@@ -124,21 +88,19 @@ export function ApprovalDecisionForm({
         >
           반려
         </button>
-        {pendingSignatureAttachment ? null : (
-          <button
-            type="submit"
-            name="decision"
-            value="approve"
-            disabled={pending}
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.approve,
-              "h-10 px-4 text-sm",
-            )}
-          >
-            승인
-          </button>
-        )}
+        <button
+          type="submit"
+          name="decision"
+          value="approve"
+          disabled={pending}
+          className={buttonClass(
+            buttonStyles.base,
+            buttonStyles.approve,
+            "h-10 px-4 text-sm",
+          )}
+        >
+          승인
+        </button>
       </div>
       <PendingOverlay label={pendingLabel} show={pending} />
     </form>

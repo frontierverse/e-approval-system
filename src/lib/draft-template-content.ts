@@ -57,14 +57,32 @@ export const draftTemplateFormats: Record<string, TemplateFormatDefinition> = {
     title: "지출결의서 입력",
     fields: [
       {
+        id: "expenseType",
+        label: "지출구분",
+        placeholder: "예: 사후정산",
+        type: "text",
+      },
+      {
         id: "expenseDate",
-        label: "지출일",
+        label: "지출일자/구매예정일",
         type: "date",
+      },
+      {
+        id: "budgetItem",
+        label: "예산항목/사업명",
+        placeholder: "예: 사업비, 의료비",
+        type: "text",
       },
       {
         id: "vendor",
         label: "거래처",
-        placeholder: "예: ○○문구",
+        placeholder: "예: 청년약국",
+        type: "text",
+      },
+      {
+        id: "paymentMethod",
+        label: "결제수단",
+        placeholder: "예: 법인카드",
         type: "text",
       },
       {
@@ -74,15 +92,15 @@ export const draftTemplateFormats: Record<string, TemplateFormatDefinition> = {
         type: "number",
       },
       {
-        id: "accountTitle",
-        label: "계정과목",
-        placeholder: "예: 사무용품비",
-        type: "text",
+        id: "purpose",
+        label: "지출목적",
+        placeholder: "구매 또는 지출이 필요한 이유를 입력하세요.",
+        type: "textarea",
       },
       {
-        id: "reason",
-        label: "지출 사유",
-        placeholder: "지출 목적과 산출 근거를 입력하세요.",
+        id: "details",
+        label: "세부내역",
+        placeholder: "품명, 규격, 수량, 단가, 금액 등을 입력하세요.",
         type: "textarea",
       },
     ],
@@ -394,16 +412,29 @@ export function getDocumentTemplateDisplayRows(
   content: string,
 ): DocumentTemplateDisplayRow[] {
   const safeSchema = getSafeDocumentTemplateSchema(schema).schema;
+  const fields = getRenderableDocumentTemplateFields(safeSchema);
+
+  if (
+    fields.length > 0 &&
+    !(fields.length === 1 && isPlainContentField(fields[0])) &&
+    parseCompiledTemplateContent(
+      content,
+      fields.map((field) => field.label).sort((a, b) => b.length - a.length),
+    ).length === 0
+  ) {
+    return [];
+  }
+
   const values = extractDocumentTemplateFieldValuesFromContent(
     safeSchema,
     content,
   );
-  const fields = getVisibleRenderableDocumentTemplateFields(
+  const visibleFields = getVisibleRenderableDocumentTemplateFields(
     safeSchema,
     values,
   );
 
-  return fields.map((field) => ({
+  return visibleFields.map((field) => ({
     label: field.label,
     name: field.name,
     type: field.type,

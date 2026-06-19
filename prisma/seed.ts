@@ -10,6 +10,7 @@ import {
 } from "../src/generated/prisma/client";
 import {
   getDefaultDocumentTemplateSchema,
+  getExpenseReportDocumentTemplateSchema,
   getVacationRequestDocumentTemplateSchema,
 } from "../src/lib/document-template-schema";
 import { hashPassword } from "../src/lib/password";
@@ -20,6 +21,8 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 const demoPasswordHash = hashPassword("password123");
 const defaultDocumentTemplateSchema = getDefaultDocumentTemplateSchema();
+const expenseReportDocumentTemplateSchema =
+  getExpenseReportDocumentTemplateSchema();
 const vacationRequestDocumentTemplateSchema =
   getVacationRequestDocumentTemplateSchema();
 const defaultAllowedAttachmentExtensions = [
@@ -141,8 +144,8 @@ async function main() {
       {
         id: "template-expense-report",
         name: "지출결의서",
-        description: "비용 사용과 정산 승인을 요청하는 양식",
-        schema: defaultDocumentTemplateSchema,
+        description: "구매 요청, 사후 정산, 지급 요청을 함께 처리하는 양식",
+        schema: expenseReportDocumentTemplateSchema,
       },
       {
         id: "template-vacation-request",

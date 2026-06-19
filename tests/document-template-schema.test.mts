@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   getDefaultDocumentTemplateSchema,
+  getExpenseReportDocumentTemplateSchema,
   getSafeDocumentTemplateSchema,
   getVacationRequestDocumentTemplateSchema,
   validateDocumentTemplateSchema,
@@ -130,6 +131,50 @@ describe("document template schema", () => {
         { label: "장례", value: "bereavement" },
         { label: "기타", value: "other" },
       ]);
+    }
+  });
+
+  test("validates the expanded expense report schema", () => {
+    const validation = validateDocumentTemplateSchema(
+      getExpenseReportDocumentTemplateSchema(),
+    );
+
+    assert.equal(validation.ok, true);
+
+    if (validation.ok) {
+      assert.deepEqual(
+        validation.schema.fields.map((field) => field.name),
+        [
+          "title",
+          "expenseType",
+          "expenseDate",
+          "budgetItem",
+          "vendor",
+          "paymentMethod",
+          "amount",
+          "purpose",
+          "details",
+          "attachments",
+        ],
+      );
+      assert.equal(
+        validation.schema.fields.some((field) => field.name === "evidence"),
+        false,
+      );
+      assert.deepEqual(
+        validation.schema.fields.find((field) => field.name === "expenseType")
+          ?.options,
+        [
+          { label: "사전구매요청", value: "advance_purchase" },
+          { label: "사후정산", value: "post_settlement" },
+          { label: "지급요청", value: "payment_request" },
+        ],
+      );
+      assert.equal(
+        validation.schema.fields.find((field) => field.name === "attachments")
+          ?.type,
+        "attachments",
+      );
     }
   });
 

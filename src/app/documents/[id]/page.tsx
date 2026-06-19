@@ -14,10 +14,7 @@ import { SignedAttachmentDeleteForm } from "@/components/signed-attachment-delet
 import { StatusBadge } from "@/components/status-badge";
 import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
-import {
-  getAttachmentPreviewKind,
-  isSignableAttachmentFile,
-} from "@/lib/attachment-preview";
+import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getReadableDocumentById } from "@/lib/approval-queries";
 import {
   canDeleteDraftDocumentByPolicy,
@@ -46,7 +43,6 @@ import {
   recallDocumentAction,
   rejectProxyApprovalAction,
   submitDocumentAction,
-  uploadSignedAttachmentAction,
 } from "./actions";
 
 export default async function DocumentDetailPage({
@@ -92,31 +88,12 @@ export default async function DocumentDetailPage({
   const canDecide =
     currentStep?.approverId === user.id &&
     (document.status === "submitted" || document.status === "in_progress");
-  const hasSignatureImage = Boolean(user.signatureImageStorageKey);
   const originalAttachments = document.attachments.filter(
     (attachment) => !attachment.signedSourceAttachmentId,
   );
   const signedAttachments = document.attachments.filter(
     (attachment) => attachment.signedSourceAttachmentId,
   );
-  const signedSourceIdsByCurrentUser = new Set(
-    signedAttachments
-      .filter((attachment) => attachment.signedBy?.id === user.id)
-      .map((attachment) => attachment.signedSourceAttachmentId)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const unsignedSignableAttachments = canDecide
-    ? originalAttachments.filter(
-        (attachment) =>
-          !isSystemGeneratedApprovalPdf(attachment.originalName) &&
-          isSignableAttachmentFile(attachment.originalName, attachment.mimeType) &&
-          !signedSourceIdsByCurrentUser.has(attachment.id),
-      )
-    : [];
-  const unsignedSignableAttachmentIds = new Set(
-    unsignedSignableAttachments.map((attachment) => attachment.id),
-  );
-  const pendingSignatureAttachment = unsignedSignableAttachments[0] ?? null;
   const attachmentNameById = new Map(
     document.attachments.map((attachment) => [
       attachment.id,
@@ -305,127 +282,61 @@ export default async function DocumentDetailPage({
             <h2 className="text-base font-semibold">첨부파일</h2>
             {originalAttachments.length > 0 ? (
               <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
-                {originalAttachments.map((attachment) => {
-                  const canSignOriginal =
-                    canDecide &&
-                    isSignableAttachmentFile(
-                      attachment.originalName,
-                      attachment.mimeType,
-                    );
-
-                  return (
-                    <li key={attachment.id} className="px-4 py-3">
-                      <AttachmentFileRow
+                {originalAttachments.map((attachment) => (
+                  <li key={attachment.id} className="px-4 py-3">
+                    <AttachmentFileRow
+                      fileName={attachment.originalName}
+                      size={attachment.size}
+                      thumbnailHref={
+                        getAttachmentPreviewKind(
+                          attachment.originalName,
+                          attachment.mimeType,
+                        ) === "image"
+                          ? `/attachments/${attachment.id}/preview`
+                          : undefined
+                      }
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <AttachmentPreviewButton
+                        downloadHref={`/attachments/${attachment.id}`}
                         fileName={attachment.originalName}
-                        note={
-                          unsignedSignableAttachmentIds.has(attachment.id)
-                            ? "날인 필요"
-                            : undefined
-                        }
-                        size={attachment.size}
-                        thumbnailHref={
-                          getAttachmentPreviewKind(
-                            attachment.originalName,
-                            attachment.mimeType,
-                          ) === "image"
-                            ? `/attachments/${attachment.id}/preview`
-                            : undefined
-                        }
+                        mimeType={attachment.mimeType}
+                        previewHref={`/attachments/${attachment.id}/preview`}
                       />
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {canSignOriginal ? (
-                          hasSignatureImage ? (
-                            <Link
-                              href={`/attachments/${attachment.id}/sign`}
-                              className={buttonClass(
-                                buttonStyles.base,
-                                buttonStyles.save,
-                                "h-9 px-3 text-sm",
-                              )}
-                            >
-                              도장 찍기
-                            </Link>
-                          ) : (
-                            <Link
-                              href="/account"
-                              className={buttonClass(
-                                buttonStyles.base,
-                                buttonStyles.neutral,
-                                "h-9 px-3 text-sm",
-                              )}
-                            >
-                              도장 등록
-                            </Link>
-                          )
-                        ) : null}
-                        <AttachmentPreviewButton
-                          downloadHref={`/attachments/${attachment.id}`}
-                          fileName={attachment.originalName}
-                          mimeType={attachment.mimeType}
-                          previewHref={`/attachments/${attachment.id}/preview`}
-                        />
-                        <a
-                          href={`/attachments/${attachment.id}`}
-                          className={buttonClass(
-                            buttonStyles.base,
-                            buttonStyles.neutral,
-                            "h-9 px-3 text-sm",
-                          )}
-                        >
-                          다운로드
-                        </a>
-                        {canManageDraftAttachments ? (
-                          <form
-                            action={deleteAttachmentAction.bind(
-                              null,
-                              document.id,
-                              attachment.id,
-                            )}
-                          >
-                            <ConfirmSubmitButton
-                              message="첨부파일을 삭제하시겠습니까? 연결된 서명본도 함께 삭제됩니다."
-                              type="submit"
-                              className={buttonClass(
-                                buttonStyles.base,
-                                buttonStyles.dangerOutline,
-                                "h-9 px-3 text-sm",
-                              )}
-                            >
-                              삭제
-                            </ConfirmSubmitButton>
-                          </form>
-                        ) : null}
-                      </div>
-                      {canDecide ? (
+                      <a
+                        href={`/attachments/${attachment.id}`}
+                        className={buttonClass(
+                          buttonStyles.base,
+                          buttonStyles.neutral,
+                          "h-9 px-3 text-sm",
+                        )}
+                      >
+                        다운로드
+                      </a>
+                      {canManageDraftAttachments ? (
                         <form
-                          action={uploadSignedAttachmentAction.bind(
+                          action={deleteAttachmentAction.bind(
                             null,
                             document.id,
                             attachment.id,
                           )}
-                          className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
                         >
-                          <input
-                            aria-label={`${attachment.originalName} 서명본 파일`}
-                            name="signedAttachment"
-                            type="file"
-                            className="block h-9 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white text-xs text-[#394150] file:mr-2 file:h-full file:border-0 file:bg-[#eef2f7] file:px-3 file:text-xs file:font-semibold file:text-[#394150]"
-                          />
-                          <button
+                          <ConfirmSubmitButton
+                            message="첨부파일을 삭제하시겠습니까?"
                             type="submit"
                             className={buttonClass(
                               buttonStyles.base,
-                              buttonStyles.save,
+                              buttonStyles.dangerOutline,
                               "h-9 px-3 text-sm",
                             )}
                           >
-                            서명본 업로드
-                          </button>
+                            삭제
+                          </ConfirmSubmitButton>
                         </form>
                       ) : null}
-                    </li>
-                  );
-                })}
+                    </div>
+                  </li>
+                ))}
               </ul>
             ) : (
               <div className="mt-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
@@ -434,6 +345,7 @@ export default async function DocumentDetailPage({
             )}
           </article>
 
+          {signedAttachments.length > 0 ? (
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold">서명본</h2>
@@ -441,8 +353,7 @@ export default async function DocumentDetailPage({
                 {signedAttachments.length}개
               </span>
             </div>
-            {signedAttachments.length > 0 ? (
-              <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
+            <ul className="mt-4 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
                 {signedAttachments.map((attachment) => {
                   const signedApprovalStatus = document.approvalSteps.find(
                     (step) => step.approverId === attachment.signedBy?.id,
@@ -524,13 +435,9 @@ export default async function DocumentDetailPage({
                     </li>
                   );
                 })}
-              </ul>
-            ) : (
-              <div className="mt-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
-                생성된 서명본이 없습니다.
-              </div>
-            )}
+            </ul>
           </article>
+          ) : null}
 
           <div className="xl:hidden">
             <ApprovalTimeline
@@ -557,14 +464,6 @@ export default async function DocumentDetailPage({
           {canDecide ? (
             <ApprovalDecisionForm
               action={decideDocumentAction.bind(null, document.id)}
-              pendingSignatureAttachment={
-                pendingSignatureAttachment
-                  ? {
-                      fileName: pendingSignatureAttachment.originalName,
-                      signHref: `/attachments/${pendingSignatureAttachment.id}/sign`,
-                    }
-                  : undefined
-              }
             />
           ) : null}
 
@@ -589,10 +488,6 @@ export default async function DocumentDetailPage({
       </section>
     </>
   );
-}
-
-function isSystemGeneratedApprovalPdf(originalName: string) {
-  return originalName.startsWith("전자결재_원본문서_");
 }
 
 function SummaryItem({

@@ -221,23 +221,18 @@ describe("major UI rendering", () => {
     assert.match(html, /tabular-nums/);
   });
 
-  test("routes approvers to unsigned attachments before approval", () => {
+  test("renders approval actions without requiring attachment signing", () => {
     const html = renderToStaticMarkup(
       React.createElement(ApprovalDecisionForm, {
         action: async () => ({}),
-        pendingSignatureAttachment: {
-          fileName: "견적서.png",
-          signHref: "/attachments/attachment-001/sign",
-        },
       }),
     );
 
-    assert.match(html, /아직 날인하지 않은 첨부파일이 있습니다/);
-    assert.match(html, /견적서\.png/);
-    assert.match(html, /첨부파일에 날인하러 가기/);
-    assert.match(html, /href="\/attachments\/attachment-001\/sign"/);
-    assert.doesNotMatch(html, />승인</);
+    assert.match(html, /결재 처리/);
+    assert.match(html, />승인</);
     assert.match(html, />반려</);
+    assert.doesNotMatch(html, /첨부파일에 날인하러 가기/);
+    assert.doesNotMatch(html, /href="\/attachments\/attachment-001\/sign"/);
   });
 
   test("renders document detail loading skeleton", () => {

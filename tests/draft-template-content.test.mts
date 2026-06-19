@@ -11,7 +11,10 @@ import {
   getDocumentTemplateDisplayRows,
   validateDocumentTemplateContentValues,
 } from "../src/lib/draft-template-content.ts";
-import { getVacationRequestDocumentTemplateSchema } from "../src/lib/document-template-schema.ts";
+import {
+  getExpenseReportDocumentTemplateSchema,
+  getVacationRequestDocumentTemplateSchema,
+} from "../src/lib/document-template-schema.ts";
 
 describe("draft template content", () => {
   test("compiles template content from textarea fields only", () => {
@@ -246,6 +249,15 @@ describe("draft template content", () => {
         value: "예",
       },
     ]);
+  });
+
+  test("keeps legacy freeform expense content out of structured display rows", () => {
+    const rows = getDocumentTemplateDisplayRows(
+      getExpenseReportDocumentTemplateSchema(),
+      "기관 내 상비의약품 및 응급처치용품 비치를 위하여 구입하고자 합니다.",
+    );
+
+    assert.deepEqual(rows, []);
   });
 
   test("keeps schema-based display content instead of legacy textarea extraction", () => {
