@@ -4,6 +4,7 @@ import { PageTitle } from "@/components/page-title";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
 import { getResourcePostForEdit } from "@/lib/resource-library";
+import { isResourceCategory } from "@/lib/resource-library-core";
 import { updateResourceAction } from "../../actions";
 
 export default async function EditResourcePage({
@@ -45,12 +46,9 @@ export default async function EditResourcePage({
         initialValues={{
           title: resource.title,
           summary: resource.summary,
-          category:
-            resource.category === "corporation" ||
-            resource.category === "cafe" ||
-            resource.category === "bajaul"
-              ? resource.category
-              : "bajaul",
+          category: isResourceCategory(resource.category)
+            ? resource.category
+            : "bajaul",
         }}
         mode="edit"
       />

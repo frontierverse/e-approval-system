@@ -36,9 +36,11 @@ const resourceNavigationItems: NavigationItem[] = [
   { label: "법인", href: "/resources?category=corporation" },
   { label: "카페", href: "/resources?category=cafe" },
   { label: "바자울", href: "/resources?category=bajaul" },
+  { label: "교육", href: "/resources?category=education" },
 ];
 
 const youthNavigationItems: NavigationItem[] = [
+  { label: "청소년 명단", href: "/youth/roster" },
   { label: "공통 일정표", href: "/youth/common-schedule" },
   { label: "학습진도", href: "/youth/learning-progress" },
   { label: "규칙", href: "/youth/rules" },

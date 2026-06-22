@@ -17,6 +17,7 @@ describe("resource library", () => {
   test("normalizes category filters", () => {
     assert.equal(normalizeResourceCategoryFilter("cafe"), "cafe");
     assert.equal(normalizeResourceCategoryFilter("bajaul"), "bajaul");
+    assert.equal(normalizeResourceCategoryFilter("education"), "education");
     assert.equal(normalizeResourceCategoryFilter("unknown"), "all");
     assert.equal(normalizeResourceCategoryFilter(undefined), "all");
   });

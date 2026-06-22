@@ -1,4 +1,4 @@
-export type ResourceCategory = "corporation" | "cafe" | "bajaul";
+export type ResourceCategory = "corporation" | "cafe" | "bajaul" | "education";
 
 export type ResourceAttachment = {
   id?: string;
@@ -63,6 +63,7 @@ export const resourceCategoryLabels: Record<ResourceCategory, string> = {
   corporation: "법인",
   cafe: "카페",
   bajaul: "바자울",
+  education: "교육",
 };
 
 export const resourceCategoryOptions: {
@@ -73,10 +74,16 @@ export const resourceCategoryOptions: {
   { value: "corporation", label: resourceCategoryLabels.corporation },
   { value: "cafe", label: resourceCategoryLabels.cafe },
   { value: "bajaul", label: resourceCategoryLabels.bajaul },
+  { value: "education", label: resourceCategoryLabels.education },
 ];
 
 export function isResourceCategory(value: string): value is ResourceCategory {
-  return value === "corporation" || value === "cafe" || value === "bajaul";
+  return (
+    value === "corporation" ||
+    value === "cafe" ||
+    value === "bajaul" ||
+    value === "education"
+  );
 }
 
 export function normalizeResourceCategory(value: string | undefined) {

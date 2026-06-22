@@ -160,7 +160,7 @@ export async function createYouthAction(
     };
   });
 
-  revalidatePath("/youth");
+  revalidateYouthPaths();
 
   return {
     ok: true,
@@ -334,7 +334,7 @@ export async function updateYouthAction(
     };
   });
 
-  revalidatePath("/youth");
+  revalidateYouthPaths();
 
   return {
     ok: true,
@@ -417,7 +417,7 @@ export async function updateYouthNoteAction(
     return updatedNote;
   });
 
-  revalidatePath("/youth");
+  revalidateYouthPaths();
 
   return {
     ok: true,
@@ -478,7 +478,7 @@ export async function deleteYouthNoteAction(
     });
   });
 
-  revalidatePath("/youth");
+  revalidateYouthPaths();
 
   return {
     ok: true,
@@ -617,4 +617,11 @@ function normalizeFamilyContacts(values: YouthFamilyContactInput[]): {
   return {
     value: contacts,
   };
+}
+
+function revalidateYouthPaths() {
+  revalidatePath("/youth");
+  revalidatePath("/youth/roster");
+  revalidatePath("/youth/learning-progress");
+  revalidatePath("/company-info");
 }

@@ -3,7 +3,13 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, type PDFFont, type PDFPage, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  PageSizes,
+  type PDFFont,
+  type PDFPage,
+  rgb,
+} from "pdf-lib";
 import {
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartMinute,
@@ -34,7 +40,7 @@ type SchedulePdfPage = {
   title: string;
 };
 
-const landscapeA4Size: [number, number] = [841.89, 595.28];
+const a4PortraitSize: [number, number] = [PageSizes.A4[0], PageSizes.A4[1]];
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
@@ -137,7 +143,7 @@ async function createSchedulePdf(pages: SchedulePdfPage[]) {
   });
 
   for (const pageInput of pages) {
-    const page = pdf.addPage(landscapeA4Size);
+    const page = pdf.addPage(a4PortraitSize);
 
     drawSchedulePage(page, font, pageInput);
   }
@@ -240,10 +246,8 @@ function drawSchedulePage(
             first.endMinute - second.endMinute,
         );
       const text = cellSchedules
-        .map(
-          (schedule) =>
-            `${formatMinuteRange(schedule.startMinute, schedule.endMinute)} ${schedule.content.trim()}`,
-        )
+        .map((schedule) => schedule.content.trim())
+        .filter(Boolean)
         .join("\n");
 
       drawCellText(page, font, text, {
@@ -404,32 +408,24 @@ function wrapText(
       } else {
         currentLine = candidate;
       }
-
-      if (lines.length >= maxLines) {
-        lines[maxLines - 1] = fitTextWithEllipsis(
-          font,
-          lines[maxLines - 1] ?? "",
-          fontSize,
-          maxWidth,
-        );
-        return lines;
-      }
     }
 
     lines.push(currentLine.trimEnd());
-
-    if (lines.length >= maxLines) {
-      lines[maxLines - 1] = fitTextWithEllipsis(
-        font,
-        lines[maxLines - 1] ?? "",
-        fontSize,
-        maxWidth,
-      );
-      return lines;
-    }
   }
 
-  return lines;
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const visibleLines = lines.slice(0, maxLines);
+  visibleLines[maxLines - 1] = fitTextWithEllipsis(
+    font,
+    visibleLines[maxLines - 1] ?? "",
+    fontSize,
+    maxWidth,
+  );
+
+  return visibleLines;
 }
 
 function fitTextWithEllipsis(

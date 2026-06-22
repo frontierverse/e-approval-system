@@ -40,6 +40,11 @@ const resourcePageCopy: Record<
     description:
       "카페 운영, 매장 관리, 판매와 서비스 업무에 필요한 자료를 정리합니다.",
   },
+  education: {
+    title: "교육 자료실",
+    description:
+      "직원 교육, 청소년 지도, 프로그램 운영에 필요한 교육자료를 보관합니다.",
+  },
 };
 
 export default async function ResourcesPage({
@@ -120,7 +125,8 @@ function getResourcePageCopy(category: ResourceCategoryFilter) {
   if (category === "all") {
     return {
       title: "자료실",
-      description: "법인, 카페, 바자울 자료를 구분해서 확인하는 공간입니다.",
+      description:
+        "법인, 카페, 바자울, 교육 자료를 구분해서 확인하는 공간입니다.",
     };
   }
 
