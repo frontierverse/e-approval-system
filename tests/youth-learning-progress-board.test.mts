@@ -255,6 +255,10 @@ describe("YouthLearningProgressBoard", () => {
     assert.match(html, />이전 날</);
     assert.match(html, /value="2026-06-18"/);
     assert.match(html, />다음 날</);
+    assert.match(
+      html,
+      /href="\/youth\/learning-progress\/print\?date=2026-06-18"/,
+    );
     assert.doesNotMatch(
       html,
       /href="\/youth\/learning-progress\?date=2026-06-17"/,

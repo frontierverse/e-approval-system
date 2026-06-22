@@ -8,6 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 
 const requiredPrismaDelegates = [
   "attachmentPolicy",
+  "companyBusinessInfo",
   "notification",
   "resourcePost",
   "resourceAttachment",
@@ -16,6 +17,7 @@ const requiredPrismaDelegates = [
   "youthFamilyContact",
   "youthSpecialNote",
   "youthLearningSchedule",
+  "youthCommonSchedule",
   "youthRule",
   "staffLeaveLedger",
   "loginHistory",

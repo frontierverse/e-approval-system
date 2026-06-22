@@ -172,6 +172,14 @@ model AttachmentPolicy {
   updatedAt         DateTime @updatedAt
 }
 
+model CompanyBusinessInfo {
+  id                 String   @id
+  registrationNumber String?
+  address            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 model ApprovalDocument {
   id          String         @id @default(cuid())
   documentNo  String?        @unique
@@ -440,6 +448,23 @@ model YouthLearningSchedule {
   @@index([repeatsWeekly, scheduleDate])
   @@index([recurrenceSourceDate])
   @@index([recurrenceWeekdays])
+  @@index([startHour])
+  @@index([startMinute])
+}
+
+model YouthCommonSchedule {
+  id          String   @id @default(cuid())
+  weekday     Int
+  startHour   Int
+  startMinute Int
+  endHour     Int
+  endMinute   Int
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([weekday, startMinute])
+  @@index([weekday, startMinute])
   @@index([startHour])
   @@index([startMinute])
 }

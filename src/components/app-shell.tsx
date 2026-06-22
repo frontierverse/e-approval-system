@@ -39,8 +39,13 @@ const resourceNavigationItems: NavigationItem[] = [
 ];
 
 const youthNavigationItems: NavigationItem[] = [
+  { label: "공통 일정표", href: "/youth/common-schedule" },
   { label: "학습진도", href: "/youth/learning-progress" },
   { label: "규칙", href: "/youth/rules" },
+];
+
+const companyNavigationItems: NavigationItem[] = [
+  { label: "회사 정보", href: "/company-info" },
 ];
 
 const accountNavigationItems: NavigationItem[] = [
@@ -153,12 +158,12 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       items: resourceNavigationItems,
     },
     {
-      label: "내 정보",
-      items: accountNavigationItems,
-    },
-    {
       label: "청소년 관리",
       items: youthNavigationItems,
+    },
+    {
+      label: "내 정보",
+      items: accountNavigationItems,
     },
     ...(isAdmin
       ? [
@@ -168,6 +173,10 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
           },
         ]
       : []),
+    {
+      label: "회사 정보",
+      items: companyNavigationItems,
+    },
   ];
 }
 

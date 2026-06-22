@@ -746,6 +746,14 @@ export function YouthLearningProgressBoardContent({
               >
                 다음 날
               </button>
+              <Link
+                href={`/youth/learning-progress/print?date=${selectedScheduleDate}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                인쇄
+              </Link>
             </form>
 
             <form

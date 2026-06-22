@@ -125,6 +125,63 @@ export type YouthLearningSchedule = {
   recurrenceWeekdays: YouthLearningScheduleWeekday[];
 };
 
+export const youthCommonScheduleWeekdays = [
+  { value: 1, label: "월요일", shortLabel: "월" },
+  { value: 2, label: "화요일", shortLabel: "화" },
+  { value: 3, label: "수요일", shortLabel: "수" },
+  { value: 4, label: "목요일", shortLabel: "목" },
+  { value: 5, label: "금요일", shortLabel: "금" },
+  { value: 6, label: "토요일", shortLabel: "토" },
+  { value: 0, label: "일요일", shortLabel: "일" },
+] as const satisfies ReadonlyArray<{
+  value: YouthLearningScheduleWeekday;
+  label: string;
+  shortLabel: string;
+}>;
+
+export type YouthCommonSchedule = {
+  id: string;
+  weekday: YouthLearningScheduleWeekday;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+  content: string;
+};
+
+export type YouthCommonScheduleWeekdayFilter =
+  | "all"
+  | YouthLearningScheduleWeekday;
+
+export type YouthCommonScheduleChangeLog = {
+  id: string;
+  message: string | null;
+  createdAt: string;
+  metadata: unknown;
+  actor: {
+    id: string;
+    name: string;
+    email: string | null;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
+export type YouthCommonScheduleChangeLogActor = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
+export type YouthCommonScheduleChangeLogFilters = {
+  actorId: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  weekday: YouthCommonScheduleWeekdayFilter;
+};
+
 export type YouthLearningProgressChangeLog = {
   id: string;
   message: string | null;
