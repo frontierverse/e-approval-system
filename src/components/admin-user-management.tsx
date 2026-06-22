@@ -74,9 +74,9 @@ export function AdminUserManagement({
       <div className={adminListStyles.panel}>
         <div className={adminListStyles.header}>
           <div>
-            <h2 className={adminListStyles.title}>사용자 목록</h2>
+            <h2 className={adminListStyles.title}>직원 정보</h2>
             <p className={adminListStyles.description}>
-              사용자 권한과 조직 정보를 수정합니다.
+              직원 계정 권한과 조직 정보를 수정합니다.
             </p>
           </div>
           <span className={adminListStyles.count}>
@@ -110,7 +110,7 @@ function UserListItem({
 }) {
   return (
     <AdminEditModal
-      title="사용자 수정"
+      title="직원 정보 수정"
       description="권한, 상태, 조직 정보와 비밀번호를 재설정합니다."
       trigger={
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -169,9 +169,9 @@ function CreateUserForm({
       action={formAction}
       className="self-start rounded-md border border-[#d9dee7] bg-white p-5"
     >
-      <h2 className="text-base font-semibold">사용자 추가</h2>
+      <h2 className="text-base font-semibold">직원 추가</h2>
       <p className="mt-1 text-sm text-[#697386]">
-        새 계정의 기본 조직 정보를 입력합니다. (초기 비밀번호: 0000)
+        직원 계정의 기본 조직 정보를 입력합니다. (초기 비밀번호: 0000)
       </p>
 
       <div className="mt-5 grid gap-4">
@@ -242,7 +242,7 @@ function CreateUserForm({
           "mt-5 h-10 w-full px-4 text-sm",
         )}
       >
-        {pending ? "생성 중" : "사용자 생성"}
+        {pending ? "생성 중" : "직원 생성"}
       </button>
     </form>
   );

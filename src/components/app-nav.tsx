@@ -383,6 +383,10 @@ function isActivePath(pathname: string, href: string, currentHref: string) {
     return pathname === "/youth";
   }
 
+  if (href === "/admin") {
+    return pathname === "/admin";
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

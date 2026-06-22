@@ -6,7 +6,6 @@ import { AdminDepartmentManagement } from "@/components/admin-department-managem
 import { AdminLoginHistoryList } from "@/components/admin-login-history-list";
 import { AdminPositionManagement } from "@/components/admin-position-management";
 import { AdminTemplateManagement } from "@/components/admin-template-management";
-import { AdminUserManagement } from "@/components/admin-user-management";
 import { PageTitle } from "@/components/page-title";
 import {
   getAdminAttachmentPolicy,
@@ -18,8 +17,6 @@ import {
   getAdminLoginHistoryUsers,
   getAdminOverview,
   getAdminPositions,
-  getAdminReferenceData,
-  getAdminUsers,
   type AdminAuditLogFilters,
   type AdminAuditLogStatusFilter,
   type AdminLoginHistoryFilters,
@@ -43,7 +40,6 @@ type AdminPageSearchParams = {
 };
 
 const adminTabs = [
-  { value: "users", label: "사용자", description: "계정/권한" },
   { value: "departments", label: "부서", description: "조직 단위" },
   { value: "positions", label: "직급", description: "결재 체계" },
   { value: "templates", label: "문서 양식", description: "기안 양식" },
@@ -74,8 +70,8 @@ export default async function AdminPage({
   return (
     <>
       <PageTitle
-        title="관리자"
-        description="사용자, 부서, 직급, 문서 양식 같은 기준 정보를 관리하는 화면입니다."
+        title="관리 설정"
+        description="부서, 직급, 문서 양식 같은 기준 정보를 관리하는 화면입니다."
       />
 
       <Suspense fallback={<RouteContentSkeleton variant="admin" />}>
@@ -98,7 +94,6 @@ async function AdminContent({
     getAdminPanel(activeTab, searchParams),
   ]);
   const tabCounts = {
-    users: String(overview.users.total),
     departments: String(overview.departments.total),
     positions: String(overview.positions.total),
     templates: String(overview.templates.total),
@@ -118,21 +113,6 @@ async function getAdminPanel(
   activeTab: AdminTabValue,
   searchParams: AdminPageSearchParams,
 ) {
-  if (activeTab === "users") {
-    const [users, referenceData] = await Promise.all([
-      getAdminUsers(),
-      getAdminReferenceData(),
-    ]);
-
-    return (
-      <AdminUserManagement
-        users={users}
-        departments={referenceData.departments}
-        positions={referenceData.positions}
-      />
-    );
-  }
-
   if (activeTab === "departments") {
     const departments = await getAdminDepartments();
 
@@ -264,7 +244,7 @@ function AdminTabs({
 }
 
 function getAdminTabHref(tab: AdminTabValue) {
-  return tab === "users" ? "/admin" : `/admin?tab=${tab}`;
+  return tab === "departments" ? "/admin" : `/admin?tab=${tab}`;
 }
 
 function getAuditLogFilters(
@@ -298,7 +278,7 @@ function normalizeAdminTab(value: SearchParamValue): AdminTabValue {
 
   return adminTabs.some((item) => item.value === tab)
     ? (tab as AdminTabValue)
-    : "users";
+    : "departments";
 }
 
 function normalizeLoginResult(

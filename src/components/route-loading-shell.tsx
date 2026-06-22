@@ -18,6 +18,7 @@ export function RouteLoadingShell({
     | "document"
     | "draft"
     | "admin"
+    | "adminStaff"
     | "account"
     | "notifications"
     | "resources"
@@ -45,6 +46,7 @@ export function RouteContentSkeleton({
     | "document"
     | "draft"
     | "admin"
+    | "adminStaff"
     | "account"
     | "notifications"
     | "resources"
@@ -60,6 +62,10 @@ export function RouteContentSkeleton({
 
   if (variant === "admin") {
     return <AdminSkeleton />;
+  }
+
+  if (variant === "adminStaff") {
+    return <AdminStaffSkeleton />;
   }
 
   if (variant === "account") {
@@ -301,7 +307,6 @@ function AdminSkeleton() {
       >
         <div className="scrollbar-none flex gap-2 overflow-x-auto">
           {[
-            "사용자",
             "부서",
             "직급",
             "문서 양식",
@@ -320,7 +325,16 @@ function AdminSkeleton() {
         </div>
       </section>
 
-      <PanelSkeleton title="사용자 관리" rows={5} />
+      <PanelSkeleton title="부서 관리" rows={5} />
+    </div>
+  );
+}
+
+function AdminStaffSkeleton() {
+  return (
+    <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
+      <PanelSkeleton title="직원 추가" rows={6} />
+      <PanelSkeleton title="직원 정보" rows={5} />
     </div>
   );
 }

@@ -47,7 +47,10 @@ const accountNavigationItems: NavigationItem[] = [
   { label: "내 계정", href: "/account" },
 ];
 
-const adminNavigationItem: NavigationItem = { label: "관리자", href: "/admin" };
+const adminNavigationItems: NavigationItem[] = [
+  { label: "직원 정보", href: "/admin/staff" },
+  { label: "관리 설정", href: "/admin" },
+];
 const fallbackNavigationGroups = getNavigationGroups(false);
 
 export function AppShell({
@@ -161,7 +164,7 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       ? [
           {
             label: "관리",
-            items: [adminNavigationItem],
+            items: adminNavigationItems,
           },
         ]
       : []),
