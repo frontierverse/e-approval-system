@@ -19,6 +19,7 @@ import {
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartHourFromMinute,
   getYouthLearningScheduleStartMinute,
+  normalizeYouthLearningScheduleWeekdays,
   youthCommonScheduleWeekdays,
   youthLearningScheduleEndHour,
   youthLearningScheduleMinuteStep,
@@ -44,8 +45,15 @@ type YouthCommonScheduleBoardProps = {
     startMinute: number,
     endMinute: number,
     content: string,
+    recurrenceWeekdays: number[],
     sourceStartMinute?: number,
-  ) => Promise<YouthActionResult<{ schedule: YouthCommonSchedule | null }>>;
+  ) => Promise<
+    YouthActionResult<{
+      schedules: YouthCommonSchedule[];
+      sourceStartMinute: number;
+      targetWeekdays: YouthLearningScheduleWeekday[];
+    }>
+  >;
   schedules: YouthCommonSchedule[];
 };
 
@@ -121,6 +129,9 @@ export function YouthCommonScheduleBoard({
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
   );
   const [scheduleDraft, setScheduleDraft] = useState("");
+  const [recurrenceWeekdayDraft, setRecurrenceWeekdayDraft] = useState<
+    YouthLearningScheduleWeekday[]
+  >([]);
   const [formError, setFormError] = useState("");
   const [scheduleDragState, setScheduleDragState] =
     useState<ScheduleDragState | null>(null);
@@ -203,6 +214,7 @@ export function YouthCommonScheduleBoard({
     setStartMinuteDraft(schedule?.startMinute ?? startMinute);
     setEndMinuteDraft(schedule?.endMinute ?? startMinute + 60);
     setScheduleDraft(schedule?.content ?? "");
+    setRecurrenceWeekdayDraft([weekday]);
     setFormError("");
   }
 
@@ -215,6 +227,7 @@ export function YouthCommonScheduleBoard({
       getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour + 1),
     );
     setScheduleDraft("");
+    setRecurrenceWeekdayDraft([]);
     setFormError("");
   }
 
@@ -231,6 +244,7 @@ export function YouthCommonScheduleBoard({
         startMinuteDraft,
         endMinuteDraft,
         scheduleDraft,
+        recurrenceWeekdayDraft,
         sourceStartMinute,
       );
 
@@ -240,11 +254,11 @@ export function YouthCommonScheduleBoard({
       }
 
       setScheduleItems((current) =>
-        mergeCommonScheduleItems(
+        mergeCommonScheduleResultItems(
           current,
-          selectedCell.weekday,
-          sourceStartMinute,
-          result.data.schedule,
+          result.data.targetWeekdays,
+          result.data.sourceStartMinute,
+          result.data.schedules,
         ),
       );
       closeScheduleModal();
@@ -423,6 +437,7 @@ export function YouthCommonScheduleBoard({
         nextStartMinute,
         nextEndMinute,
         schedule.content,
+        [schedule.weekday],
         schedule.startMinute,
       );
 
@@ -440,11 +455,11 @@ export function YouthCommonScheduleBoard({
       }
 
       setScheduleItems((current) =>
-        mergeCommonScheduleItems(
+        mergeCommonScheduleResultItems(
           current,
-          schedule.weekday,
+          [schedule.weekday],
           nextStartMinute,
-          result.data.schedule,
+          result.data.schedules,
         ),
       );
       setFormError("");
@@ -473,6 +488,21 @@ export function YouthCommonScheduleBoard({
         ? nextEndMinute
         : nextStartMinute + youthLearningScheduleMinuteStep,
     );
+    setFormError("");
+  }
+
+  function toggleRecurrenceWeekday(weekday: YouthLearningScheduleWeekday) {
+    setRecurrenceWeekdayDraft((current) => {
+      if (selectedCell?.weekday === weekday) {
+        return normalizeYouthLearningScheduleWeekdays([...current, weekday]);
+      }
+
+      return current.includes(weekday)
+        ? normalizeYouthLearningScheduleWeekdays(
+            current.filter((currentWeekday) => currentWeekday !== weekday),
+          )
+        : normalizeYouthLearningScheduleWeekdays([...current, weekday]);
+    });
     setFormError("");
   }
 
@@ -869,6 +899,35 @@ export function YouthCommonScheduleBoard({
                     )}
                   </select>
                 </label>
+                <fieldset className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 pb-3 pt-2">
+                  <legend className="px-1 text-sm font-semibold text-[#394150]">
+                    반복 요일
+                  </legend>
+                  <div className="mt-2 grid grid-cols-7 gap-2">
+                    {youthCommonScheduleWeekdays.map((weekday) => {
+                      const selected = recurrenceWeekdayDraft.includes(
+                        weekday.value,
+                      );
+
+                      return (
+                        <button
+                          key={weekday.value}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => toggleRecurrenceWeekday(weekday.value)}
+                          className={[
+                            "h-9 rounded-md border text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
+                            selected
+                              ? "border-[#196b69] bg-[#196b69] text-white"
+                              : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
+                          ].join(" ")}
+                        >
+                          {weekday.shortLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
                 {formError ? (
                   <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
                     {formError}
@@ -1406,6 +1465,21 @@ function mergeCommonScheduleItems(
   return schedule
     ? [...withoutCurrent, schedule].sort(sortCommonScheduleItems)
     : withoutCurrent;
+}
+
+function mergeCommonScheduleResultItems(
+  current: YouthCommonSchedule[],
+  weekdays: YouthLearningScheduleWeekday[],
+  sourceStartMinute: number,
+  schedules: YouthCommonSchedule[],
+) {
+  const weekdaySet = new Set(weekdays);
+  const withoutCurrent = current.filter(
+    (item) =>
+      !weekdaySet.has(item.weekday) || item.startMinute !== sourceStartMinute,
+  );
+
+  return [...withoutCurrent, ...schedules].sort(sortCommonScheduleItems);
 }
 
 function sortCommonScheduleItems(

@@ -12,6 +12,7 @@ import {
   isYouthLearningScheduleEndMinute,
   isYouthLearningScheduleStartMinute,
   isYouthLearningScheduleWeekday,
+  normalizeYouthLearningScheduleWeekdays,
   youthCommonScheduleWeekdays,
   type YouthActionResult,
   type YouthCommonSchedule,
@@ -25,14 +26,38 @@ export async function saveYouthCommonScheduleAction(
   startMinute: number,
   endMinute: number,
   content: string,
-  sourceStartMinute = startMinute,
-): Promise<YouthActionResult<{ schedule: YouthCommonSchedule | null }>> {
+  recurrenceWeekdaysOrSourceStartMinute: number[] | number = [weekday],
+  maybeSourceStartMinute?: number,
+): Promise<
+  YouthActionResult<{
+    schedules: YouthCommonSchedule[];
+    sourceStartMinute: number;
+    targetWeekdays: YouthLearningScheduleWeekday[];
+  }>
+> {
   const user = await requireUser();
+  const sourceStartMinute = Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
+    ? (maybeSourceStartMinute ?? startMinute)
+    : recurrenceWeekdaysOrSourceStartMinute;
 
   if (!isYouthLearningScheduleWeekday(weekday)) {
     return {
       ok: false,
       error: "요일을 다시 선택하세요.",
+    };
+  }
+
+  const targetWeekdays = normalizeYouthLearningScheduleWeekdays([
+    weekday,
+    ...(Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
+      ? recurrenceWeekdaysOrSourceStartMinute
+      : []),
+  ]);
+
+  if (targetWeekdays.length === 0) {
+    return {
+      ok: false,
+      error: "반복 요일을 하나 이상 선택하세요.",
     };
   }
 
@@ -60,50 +85,57 @@ export async function saveYouthCommonScheduleAction(
   const normalizedContent = content.trim();
 
   if (!normalizedContent) {
-    const existingSchedule = await findCommonSchedule(weekday, sourceStartMinute);
+    const existingSchedules = await findCommonSchedules(
+      targetWeekdays,
+      sourceStartMinute,
+    );
 
-    if (existingSchedule) {
+    if (existingSchedules.length > 0) {
       const auditRequestData = await getCurrentAuditLogRequestData();
 
       await prisma.$transaction(async (tx) => {
-        await tx.youthCommonSchedule.delete({
+        await tx.youthCommonSchedule.deleteMany({
           where: {
-            weekday_startMinute: {
-              weekday,
-              startMinute: sourceStartMinute,
+            startMinute: sourceStartMinute,
+            weekday: {
+              in: targetWeekdays,
             },
           },
         });
 
-        await tx.auditLog.create({
-          data: {
-            actorId: user.id,
-            ...auditRequestData,
-            action: AuditAction.UPDATE_YOUTH,
-            targetType: "YouthCommonSchedule",
-            targetId: existingSchedule.id,
-            message: `공통 일정표 ${formatCommonScheduleSlotLabel(
-              weekday,
-              existingSchedule.startMinute,
-              existingSchedule.endMinute,
-            )} 일정을 삭제했습니다.`,
-            metadata: {
-              changeType: "commonSchedule.delete",
-              nextContent: null,
-              previousContent: existingSchedule.content,
-              source: "common-schedule",
-              weekday,
-              startHour: existingSchedule.startHour,
-              startMinute: existingSchedule.startMinute,
-              endHour: existingSchedule.endHour,
-              endMinute: existingSchedule.endMinute,
-              timeLabel: formatScheduleRangeLabel(
+        for (const existingSchedule of existingSchedules) {
+          await tx.auditLog.create({
+            data: {
+              actorId: user.id,
+              ...auditRequestData,
+              action: AuditAction.UPDATE_YOUTH,
+              targetType: "YouthCommonSchedule",
+              targetId: existingSchedule.id,
+              message: `공통 일정표 ${formatCommonScheduleSlotLabel(
+                existingSchedule.weekday,
                 existingSchedule.startMinute,
                 existingSchedule.endMinute,
-              ),
+              )} 일정을 삭제했습니다.`,
+              metadata: {
+                changeType: "commonSchedule.delete",
+                nextContent: null,
+                previousContent: existingSchedule.content,
+                source: "common-schedule",
+                sourceStartMinute,
+                targetWeekdays,
+                weekday: existingSchedule.weekday,
+                startHour: existingSchedule.startHour,
+                startMinute: existingSchedule.startMinute,
+                endHour: existingSchedule.endHour,
+                endMinute: existingSchedule.endMinute,
+                timeLabel: formatScheduleRangeLabel(
+                  existingSchedule.startMinute,
+                  existingSchedule.endMinute,
+                ),
+              },
             },
-          },
-        });
+          });
+        }
       });
     }
 
@@ -112,22 +144,26 @@ export async function saveYouthCommonScheduleAction(
     return {
       ok: true,
       data: {
-        schedule: null,
+        schedules: [],
+        sourceStartMinute,
+        targetWeekdays,
       },
     };
   }
 
   const conflictingSchedule = await findConflictingCommonSchedule({
-    weekday,
     startMinute,
     endMinute,
     sourceStartMinute,
+    weekdays: targetWeekdays,
   });
 
   if (conflictingSchedule) {
     return {
       ok: false,
-      error: `${formatScheduleRangeLabel(
+      error: `${formatWeekdayLabel(
+        conflictingSchedule.weekday,
+      )} ${formatScheduleRangeLabel(
         conflictingSchedule.startMinute,
         conflictingSchedule.endMinute,
       )} 일정과 시간이 겹칩니다.`,
@@ -138,12 +174,12 @@ export async function saveYouthCommonScheduleAction(
   const endHour = getYouthLearningScheduleEndHourFromMinute(endMinute);
   const auditRequestData = await getCurrentAuditLogRequestData();
 
-  const schedule = await prisma.$transaction(async (tx) => {
-    const existingSchedule = await tx.youthCommonSchedule.findUnique({
+  const schedules = await prisma.$transaction(async (tx) => {
+    const existingSchedules = await tx.youthCommonSchedule.findMany({
       where: {
-        weekday_startMinute: {
-          weekday,
-          startMinute: sourceStartMinute,
+        startMinute: sourceStartMinute,
+        weekday: {
+          in: targetWeekdays,
         },
       },
       select: {
@@ -156,87 +192,99 @@ export async function saveYouthCommonScheduleAction(
         content: true,
       },
     });
+    const existingScheduleByWeekday = new Map(
+      existingSchedules.map((schedule) => [schedule.weekday, schedule]),
+    );
+    const savedSchedules: YouthCommonSchedule[] = [];
 
-    if (
-      existingSchedule?.content === normalizedContent &&
-      existingSchedule.startMinute === startMinute &&
-      existingSchedule.endMinute === endMinute
-    ) {
-      return mapYouthCommonSchedule(existingSchedule);
-    }
+    for (const targetWeekday of targetWeekdays) {
+      const existingSchedule = existingScheduleByWeekday.get(targetWeekday);
 
-    const savedSchedule = await tx.youthCommonSchedule.upsert({
-      where: {
-        weekday_startMinute: {
-          weekday,
-          startMinute: sourceStartMinute,
+      if (
+        existingSchedule?.content === normalizedContent &&
+        existingSchedule.startMinute === startMinute &&
+        existingSchedule.endMinute === endMinute
+      ) {
+        savedSchedules.push(mapYouthCommonSchedule(existingSchedule));
+        continue;
+      }
+
+      const savedSchedule = await tx.youthCommonSchedule.upsert({
+        where: {
+          weekday_startMinute: {
+            weekday: targetWeekday,
+            startMinute: sourceStartMinute,
+          },
         },
-      },
-      update: {
-        content: normalizedContent,
-        endHour,
-        endMinute,
-        startHour,
-        startMinute,
-      },
-      create: {
-        content: normalizedContent,
-        endHour,
-        endMinute,
-        startHour,
-        startMinute,
-        weekday,
-      },
-      select: {
-        id: true,
-        weekday: true,
-        startHour: true,
-        startMinute: true,
-        endHour: true,
-        endMinute: true,
-        content: true,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "YouthCommonSchedule",
-        targetId: savedSchedule.id,
-        message: `공통 일정표 ${formatCommonScheduleSlotLabel(
-          weekday,
-          startMinute,
-          endMinute,
-        )} 일정을 ${existingSchedule ? "변경" : "입력"}했습니다.`,
-        metadata: {
-          changeType: existingSchedule
-            ? "commonSchedule.update"
-            : "commonSchedule.create",
-          nextContent: normalizedContent,
-          nextStartHour: startHour,
-          nextStartMinute: startMinute,
-          nextEndHour: endHour,
-          nextEndMinute: endMinute,
-          previousContent: existingSchedule?.content ?? null,
-          previousStartHour: existingSchedule?.startHour ?? null,
-          previousStartMinute: existingSchedule?.startMinute ?? null,
-          previousEndHour: existingSchedule?.endHour ?? null,
-          previousEndMinute: existingSchedule?.endMinute ?? null,
-          source: "common-schedule",
-          sourceStartMinute,
-          weekday,
+        update: {
+          content: normalizedContent,
           endHour,
           endMinute,
           startHour,
           startMinute,
-          timeLabel: formatScheduleRangeLabel(startMinute, endMinute),
         },
-      },
-    });
+        create: {
+          content: normalizedContent,
+          endHour,
+          endMinute,
+          startHour,
+          startMinute,
+          weekday: targetWeekday,
+        },
+        select: {
+          id: true,
+          weekday: true,
+          startHour: true,
+          startMinute: true,
+          endHour: true,
+          endMinute: true,
+          content: true,
+        },
+      });
 
-    return mapYouthCommonSchedule(savedSchedule);
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.UPDATE_YOUTH,
+          targetType: "YouthCommonSchedule",
+          targetId: savedSchedule.id,
+          message: `공통 일정표 ${formatCommonScheduleSlotLabel(
+            targetWeekday,
+            startMinute,
+            endMinute,
+          )} 일정을 ${existingSchedule ? "변경" : "입력"}했습니다.`,
+          metadata: {
+            changeType: existingSchedule
+              ? "commonSchedule.update"
+              : "commonSchedule.create",
+            nextContent: normalizedContent,
+            nextStartHour: startHour,
+            nextStartMinute: startMinute,
+            nextEndHour: endHour,
+            nextEndMinute: endMinute,
+            previousContent: existingSchedule?.content ?? null,
+            previousStartHour: existingSchedule?.startHour ?? null,
+            previousStartMinute: existingSchedule?.startMinute ?? null,
+            previousEndHour: existingSchedule?.endHour ?? null,
+            previousEndMinute: existingSchedule?.endMinute ?? null,
+            source: "common-schedule",
+            sourceStartMinute,
+            targetWeekdays,
+            weekday: targetWeekday,
+            endHour,
+            endMinute,
+            startHour,
+            startMinute,
+            timeLabel: formatScheduleRangeLabel(startMinute, endMinute),
+          },
+        },
+      });
+
+      savedSchedules.push(mapYouthCommonSchedule(savedSchedule));
+    }
+
+    return savedSchedules;
   });
 
   revalidatePath(commonSchedulePath);
@@ -244,7 +292,9 @@ export async function saveYouthCommonScheduleAction(
   return {
     ok: true,
     data: {
-      schedule,
+      schedules,
+      sourceStartMinute,
+      targetWeekdays,
     },
   };
 }
@@ -352,26 +402,50 @@ async function findCommonSchedule(
   });
 }
 
-async function findConflictingCommonSchedule({
-  weekday,
-  startMinute,
-  endMinute,
-  sourceStartMinute,
-}: {
-  weekday: YouthLearningScheduleWeekday;
-  startMinute: number;
-  endMinute: number;
-  sourceStartMinute: number;
-}) {
-  const candidates = await prisma.youthCommonSchedule.findMany({
+async function findCommonSchedules(
+  weekdays: YouthLearningScheduleWeekday[],
+  startMinute: number,
+) {
+  return prisma.youthCommonSchedule.findMany({
     where: {
-      weekday,
-    },
-    orderBy: {
-      startMinute: "asc",
+      startMinute,
+      weekday: {
+        in: weekdays,
+      },
     },
     select: {
       id: true,
+      weekday: true,
+      startHour: true,
+      startMinute: true,
+      endHour: true,
+      endMinute: true,
+      content: true,
+    },
+  });
+}
+
+async function findConflictingCommonSchedule({
+  startMinute,
+  endMinute,
+  sourceStartMinute,
+  weekdays,
+}: {
+  startMinute: number;
+  endMinute: number;
+  sourceStartMinute: number;
+  weekdays: YouthLearningScheduleWeekday[];
+}) {
+  const candidates = await prisma.youthCommonSchedule.findMany({
+    where: {
+      weekday: {
+        in: weekdays,
+      },
+    },
+    orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
+    select: {
+      id: true,
+      weekday: true,
       startMinute: true,
       endMinute: true,
     },
@@ -403,7 +477,7 @@ function areScheduleRangesOverlapping(
 }
 
 function formatCommonScheduleSlotLabel(
-  weekday: YouthLearningScheduleWeekday,
+  weekday: number,
   startMinute: number,
   endMinute: number,
 ) {
@@ -413,7 +487,7 @@ function formatCommonScheduleSlotLabel(
   )}`;
 }
 
-function formatWeekdayLabel(weekday: YouthLearningScheduleWeekday) {
+function formatWeekdayLabel(weekday: number) {
   return (
     youthCommonScheduleWeekdays.find((item) => item.value === weekday)?.label ??
     `${weekday}`

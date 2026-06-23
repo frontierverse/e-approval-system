@@ -112,18 +112,21 @@ function createBoardProps({
       startMinute: number,
       endMinute: number,
       content: string,
+      recurrenceWeekdays: number[],
     ) => ({
       ok: true as const,
       data: {
-        schedule: {
-          id: "saved-common-schedule",
-          weekday: weekday as YouthLearningScheduleWeekday,
+        schedules: recurrenceWeekdays.map((targetWeekday) => ({
+          id: `saved-common-schedule-${targetWeekday}`,
+          weekday: targetWeekday as YouthLearningScheduleWeekday,
           startHour: Math.floor(startMinute / 60),
           startMinute,
           endHour: Math.ceil(endMinute / 60),
           endMinute,
           content,
-        },
+        })),
+        sourceStartMinute: startMinute,
+        targetWeekdays: recurrenceWeekdays as YouthLearningScheduleWeekday[],
       },
     }),
     schedules,
@@ -196,6 +199,7 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /오후 3시 - 오후 4시/);
     assert.match(html, /시작 시간 조절/);
     assert.match(html, /종료 시간 조절/);
+    assert.doesNotMatch(html, /반복 요일/);
     assert.match(html, /변경내역/);
     assert.match(html, /8건 중 1-5건 표시/);
     assert.match(html, /name="logStaff"/);

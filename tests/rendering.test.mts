@@ -678,12 +678,41 @@ describe("major UI rendering", () => {
             },
             document: null,
           },
+          {
+            id: "audit-007",
+            action: "UPDATE_COMPANY_INFO",
+            targetType: "CompanyBusinessInfo",
+            targetId: "youth-self-reliance-school",
+            message: "사회적협동조합 청소년자립학교 회사 정보를 수정했습니다.",
+            metadata: {
+              changes: [
+                {
+                  field: "registrationNumber",
+                  label: "사업자등록번호",
+                  before: null,
+                  after: "123-45-67890",
+                },
+                {
+                  field: "address",
+                  label: "소재지",
+                  before: "이전 주소",
+                  after: "서울특별시 테스트로 1",
+                },
+              ],
+            },
+            createdAt: new Date("2026-05-08T04:10:00.000Z"),
+            actor: {
+              name: "김민지",
+              email: "admin@example.com",
+            },
+            document: null,
+          },
         ],
         filterControls: React.createElement(AdminAuditLogFilterControlsContent, {
           actors: [],
           filters,
           navigate: () => {},
-          total: 6,
+          total: 7,
         }),
       }),
     );
@@ -709,6 +738,12 @@ describe("major UI rendering", () => {
     assert.match(html, /청소년 등록/);
     assert.match(html, /김하늘 청소년을 등록했습니다\./);
     assert.match(html, /청소년 특이사항 삭제/);
+    assert.match(html, /회사 정보 수정/);
+    assert.match(html, /사회적협동조합 청소년자립학교 회사 정보를 수정했습니다\./);
+    assert.match(html, /사업자등록번호/);
+    assert.match(html, /123-45-67890/);
+    assert.match(html, /소재지/);
+    assert.match(html, /서울특별시 테스트로 1/);
     assert.doesNotMatch(html, /기안 작성/);
     assert.match(html, /EA-2026-0001/);
     assert.match(html, /시설 운영비 집행 기안/);

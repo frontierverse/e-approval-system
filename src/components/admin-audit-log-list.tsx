@@ -461,7 +461,10 @@ function AdminAuditChangeList({ log }: { log: AdminAuditLog }) {
 }
 
 function getAdminAuditChangeItems(log: AdminAuditLog) {
-  if (log.targetType !== "User" || !isPlainObject(log.metadata)) {
+  if (
+    !["User", "CompanyBusinessInfo"].includes(log.targetType) ||
+    !isPlainObject(log.metadata)
+  ) {
     return [];
   }
 
@@ -528,6 +531,7 @@ function getTargetLabel(targetType: string) {
     DocumentTemplate: "문서 양식",
     ApprovalDocument: "문서",
     AttachmentPolicy: "첨부 정책",
+    CompanyBusinessInfo: "회사 정보",
   };
 
   return labels[targetType] ?? targetType;

@@ -176,6 +176,13 @@ export function isCompanyBusinessId(value: string): value is CompanyBusinessId {
   return companyBusinessDefinitions.some((business) => business.id === value);
 }
 
+export function getCompanyBusinessName(businessId: CompanyBusinessId) {
+  return (
+    companyBusinessDefinitions.find((business) => business.id === businessId)
+      ?.name ?? businessId
+  );
+}
+
 async function getActiveStaffMembers(referenceDate: string) {
   const users = await prisma.user.findMany({
     where: {

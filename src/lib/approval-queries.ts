@@ -286,6 +286,7 @@ const auditActionLabels: Record<AuditAction, string> = {
   CREATE_TEMPLATE: "양식 생성",
   UPDATE_TEMPLATE: "양식 수정",
   UPDATE_ATTACHMENT_POLICY: "첨부 정책 수정",
+  UPDATE_COMPANY_INFO: "회사 정보 수정",
   CHANGE_PASSWORD: "비밀번호 변경",
   CREATE_RESOURCE: "자료 업로드",
   UPDATE_RESOURCE: "자료 수정",

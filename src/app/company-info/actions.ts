@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { AuditAction } from "@/generated/prisma/client";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireAdmin } from "@/lib/auth";
 import {
+  getCompanyBusinessName,
   isCompanyBusinessId,
   type CompanyBusinessId,
 } from "@/lib/company-info";
@@ -26,7 +29,7 @@ export async function updateCompanyBusinessInfoAction(
   _previousState: CompanyBusinessInfoFormState,
   formData: FormData,
 ): Promise<CompanyBusinessInfoFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   if (!isCompanyBusinessId(businessId)) {
     return {
@@ -44,7 +47,44 @@ export async function updateCompanyBusinessInfoAction(
     };
   }
 
-  await saveCompanyBusinessInfo(businessId, values);
+  const before = await prisma.companyBusinessInfo.findUnique({
+    where: {
+      id: businessId,
+    },
+    select: {
+      address: true,
+      registrationNumber: true,
+    },
+  });
+  const after = {
+    address: values.address || null,
+    registrationNumber: values.registrationNumber || null,
+  };
+  const auditChanges = createCompanyBusinessInfoAuditChanges({
+    after,
+    before,
+  });
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction([
+    saveCompanyBusinessInfo(businessId, values),
+    prisma.auditLog.create({
+      data: {
+        actorId: admin.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_COMPANY_INFO,
+        targetType: "CompanyBusinessInfo",
+        targetId: businessId,
+        message: `${getCompanyBusinessName(businessId)} 회사 정보를 수정했습니다.`,
+        metadata:
+          auditChanges.length > 0
+            ? {
+                changes: auditChanges,
+              }
+            : undefined,
+      },
+    }),
+  ]);
   revalidatePath(companyInfoPath);
 
   return {
@@ -76,6 +116,66 @@ function validateCompanyBusinessInfoFormValues({
   }
 
   return null;
+}
+
+function createCompanyBusinessInfoAuditChanges({
+  after,
+  before,
+}: {
+  after: {
+    address: string | null;
+    registrationNumber: string | null;
+  };
+  before: {
+    address: string | null;
+    registrationNumber: string | null;
+  } | null;
+}) {
+  const changes: Array<{
+    field: string;
+    label: string;
+    before: string | null;
+    after: string | null;
+  }> = [];
+  const previous = before ?? {
+    address: null,
+    registrationNumber: null,
+  };
+
+  pushAuditChange(
+    changes,
+    "registrationNumber",
+    "사업자등록번호",
+    previous.registrationNumber,
+    after.registrationNumber,
+  );
+  pushAuditChange(changes, "address", "소재지", previous.address, after.address);
+
+  return changes;
+}
+
+function pushAuditChange(
+  changes: Array<{
+    field: string;
+    label: string;
+    before: string | null;
+    after: string | null;
+  }>,
+  field: string,
+  label: string,
+  before: string | null,
+  after: string | null,
+) {
+  if (before === after) {
+    return;
+  }
+
+  changes.push({
+    field,
+    label,
+    before,
+    after,
+  });
 }
 
 function saveCompanyBusinessInfo(
