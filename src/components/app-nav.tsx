@@ -18,6 +18,7 @@ export type NavigationItem = {
 export type NavigationGroup = {
   label: string;
   items: NavigationItem[];
+  align?: "end";
 };
 
 type AppNavProps = {
@@ -40,6 +41,9 @@ export function AppNav({ groups, variant }: AppNavProps) {
   const mobileNavRef = useRef<HTMLElement>(null);
   const selectedGroup = getActiveGroup(groups, pathname, currentHref) ?? groups[0];
   const selectedItems = selectedGroup?.items ?? [];
+  const firstEndAlignedGroupIndex = groups.findIndex(
+    (group) => group.align === "end",
+  );
   const dragStateRef = useRef<MobileDragState>({
     pointerId: null,
     startX: 0,
@@ -160,11 +164,12 @@ export function AppNav({ groups, variant }: AppNavProps) {
           aria-label="상위 메뉴"
           className="scrollbar-none flex h-[3.25rem] w-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 scroll-px-3 sm:gap-2 sm:px-6 sm:scroll-px-6 lg:px-8 lg:scroll-px-8"
         >
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <CategoryLink
               key={group.label}
               group={group}
               active={group.label === selectedGroup?.label}
+              alignEnd={index === firstEndAlignedGroupIndex}
             />
           ))}
         </nav>
@@ -238,9 +243,11 @@ export function AppNav({ groups, variant }: AppNavProps) {
 function CategoryLink({
   group,
   active,
+  alignEnd,
 }: {
   group: NavigationGroup;
   active: boolean;
+  alignEnd?: boolean;
 }) {
   const href = group.items[0]?.href ?? "/";
   const base =
@@ -252,7 +259,11 @@ function CategoryLink({
     <Link
       href={href}
       aria-current={active ? "true" : undefined}
-      className={[base, active ? activeClass : idleClass].join(" ")}
+      className={[
+        base,
+        alignEnd ? "ml-auto" : "",
+        active ? activeClass : idleClass,
+      ].join(" ")}
       draggable={false}
     >
       <span>{group.label}</span>

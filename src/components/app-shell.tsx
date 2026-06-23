@@ -172,20 +172,22 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       items: workScheduleNavigationItems,
     },
     {
-      label: "내 정보",
-      items: accountNavigationItems,
+      label: "회사 정보",
+      items: companyNavigationItems,
     },
     ...(isAdmin
       ? [
           {
             label: "관리",
             items: adminNavigationItems,
+            align: "end" as const,
           },
         ]
       : []),
     {
-      label: "회사 정보",
-      items: companyNavigationItems,
+      label: "내 정보",
+      items: accountNavigationItems,
+      align: "end",
     },
   ];
 }
