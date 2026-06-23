@@ -19,7 +19,7 @@ import {
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartHourFromMinute,
   getYouthLearningScheduleStartMinute,
-  normalizeYouthLearningScheduleWeekdays,
+  normalizeYouthCommonScheduleWeekdays,
   youthCommonScheduleWeekdays,
   youthLearningScheduleEndHour,
   youthLearningScheduleMinuteStep,
@@ -494,14 +494,14 @@ export function YouthCommonScheduleBoard({
   function toggleRecurrenceWeekday(weekday: YouthLearningScheduleWeekday) {
     setRecurrenceWeekdayDraft((current) => {
       if (selectedCell?.weekday === weekday) {
-        return normalizeYouthLearningScheduleWeekdays([...current, weekday]);
+        return normalizeYouthCommonScheduleWeekdays([...current, weekday]);
       }
 
       return current.includes(weekday)
-        ? normalizeYouthLearningScheduleWeekdays(
+        ? normalizeYouthCommonScheduleWeekdays(
             current.filter((currentWeekday) => currentWeekday !== weekday),
           )
-        : normalizeYouthLearningScheduleWeekdays([...current, weekday]);
+        : normalizeYouthCommonScheduleWeekdays([...current, weekday]);
     });
     setFormError("");
   }

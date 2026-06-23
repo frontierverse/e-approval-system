@@ -131,8 +131,6 @@ export const youthCommonScheduleWeekdays = [
   { value: 3, label: "수요일", shortLabel: "수" },
   { value: 4, label: "목요일", shortLabel: "목" },
   { value: 5, label: "금요일", shortLabel: "금" },
-  { value: 6, label: "토요일", shortLabel: "토" },
-  { value: 0, label: "일요일", shortLabel: "일" },
 ] as const satisfies ReadonlyArray<{
   value: YouthLearningScheduleWeekday;
   label: string;
@@ -398,6 +396,22 @@ export function normalizeYouthLearningScheduleWeekdays(
   );
 
   return youthLearningScheduleWeekdays
+    .map((weekday) => weekday.value)
+    .filter((weekday) => selectedWeekdays.has(weekday));
+}
+
+export function isYouthCommonScheduleWeekday(
+  value: number,
+): value is YouthLearningScheduleWeekday {
+  return youthCommonScheduleWeekdays.some((weekday) => weekday.value === value);
+}
+
+export function normalizeYouthCommonScheduleWeekdays(
+  values: readonly number[],
+): YouthLearningScheduleWeekday[] {
+  const selectedWeekdays = new Set(values.filter(isYouthCommonScheduleWeekday));
+
+  return youthCommonScheduleWeekdays
     .map((weekday) => weekday.value)
     .filter((weekday) => selectedWeekdays.has(weekday));
 }

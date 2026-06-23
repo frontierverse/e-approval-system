@@ -9,10 +9,10 @@ import { mapYouthCommonSchedule } from "@/lib/youth-common-schedules";
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
+  isYouthCommonScheduleWeekday,
   isYouthLearningScheduleEndMinute,
   isYouthLearningScheduleStartMinute,
-  isYouthLearningScheduleWeekday,
-  normalizeYouthLearningScheduleWeekdays,
+  normalizeYouthCommonScheduleWeekdays,
   youthCommonScheduleWeekdays,
   type YouthActionResult,
   type YouthCommonSchedule,
@@ -40,14 +40,14 @@ export async function saveYouthCommonScheduleAction(
     ? (maybeSourceStartMinute ?? startMinute)
     : recurrenceWeekdaysOrSourceStartMinute;
 
-  if (!isYouthLearningScheduleWeekday(weekday)) {
+  if (!isYouthCommonScheduleWeekday(weekday)) {
     return {
       ok: false,
       error: "요일을 다시 선택하세요.",
     };
   }
 
-  const targetWeekdays = normalizeYouthLearningScheduleWeekdays([
+  const targetWeekdays = normalizeYouthCommonScheduleWeekdays([
     weekday,
     ...(Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
       ? recurrenceWeekdaysOrSourceStartMinute
@@ -307,7 +307,7 @@ export async function deleteYouthCommonScheduleAction(
 > {
   const user = await requireUser();
 
-  if (!isYouthLearningScheduleWeekday(weekday)) {
+  if (!isYouthCommonScheduleWeekday(weekday)) {
     return {
       ok: false,
       error: "요일을 다시 선택하세요.",

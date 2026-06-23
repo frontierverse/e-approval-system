@@ -3,12 +3,13 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  isYouthLearningScheduleWeekday,
+  isYouthCommonScheduleWeekday,
+  youthCommonScheduleWeekdays,
+  type YouthCommonSchedule,
   type YouthCommonScheduleChangeLog,
   type YouthCommonScheduleChangeLogActor,
   type YouthCommonScheduleChangeLogFilters,
   type YouthCommonScheduleWeekdayFilter,
-  type YouthCommonSchedule,
 } from "@/lib/youth-management-core";
 
 type YouthCommonScheduleRecord = {
@@ -30,6 +31,11 @@ const youthCommonScheduleChangeLogPageSize = 5;
 
 export async function getYouthCommonSchedules(): Promise<YouthCommonSchedule[]> {
   const schedules = await prisma.youthCommonSchedule.findMany({
+    where: {
+      weekday: {
+        in: youthCommonScheduleWeekdays.map((weekday) => weekday.value),
+      },
+    },
     orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
     select: {
       id: true,
@@ -141,9 +147,9 @@ export function mapYouthCommonSchedule(
 ): YouthCommonSchedule {
   return {
     ...schedule,
-    weekday: isYouthLearningScheduleWeekday(schedule.weekday)
+    weekday: isYouthCommonScheduleWeekday(schedule.weekday)
       ? schedule.weekday
-      : 0,
+      : 1,
   };
 }
 
@@ -204,7 +210,7 @@ function createYouthCommonScheduleChangeLogWhere({
 function normalizeCommonScheduleWeekdayFilter(
   value: YouthCommonScheduleWeekdayFilter,
 ): YouthCommonScheduleWeekdayFilter {
-  return value === "all" || isYouthLearningScheduleWeekday(value)
+  return value === "all" || isYouthCommonScheduleWeekday(value)
     ? value
     : "all";
 }

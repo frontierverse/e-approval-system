@@ -7,7 +7,7 @@ import {
   getYouthCommonSchedules,
 } from "@/lib/youth-common-schedules";
 import {
-  isYouthLearningScheduleWeekday,
+  isYouthCommonScheduleWeekday,
   type YouthCommonScheduleWeekdayFilter,
 } from "@/lib/youth-management-core";
 import {
@@ -79,7 +79,7 @@ function getSelectedPage(value: SearchParamValue) {
 function getSelectedWeekday(value: SearchParamValue): YouthCommonScheduleWeekdayFilter {
   const weekday = Number(getSingleParam(value));
 
-  return isYouthLearningScheduleWeekday(weekday) ? weekday : "all";
+  return isYouthCommonScheduleWeekday(weekday) ? weekday : "all";
 }
 
 function getSelectedChangeLogActorId(

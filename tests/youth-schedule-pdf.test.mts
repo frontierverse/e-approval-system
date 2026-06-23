@@ -64,6 +64,18 @@ const learningSchedules: YouthLearningSchedule[] = [
   },
 ];
 
+const commonSchedulePdfPageMargin = 32;
+const commonSchedulePdfTableHeaderHeight = 36;
+const commonSchedulePdfTimeColumnWidth = 92;
+const commonSchedulePdfTableTopOffset = 18;
+const commonScheduleWeekdayLabels = [
+  "월요일",
+  "화요일",
+  "수요일",
+  "목요일",
+  "금요일",
+];
+
 describe("youth schedule PDFs", () => {
   test("creates an inline-printable common schedule PDF", async () => {
     const buffer = await createYouthCommonSchedulePdf({
@@ -93,12 +105,93 @@ describe("youth schedule PDFs", () => {
       schedules: commonSchedules,
     });
     const text = await extractPdfText(buffer);
+    const items = await extractPdfTextItems(buffer);
+    const timeLabel = items.find((item) => item.str === "09:00 - 10:00");
+    const scheduleContent = items.find((item) => item.str === "공용 자습");
 
     assert.match(text, /시간/);
     assert.match(text, /월요일/);
+    assert.doesNotMatch(text, /공통 일정표/);
+    assert.doesNotMatch(text, /오전 9시부터 오후 6시까지/);
+    assert.doesNotMatch(text, /토요일/);
+    assert.doesNotMatch(text, /일요일/);
     assert.doesNotMatch(text, /시간\.\.\./);
     assert.doesNotMatch(text, /월요일\.\.\./);
+    assert.match(text, /공용 자습/);
     assert.equal((text.match(/09:00 - 10:00/g) ?? []).length, 1);
+    assert.ok(timeLabel, "expected first time label to exist");
+    assertAlmostEqual(timeLabel.height, 10);
+    assert.ok(scheduleContent, "expected schedule content to exist");
+    assertAlmostEqual(scheduleContent.height, 13);
+  });
+
+  test("compresses the common schedule lunch row", async () => {
+    const buffer = await createYouthCommonSchedulePdf({
+      schedules: commonSchedules,
+    });
+    const items = await extractPdfTextItems(buffer);
+    const previousRow = items.find((item) => item.str === "11:00 - 12:00");
+    const lunchRow = items.find((item) => item.str === "12:00 - 13:00");
+    const nextRow = items.find((item) => item.str === "13:00 - 14:00");
+
+    assert.ok(previousRow, "expected pre-lunch time label to exist");
+    assert.ok(lunchRow, "expected lunch time label to exist");
+    assert.ok(nextRow, "expected post-lunch time label to exist");
+
+    const regularRowHeight = previousRow.y - lunchRow.y;
+    const lunchRowHeight = lunchRow.y - nextRow.y;
+
+    assert.ok(
+      lunchRowHeight < regularRowHeight * 0.35,
+      `expected lunch row height ${lunchRowHeight} to be much smaller than regular row height ${regularRowHeight}`,
+    );
+  });
+
+  test("does not add ellipses to common schedule text", async () => {
+    const buffer = await createYouthCommonSchedulePdf({
+      schedules: [
+        {
+          ...commonSchedules[0],
+          content: "중등 수학 심화 보강 오답 정리",
+        },
+      ],
+    });
+    const text = await extractPdfText(buffer);
+
+    assert.match(text, /중등 수학/);
+    assert.doesNotMatch(text, /\.{2,}/);
+  });
+
+  test("centers common schedule weekday headers in their cells", async () => {
+    const buffer = await createYouthCommonSchedulePdf({
+      schedules: commonSchedules,
+    });
+    const items = await extractPdfTextItems(buffer);
+    const tableWidth = PageSizes.A4[0] - commonSchedulePdfPageMargin * 2;
+    const dataColumnWidth =
+      (tableWidth - commonSchedulePdfTimeColumnWidth) /
+      commonScheduleWeekdayLabels.length;
+    const headerBottom =
+      PageSizes.A4[1] -
+      commonSchedulePdfPageMargin -
+      commonSchedulePdfTableTopOffset -
+      commonSchedulePdfTableHeaderHeight;
+    const headerCenterY = headerBottom + commonSchedulePdfTableHeaderHeight / 2;
+
+    commonScheduleWeekdayLabels.forEach((label, index) => {
+      const item = items.find((candidate) => candidate.str === label);
+
+      assert.ok(item, `expected ${label} header to exist`);
+
+      const cellLeft =
+        commonSchedulePdfPageMargin +
+        commonSchedulePdfTimeColumnWidth +
+        dataColumnWidth * index;
+      const cellCenterX = cellLeft + dataColumnWidth / 2;
+
+      assertAlmostEqual(item.x + item.width / 2, cellCenterX, 0.1);
+      assertAlmostEqual(item.y + item.height / 2, headerCenterY, 0.1);
+    });
   });
 
   test("creates learning progress PDFs across student column pages", async () => {
@@ -137,9 +230,9 @@ function assertA4LandscapePages(pdf: PDFDocument) {
   }
 }
 
-function assertAlmostEqual(actual: number, expected: number) {
+function assertAlmostEqual(actual: number, expected: number, tolerance = 0.01) {
   assert.ok(
-    Math.abs(actual - expected) < 0.01,
+    Math.abs(actual - expected) < tolerance,
     `expected ${actual} to be close to ${expected}`,
   );
 }
@@ -165,4 +258,41 @@ async function extractPdfText(buffer: Uint8Array) {
   }
 
   return texts.join("|");
+}
+
+async function extractPdfTextItems(buffer: Uint8Array) {
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+  const pdf = await loadingTask.promise;
+  const items: Array<{
+    height: number;
+    str: string;
+    width: number;
+    x: number;
+    y: number;
+  }> = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+
+      for (const item of content.items) {
+        if (!("str" in item) || !item.str) {
+          continue;
+        }
+
+        items.push({
+          height: item.height,
+          str: item.str,
+          width: item.width,
+          x: item.transform[4],
+          y: item.transform[5],
+        });
+      }
+    }
+  } finally {
+    await loadingTask.destroy();
+  }
+
+  return items;
 }

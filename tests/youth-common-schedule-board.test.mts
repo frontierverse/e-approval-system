@@ -159,7 +159,7 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /aria-label="공통 일정표 불러오는 중"/);
     assert.match(
       html,
-      /grid-template-columns:6\.5rem repeat\(7, minmax\(10rem, 1fr\)\)/,
+      /grid-template-columns:6\.5rem repeat\(5, minmax\(10rem, 1fr\)\)/,
     );
     assert.match(html, /오전 9시 -/);
     assert.match(html, /오후 6시/);
@@ -187,11 +187,11 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /수요일/);
     assert.match(html, /목요일/);
     assert.match(html, /금요일/);
-    assert.match(html, /토요일/);
-    assert.match(html, /일요일/);
+    assert.doesNotMatch(html, /토요일/);
+    assert.doesNotMatch(html, /일요일/);
     assert.match(
       html,
-      /grid-template-columns:6\.5rem repeat\(7, minmax\(10rem, 1fr\)\)/,
+      /grid-template-columns:6\.5rem repeat\(5, minmax\(10rem, 1fr\)\)/,
     );
     assert.match(html, /오전 9시 -/);
     assert.match(html, /오전 10시/);
