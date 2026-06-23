@@ -48,6 +48,7 @@ const youthNavigationItems: NavigationItem[] = [
 
 const workScheduleNavigationItems: NavigationItem[] = [
   { label: "업무 일정", href: "/work-schedule" },
+  { label: "카페 관리", href: "/work-schedule/cafe" },
 ];
 
 const companyNavigationItems: NavigationItem[] = [
