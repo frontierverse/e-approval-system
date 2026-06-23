@@ -46,6 +46,10 @@ const youthNavigationItems: NavigationItem[] = [
   { label: "규칙", href: "/youth/rules" },
 ];
 
+const workScheduleNavigationItems: NavigationItem[] = [
+  { label: "업무 일정", href: "/work-schedule" },
+];
+
 const companyNavigationItems: NavigationItem[] = [
   { label: "회사 정보", href: "/company-info" },
 ];
@@ -162,6 +166,10 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
     {
       label: "청소년 관리",
       items: youthNavigationItems,
+    },
+    {
+      label: "업무 일정",
+      items: workScheduleNavigationItems,
     },
     {
       label: "내 정보",
