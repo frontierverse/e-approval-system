@@ -518,14 +518,24 @@ export function YouthCommonScheduleBoard({
               오전 9시부터 오후 6시까지 요일별 공통 일정을 관리합니다.
             </p>
           </div>
-          <Link
-            href="/youth/common-schedule/print"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
-          >
-            인쇄
-          </Link>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Link
+              href="/youth/common-schedule/print"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+            >
+              세로 인쇄
+            </Link>
+            <Link
+              href="/youth/common-schedule/print?orientation=landscape"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+            >
+              가로 인쇄
+            </Link>
+          </div>
         </div>
 
         {formError ? (

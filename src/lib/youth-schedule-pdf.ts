@@ -40,7 +40,10 @@ type SchedulePdfPage = {
   title: string;
 };
 
+export type SchedulePdfOrientation = "landscape" | "portrait";
+
 const a4PortraitSize: [number, number] = [PageSizes.A4[0], PageSizes.A4[1]];
+const a4LandscapeSize: [number, number] = [PageSizes.A4[1], PageSizes.A4[0]];
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
@@ -62,8 +65,10 @@ const borderColor = rgb(0.78, 0.82, 0.88);
 const headerBackgroundColor = rgb(0.96, 0.97, 0.99);
 
 export async function createYouthCommonSchedulePdf({
+  orientation = "portrait",
   schedules,
 }: {
+  orientation?: SchedulePdfOrientation;
   schedules: YouthCommonSchedule[];
 }) {
   const columns = youthCommonScheduleWeekdays.map((weekday) => ({
@@ -83,7 +88,7 @@ export async function createYouthCommonSchedulePdf({
       subtitle: "오전 9시부터 오후 6시까지",
       title: "공통 일정표",
     },
-  ]);
+  ], orientation);
 }
 
 export async function createYouthLearningProgressPdf({
@@ -135,20 +140,30 @@ export async function createYouthLearningProgressPdf({
   );
 }
 
-async function createSchedulePdf(pages: SchedulePdfPage[]) {
+async function createSchedulePdf(
+  pages: SchedulePdfPage[],
+  orientation: SchedulePdfOrientation = "portrait",
+) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(await readFile(pdfKoreanFontPath), {
     subset: false,
   });
+  const pageSize = getSchedulePdfPageSize(orientation);
 
   for (const pageInput of pages) {
-    const page = pdf.addPage(a4PortraitSize);
+    const page = pdf.addPage(pageSize);
 
     drawSchedulePage(page, font, pageInput);
   }
 
   return pdf.save();
+}
+
+function getSchedulePdfPageSize(
+  orientation: SchedulePdfOrientation,
+): [number, number] {
+  return orientation === "landscape" ? a4LandscapeSize : a4PortraitSize;
 }
 
 function drawSchedulePage(

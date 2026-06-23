@@ -174,6 +174,12 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /청소년 공통 일정표/);
     assert.match(html, /공통 일정표/);
     assert.match(html, /href="\/youth\/common-schedule\/print"/);
+    assert.match(html, /세로 인쇄/);
+    assert.match(
+      html,
+      /href="\/youth\/common-schedule\/print\?orientation=landscape"/,
+    );
+    assert.match(html, /가로 인쇄/);
     assert.match(html, /target="_blank"/);
     assert.match(html, /시간/);
     assert.match(html, /월요일/);

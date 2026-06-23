@@ -76,6 +76,18 @@ describe("youth schedule PDFs", () => {
     assertA4PortraitPages(pdf);
   });
 
+  test("creates landscape common schedule PDFs when requested", async () => {
+    const buffer = await createYouthCommonSchedulePdf({
+      orientation: "landscape",
+      schedules: commonSchedules,
+    });
+    const pdf = await PDFDocument.load(buffer);
+
+    assert.equal(readPdfHeader(buffer), "%PDF");
+    assert.equal(pdf.getPageCount(), 1);
+    assertA4LandscapePages(pdf);
+  });
+
   test("keeps timetable PDF headers clean and time labels in the row header", async () => {
     const buffer = await createYouthCommonSchedulePdf({
       schedules: commonSchedules,
@@ -113,6 +125,15 @@ function assertA4PortraitPages(pdf: PDFDocument) {
 
     assertAlmostEqual(width, PageSizes.A4[0]);
     assertAlmostEqual(height, PageSizes.A4[1]);
+  }
+}
+
+function assertA4LandscapePages(pdf: PDFDocument) {
+  for (const page of pdf.getPages()) {
+    const { height, width } = page.getSize();
+
+    assertAlmostEqual(width, PageSizes.A4[1]);
+    assertAlmostEqual(height, PageSizes.A4[0]);
   }
 }
 
