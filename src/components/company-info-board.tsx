@@ -282,15 +282,17 @@ function TableCell({ children }: { children: React.ReactNode }) {
 
 function SkeletonPanel({ rows, title }: { rows: number; title: string }) {
   return (
-    <section className="rounded-md border border-[#d9dee7] bg-white">
+    <section className="rounded-md border border-[#d9dee7] bg-white dark:border-[#30363d] dark:bg-[#161b22]">
       <div className="flex items-end justify-between gap-3 px-4 py-4">
         <div>
-          <p className="text-base font-semibold text-[#16181d]">{title}</p>
+          <p className="text-base font-semibold text-[#16181d] dark:text-[#e6edf3]">
+            {title}
+          </p>
           <SkeletonBlock className="mt-2 h-3 w-40" />
         </div>
         <SkeletonBlock className="h-4 w-20" />
       </div>
-      <div className="space-y-3 border-t border-[#eef1f5] p-4">
+      <div className="space-y-3 border-t border-[#eef1f5] p-4 dark:border-[#30363d]">
         {Array.from({ length: rows }, (_, index) => (
           <SkeletonBlock key={index} className="h-10 w-full" />
         ))}
@@ -303,7 +305,7 @@ function SkeletonBlock({ className }: { className: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`block animate-pulse rounded bg-[#e5e9f0] ${className}`}
+      className={`block animate-pulse rounded bg-[#e5e9f0] dark:bg-[#2a3038] ${className}`}
     />
   );
 }

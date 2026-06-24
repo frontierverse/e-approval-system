@@ -50,8 +50,8 @@ export async function getCafeItemExpirationAlert(
     where: {
       category: "food",
       expirationDate: {
-        gte: today,
-        lte: shiftCafeItemDate(today, 30),
+        gte: formatCafeItemDateTimeFilterValue(today),
+        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, 30)),
       },
     },
     orderBy: [{ expirationDate: "asc" }, { createdAt: "desc" }],
@@ -158,7 +158,7 @@ function createExpiredFoodWhere(today: string): Prisma.CafeItemWhereInput {
   return {
     category: "food",
     expirationDate: {
-      lt: today,
+      lt: formatCafeItemDateTimeFilterValue(today),
     },
   };
 }
@@ -295,15 +295,15 @@ function createCafeItemWhere({
     conditions.push({
       category: "food",
       expirationDate: {
-        lt: today,
+        lt: formatCafeItemDateTimeFilterValue(today),
       },
     });
   } else if (deadline === "dueSoon") {
     conditions.push({
       category: "food",
       expirationDate: {
-        gte: today,
-        lte: shiftCafeItemDate(today, 30),
+        gte: formatCafeItemDateTimeFilterValue(today),
+        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, 30)),
       },
     });
   } else if (deadline === "over100") {
@@ -312,7 +312,7 @@ function createCafeItemWhere({
         category: "food",
       },
       purchasedAt: {
-        lte: shiftCafeItemDate(today, -100),
+        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, -100)),
       },
     });
   }
@@ -397,6 +397,10 @@ function createCafeItemChangeLogWhere({
   return {
     AND: conditions,
   };
+}
+
+function formatCafeItemDateTimeFilterValue(value: string) {
+  return `${value}T00:00:00.000Z`;
 }
 
 function mapCafeItem(item: CafeItemRecord): CafeItem {

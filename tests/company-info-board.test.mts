@@ -113,6 +113,8 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /직원 목록/);
     assert.match(html, /입소중 청소년 목록/);
     assert.match(html, /animate-pulse/);
+    assert.match(html, /dark:bg-\[#161b22\]/);
+    assert.match(html, /dark:bg-\[#2a3038\]/);
   });
 
   test("renders business info edit modal triggers for admins", () => {
