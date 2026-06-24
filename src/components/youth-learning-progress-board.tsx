@@ -41,9 +41,6 @@ import {
 } from "@/lib/youth-management-core";
 
 type YouthLearningProgressBoardProps = {
-  createYouth: (
-    name: string,
-  ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   changeLogActors: YouthLearningProgressChangeLogActor[];
   changeLogFilterControls?: React.ReactNode;
   changeLogFilters: YouthLearningProgressChangeLogFilters;
@@ -55,9 +52,6 @@ type YouthLearningProgressBoardProps = {
   ) => Promise<
     YouthActionResult<{ youthId: string; scheduleDate: string; startMinute: number }>
   >;
-  deleteYouth: (
-    youthId: string,
-  ) => Promise<YouthActionResult<{ youthId: string }>>;
   loadSchedules: (
     scheduleDate: string,
   ) => Promise<
@@ -151,25 +145,22 @@ export function YouthLearningProgressBoard(
 }
 
 export function YouthLearningProgressBoardContent({
-  createYouth,
   changeLogActors,
   changeLogFilterControls,
   changeLogFilters,
   changeLogs,
   deleteSchedule,
-  deleteYouth,
   loadSchedules,
   saveSchedule,
   schedules,
   selectedDate: initialSelectedDate,
   youths: initialYouths,
 }: YouthLearningProgressBoardContentProps) {
-  const [youths, setYouths] = useState(initialYouths);
+  const youths = initialYouths;
   const [scheduleItems, setScheduleItems] = useState(schedules);
   const [selectedScheduleDate, setSelectedScheduleDate] =
     useState(initialSelectedDate);
   const [dateDraft, setDateDraft] = useState(initialSelectedDate);
-  const [newYouthName, setNewYouthName] = useState("");
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [startMinuteDraft, setStartMinuteDraft] = useState(
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
@@ -184,11 +175,10 @@ export function YouthLearningProgressBoardContent({
   const [formError, setFormError] = useState("");
   const [scheduleDragState, setScheduleDragState] =
     useState<ScheduleDragState | null>(null);
-  const [pendingAction, startPendingAction] = useTransition();
   const [pendingTimetableAction, startPendingTimetableAction] = useTransition();
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
   const pendingTimetable = pendingTimetableAction || pendingScheduleAction;
-  const pendingBoardAction = pendingAction || pendingTimetable;
+  const pendingBoardAction = pendingTimetable;
 
   const scheduleMap = useMemo(() => {
     const nextMap = new Map<string, YouthLearningSchedule>();
@@ -324,60 +314,6 @@ export function YouthLearningProgressBoardContent({
 
     return () => window.removeEventListener("keydown", closeWithEscape);
   }, [selectedCell]);
-
-  function registerYouth() {
-    const name = newYouthName.trim();
-
-    if (!name) {
-      setFormError("학생 이름을 입력하세요.");
-      return;
-    }
-
-    if (youths.some((youth) => youth.name === name)) {
-      setFormError("이미 등록된 학생 이름입니다.");
-      return;
-    }
-
-    startPendingAction(async () => {
-      const result = await createYouth(name);
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setYouths((current) =>
-        [...current, result.data.youth].sort((first, second) =>
-          first.name.localeCompare(second.name, "ko"),
-        ),
-      );
-      setNewYouthName("");
-      setFormError("");
-    });
-  }
-
-  function removeYouth(youth: YouthProfile) {
-    if (!window.confirm(`${youth.name} 학생을 삭제할까요?`)) {
-      return;
-    }
-
-    startPendingAction(async () => {
-      const result = await deleteYouth(youth.id);
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setYouths((current) =>
-        current.filter((currentYouth) => currentYouth.id !== result.data.youthId),
-      );
-      setScheduleItems((current) =>
-        current.filter((schedule) => schedule.youthId !== result.data.youthId),
-      );
-      setFormError("");
-    });
-  }
 
   function openScheduleModal(youthId: string, startMinute: number) {
     const schedule = scheduleMap.get(
@@ -772,34 +708,6 @@ export function YouthLearningProgressBoardContent({
                 인쇄
               </Link>
             </form>
-
-            <form
-              className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end"
-              onSubmit={(event) => {
-                event.preventDefault();
-                registerYouth();
-              }}
-            >
-              <label className="min-w-0 flex-1 sm:max-w-xs">
-                <span className="sr-only">학생 이름</span>
-                <input
-                  value={newYouthName}
-                  onChange={(event) => {
-                    setNewYouthName(event.target.value);
-                    setFormError("");
-                  }}
-                  placeholder="학생 이름"
-                  className="h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={pendingBoardAction}
-                className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
-              >
-                추가
-              </button>
-            </form>
           </div>
         </div>
 
@@ -834,18 +742,8 @@ export function YouthLearningProgressBoardContent({
                       key={youth.id}
                       className="border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-left text-xs font-semibold text-[#394150]"
                     >
-                      <span className="flex min-w-0 items-center justify-between gap-2">
-                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                          {youth.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeYouth(youth)}
-                          disabled={pendingBoardAction}
-                          className="h-8 shrink-0 rounded-md border border-[#efb4b4] bg-white px-2 text-xs font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          삭제
-                        </button>
+                      <span className="block min-w-0 break-words [overflow-wrap:anywhere]">
+                        {youth.name}
                       </span>
                     </div>
                   ))}
@@ -1037,7 +935,7 @@ export function YouthLearningProgressBoardContent({
             <div className="p-5">
               <EmptyState
                 title="등록된 학생이 없습니다."
-                description="학생을 추가하면 시간표를 입력할 수 있습니다."
+                description="청소년 관리에서 학생을 등록하면 시간표를 입력할 수 있습니다."
               />
             </div>
           )}
@@ -1469,10 +1367,6 @@ export function LearningProgressBoardSkeleton({
               <LearningProgressSkeletonBlock className="h-10 w-full sm:w-16" />
               <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
               <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
-            </div>
-            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end">
-              <LearningProgressSkeletonBlock className="h-10 w-full sm:max-w-xs sm:flex-1" />
-              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-16" />
             </div>
           </div>
         </div>

@@ -344,6 +344,62 @@ export async function updateYouthAction(
   };
 }
 
+export async function deleteYouthAction(
+  youthId: string,
+): Promise<YouthActionResult<{ youthId: string }>> {
+  const user = await requireUser();
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  const existingYouth = await prisma.youth.findUnique({
+    where: {
+      id: youthId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!existingYouth) {
+    return {
+      ok: false,
+      error: "삭제할 청소년을 찾을 수 없습니다.",
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "Youth",
+        targetId: existingYouth.id,
+        message: `${existingYouth.name} 청소년을 삭제했습니다.`,
+        metadata: {
+          changeType: "youth.delete",
+          previousName: existingYouth.name,
+        },
+      },
+    });
+
+    await tx.youth.delete({
+      where: {
+        id: existingYouth.id,
+      },
+    });
+  });
+
+  revalidateYouthPaths();
+
+  return {
+    ok: true,
+    data: {
+      youthId: existingYouth.id,
+    },
+  };
+}
+
 export async function updateYouthNoteAction(
   noteId: string,
   values: YouthNoteInput,

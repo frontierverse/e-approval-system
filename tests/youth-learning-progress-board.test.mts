@@ -192,28 +192,9 @@ describe("YouthLearningProgressBoard", () => {
         changeLogFilterControls: createChangeLogFilterControls(),
         changeLogFilters,
         changeLogs,
-        createYouth: async (name) => ({
-          ok: true,
-          data: {
-            youth: {
-              id: "created-youth",
-              name,
-              admissionDate: null,
-              dischargeDate: null,
-              age: null,
-              phone: null,
-              familyContacts: [],
-              notes: [],
-            },
-          },
-        }),
         deleteSchedule: async (youthId, scheduleDate, startMinute) => ({
           ok: true,
           data: { youthId, scheduleDate, startMinute },
-        }),
-        deleteYouth: async (youthId) => ({
-          ok: true,
-          data: { youthId },
         }),
         loadSchedules: async (scheduleDate) => ({
           ok: true,
@@ -267,8 +248,8 @@ describe("YouthLearningProgressBoard", () => {
       html,
       /href="\/youth\/learning-progress\?date=2026-06-19"/,
     );
-    assert.match(html, /학생 이름/);
-    assert.match(html, />추가</);
+    assert.doesNotMatch(html, /placeholder="학생 이름"/);
+    assert.doesNotMatch(html, />추가</);
     assert.match(html, /시간/);
     assert.match(html, /grid-template-columns:6\.5rem/);
     assert.match(html, /오전 9시 -/);
@@ -277,7 +258,7 @@ describe("YouthLearningProgressBoard", () => {
     assert.match(html, /오후 6시/);
     assert.match(html, /김하늘/);
     assert.match(html, /최예담/);
-    assert.match(html, /삭제/);
+    assert.doesNotMatch(html, />삭제</);
     assert.match(html, /수학 문제집 12쪽/);
     assert.match(html, /오전 9시 - 오전 10시 30분/);
     assert.match(html, /종료 시간 조절/);
@@ -307,7 +288,7 @@ describe("YouthLearningProgressBoard", () => {
     assert.doesNotMatch(html, /보호자 상담 일정/);
   });
 
-  test("keeps the add-student form visible when there are no students", () => {
+  test("renders an empty state when there are no students", () => {
     const emptyChangeLogFilters = {
       actorId: "all",
       page: 1,
@@ -326,28 +307,9 @@ describe("YouthLearningProgressBoard", () => {
         }),
         changeLogFilters: emptyChangeLogFilters,
         changeLogs: [],
-        createYouth: async (name) => ({
-          ok: true,
-          data: {
-            youth: {
-              id: "created-youth",
-              name,
-              admissionDate: null,
-              dischargeDate: null,
-              age: null,
-              phone: null,
-              familyContacts: [],
-              notes: [],
-            },
-          },
-        }),
         deleteSchedule: async (youthId, scheduleDate, startMinute) => ({
           ok: true,
           data: { youthId, scheduleDate, startMinute },
-        }),
-        deleteYouth: async (youthId) => ({
-          ok: true,
-          data: { youthId },
         }),
         loadSchedules: async (scheduleDate) => ({
           ok: true,
@@ -363,8 +325,9 @@ describe("YouthLearningProgressBoard", () => {
       }),
     );
 
-    assert.match(html, /학생 이름/);
+    assert.doesNotMatch(html, /placeholder="학생 이름"/);
     assert.match(html, /등록된 학생이 없습니다/);
+    assert.match(html, /청소년 관리에서 학생을 등록하면 시간표를 입력할 수 있습니다/);
     assert.doesNotMatch(html, /최근 학습 관련 기록/);
   });
 });

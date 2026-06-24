@@ -8,8 +8,6 @@ import {
 } from "@/lib/youth-learning-schedules";
 import { getYouthProfiles } from "@/lib/youth-management";
 import {
-  createLearningProgressYouthAction,
-  deleteLearningProgressYouthAction,
   deleteYouthLearningScheduleAction,
   getYouthLearningSchedulesAction,
   saveYouthLearningScheduleAction,
@@ -59,7 +57,6 @@ export default async function YouthLearningProgressPage({
       />
 
       <YouthLearningProgressBoard
-        createYouth={createLearningProgressYouthAction}
         changeLogActors={changeLogActors}
         changeLogFilters={{
           actorId: changeLogResult.actorId,
@@ -71,7 +68,6 @@ export default async function YouthLearningProgressPage({
         }}
         changeLogs={changeLogResult.logs}
         deleteSchedule={deleteYouthLearningScheduleAction}
-        deleteYouth={deleteLearningProgressYouthAction}
         loadSchedules={getYouthLearningSchedulesAction}
         saveSchedule={saveYouthLearningScheduleAction}
         schedules={schedules}

@@ -56,7 +56,7 @@ export function CafeItemRowActions({ item }: { item: CafeItem }) {
   );
 }
 
-function CafeItemEditModal({
+export function CafeItemEditModal({
   item,
   onClose,
 }: {

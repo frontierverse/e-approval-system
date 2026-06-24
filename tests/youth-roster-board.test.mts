@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   YouthRosterBoard,
+  YouthRosterFormModal,
   YouthRosterSkeleton,
 } from "../src/components/youth-roster-board.tsx";
 import type { YouthRosterData } from "../src/lib/youth-roster.ts";
@@ -83,6 +84,12 @@ const rosterActions = {
       },
     },
   }),
+  deleteYouth: async (youthId: string) => ({
+    ok: true,
+    data: {
+      youthId,
+    },
+  }),
 };
 
 describe("YouthRosterBoard", () => {
@@ -130,6 +137,46 @@ describe("YouthRosterBoard", () => {
 
     assert.match(html, /입소중인 청소년이 없습니다/);
     assert.match(html, /퇴소 청소년이 없습니다/);
+  });
+
+  test("renders a delete action in admitted youth edit modals", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRosterFormModal, {
+        ...rosterActions,
+        modal: {
+          mode: "edit",
+          canDelete: true,
+          youth: roster.admittedYouths[0],
+        },
+        onClose: () => {},
+        onDeleted: () => {},
+        onSaved: () => {},
+      }),
+    );
+
+    assert.match(html, /청소년 정보 수정/);
+    assert.match(html, /김하늘/);
+    assert.match(html, /aria-label="김하늘 청소년 삭제"/);
+    assert.doesNotMatch(html, />청소년 삭제</);
+  });
+
+  test("does not render the youth delete action in discharged edit modals", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRosterFormModal, {
+        ...rosterActions,
+        modal: {
+          mode: "edit",
+          canDelete: false,
+          youth: roster.dischargedYouths[0],
+        },
+        onClose: () => {},
+        onDeleted: () => {},
+        onSaved: () => {},
+      }),
+    );
+
+    assert.match(html, /청소년 정보 수정/);
+    assert.doesNotMatch(html, /aria-label="이도현 청소년 삭제"/);
   });
 
   test("renders loading skeleton panels", () => {

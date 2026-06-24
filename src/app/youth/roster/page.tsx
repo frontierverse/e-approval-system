@@ -2,7 +2,11 @@ import { PageTitle } from "@/components/page-title";
 import { YouthRosterBoard } from "@/components/youth-roster-board";
 import { requireUser } from "@/lib/auth";
 import { getYouthRoster } from "@/lib/youth-roster";
-import { createYouthAction, updateYouthAction } from "@/app/youth/actions";
+import {
+  createYouthAction,
+  deleteYouthAction,
+  updateYouthAction,
+} from "@/app/youth/actions";
 
 export default async function YouthRosterPage() {
   await requireUser();
@@ -18,6 +22,7 @@ export default async function YouthRosterPage() {
       <YouthRosterBoard
         createYouth={createYouthAction}
         data={roster}
+        deleteYouth={deleteYouthAction}
         updateYouth={updateYouthAction}
       />
     </>

@@ -26,6 +26,9 @@ type YouthRosterBoardProps = {
     values: YouthCreateInput,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   data: YouthRosterData;
+  deleteYouth: (
+    youthId: string,
+  ) => Promise<YouthActionResult<{ youthId: string }>>;
   updateYouth: (
     youthId: string,
     values: YouthUpdateInput,
@@ -38,6 +41,7 @@ type YouthRosterModalState =
     }
   | {
       mode: "edit";
+      canDelete: boolean;
       youth: YouthRosterItem;
     };
 
@@ -57,6 +61,7 @@ type FamilyContactDraft = YouthFamilyContactInput & {
 export function YouthRosterBoard({
   createYouth,
   data,
+  deleteYouth,
   updateYouth,
 }: YouthRosterBoardProps) {
   const [youths, setYouths] = useState(() => [
@@ -87,6 +92,10 @@ export function YouthRosterBoard({
     });
   }
 
+  function removeYouthFromRoster(youthId: string) {
+    setYouths((current) => current.filter((youth) => youth.id !== youthId));
+  }
+
   return (
     <section className="space-y-6" aria-label="청소년 명단">
       <div className="flex justify-end">
@@ -103,7 +112,7 @@ export function YouthRosterBoard({
       <YouthRosterSection
         emptyDescription="입소 상태의 청소년이 등록되면 이곳에 표시됩니다."
         emptyTitle="입소중인 청소년이 없습니다."
-        onEdit={(youth) => setModal({ mode: "edit", youth })}
+        onEdit={(youth) => setModal({ mode: "edit", canDelete: true, youth })}
         title="입소중인 청소년 목록"
         youths={rosterData.admittedYouths}
         variant="admitted"
@@ -111,7 +120,7 @@ export function YouthRosterBoard({
       <YouthRosterSection
         emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
         emptyTitle="퇴소 청소년이 없습니다."
-        onEdit={(youth) => setModal({ mode: "edit", youth })}
+        onEdit={(youth) => setModal({ mode: "edit", canDelete: false, youth })}
         title="퇴소 청소년 목록"
         youths={rosterData.dischargedYouths}
         variant="discharged"
@@ -119,8 +128,10 @@ export function YouthRosterBoard({
       {modal ? (
         <YouthRosterFormModal
           createYouth={createYouth}
+          deleteYouth={deleteYouth}
           modal={modal}
           onClose={() => setModal(null)}
+          onDeleted={removeYouthFromRoster}
           onSaved={saveYouthInRoster}
           updateYouth={updateYouth}
         />
@@ -274,16 +285,20 @@ function YouthRosterSection({
   );
 }
 
-function YouthRosterFormModal({
+export function YouthRosterFormModal({
   createYouth,
+  deleteYouth,
   modal,
   onClose,
+  onDeleted,
   onSaved,
   updateYouth,
 }: {
   createYouth: YouthRosterBoardProps["createYouth"];
+  deleteYouth: YouthRosterBoardProps["deleteYouth"];
   modal: YouthRosterModalState;
   onClose: () => void;
+  onDeleted: (youthId: string) => void;
   onSaved: (youth: YouthRosterItem) => void;
   updateYouth: YouthRosterBoardProps["updateYouth"];
 }) {
@@ -292,6 +307,9 @@ function YouthRosterFormModal({
     createYouthFormDraft(modal.mode === "edit" ? modal.youth : null),
   );
   const [error, setError] = useState("");
+  const [pendingIntent, setPendingIntent] = useState<
+    "delete" | "save" | null
+  >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
 
@@ -358,19 +376,54 @@ function YouthRosterFormModal({
 
     const values = getYouthInputFromDraft(draft);
 
+    setPendingIntent("save");
+
     startTransition(async () => {
-      const result =
-        modal.mode === "create"
-          ? await createYouth(values)
-          : await updateYouth(modal.youth.id, values);
+      try {
+        const result =
+          modal.mode === "create"
+            ? await createYouth(values)
+            : await updateYouth(modal.youth.id, values);
 
-      if (!result.ok) {
-        setError(result.error);
-        return;
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+
+        onSaved(mapYouthProfileToRosterItem(result.data.youth));
+        onClose();
+      } finally {
+        setPendingIntent(null);
       }
+    });
+  }
 
-      onSaved(mapYouthProfileToRosterItem(result.data.youth));
-      onClose();
+  function deleteCurrentYouth() {
+    if (modal.mode !== "edit") {
+      return;
+    }
+
+    if (!window.confirm(`${modal.youth.name} 청소년을 삭제할까요?`)) {
+      return;
+    }
+
+    setError("");
+    setPendingIntent("delete");
+
+    startTransition(async () => {
+      try {
+        const result = await deleteYouth(modal.youth.id);
+
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+
+        onDeleted(result.data.youthId);
+        onClose();
+      } finally {
+        setPendingIntent(null);
+      }
     });
   }
 
@@ -529,21 +582,37 @@ function YouthRosterFormModal({
             ) : null}
           </div>
 
-          <footer className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {pending ? "저장 중" : "저장"}
-            </button>
+          <footer className="sticky bottom-0 flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            {modal.mode === "edit" && modal.canDelete ? (
+              <button
+                type="button"
+                aria-label={`${modal.youth.name} 청소년 삭제`}
+                onClick={deleteCurrentYouth}
+                disabled={pending}
+                className="h-10 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pending && pendingIntent === "delete" ? "삭제 중" : "삭제"}
+              </button>
+            ) : (
+              <span aria-hidden="true" className="hidden sm:block" />
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={pending}
+                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={pending}
+                className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {pending && pendingIntent === "save" ? "저장 중" : "저장"}
+              </button>
+            </div>
           </footer>
         </div>
       </form>
