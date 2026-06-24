@@ -54,7 +54,22 @@ type YouthCommonScheduleBoardProps = {
       targetWeekdays: YouthLearningScheduleWeekday[];
     }>
   >;
+  labels?: Partial<CommonScheduleBoardLabels>;
   schedules: YouthCommonSchedule[];
+};
+
+type CommonScheduleBoardLabels = {
+  basePath: string;
+  boardAriaLabel: string;
+  changeLogAriaLabel: string;
+  changeLogFallbackMessage: string;
+  description: string;
+  loadingLabel: string;
+  noMatchingChangeLogsMessage: string;
+  paginationAriaLabel: string;
+  scheduleTitle: string;
+  staffFilterAriaLabel: string;
+  weekdayFilterAriaLabel: string;
 };
 
 type CommonTimeSlot = {
@@ -93,6 +108,29 @@ const commonScheduleTimelineHeight =
   (youthLearningScheduleEndHour - youthLearningScheduleStartHour) *
   commonScheduleSlotHeight;
 
+const defaultCommonScheduleBoardLabels: CommonScheduleBoardLabels = {
+  basePath: "/youth/common-schedule",
+  boardAriaLabel: "청소년 공통 일정표",
+  changeLogAriaLabel: "공통 일정표 변경내역",
+  changeLogFallbackMessage: "공통 일정표 변경내역을 기록했습니다.",
+  description: "오전 9시부터 오후 6시까지 요일별 공통 일정을 관리합니다.",
+  loadingLabel: "공통 일정표 불러오는 중",
+  noMatchingChangeLogsMessage: "조건에 맞는 변경내역이 없습니다.",
+  paginationAriaLabel: "공통 일정표 변경내역 페이지",
+  scheduleTitle: "공통 일정표",
+  staffFilterAriaLabel: "공통 일정표 변경내역 직원 필터",
+  weekdayFilterAriaLabel: "공통 일정표 변경내역 요일 필터",
+};
+
+function resolveCommonScheduleBoardLabels(
+  labels: Partial<CommonScheduleBoardLabels> | undefined,
+): CommonScheduleBoardLabels {
+  return {
+    ...defaultCommonScheduleBoardLabels,
+    ...labels,
+  };
+}
+
 const commonTimeSlots: CommonTimeSlot[] = Array.from(
   { length: youthLearningScheduleEndHour - youthLearningScheduleStartHour },
   (_, index) => {
@@ -117,9 +155,11 @@ export function YouthCommonScheduleBoard({
   changeLogFilters,
   changeLogs,
   deleteSchedule,
+  labels,
   saveSchedule,
   schedules,
 }: YouthCommonScheduleBoardProps) {
+  const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
   const [scheduleItems, setScheduleItems] = useState(schedules);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [startMinuteDraft, setStartMinuteDraft] = useState(
@@ -507,20 +547,20 @@ export function YouthCommonScheduleBoard({
   }
 
   return (
-    <section aria-label="청소년 공통 일정표" className="space-y-6">
+    <section aria-label={resolvedLabels.boardAriaLabel} className="space-y-6">
       <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
         <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-[#16181d]">
-              공통 일정표
+              {resolvedLabels.scheduleTitle}
             </h2>
             <p className="mt-1 text-sm text-[#697386]">
-              오전 9시부터 오후 6시까지 요일별 공통 일정을 관리합니다.
+              {resolvedLabels.description}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
             <Link
-              href="/youth/common-schedule/print"
+              href={`${resolvedLabels.basePath}/print`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
@@ -528,7 +568,7 @@ export function YouthCommonScheduleBoard({
               세로 인쇄
             </Link>
             <Link
-              href="/youth/common-schedule/print?orientation=landscape"
+              href={`${resolvedLabels.basePath}/print?orientation=landscape`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
@@ -734,11 +774,13 @@ export function YouthCommonScheduleBoard({
               })}
             </div>
           </div>
-          {pendingBoardAction ? <CommonTimetableSkeleton overlay /> : null}
+          {pendingBoardAction ? (
+            <CommonTimetableSkeleton overlay labels={resolvedLabels} />
+          ) : null}
         </div>
       </div>
 
-      <section aria-label="공통 일정표 변경내역">
+      <section aria-label={resolvedLabels.changeLogAriaLabel}>
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-[#16181d]">
@@ -750,6 +792,7 @@ export function YouthCommonScheduleBoard({
             <CommonScheduleChangeLogFilterControls
               actors={changeLogActors}
               filters={changeLogFilters}
+              labels={resolvedLabels}
             />
           )}
         </div>
@@ -780,7 +823,7 @@ export function YouthCommonScheduleBoard({
                   </div>
                   <div className="min-w-0">
                     <p className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                      {log.message ?? "공통 일정표 변경내역을 기록했습니다."}
+                      {log.message ?? resolvedLabels.changeLogFallbackMessage}
                     </p>
                     {detail ? (
                       <>
@@ -814,10 +857,13 @@ export function YouthCommonScheduleBoard({
           </ol>
         ) : (
           <p className="mt-3 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
-            조건에 맞는 변경내역이 없습니다.
+            {resolvedLabels.noMatchingChangeLogsMessage}
           </p>
         )}
-        <CommonScheduleChangeLogPagination filters={changeLogFilters} />
+        <CommonScheduleChangeLogPagination
+          filters={changeLogFilters}
+          labels={resolvedLabels}
+        />
       </section>
 
       {selectedCell && selectedWeekday && selectedSlot ? (
@@ -1006,6 +1052,7 @@ function CommonScheduleChangeLogListSummary({
 type CommonScheduleChangeLogFilterControlsProps = {
   actors: YouthCommonScheduleChangeLogActor[];
   filters: YouthCommonScheduleChangeLogFilters;
+  labels?: Partial<CommonScheduleBoardLabels>;
 };
 
 function CommonScheduleChangeLogFilterControls(
@@ -1033,11 +1080,13 @@ export function CommonScheduleChangeLogFilterControlsContent({
   actors,
   filters,
   isPending = false,
+  labels,
   navigate,
 }: CommonScheduleChangeLogFilterControlsProps & {
   isPending?: boolean;
   navigate: (href: string) => void;
 }) {
+  const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
   const hasFilters = filters.actorId !== "all" || filters.weekday !== "all";
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
@@ -1047,6 +1096,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
     navigate(
       createCommonScheduleChangeLogHref({
         actorId: String(formData.get("logStaff") ?? "all"),
+        basePath: resolvedLabels.basePath,
         page: 1,
         weekday: getWeekdayFilterFromFormValue(
           String(formData.get("logWeekday") ?? "all"),
@@ -1070,7 +1120,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
       <label>
         <span className="block text-xs font-semibold text-[#697386]">직원</span>
         <select
-          aria-label="공통 일정표 변경내역 직원 필터"
+          aria-label={resolvedLabels.staffFilterAriaLabel}
           name="logStaff"
           defaultValue={filters.actorId}
           disabled={isPending}
@@ -1088,7 +1138,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
       <label>
         <span className="block text-xs font-semibold text-[#697386]">요일</span>
         <select
-          aria-label="공통 일정표 변경내역 요일 필터"
+          aria-label={resolvedLabels.weekdayFilterAriaLabel}
           name="logWeekday"
           defaultValue={String(filters.weekday)}
           disabled={isPending}
@@ -1118,6 +1168,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
             navigate(
               createCommonScheduleChangeLogHref({
                 actorId: "all",
+                basePath: resolvedLabels.basePath,
                 page: 1,
                 weekday: "all",
               }),
@@ -1134,16 +1185,20 @@ export function CommonScheduleChangeLogFilterControlsContent({
 
 function CommonScheduleChangeLogPagination({
   filters,
+  labels,
 }: {
   filters: YouthCommonScheduleChangeLogFilters;
+  labels?: Partial<CommonScheduleBoardLabels>;
 }) {
   if (filters.totalPages <= 1) {
     return null;
   }
 
+  const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
+
   return (
     <nav
-      aria-label="공통 일정표 변경내역 페이지"
+      aria-label={resolvedLabels.paginationAriaLabel}
       className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d9dee7] border-t border-[#eef1f5] bg-white px-4 py-3"
     >
       <p className="text-sm text-[#697386]">
@@ -1154,6 +1209,7 @@ function CommonScheduleChangeLogPagination({
           disabled={filters.page <= 1}
           href={createCommonScheduleChangeLogHref({
             actorId: filters.actorId,
+            basePath: resolvedLabels.basePath,
             page: filters.page - 1,
             weekday: filters.weekday,
           })}
@@ -1164,6 +1220,7 @@ function CommonScheduleChangeLogPagination({
           disabled={filters.page >= filters.totalPages}
           href={createCommonScheduleChangeLogHref({
             actorId: filters.actorId,
+            basePath: resolvedLabels.basePath,
             page: filters.page + 1,
             weekday: filters.weekday,
           })}
@@ -1204,10 +1261,12 @@ function CommonScheduleChangeLogPaginationLink({
 
 function createCommonScheduleChangeLogHref({
   actorId,
+  basePath = defaultCommonScheduleBoardLabels.basePath,
   page,
   weekday,
 }: {
   actorId: string;
+  basePath?: string;
   page: number;
   weekday: YouthCommonScheduleWeekdayFilter;
 }) {
@@ -1227,9 +1286,7 @@ function createCommonScheduleChangeLogHref({
 
   const queryString = params.toString();
 
-  return queryString
-    ? `/youth/common-schedule?${queryString}`
-    : "/youth/common-schedule";
+  return queryString ? `${basePath}?${queryString}` : basePath;
 }
 
 function CommonScheduleChangeLogValue({
@@ -1337,7 +1394,14 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function CommonTimetableSkeleton({ overlay = false }: { overlay?: boolean }) {
+export function CommonTimetableSkeleton({
+  labels,
+  overlay = false,
+}: {
+  labels?: Partial<CommonScheduleBoardLabels>;
+  overlay?: boolean;
+}) {
+  const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
   const skeletonBlocks = [0, 3, 6].map((slotIndex) => ({
     height: slotIndex === 3 ? 104 : 72,
     top: slotIndex * commonScheduleSlotHeight + 8,
@@ -1346,7 +1410,7 @@ export function CommonTimetableSkeleton({ overlay = false }: { overlay?: boolean
   return (
     <div
       aria-busy="true"
-      aria-label="공통 일정표 불러오는 중"
+      aria-label={resolvedLabels.loadingLabel}
       className={
         overlay
           ? "pointer-events-none absolute inset-0 z-40 overflow-hidden"
@@ -1435,6 +1499,83 @@ export function CommonTimetableSkeleton({ overlay = false }: { overlay?: boolean
         ))}
       </div>
     </div>
+  );
+}
+
+export function CommonScheduleBoardSkeleton({
+  labels,
+}: {
+  labels?: Partial<CommonScheduleBoardLabels>;
+}) {
+  const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
+
+  return (
+    <section aria-label={resolvedLabels.boardAriaLabel} className="space-y-6">
+      <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
+        <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-[#16181d]">
+              {resolvedLabels.scheduleTitle}
+            </h2>
+            <p className="mt-1 text-sm text-[#697386]">
+              {resolvedLabels.description}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-24" />
+            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-24" />
+          </div>
+        </div>
+
+        <CommonTimetableSkeleton labels={resolvedLabels} />
+      </div>
+
+      <section aria-label={resolvedLabels.changeLogAriaLabel}>
+        <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#16181d]">
+              변경내역
+            </h2>
+            <CommonScheduleSkeletonBlock className="mt-2 h-4 w-44 max-w-full" />
+          </div>
+          <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[9rem_9rem_auto]">
+            <CommonScheduleSkeletonBlock className="h-10 w-full" />
+            <CommonScheduleSkeletonBlock className="h-10 w-full" />
+            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-20" />
+          </div>
+        </div>
+        <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
+          {[0, 1, 2].map((row) => (
+            <li
+              key={row}
+              className="grid gap-3 px-4 py-3 lg:grid-cols-[12rem_1fr]"
+            >
+              <div className="min-w-0">
+                <CommonScheduleSkeletonBlock className="h-4 w-24" />
+                <CommonScheduleSkeletonBlock className="mt-2 h-8 w-32" />
+              </div>
+              <div className="min-w-0">
+                <CommonScheduleSkeletonBlock className="h-4 w-3/5 max-w-full" />
+                <CommonScheduleSkeletonBlock className="mt-2 h-3 w-40 max-w-full" />
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <CommonScheduleSkeletonBlock className="h-12 w-full" />
+                  <CommonScheduleSkeletonBlock className="h-12 w-full" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </section>
+  );
+}
+
+function CommonScheduleSkeletonBlock({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`block animate-pulse rounded-md bg-[#edf1f5] ${className}`}
+    />
   );
 }
 

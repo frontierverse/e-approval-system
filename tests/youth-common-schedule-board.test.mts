@@ -242,4 +242,51 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /조건에 맞는 변경내역이 없습니다/);
     assert.doesNotMatch(html, /초기화/);
   });
+
+  test("renders the same timetable controls with work schedule labels", () => {
+    const props = createBoardProps();
+    const labels = {
+      basePath: "/work-schedule",
+      boardAriaLabel: "업무 일정표",
+      changeLogAriaLabel: "업무 일정표 변경내역",
+      changeLogFallbackMessage: "업무 일정표 변경내역을 기록했습니다.",
+      description: "오전 9시부터 오후 6시까지 요일별 업무 일정을 관리합니다.",
+      loadingLabel: "업무 일정표 불러오는 중",
+      noMatchingChangeLogsMessage: "조건에 맞는 변경내역이 없습니다.",
+      paginationAriaLabel: "업무 일정표 변경내역 페이지",
+      scheduleTitle: "업무 일정표",
+      staffFilterAriaLabel: "업무 일정표 변경내역 직원 필터",
+      weekdayFilterAriaLabel: "업무 일정표 변경내역 요일 필터",
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(YouthCommonScheduleBoard, {
+        ...props,
+        changeLogFilterControls: React.createElement(
+          CommonScheduleChangeLogFilterControlsContent,
+          {
+            actors: changeLogActors,
+            filters: changeLogFilters,
+            labels,
+            navigate: () => {},
+          },
+        ),
+        labels,
+      }),
+    );
+
+    assert.match(html, /aria-label="업무 일정표"/);
+    assert.match(html, /업무 일정표/);
+    assert.match(html, /요일별 업무 일정을 관리합니다/);
+    assert.match(html, /href="\/work-schedule\/print"/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/print\?orientation=landscape"/,
+    );
+    assert.match(html, /aria-label="업무 일정표 변경내역 직원 필터"/);
+    assert.match(html, /aria-label="업무 일정표 변경내역 요일 필터"/);
+    assert.match(
+      html,
+      /href="\/work-schedule\?logStaff=user-001&amp;logWeekday=1&amp;logPage=2"/,
+    );
+  });
 });

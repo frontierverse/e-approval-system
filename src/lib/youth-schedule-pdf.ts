@@ -33,6 +33,13 @@ type SchedulePdfItem = {
   startMinute: number;
 };
 
+type WeeklySchedulePdfSchedule = {
+  weekday: number;
+  content: string;
+  endMinute: number;
+  startMinute: number;
+};
+
 type SchedulePdfPage = {
   columns: SchedulePdfColumn[];
   schedules: SchedulePdfItem[];
@@ -110,6 +117,36 @@ export async function createYouthCommonSchedulePdf({
   orientation?: SchedulePdfOrientation;
   schedules: YouthCommonSchedule[];
 }) {
+  return createWeeklySchedulePdf({
+    orientation,
+    schedules,
+    title: "공통 일정표",
+  });
+}
+
+export async function createWorkSchedulePdf({
+  orientation = "portrait",
+  schedules,
+}: {
+  orientation?: SchedulePdfOrientation;
+  schedules: WeeklySchedulePdfSchedule[];
+}) {
+  return createWeeklySchedulePdf({
+    orientation,
+    schedules,
+    title: "업무 일정표",
+  });
+}
+
+async function createWeeklySchedulePdf({
+  orientation,
+  schedules,
+  title,
+}: {
+  orientation: SchedulePdfOrientation;
+  schedules: WeeklySchedulePdfSchedule[];
+  title: string;
+}) {
   const columns = youthCommonScheduleWeekdays.map((weekday) => ({
     id: String(weekday.value),
     label: weekday.label,
@@ -125,7 +162,7 @@ export async function createYouthCommonSchedulePdf({
         startMinute: schedule.startMinute,
       })),
       subtitle: "오전 9시부터 오후 6시까지",
-      title: "공통 일정표",
+      title,
     },
   ], {
     cardSchedules: true,

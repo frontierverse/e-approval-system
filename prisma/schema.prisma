@@ -59,6 +59,7 @@ enum AuditAction {
   CREATE_RESOURCE
   UPDATE_RESOURCE
   DELETE_RESOURCE
+  UPDATE_WORK_SCHEDULE
   CREATE_YOUTH
   UPDATE_YOUTH
   UPDATE_YOUTH_NOTE
@@ -468,6 +469,40 @@ model YouthCommonSchedule {
   @@index([weekday, startMinute])
   @@index([startHour])
   @@index([startMinute])
+}
+
+model WorkSchedule {
+  id          String   @id @default(cuid())
+  weekday     Int
+  startHour   Int
+  startMinute Int
+  endHour     Int
+  endMinute   Int
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([weekday, startMinute])
+  @@index([weekday, startMinute])
+  @@index([startHour])
+  @@index([startMinute])
+}
+
+model CafeItem {
+  id             String   @id @default(cuid())
+  name           String
+  category       String
+  purchasedAt    String
+  priceWon       Int?
+  purchaseReason String?
+  expirationDate String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+  @@index([purchasedAt])
+  @@index([expirationDate])
+  @@index([createdAt])
 }
 
 model AuditLog {

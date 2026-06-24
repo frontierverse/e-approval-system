@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument, PageSizes } from "pdf-lib";
 import {
+  createWorkSchedulePdf,
   createYouthCommonSchedulePdf,
   createYouthLearningProgressPdf,
 } from "../src/lib/youth-schedule-pdf.ts";
@@ -98,6 +99,21 @@ describe("youth schedule PDFs", () => {
     assert.equal(readPdfHeader(buffer), "%PDF");
     assert.equal(pdf.getPageCount(), 1);
     assertA4LandscapePages(pdf);
+  });
+
+  test("creates work schedule PDFs with the common timetable layout", async () => {
+    const buffer = await createWorkSchedulePdf({
+      schedules: commonSchedules,
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const text = await extractPdfText(buffer);
+
+    assert.equal(readPdfHeader(buffer), "%PDF");
+    assert.equal(pdf.getPageCount(), 1);
+    assertA4PortraitPages(pdf);
+    assert.match(text, /월요일/);
+    assert.match(text, /공용 자습/);
+    assert.doesNotMatch(text, /업무 일정표/);
   });
 
   test("keeps timetable PDF headers clean and time labels in the row header", async () => {

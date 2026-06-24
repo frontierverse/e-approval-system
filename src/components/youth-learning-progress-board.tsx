@@ -1425,6 +1425,90 @@ export function TimetableSkeleton({
   );
 }
 
+export function LearningProgressBoardSkeleton({
+  youthCount = 3,
+}: {
+  youthCount?: number;
+}) {
+  return (
+    <section aria-label="청소년 학습지도 로딩" className="space-y-6">
+      <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
+        <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-[#16181d]">
+              학습지도 시간표
+            </h2>
+            <LearningProgressSkeletonBlock className="mt-2 h-4 w-72 max-w-full" />
+          </div>
+
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:max-w-2xl">
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-44" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-16" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-16" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
+            </div>
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end">
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:max-w-xs sm:flex-1" />
+              <LearningProgressSkeletonBlock className="h-10 w-full sm:w-16" />
+            </div>
+          </div>
+        </div>
+
+        <TimetableSkeleton youthCount={youthCount} />
+      </div>
+
+      <section aria-label="최근 변경 이력 로딩">
+        <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#16181d]">
+              최근 변경 이력
+            </h2>
+            <LearningProgressSkeletonBlock className="mt-2 h-4 w-44 max-w-full" />
+          </div>
+          <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[9rem_9rem_auto]">
+            <LearningProgressSkeletonBlock className="h-10 w-full" />
+            <LearningProgressSkeletonBlock className="h-10 w-full" />
+            <LearningProgressSkeletonBlock className="h-10 w-full sm:w-20" />
+          </div>
+        </div>
+        <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
+          {[0, 1, 2].map((row) => (
+            <li
+              key={row}
+              className="grid gap-3 px-4 py-3 lg:grid-cols-[12rem_1fr]"
+            >
+              <div className="min-w-0">
+                <LearningProgressSkeletonBlock className="h-4 w-24" />
+                <LearningProgressSkeletonBlock className="mt-2 h-8 w-32" />
+              </div>
+              <div className="min-w-0">
+                <LearningProgressSkeletonBlock className="h-4 w-3/5 max-w-full" />
+                <LearningProgressSkeletonBlock className="mt-2 h-3 w-48 max-w-full" />
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <LearningProgressSkeletonBlock className="h-12 w-full" />
+                  <LearningProgressSkeletonBlock className="h-12 w-full" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </section>
+  );
+}
+
+function LearningProgressSkeletonBlock({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`block animate-pulse rounded-md bg-[#edf1f5] ${className}`}
+    />
+  );
+}
+
 function ChangeLogListSummary({
   filters,
 }: {

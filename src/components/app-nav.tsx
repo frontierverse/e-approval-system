@@ -370,7 +370,11 @@ function isRelatedGroupPath(group: NavigationGroup, pathname: string) {
   return false;
 }
 
-function isActivePath(pathname: string, href: string, currentHref: string) {
+export function isActivePath(
+  pathname: string,
+  href: string,
+  currentHref: string,
+) {
   const hrefPath = getHrefPath(href);
   const hrefQuery = href.split("?")[1];
 
@@ -396,6 +400,10 @@ function isActivePath(pathname: string, href: string, currentHref: string) {
 
   if (href === "/admin") {
     return pathname === "/admin";
+  }
+
+  if (href === "/work-schedule") {
+    return pathname === "/work-schedule";
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
