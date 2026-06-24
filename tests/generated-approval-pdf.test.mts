@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { describe, test } from "node:test";
+import { pathToFileURL } from "node:url";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import {
   getApprovalStampColumnIndex,
@@ -11,6 +14,17 @@ import {
 } from "../src/lib/approval-pdf-stamp-source.ts";
 import { compileDocumentTemplateContent } from "../src/lib/draft-template-content.ts";
 import { createApprovalDocumentPdfBuffer } from "../src/lib/generated-approval-pdf.ts";
+
+GlobalWorkerOptions.workerSrc = pathToFileURL(
+  path.join(
+    process.cwd(),
+    "node_modules",
+    "pdfjs-dist",
+    "legacy",
+    "build",
+    "pdf.worker.mjs",
+  ),
+).href;
 
 describe("generated approval pdf", () => {
   test("uses the approval-line approver stamp for final approval PDFs", () => {
@@ -88,6 +102,58 @@ describe("generated approval pdf", () => {
     assert.ok(buffer.byteLength > 0);
   });
 
+  test("keeps long document titles clear of the summary section headers", async () => {
+    const buffer = await createApprovalDocumentPdfBuffer({
+      documentNo: "EA-2026-0006",
+      title:
+        "어린이급식소 3차 순회방문지도 공문 검토 요청드립니다. 관련 자료와 확인 의견을 함께 검토 부탁드립니다.",
+      category: "일반 기안서",
+      content:
+        "대표님, 어린이급식소 3차 순회방문지도 관련 공문 이메일 수신되어 첨부하여 상신드립니다.",
+      templateName: "일반 기안서",
+      drafter: {
+        name: "최윤서",
+        departmentName: "바자울",
+        positionName: "주임",
+      },
+      approvers: [
+        {
+          name: "안윤숙",
+          departmentName: "바자울",
+          positionName: "시설장",
+        },
+      ],
+      issuedAt: new Date("2026-06-22T10:34:00+09:00"),
+    });
+    const items = await extractPdfTextItems(buffer);
+    const summaryHeader = items.find((item) => item.str === "문서 정보");
+
+    assert.ok(summaryHeader, "expected generated PDF to include 문서 정보");
+
+    const summaryHeaderTop = summaryHeader.y + summaryHeader.height;
+    const heroTitleItems = items.filter(
+      (item) =>
+        item.x > 70 &&
+        item.x < 300 &&
+        item.y > summaryHeaderTop &&
+        item.y < 690,
+    );
+    const lowestHeroTitleBaseline = Math.min(
+      ...heroTitleItems.map((item) => item.y),
+    );
+
+    assert.ok(
+      heroTitleItems.length >= 2,
+      "expected the long document title to wrap onto multiple lines",
+    );
+    assert.ok(
+      lowestHeroTitleBaseline - summaryHeaderTop > 2,
+      `expected title and summary header to have vertical gap, got ${
+        lowestHeroTitleBaseline - summaryHeaderTop
+      }`,
+    );
+  });
+
   test("paginates long schema table values", async () => {
     const schema = {
       version: 1,
@@ -147,3 +213,38 @@ describe("generated approval pdf", () => {
     assert.ok(buffer.byteLength > 0);
   });
 });
+
+async function extractPdfTextItems(buffer: Uint8Array) {
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+  const pdf = await loadingTask.promise;
+  const items: Array<{
+    height: number;
+    str: string;
+    width: number;
+    x: number;
+    y: number;
+  }> = [];
+
+  try {
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+
+    for (const item of content.items) {
+      if (!("str" in item) || !item.str) {
+        continue;
+      }
+
+      items.push({
+        height: item.height,
+        str: item.str,
+        width: item.width,
+        x: item.transform[4],
+        y: item.transform[5],
+      });
+    }
+  } finally {
+    await loadingTask.destroy();
+  }
+
+  return items;
+}

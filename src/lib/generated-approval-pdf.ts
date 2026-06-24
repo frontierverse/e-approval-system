@@ -84,15 +84,18 @@ const infoPanelY = 382;
 const infoPanelWidth = 560;
 const infoPanelLabelWidth = 132;
 const infoPanelRowHeight = 38;
-const infoPanelTitleY = 356;
+const infoPanelTitleY = 374;
 const approvalPanelX = 718;
 const approvalPanelY = 382;
 const approvalPanelWidth = 404;
 const approvalPanelRowHeight = 150;
-const approvalPanelTitleY = 356;
+const approvalPanelTitleY = 374;
+const heroTemplateNameMaxWidth = 520;
+const heroTemplateNameFontSize = 30;
 const heroTitleMaxWidth = 430;
-const heroTitleFontSize = 19;
-const heroTitleLineHeight = 25;
+const heroTitleY = 332;
+const heroTitleFontSize = 16;
+const heroTitleLineHeight = 18;
 const heroTitleMaxLines = 2;
 const bodyTextFontSize = 16;
 const bodyTextLineHeight = 30;
@@ -111,7 +114,7 @@ const templateTableMaxWrappedLines = 500;
 const continuationBodyTitleY = 350;
 const continuationTableY = 382;
 const continuationTableMaxBottomY = 1548;
-const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v4/";
+const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v5/";
 const approvalDocumentFooterText =
   "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 const pdfKoreanFontPath = path.join(
@@ -710,15 +713,25 @@ function drawApprovalDocumentPage(
   drawSvgText(page, fonts, layout.badgeLabel, 154, 266, 16, layout.accentFill, {
     fontWeight: 700,
   });
-  drawSvgText(page, fonts, input.templateName, 154, 309, 34, "#171b22", {
-    fontWeight: 800,
-  });
+  drawSvgFittedText(
+    page,
+    fonts,
+    input.templateName,
+    154,
+    309,
+    heroTemplateNameFontSize,
+    "#171b22",
+    heroTemplateNameMaxWidth,
+    {
+      fontWeight: 800,
+    },
+  );
   drawSvgMultilineText(
     page,
     fonts,
     titleLines,
     154,
-    340,
+    heroTitleY,
     heroTitleFontSize,
     heroTitleLineHeight,
     "#171b22",

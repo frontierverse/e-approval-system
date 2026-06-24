@@ -1,15 +1,20 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  getWorkScheduleMonthRange,
+  normalizeWorkScheduleMonth,
+} from "@/lib/work-schedule-calendar";
 import { prisma } from "@/lib/prisma";
 import {
-  isYouthCommonScheduleWeekday,
-  youthCommonScheduleWeekdays,
+  getYouthLearningScheduleWeekday,
+  isYouthLearningScheduleDate,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
 export type WorkSchedule = {
   id: string;
+  scheduleDate: string;
   weekday: YouthLearningScheduleWeekday;
   startHour: number;
   startMinute: number;
@@ -18,7 +23,7 @@ export type WorkSchedule = {
   content: string;
 };
 
-export type WorkScheduleWeekdayFilter = "all" | YouthLearningScheduleWeekday;
+export type WorkScheduleDateFilter = "" | (string & {});
 
 export type WorkScheduleChangeLog = {
   id: string;
@@ -44,13 +49,14 @@ export type WorkScheduleChangeLogFilters = {
   actorId: string;
   page: number;
   pageSize: number;
+  scheduleDate: WorkScheduleDateFilter;
   total: number;
   totalPages: number;
-  weekday: WorkScheduleWeekdayFilter;
 };
 
 type WorkScheduleRecord = {
   id: string;
+  scheduleDate: string;
   weekday: number;
   startHour: number;
   startMinute: number;
@@ -65,23 +71,21 @@ export type WorkScheduleChangeLogsResult = WorkScheduleChangeLogFilters & {
 
 const workScheduleChangeLogPageSize = 5;
 
-export async function getWorkSchedules(): Promise<WorkSchedule[]> {
+export async function getWorkSchedules(
+  month?: string,
+): Promise<WorkSchedule[]> {
+  const { endDate, startDate } = getWorkScheduleMonthRange(
+    normalizeWorkScheduleMonth(month),
+  );
   const schedules = await prisma.workSchedule.findMany({
     where: {
-      weekday: {
-        in: youthCommonScheduleWeekdays.map((weekday) => weekday.value),
+      scheduleDate: {
+        gte: startDate,
+        lt: endDate,
       },
     },
-    orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
-    select: {
-      id: true,
-      weekday: true,
-      startHour: true,
-      startMinute: true,
-      endHour: true,
-      endMinute: true,
-      content: true,
-    },
+    orderBy: [{ scheduleDate: "asc" }, { startMinute: "asc" }],
+    select: workScheduleSelect,
   });
 
   return schedules.map(mapWorkSchedule).sort(sortWorkSchedules);
@@ -91,19 +95,19 @@ export async function getWorkScheduleChangeLogs({
   actorId = "all",
   page = 1,
   pageSize = workScheduleChangeLogPageSize,
-  weekday = "all",
+  scheduleDate = "",
 }: {
   actorId?: string;
   page?: number;
   pageSize?: number;
-  weekday?: WorkScheduleWeekdayFilter;
+  scheduleDate?: WorkScheduleDateFilter;
 } = {}): Promise<WorkScheduleChangeLogsResult> {
   const normalizedActorId = actorId.trim() || "all";
   const normalizedPageSize = Math.max(1, pageSize);
-  const normalizedWeekday = normalizeWorkScheduleWeekdayFilter(weekday);
+  const normalizedScheduleDate = normalizeWorkScheduleDateFilter(scheduleDate);
   const where = createWorkScheduleChangeLogWhere({
     actorId: normalizedActorId,
-    weekday: normalizedWeekday,
+    scheduleDate: normalizedScheduleDate,
   });
   const total = await prisma.auditLog.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
@@ -147,9 +151,9 @@ export async function getWorkScheduleChangeLogs({
     })),
     page: normalizedPage,
     pageSize: normalizedPageSize,
+    scheduleDate: normalizedScheduleDate,
     total,
     totalPages,
-    weekday: normalizedWeekday,
   };
 }
 
@@ -178,18 +182,27 @@ export async function getWorkScheduleChangeLogActors(): Promise<
     .sort((first, second) => first.name.localeCompare(second.name, "ko-KR"));
 }
 
+export const workScheduleSelect = {
+  id: true,
+  scheduleDate: true,
+  weekday: true,
+  startHour: true,
+  startMinute: true,
+  endHour: true,
+  endMinute: true,
+  content: true,
+} satisfies Prisma.WorkScheduleSelect;
+
 export function mapWorkSchedule(schedule: WorkScheduleRecord): WorkSchedule {
   return {
     ...schedule,
-    weekday: isYouthCommonScheduleWeekday(schedule.weekday)
-      ? schedule.weekday
-      : 1,
+    weekday: getYouthLearningScheduleWeekday(schedule.scheduleDate),
   };
 }
 
 function sortWorkSchedules(first: WorkSchedule, second: WorkSchedule) {
   return (
-    first.weekday - second.weekday ||
+    first.scheduleDate.localeCompare(second.scheduleDate) ||
     first.startMinute - second.startMinute ||
     first.endMinute - second.endMinute
   );
@@ -197,10 +210,10 @@ function sortWorkSchedules(first: WorkSchedule, second: WorkSchedule) {
 
 function createWorkScheduleChangeLogWhere({
   actorId = "all",
-  weekday = "all",
+  scheduleDate = "",
 }: {
   actorId?: string;
-  weekday?: WorkScheduleWeekdayFilter;
+  scheduleDate?: WorkScheduleDateFilter;
 } = {}): Prisma.AuditLogWhereInput {
   const conditions: Prisma.AuditLogWhereInput[] = [
     {
@@ -224,11 +237,11 @@ function createWorkScheduleChangeLogWhere({
     });
   }
 
-  if (weekday !== "all") {
+  if (scheduleDate) {
     conditions.push({
       metadata: {
-        path: ["weekday"],
-        equals: weekday,
+        path: ["scheduleDate"],
+        equals: scheduleDate,
       },
     });
   }
@@ -238,12 +251,10 @@ function createWorkScheduleChangeLogWhere({
   };
 }
 
-function normalizeWorkScheduleWeekdayFilter(
-  value: WorkScheduleWeekdayFilter,
-): WorkScheduleWeekdayFilter {
-  return value === "all" || isYouthCommonScheduleWeekday(value)
-    ? value
-    : "all";
+function normalizeWorkScheduleDateFilter(
+  value: WorkScheduleDateFilter,
+): WorkScheduleDateFilter {
+  return value && isYouthLearningScheduleDate(value) ? value : "";
 }
 
 function clampPage(page: number, totalPages: number) {

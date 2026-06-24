@@ -75,19 +75,19 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-[#16181d]">
       <header className="sticky top-0 z-30 border-b border-[#d9dee7] bg-white/95 backdrop-blur">
-        <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center">
+        <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex min-w-0 flex-1 items-center">
             <span className="min-w-0">
-              <span className="block text-base font-semibold leading-5">
+              <span className="block truncate text-base font-semibold leading-5">
                 {appName}
               </span>
-              <span className="block text-xs text-[#697386]">
+              <span className="block truncate text-xs text-[#697386]">
                 {organizationName}
               </span>
             </span>
           </Link>
 
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <Suspense fallback={<ShellUserFallback />}>
               <ShellUserSummary />
             </Suspense>
@@ -95,10 +95,10 @@ export function AppShell({
               <ShellNotificationBell userId={userId} />
             </Suspense>
             <ThemeToggle />
-            <form action={logoutAction}>
+            <form action={logoutAction} className="shrink-0">
               <button
                 type="submit"
-                className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+                className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[#cfd6e3] bg-white px-2.5 text-xs font-semibold text-[#394150] transition hover:bg-[#f7f9fc] sm:px-3 sm:text-sm"
               >
                 로그아웃
               </button>
@@ -212,7 +212,7 @@ async function ShellUserSummary() {
         className="hidden sm:flex"
         nameClassName="text-[#16181d]"
       />
-      <span className="sm:hidden">
+      <span className="shrink-0 sm:hidden">
         <UserAvatar user={user} />
       </span>
     </>
@@ -223,7 +223,7 @@ function ShellUserFallback() {
   return (
     <>
       <span
-        className="grid size-9 place-items-center rounded-full border border-[#cfd6e3] bg-[#f7f9fc] text-sm font-semibold text-[#8a95a6]"
+        className="grid size-9 shrink-0 place-items-center rounded-full border border-[#cfd6e3] bg-[#f7f9fc] text-sm font-semibold text-[#8a95a6]"
         aria-label="계정 정보 불러오는 중"
       >
         -
@@ -253,7 +253,7 @@ function NotificationBellFallback() {
       type="button"
       aria-label="알림 불러오는 중"
       disabled
-      className="relative grid size-9 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#8a95a6]"
+      className="relative grid size-9 shrink-0 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#8a95a6]"
     >
       <svg
         viewBox="0 0 24 24"

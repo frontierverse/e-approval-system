@@ -5,7 +5,7 @@ export function ThemeToggle() {
       data-theme-toggle
       aria-label="테마 변경"
       title="테마 변경"
-      className="relative inline-grid h-9 w-[4.75rem] grid-cols-2 items-center rounded-full border border-[#cfd6e3] bg-white p-1 text-sm font-semibold transition hover:bg-[#f7f9fc]"
+      className="relative inline-grid h-9 w-[4.75rem] shrink-0 grid-cols-2 items-center overflow-hidden rounded-full border border-[#cfd6e3] bg-white p-1 text-sm font-semibold transition hover:bg-[#f7f9fc]"
     >
       <span
         data-theme-toggle-thumb

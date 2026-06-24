@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { normalizeWorkScheduleMonth } from "@/lib/work-schedule-calendar";
 import { getWorkSchedules } from "@/lib/work-schedules";
 import {
   createWorkSchedulePdf,
@@ -15,10 +16,13 @@ export async function GET(request: NextRequest) {
   const orientation = getSchedulePdfOrientation(
     request.nextUrl.searchParams.get("orientation"),
   );
-  const schedules = await getWorkSchedules();
+  const month = normalizeWorkScheduleMonth(
+    request.nextUrl.searchParams.get("month") ?? undefined,
+  );
+  const schedules = await getWorkSchedules(month);
   const pdf = await createWorkSchedulePdf({ orientation, schedules });
 
-  return createPdfResponse(pdf, `work-schedule-${orientation}.pdf`);
+  return createPdfResponse(pdf, `work-schedule-${month}-${orientation}.pdf`);
 }
 
 function getSchedulePdfOrientation(

@@ -185,14 +185,14 @@ export function NotificationBell({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative shrink-0" ref={containerRef}>
       <button
         type="button"
         aria-expanded={isOpen}
         aria-label={buttonLabel}
         title={buttonLabel}
         onClick={() => setIsOpen((current) => !current)}
-        className="relative grid size-9 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#394150] transition hover:bg-[#f7f9fc]"
+        className="relative grid size-9 shrink-0 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#394150] transition hover:bg-[#f7f9fc]"
       >
         <svg
           viewBox="0 0 24 24"

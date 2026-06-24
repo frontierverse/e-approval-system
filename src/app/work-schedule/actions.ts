@@ -5,58 +5,48 @@ import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { mapWorkSchedule, type WorkSchedule } from "@/lib/work-schedules";
+import {
+  mapWorkSchedule,
+  workScheduleSelect,
+  type WorkSchedule,
+} from "@/lib/work-schedules";
+import {
+  formatWorkScheduleDateLabel,
+  getWorkScheduleMonthFromDate,
+} from "@/lib/work-schedule-calendar";
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
-  isYouthCommonScheduleWeekday,
+  getYouthLearningScheduleWeekday,
+  isYouthLearningScheduleDate,
   isYouthLearningScheduleEndMinute,
   isYouthLearningScheduleStartMinute,
-  normalizeYouthCommonScheduleWeekdays,
-  youthCommonScheduleWeekdays,
   type YouthActionResult,
-  type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
 const workSchedulePath = "/work-schedule";
 
 export async function saveWorkScheduleAction(
-  weekday: number,
+  scheduleDate: string,
   startMinute: number,
   endMinute: number,
   content: string,
-  recurrenceWeekdaysOrSourceStartMinute: number[] | number = [weekday],
-  maybeSourceStartMinute?: number,
-): Promise<
-  YouthActionResult<{
-    schedules: WorkSchedule[];
-    sourceStartMinute: number;
-    targetWeekdays: YouthLearningScheduleWeekday[];
-  }>
-> {
+  sourceScheduleDate = scheduleDate,
+  sourceStartMinute = startMinute,
+): Promise<YouthActionResult<{ schedule: WorkSchedule | null }>> {
   const user = await requireUser();
-  const sourceStartMinute = Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
-    ? (maybeSourceStartMinute ?? startMinute)
-    : recurrenceWeekdaysOrSourceStartMinute;
 
-  if (!isYouthCommonScheduleWeekday(weekday)) {
+  if (!isYouthLearningScheduleDate(scheduleDate)) {
     return {
       ok: false,
-      error: "요일을 다시 선택하세요.",
+      error: "날짜를 다시 선택하세요.",
     };
   }
 
-  const targetWeekdays = normalizeYouthCommonScheduleWeekdays([
-    weekday,
-    ...(Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
-      ? recurrenceWeekdaysOrSourceStartMinute
-      : []),
-  ]);
-
-  if (targetWeekdays.length === 0) {
+  if (!isYouthLearningScheduleDate(sourceScheduleDate)) {
     return {
       ok: false,
-      error: "반복 요일을 하나 이상 선택하세요.",
+      error: "기존 날짜를 다시 확인하세요.",
     };
   }
 
@@ -70,7 +60,7 @@ export async function saveWorkScheduleAction(
   if (!isYouthLearningScheduleStartMinute(sourceStartMinute)) {
     return {
       ok: false,
-      error: "기존 시작 시간을 다시 선택하세요.",
+      error: "기존 시작 시간을 다시 확인하세요.",
     };
   }
 
@@ -82,87 +72,41 @@ export async function saveWorkScheduleAction(
   }
 
   const normalizedContent = content.trim();
+  const existingSchedule = await findWorkSchedule(
+    sourceScheduleDate,
+    sourceStartMinute,
+  );
 
   if (!normalizedContent) {
-    const existingSchedules = await findWorkSchedules(
-      targetWeekdays,
-      sourceStartMinute,
-    );
-
-    if (existingSchedules.length > 0) {
-      const auditRequestData = await getCurrentAuditLogRequestData();
-
-      await prisma.$transaction(async (tx) => {
-        await tx.workSchedule.deleteMany({
-          where: {
-            startMinute: sourceStartMinute,
-            weekday: {
-              in: targetWeekdays,
-            },
-          },
-        });
-
-        for (const existingSchedule of existingSchedules) {
-          await tx.auditLog.create({
-            data: {
-              actorId: user.id,
-              ...auditRequestData,
-              action: AuditAction.UPDATE_WORK_SCHEDULE,
-              targetType: "WorkSchedule",
-              targetId: existingSchedule.id,
-              message: `업무 일정표 ${formatWorkScheduleSlotLabel(
-                existingSchedule.weekday,
-                existingSchedule.startMinute,
-                existingSchedule.endMinute,
-              )} 일정을 삭제했습니다.`,
-              metadata: {
-                changeType: "workSchedule.delete",
-                nextContent: null,
-                previousContent: existingSchedule.content,
-                source: "work-schedule",
-                sourceStartMinute,
-                targetWeekdays,
-                weekday: existingSchedule.weekday,
-                startHour: existingSchedule.startHour,
-                startMinute: existingSchedule.startMinute,
-                endHour: existingSchedule.endHour,
-                endMinute: existingSchedule.endMinute,
-                timeLabel: formatScheduleRangeLabel(
-                  existingSchedule.startMinute,
-                  existingSchedule.endMinute,
-                ),
-              },
-            },
-          });
-        }
+    if (existingSchedule) {
+      await deleteExistingWorkSchedule({
+        schedule: existingSchedule,
+        userId: user.id,
       });
     }
 
-    revalidatePath(workSchedulePath);
+    revalidateWorkSchedulePaths(scheduleDate, sourceScheduleDate);
 
     return {
       ok: true,
       data: {
-        schedules: [],
-        sourceStartMinute,
-        targetWeekdays,
+        schedule: null,
       },
     };
   }
 
   const conflictingSchedule = await findConflictingWorkSchedule({
-    startMinute,
     endMinute,
+    scheduleDate,
+    sourceScheduleDate,
     sourceStartMinute,
-    weekdays: targetWeekdays,
+    startMinute,
   });
 
   if (conflictingSchedule) {
     return {
       ok: false,
-      error: `${formatWeekdayLabel(
-        conflictingSchedule.weekday,
-      )} ${formatScheduleRangeLabel(
+      error: `${formatWorkScheduleDateLabel(scheduleDate)} ${formatScheduleRangeLabel(
         conflictingSchedule.startMinute,
         conflictingSchedule.endMinute,
       )} 일정과 시간이 겹칩니다.`,
@@ -171,74 +115,27 @@ export async function saveWorkScheduleAction(
 
   const startHour = getYouthLearningScheduleStartHourFromMinute(startMinute);
   const endHour = getYouthLearningScheduleEndHourFromMinute(endMinute);
+  const weekday = getYouthLearningScheduleWeekday(scheduleDate);
   const auditRequestData = await getCurrentAuditLogRequestData();
-
-  const schedules = await prisma.$transaction(async (tx) => {
-    const existingSchedules = await tx.workSchedule.findMany({
-      where: {
-        startMinute: sourceStartMinute,
-        weekday: {
-          in: targetWeekdays,
-        },
-      },
-      select: {
-        id: true,
-        weekday: true,
-        startHour: true,
-        startMinute: true,
-        endHour: true,
-        endMinute: true,
-        content: true,
-      },
-    });
-    const existingScheduleByWeekday = new Map(
-      existingSchedules.map((schedule) => [schedule.weekday, schedule]),
-    );
-    const savedSchedules: WorkSchedule[] = [];
-
-    for (const targetWeekday of targetWeekdays) {
-      const existingSchedule = existingScheduleByWeekday.get(targetWeekday);
-
-      if (
-        existingSchedule?.content === normalizedContent &&
-        existingSchedule.startMinute === startMinute &&
-        existingSchedule.endMinute === endMinute
-      ) {
-        savedSchedules.push(mapWorkSchedule(existingSchedule));
-        continue;
-      }
-
-      const savedSchedule = await tx.workSchedule.upsert({
+  const savedSchedule = await prisma.$transaction(async (tx) => {
+    if (existingSchedule) {
+      const updatedSchedule = await tx.workSchedule.update({
         where: {
-          weekday_startMinute: {
-            weekday: targetWeekday,
+          scheduleDate_startMinute: {
+            scheduleDate: sourceScheduleDate,
             startMinute: sourceStartMinute,
           },
         },
-        update: {
+        data: {
           content: normalizedContent,
           endHour,
           endMinute,
+          scheduleDate,
           startHour,
           startMinute,
+          weekday,
         },
-        create: {
-          content: normalizedContent,
-          endHour,
-          endMinute,
-          startHour,
-          startMinute,
-          weekday: targetWeekday,
-        },
-        select: {
-          id: true,
-          weekday: true,
-          startHour: true,
-          startMinute: true,
-          endHour: true,
-          endMinute: true,
-          content: true,
-        },
+        select: workScheduleSelect,
       });
 
       await tx.auditLog.create({
@@ -247,30 +144,31 @@ export async function saveWorkScheduleAction(
           ...auditRequestData,
           action: AuditAction.UPDATE_WORK_SCHEDULE,
           targetType: "WorkSchedule",
-          targetId: savedSchedule.id,
+          targetId: updatedSchedule.id,
           message: `업무 일정표 ${formatWorkScheduleSlotLabel(
-            targetWeekday,
+            scheduleDate,
             startMinute,
             endMinute,
-          )} 일정을 ${existingSchedule ? "변경" : "입력"}했습니다.`,
+          )} 일정이 변경되었습니다.`,
           metadata: {
-            changeType: existingSchedule
-              ? "workSchedule.update"
-              : "workSchedule.create",
+            changeType: "workSchedule.update",
             nextContent: normalizedContent,
-            nextStartHour: startHour,
-            nextStartMinute: startMinute,
             nextEndHour: endHour,
             nextEndMinute: endMinute,
-            previousContent: existingSchedule?.content ?? null,
-            previousStartHour: existingSchedule?.startHour ?? null,
-            previousStartMinute: existingSchedule?.startMinute ?? null,
-            previousEndHour: existingSchedule?.endHour ?? null,
-            previousEndMinute: existingSchedule?.endMinute ?? null,
+            nextScheduleDate: scheduleDate,
+            nextStartHour: startHour,
+            nextStartMinute: startMinute,
+            previousContent: existingSchedule.content,
+            previousEndHour: existingSchedule.endHour,
+            previousEndMinute: existingSchedule.endMinute,
+            previousScheduleDate: existingSchedule.scheduleDate,
+            previousStartHour: existingSchedule.startHour,
+            previousStartMinute: existingSchedule.startMinute,
+            scheduleDate,
             source: "work-schedule",
+            sourceScheduleDate,
             sourceStartMinute,
-            targetWeekdays,
-            weekday: targetWeekday,
+            weekday,
             endHour,
             endMinute,
             startHour,
@@ -280,36 +178,85 @@ export async function saveWorkScheduleAction(
         },
       });
 
-      savedSchedules.push(mapWorkSchedule(savedSchedule));
+      return updatedSchedule;
     }
 
-    return savedSchedules;
+    const createdSchedule = await tx.workSchedule.create({
+      data: {
+        content: normalizedContent,
+        endHour,
+        endMinute,
+        scheduleDate,
+        startHour,
+        startMinute,
+        weekday,
+      },
+      select: workScheduleSelect,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_WORK_SCHEDULE,
+        targetType: "WorkSchedule",
+        targetId: createdSchedule.id,
+        message: `업무 일정표 ${formatWorkScheduleSlotLabel(
+          scheduleDate,
+          startMinute,
+          endMinute,
+        )} 일정이 입력되었습니다.`,
+        metadata: {
+          changeType: "workSchedule.create",
+          nextContent: normalizedContent,
+          nextEndHour: endHour,
+          nextEndMinute: endMinute,
+          nextScheduleDate: scheduleDate,
+          nextStartHour: startHour,
+          nextStartMinute: startMinute,
+          previousContent: null,
+          previousEndHour: null,
+          previousEndMinute: null,
+          previousScheduleDate: null,
+          previousStartHour: null,
+          previousStartMinute: null,
+          scheduleDate,
+          source: "work-schedule",
+          sourceScheduleDate,
+          sourceStartMinute,
+          weekday,
+          endHour,
+          endMinute,
+          startHour,
+          startMinute,
+          timeLabel: formatScheduleRangeLabel(startMinute, endMinute),
+        },
+      },
+    });
+
+    return createdSchedule;
   });
 
-  revalidatePath(workSchedulePath);
+  revalidateWorkSchedulePaths(scheduleDate, sourceScheduleDate);
 
   return {
     ok: true,
     data: {
-      schedules,
-      sourceStartMinute,
-      targetWeekdays,
+      schedule: mapWorkSchedule(savedSchedule),
     },
   };
 }
 
 export async function deleteWorkScheduleAction(
-  weekday: number,
+  scheduleDate: string,
   startMinute: number,
-): Promise<
-  YouthActionResult<{ weekday: YouthLearningScheduleWeekday; startMinute: number }>
-> {
+): Promise<YouthActionResult<{ scheduleDate: string; startMinute: number }>> {
   const user = await requireUser();
 
-  if (!isYouthCommonScheduleWeekday(weekday)) {
+  if (!isYouthLearningScheduleDate(scheduleDate)) {
     return {
       ok: false,
-      error: "요일을 다시 선택하세요.",
+      error: "날짜를 다시 선택하세요.",
     };
   }
 
@@ -320,131 +267,111 @@ export async function deleteWorkScheduleAction(
     };
   }
 
-  const schedule = await findWorkSchedule(weekday, startMinute);
+  const schedule = await findWorkSchedule(scheduleDate, startMinute);
 
   if (schedule) {
-    const auditRequestData = await getCurrentAuditLogRequestData();
-
-    await prisma.$transaction(async (tx) => {
-      await tx.workSchedule.delete({
-        where: {
-          weekday_startMinute: {
-            weekday,
-            startMinute,
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          actorId: user.id,
-          ...auditRequestData,
-          action: AuditAction.UPDATE_WORK_SCHEDULE,
-          targetType: "WorkSchedule",
-          targetId: schedule.id,
-          message: `업무 일정표 ${formatWorkScheduleSlotLabel(
-            weekday,
-            schedule.startMinute,
-            schedule.endMinute,
-          )} 일정을 삭제했습니다.`,
-          metadata: {
-            changeType: "workSchedule.delete",
-            nextContent: null,
-            previousContent: schedule.content,
-            source: "work-schedule",
-            weekday,
-            startHour: schedule.startHour,
-            startMinute: schedule.startMinute,
-            endHour: schedule.endHour,
-            endMinute: schedule.endMinute,
-            timeLabel: formatScheduleRangeLabel(
-              schedule.startMinute,
-              schedule.endMinute,
-            ),
-          },
-        },
-      });
-    });
+    await deleteExistingWorkSchedule({ schedule, userId: user.id });
   }
 
-  revalidatePath(workSchedulePath);
+  revalidateWorkSchedulePaths(scheduleDate);
 
   return {
     ok: true,
     data: {
-      weekday,
+      scheduleDate,
       startMinute,
     },
   };
 }
 
-async function findWorkSchedule(
-  weekday: YouthLearningScheduleWeekday,
-  startMinute: number,
-) {
-  return prisma.workSchedule.findUnique({
+async function deleteExistingWorkSchedule({
+  schedule,
+  userId,
+}: {
+  schedule: WorkSchedule;
+  userId: string;
+}) {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.workSchedule.delete({
+      where: {
+        scheduleDate_startMinute: {
+          scheduleDate: schedule.scheduleDate,
+          startMinute: schedule.startMinute,
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: userId,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_WORK_SCHEDULE,
+        targetType: "WorkSchedule",
+        targetId: schedule.id,
+        message: `업무 일정표 ${formatWorkScheduleSlotLabel(
+          schedule.scheduleDate,
+          schedule.startMinute,
+          schedule.endMinute,
+        )} 일정이 삭제되었습니다.`,
+        metadata: {
+          changeType: "workSchedule.delete",
+          nextContent: null,
+          previousContent: schedule.content,
+          previousScheduleDate: schedule.scheduleDate,
+          scheduleDate: schedule.scheduleDate,
+          source: "work-schedule",
+          weekday: schedule.weekday,
+          startHour: schedule.startHour,
+          startMinute: schedule.startMinute,
+          endHour: schedule.endHour,
+          endMinute: schedule.endMinute,
+          timeLabel: formatScheduleRangeLabel(
+            schedule.startMinute,
+            schedule.endMinute,
+          ),
+        },
+      },
+    });
+  });
+}
+
+async function findWorkSchedule(scheduleDate: string, startMinute: number) {
+  const schedule = await prisma.workSchedule.findUnique({
     where: {
-      weekday_startMinute: {
-        weekday,
+      scheduleDate_startMinute: {
+        scheduleDate,
         startMinute,
       },
     },
-    select: {
-      id: true,
-      weekday: true,
-      startHour: true,
-      startMinute: true,
-      endHour: true,
-      endMinute: true,
-      content: true,
-    },
+    select: workScheduleSelect,
   });
-}
 
-async function findWorkSchedules(
-  weekdays: YouthLearningScheduleWeekday[],
-  startMinute: number,
-) {
-  return prisma.workSchedule.findMany({
-    where: {
-      startMinute,
-      weekday: {
-        in: weekdays,
-      },
-    },
-    select: {
-      id: true,
-      weekday: true,
-      startHour: true,
-      startMinute: true,
-      endHour: true,
-      endMinute: true,
-      content: true,
-    },
-  });
+  return schedule ? mapWorkSchedule(schedule) : null;
 }
 
 async function findConflictingWorkSchedule({
-  startMinute,
   endMinute,
+  scheduleDate,
+  sourceScheduleDate,
   sourceStartMinute,
-  weekdays,
+  startMinute,
 }: {
-  startMinute: number;
   endMinute: number;
+  scheduleDate: string;
+  sourceScheduleDate: string;
   sourceStartMinute: number;
-  weekdays: YouthLearningScheduleWeekday[];
+  startMinute: number;
 }) {
   const candidates = await prisma.workSchedule.findMany({
     where: {
-      weekday: {
-        in: weekdays,
-      },
+      scheduleDate,
     },
-    orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
+    orderBy: [{ startMinute: "asc" }],
     select: {
       id: true,
-      weekday: true,
+      scheduleDate: true,
       startMinute: true,
       endMinute: true,
     },
@@ -452,7 +379,10 @@ async function findConflictingWorkSchedule({
 
   return (
     candidates.find((candidate) => {
-      if (candidate.startMinute === sourceStartMinute) {
+      if (
+        candidate.scheduleDate === sourceScheduleDate &&
+        candidate.startMinute === sourceStartMinute
+      ) {
         return false;
       }
 
@@ -466,6 +396,24 @@ async function findConflictingWorkSchedule({
   );
 }
 
+function revalidateWorkSchedulePaths(
+  scheduleDate: string,
+  sourceScheduleDate = scheduleDate,
+) {
+  revalidatePath(workSchedulePath);
+  revalidatePath(
+    `${workSchedulePath}?month=${getWorkScheduleMonthFromDate(scheduleDate)}`,
+  );
+
+  if (sourceScheduleDate !== scheduleDate) {
+    revalidatePath(
+      `${workSchedulePath}?month=${getWorkScheduleMonthFromDate(
+        sourceScheduleDate,
+      )}`,
+    );
+  }
+}
+
 function areScheduleRangesOverlapping(
   firstStartMinute: number,
   firstEndMinute: number,
@@ -476,21 +424,14 @@ function areScheduleRangesOverlapping(
 }
 
 function formatWorkScheduleSlotLabel(
-  weekday: number,
+  scheduleDate: string,
   startMinute: number,
   endMinute: number,
 ) {
-  return `${formatWeekdayLabel(weekday)} ${formatScheduleRangeLabel(
+  return `${formatWorkScheduleDateLabel(scheduleDate)} ${formatScheduleRangeLabel(
     startMinute,
     endMinute,
   )}`;
-}
-
-function formatWeekdayLabel(weekday: number) {
-  return (
-    youthCommonScheduleWeekdays.find((item) => item.value === weekday)?.label ??
-    `${weekday}`
-  );
 }
 
 function formatScheduleRangeLabel(startMinute: number, endMinute: number) {

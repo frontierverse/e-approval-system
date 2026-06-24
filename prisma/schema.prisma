@@ -473,6 +473,7 @@ model YouthCommonSchedule {
 
 model WorkSchedule {
   id          String   @id @default(cuid())
+  scheduleDate String
   weekday     Int
   startHour   Int
   startMinute Int
@@ -482,7 +483,8 @@ model WorkSchedule {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([weekday, startMinute])
+  @@unique([scheduleDate, startMinute])
+  @@index([scheduleDate, startMinute])
   @@index([weekday, startMinute])
   @@index([startHour])
   @@index([startMinute])

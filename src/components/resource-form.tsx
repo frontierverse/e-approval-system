@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  type DragEvent,
   type FormEvent,
   useActionState,
   useEffect,
@@ -119,6 +120,7 @@ function ResourceFormFields({
   setIsUploading: (value: boolean) => void;
 }) {
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const attachmentDragDepthRef = useRef(0);
   const [title, setTitle] = useState(initialValues.title);
   const [summary, setSummary] = useState(initialValues.summary);
   const [category, setCategory] = useState<ResourceCategory>(
@@ -128,6 +130,7 @@ function ResourceFormFields({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isAttachmentDragActive, setIsAttachmentDragActive] = useState(false);
   const retainedAttachmentCount =
     existingAttachments.length - removedAttachmentIds.length;
   const titleHasError = Boolean(errors?.title);
@@ -160,6 +163,77 @@ function ResourceFormFields({
     setSelectedFiles(nextFiles);
     syncAttachmentInputFiles(attachmentInputRef.current, nextFiles);
     setAttachmentError(null);
+  }
+
+  function handleAttachmentDragEnter(event: DragEvent<HTMLElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (pending) {
+      return;
+    }
+
+    attachmentDragDepthRef.current += 1;
+    setIsAttachmentDragActive(true);
+  }
+
+  function handleAttachmentDragOver(event: DragEvent<HTMLElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = pending ? "none" : "copy";
+
+    if (pending) {
+      return;
+    }
+
+    setIsAttachmentDragActive(true);
+  }
+
+  function handleAttachmentDragLeave(event: DragEvent<HTMLElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (pending) {
+      return;
+    }
+
+    attachmentDragDepthRef.current = Math.max(
+      0,
+      attachmentDragDepthRef.current - 1,
+    );
+
+    if (attachmentDragDepthRef.current === 0) {
+      setIsAttachmentDragActive(false);
+    }
+  }
+
+  function handleAttachmentDrop(event: DragEvent<HTMLElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentDragDepthRef.current = 0;
+    setIsAttachmentDragActive(false);
+
+    if (pending) {
+      return;
+    }
+
+    handleAttachmentChange(event.dataTransfer.files);
   }
 
   function removeSelectedFile(fileKey: string) {
@@ -471,21 +545,50 @@ function ResourceFormFields({
           >
             새 첨부
           </label>
-          <input
-            id="attachments"
-            name="attachments"
-            type="file"
-            ref={attachmentInputRef}
-            multiple
-            accept={attachmentPolicy.allowedExtensions.join(",")}
-            disabled={pending}
-            onChange={(event) => handleAttachmentChange(event.currentTarget.files)}
-            className={`mt-2 block w-full rounded-md border border-dashed bg-[#fbfcfd] px-4 py-4 text-sm text-[#394150] file:mr-4 file:h-9 file:rounded-md file:border-0 file:bg-[#0f6f8f] file:px-3 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0b5973] disabled:cursor-not-allowed disabled:opacity-60${
-              attachmentHasError
-                ? ` ${errorBorderClass}`
-                : " border-[#cfd6e3]"
-            }`}
-          />
+          <div
+            onDragEnter={handleAttachmentDragEnter}
+            onDragLeave={handleAttachmentDragLeave}
+            onDragOver={handleAttachmentDragOver}
+            onDrop={handleAttachmentDrop}
+            className={[
+              "mt-2 rounded-md border border-dashed px-4 py-4 transition",
+              pending ? "cursor-not-allowed opacity-60" : "bg-[#fbfcfd]",
+              isAttachmentDragActive
+                ? "border-[#196b69] bg-[#eef8f7] ring-2 ring-[#bfe1df]"
+                : "border-[#cfd6e3]",
+              attachmentHasError ? errorBorderClass : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <input
+              id="attachments"
+              name="attachments"
+              type="file"
+              ref={attachmentInputRef}
+              multiple
+              accept={attachmentPolicy.allowedExtensions.join(",")}
+              disabled={pending}
+              aria-describedby="attachments-drop-help"
+              onChange={(event) =>
+                handleAttachmentChange(event.currentTarget.files)
+              }
+              className="block w-full text-sm text-[#394150] file:mr-4 file:h-9 file:rounded-md file:border-0 file:bg-[#0f6f8f] file:px-3 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0b5973] disabled:cursor-not-allowed"
+            />
+            <p
+              id="attachments-drop-help"
+              className={[
+                "mt-3 rounded-md px-3 py-2 text-xs leading-5",
+                isAttachmentDragActive
+                  ? "bg-[#d7eceb] font-semibold text-[#0f5553]"
+                  : "bg-white text-[#697386]",
+              ].join(" ")}
+            >
+              {isAttachmentDragActive
+                ? "여기에 놓으면 첨부파일로 추가됩니다."
+                : "파일을 이 영역에 끌어다 놓거나 파일 선택 버튼으로 추가하세요."}
+            </p>
+          </div>
         </div>
 
         {selectedFiles.length > 0 ? (
@@ -532,6 +635,13 @@ function ResourceFormFields({
         </p>
       </aside>
     </form>
+  );
+}
+
+function hasFileDragItems(dataTransfer: DataTransfer) {
+  return (
+    Array.from(dataTransfer.types).includes("Files") ||
+    dataTransfer.files.length > 0
   );
 }
 
