@@ -7,6 +7,7 @@ import { AdminAuditLogFilterControlsContent } from "../src/components/admin-audi
 import { AdminLoginHistoryFilterControlsContent } from "../src/components/admin-login-history-filter-controls.tsx";
 import { AdminAuditLogList } from "../src/components/admin-audit-log-list.tsx";
 import { AdminLoginHistoryList } from "../src/components/admin-login-history-list.tsx";
+import { AppModal } from "../src/components/app-modal.tsx";
 import { ApprovalDecisionForm } from "../src/components/approval-decision-form.tsx";
 import { ApprovalLinePreview } from "../src/components/approval-line-preview.tsx";
 import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
@@ -153,6 +154,22 @@ describe("major UI rendering", () => {
 
     assert.match(html, /결재 대기 문서가 없습니다/);
     assert.match(html, /새로 도착한 결재 요청/);
+  });
+
+  test("renders modal frames with a thin border", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        AppModal,
+        {
+          label: "테스트 모달",
+          onClose: () => undefined,
+        },
+        React.createElement("p", null, "모달 내용"),
+      ),
+    );
+
+    assert.match(html, /data-app-modal="true"/);
+    assert.match(html, /border border-\[#d9dee7\]/);
   });
 
   test("renders fallback user avatars with initial-based colors", () => {

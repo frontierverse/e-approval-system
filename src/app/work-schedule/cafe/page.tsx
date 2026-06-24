@@ -1,23 +1,30 @@
+import { CafeItemChangeLogTable } from "@/components/cafe-item-change-log-table";
 import { CafeItemList } from "@/components/cafe-item-list";
 import { CafeItemRegistrationForm } from "@/components/cafe-item-registration-form";
 import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import {
   getCafeItemToday,
+  normalizeCafeItemChangeLogAction,
   normalizeCafeItemCategory,
   normalizeCafeItemDeadlineFilter,
   normalizeCafeItemPage,
 } from "@/lib/cafe-items-core";
-import { getCafeItemPage } from "@/lib/cafe-items";
+import { getCafeItemChangeLogPage, getCafeItemPage } from "@/lib/cafe-items";
 
 type CafeManagementSearchParams = {
   category?: string;
   deadline?: string;
+  logAction?: string;
+  logPage?: string;
+  logQ?: string;
+  logStaff?: string;
   page?: string;
   q?: string;
 };
 
 const cafeItemPageSize = 8;
+const cafeItemChangeLogPageSize = 5;
 
 export default async function WorkScheduleCafePage({
   searchParams,
@@ -39,6 +46,13 @@ export default async function WorkScheduleCafePage({
     pageSize: cafeItemPageSize,
     today,
   });
+  const changeLogPage = await getCafeItemChangeLogPage({
+    action: normalizeCafeItemChangeLogAction(params.logAction),
+    actorId: String(params.logStaff ?? "all"),
+    page: normalizeCafeItemPage(params.logPage),
+    pageSize: cafeItemChangeLogPageSize,
+    query: String(params.logQ ?? "").trim(),
+  });
 
   return (
     <>
@@ -50,6 +64,10 @@ export default async function WorkScheduleCafePage({
       <div className="space-y-5">
         <CafeItemRegistrationForm today={today} />
         <CafeItemList itemPage={itemPage} today={today} />
+        <CafeItemChangeLogTable
+          itemFilters={itemPage.filters}
+          logPage={changeLogPage}
+        />
       </div>
     </>
   );

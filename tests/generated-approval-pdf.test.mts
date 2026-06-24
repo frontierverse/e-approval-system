@@ -154,6 +154,48 @@ describe("generated approval pdf", () => {
     );
   });
 
+  test("keeps email request titles clear of the document info header", async () => {
+    const buffer = await createApprovalDocumentPdfBuffer({
+      documentNo: "EA-2026-0010",
+      title: "금융결제원 안내 메일 확인 요청",
+      category: "일반 기안서",
+      content:
+        "금융결제원 안내 메일이 수신되어 공유드립니다. 첨부된 메일 내용 확인 부탁드립니다.",
+      templateName: "일반 기안서",
+      drafter: {
+        name: "최윤서",
+        departmentName: "바자울",
+        positionName: "주임",
+      },
+      approvers: [
+        {
+          name: "안윤숙",
+          departmentName: "바자울",
+          positionName: "시설장",
+        },
+      ],
+      issuedAt: new Date("2026-06-24T12:09:00+09:00"),
+    });
+    const items = await extractPdfTextItems(buffer);
+    const summaryHeader = items.find((item) => item.str === "문서 정보");
+    const titleItems = items.filter((item) =>
+      item.str.includes("금융결제원 안내 메일 확인 요청"),
+    );
+
+    assert.ok(summaryHeader, "expected generated PDF to include 문서 정보");
+    assert.ok(titleItems.length > 0, "expected generated PDF to include title");
+
+    const summaryHeaderTop = summaryHeader.y + summaryHeader.height;
+    const lowestTitleBaseline = Math.min(...titleItems.map((item) => item.y));
+
+    assert.ok(
+      lowestTitleBaseline - summaryHeaderTop > 12,
+      `expected title and document info header to have clear vertical gap, got ${
+        lowestTitleBaseline - summaryHeaderTop
+      }`,
+    );
+  });
+
   test("paginates long schema table values", async () => {
     const schema = {
       version: 1,

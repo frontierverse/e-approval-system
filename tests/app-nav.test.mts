@@ -25,4 +25,23 @@ describe("app navigation active paths", () => {
       true,
     );
   });
+
+  test("matches cafe alert links by expected filters", () => {
+    assert.equal(
+      isActivePath(
+        "/work-schedule/cafe",
+        "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%9A%B0%EC%9C%A0",
+        "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%9A%B0%EC%9C%A0",
+      ),
+      true,
+    );
+    assert.equal(
+      isActivePath(
+        "/work-schedule/cafe",
+        "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%9A%B0%EC%9C%A0",
+        "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%BB%A4%ED%94%BC",
+      ),
+      false,
+    );
+  });
 });

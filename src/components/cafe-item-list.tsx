@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { CafeItemRowActions } from "@/components/cafe-item-row-actions";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   cafeItemCategories,
   cafeItemDeadlineFilters,
+  createCafeItemExpiredHref,
   formatCafeItemDate,
   getCafeItemCategoryLabel,
   getCafeItemUsageDday,
@@ -36,9 +38,22 @@ export function CafeItemList({ itemPage, today }: CafeItemListProps) {
                 : "등록된 물품이 없습니다."}
             </p>
           </div>
-          <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-xs font-semibold text-[#394150]">
-            기준일 {formatCafeItemDate(today)}
-          </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link
+              href={createCafeItemExpiredHref()}
+              className={[
+                "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition",
+                itemPage.expiredFoodCount > 0
+                  ? "border-[#efb4b4] bg-[#fff1f1] text-[#a13a3a] hover:bg-[#ffe7e7]"
+                  : "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150] hover:bg-[#eef2f7]",
+              ].join(" ")}
+            >
+              유통기한 경과 식품 {itemPage.expiredFoodCount}개
+            </Link>
+            <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-xs font-semibold text-[#394150]">
+              기준일 {formatCafeItemDate(today)}
+            </span>
+          </div>
         </div>
 
         <CafeItemFilterControls filters={itemPage.filters} />
@@ -46,16 +61,17 @@ export function CafeItemList({ itemPage, today }: CafeItemListProps) {
 
       {itemPage.items.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+          <table className="w-max min-w-[1152px] max-w-none border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
-                <th className="w-[18rem] px-6 py-3.5">물품</th>
+                <th className="w-[12rem] px-6 py-3.5">물품</th>
                 <th className="w-[8rem] px-6 py-3.5">종류</th>
                 <th className="w-[9rem] px-6 py-3.5">구매일</th>
                 <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
                 <th className="w-[9rem] px-6 py-3.5">유통기한</th>
                 <th className="w-[8rem] px-6 py-3.5">가격</th>
-                <th className="min-w-[16rem] px-6 py-3.5">구매 사유</th>
+                <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
+                <th className="w-[10rem] px-6 py-3.5">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
@@ -88,21 +104,25 @@ function CafeItemFilterControls({
 
   return (
     <form className="mt-4 flex min-w-0 flex-wrap items-end gap-2">
-      <label className="block min-w-0">
-        <span className="text-xs font-semibold text-[#697386]">검색</span>
+      <label className="flex min-w-0 items-center gap-3">
+        <span className="shrink-0 text-xs font-semibold text-[#697386]">
+          검색
+        </span>
         <input
           name="q"
           defaultValue={filters.query}
           placeholder="물품명 또는 구매 사유"
-          className="mt-2 h-10 w-56 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+          className="h-10 w-56 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         />
       </label>
-      <label className="block min-w-0">
-        <span className="text-xs font-semibold text-[#697386]">종류</span>
+      <label className="flex min-w-0 items-center gap-3">
+        <span className="shrink-0 text-xs font-semibold text-[#697386]">
+          종류
+        </span>
         <select
           name="category"
           defaultValue={filters.category}
-          className="mt-2 h-10 w-36 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+          className="h-10 w-36 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         >
           <option value="all">전체 종류</option>
           {cafeItemCategories.map((category) => (
@@ -112,14 +132,14 @@ function CafeItemFilterControls({
           ))}
         </select>
       </label>
-      <label className="block min-w-0">
-        <span className="text-xs font-semibold text-[#697386]">
+      <label className="flex min-w-0 items-center gap-3">
+        <span className="shrink-0 text-xs font-semibold text-[#697386]">
           사용 기한
         </span>
         <select
           name="deadline"
           defaultValue={filters.deadline}
-          className="mt-2 h-10 w-44 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+          className="h-10 w-44 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         >
           {cafeItemDeadlineFilters.map((filter) => (
             <option key={filter.value} value={filter.value}>
@@ -159,7 +179,7 @@ function CafeItemRow({ item, today }: { item: CafeItem; today: string }) {
 
   return (
     <tr className="align-top">
-      <td className="px-6 py-5">
+      <td className="w-[12rem] max-w-[12rem] px-6 py-5">
         <p className="break-words font-semibold text-[#16181d] [overflow-wrap:anywhere]">
           {item.name}
         </p>
@@ -182,9 +202,11 @@ function CafeItemRow({ item, today }: { item: CafeItem; today: string }) {
         >
           {usageDday.label}
         </span>
-        <p className="mt-2 text-xs leading-5 text-[#697386]">
-          {usageDday.basisLabel}
-        </p>
+        {usageDday.basisLabel === "유통기한 기준" ? null : (
+          <p className="mt-2 text-xs leading-5 text-[#697386]">
+            {usageDday.basisLabel}
+          </p>
+        )}
       </td>
       <td className="px-6 py-5 leading-6 text-[#394150]">
         {item.category === "food"
@@ -194,10 +216,13 @@ function CafeItemRow({ item, today }: { item: CafeItem; today: string }) {
       <td className="px-6 py-5 leading-6 text-[#394150]">
         {formatPrice(item.priceWon)}
       </td>
-      <td className="max-w-sm px-6 py-5">
+      <td className="w-[6rem] max-w-[6rem] px-6 py-5">
         <p className="whitespace-pre-line break-words leading-6 text-[#394150] [overflow-wrap:anywhere]">
           {item.purchaseReason || "미입력"}
         </p>
+      </td>
+      <td className="w-[10rem] px-6 py-5">
+        <CafeItemRowActions item={item} />
       </td>
     </tr>
   );

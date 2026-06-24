@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-table.tsx";
 import { CafeItemList } from "../src/components/cafe-item-list.tsx";
 import {
+  createCafeItemDueSoonHref,
   formatCafeItemDateValue,
   getCafeItemUsageDday,
+  type CafeItemChangeLogPage,
   type CafeItem,
   type CafeItemPage,
 } from "../src/lib/cafe-items-core.ts";
@@ -34,6 +37,7 @@ const cafeItems: CafeItem[] = [
 ];
 
 const itemPage: CafeItemPage = {
+  expiredFoodCount: 2,
   filters: {
     category: "all",
     deadline: "all",
@@ -44,6 +48,41 @@ const itemPage: CafeItemPage = {
   page: 1,
   pageSize: 8,
   total: 10,
+  totalPages: 2,
+};
+
+const changeLogPage: CafeItemChangeLogPage = {
+  actors: [
+    {
+      id: "user-001",
+      name: "최윤서",
+      email: "yunseo@example.com",
+    },
+  ],
+  filters: {
+    action: "update",
+    actorId: "user-001",
+    page: 2,
+    query: "우유",
+  },
+  logs: [
+    {
+      id: "cafe-log-001",
+      actionType: "update",
+      actor: {
+        id: "user-001",
+        name: "최윤서",
+        email: "yunseo@example.com",
+      },
+      createdAt: "2026-06-24T09:30:00.000Z",
+      itemId: "cafe-item-001",
+      itemName: "우유",
+      message: "우유 물품 정보를 수정했습니다.",
+    },
+  ],
+  page: 2,
+  pageSize: 5,
+  total: 7,
   totalPages: 2,
 };
 
@@ -78,6 +117,17 @@ describe("cafe items", () => {
     assert.equal(formatCafeItemDateValue("2026-07-24"), "2026-07-24");
   });
 
+  test("creates due-soon cafe item links with item filters", () => {
+    assert.equal(
+      createCafeItemDueSoonHref("우유"),
+      "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%9A%B0%EC%9C%A0",
+    );
+    assert.equal(
+      createCafeItemDueSoonHref(" "),
+      "/work-schedule/cafe?category=food&deadline=dueSoon",
+    );
+  });
+
   test("renders cafe item filters, inventory rows, and pagination", () => {
     const html = renderToStaticMarkup(
       React.createElement(CafeItemList, {
@@ -88,16 +138,47 @@ describe("cafe items", () => {
 
     assert.match(html, /물품 목록/);
     assert.match(html, /10건 중 1-8건 표시/);
+    assert.match(html, /유통기한 경과 식품/);
+    assert.match(html, /2개/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\?category=food&amp;deadline=expired"/,
+    );
     assert.match(html, /name="q"/);
     assert.match(html, /name="category"/);
     assert.match(html, /name="deadline"/);
+    assert.match(html, /flex min-w-0 items-center gap-3/);
+    assert.match(html, /관리/);
     assert.match(html, /우유/);
     assert.match(html, /식품/);
     assert.match(html, /2026\.07\.24/);
     assert.match(html, /D-30/);
+    assert.doesNotMatch(html, /유통기한 기준/);
     assert.match(html, /청소용 장갑/);
     assert.match(html, /D\+100/);
+    assert.match(html, /구매일 기준/);
     assert.match(html, /3,200원/);
+    assert.match(html, />편집</);
+    assert.doesNotMatch(html, />삭제</);
     assert.match(html, /href="\/work-schedule\/cafe\?page=2"/);
+  });
+
+  test("renders cafe item change log filters and pagination", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemChangeLogTable, {
+        itemFilters: itemPage.filters,
+        logPage: changeLogPage,
+      }),
+    );
+
+    assert.match(html, /변경내역/);
+    assert.match(html, /7건 중 6-7건 표시/);
+    assert.match(html, /name="logQ"/);
+    assert.match(html, /name="logAction"/);
+    assert.match(html, /name="logStaff"/);
+    assert.match(html, /flex min-w-0 items-center gap-3/);
+    assert.match(html, /우유 물품 정보를 수정했습니다\./);
+    assert.match(html, /최윤서/);
+    assert.match(html, /href="\/work-schedule\/cafe\?logQ=%EC%9A%B0%EC%9C%A0&amp;logAction=update&amp;logStaff=user-001"/);
   });
 });

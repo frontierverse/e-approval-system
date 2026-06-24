@@ -15,10 +15,21 @@ export const cafeItemDeadlineFilters = [
   { value: "over100", label: "구매 100일 이상" },
 ] as const;
 
+export const cafeItemChangeLogActionFilters = [
+  { value: "all", label: "전체 작업" },
+  { value: "create", label: "등록" },
+  { value: "update", label: "수정" },
+  { value: "delete", label: "삭제" },
+] as const;
+
 export type CafeItemCategory = (typeof cafeItemCategories)[number]["value"];
 export type CafeItemCategoryFilter = "all" | CafeItemCategory;
 export type CafeItemDeadlineFilter =
   (typeof cafeItemDeadlineFilters)[number]["value"];
+export type CafeItemChangeLogAction =
+  Exclude<(typeof cafeItemChangeLogActionFilters)[number]["value"], "all">;
+export type CafeItemChangeLogActionFilter =
+  (typeof cafeItemChangeLogActionFilters)[number]["value"];
 
 export type CafeItem = {
   id: string;
@@ -39,8 +50,42 @@ export type CafeItemPageFilters = {
 };
 
 export type CafeItemPage = {
+  expiredFoodCount: number;
   filters: CafeItemPageFilters;
   items: CafeItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type CafeItemChangeLogActor = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
+export type CafeItemChangeLog = {
+  id: string;
+  actionType: CafeItemChangeLogAction;
+  actor: CafeItemChangeLogActor;
+  createdAt: string;
+  itemId: string;
+  itemName: string;
+  message: string;
+};
+
+export type CafeItemChangeLogPageFilters = {
+  action: CafeItemChangeLogActionFilter;
+  actorId: string;
+  page: number;
+  query: string;
+};
+
+export type CafeItemChangeLogPage = {
+  actors: CafeItemChangeLogActor[];
+  filters: CafeItemChangeLogPageFilters;
+  logs: CafeItemChangeLog[];
   page: number;
   pageSize: number;
   total: number;
@@ -69,6 +114,12 @@ export type CafeItemUsageDday = {
   status: "expired" | "neutral" | "safe" | "soon";
 };
 
+export type CafeItemExpirationAlert = {
+  ddayLabel: string;
+  href: string;
+  itemName: string;
+};
+
 const dayInMs = 24 * 60 * 60 * 1000;
 
 export function isCafeItemCategory(value: string): value is CafeItemCategory {
@@ -79,6 +130,14 @@ export function isCafeItemDeadlineFilter(
   value: string,
 ): value is CafeItemDeadlineFilter {
   return cafeItemDeadlineFilters.some((filter) => filter.value === value);
+}
+
+export function isCafeItemChangeLogActionFilter(
+  value: string,
+): value is CafeItemChangeLogActionFilter {
+  return cafeItemChangeLogActionFilters.some(
+    (filter) => filter.value === value,
+  );
 }
 
 export function normalizeCafeItemCategory(
@@ -97,6 +156,12 @@ export function normalizeCafeItemDeadlineFilter(
   return value && isCafeItemDeadlineFilter(value) ? value : "all";
 }
 
+export function normalizeCafeItemChangeLogAction(
+  value: string | undefined,
+): CafeItemChangeLogActionFilter {
+  return value && isCafeItemChangeLogActionFilter(value) ? value : "all";
+}
+
 export function normalizeCafeItemPage(value: string | undefined) {
   const page = Number(value);
 
@@ -107,6 +172,15 @@ export function getCafeItemCategoryLabel(category: string) {
   return (
     cafeItemCategories.find((item) => item.value === category)?.label ??
     "기타"
+  );
+}
+
+export function getCafeItemChangeLogActionLabel(
+  action: CafeItemChangeLogActionFilter,
+) {
+  return (
+    cafeItemChangeLogActionFilters.find((filter) => filter.value === action)
+      ?.label ?? "수정"
   );
 }
 
@@ -185,6 +259,24 @@ export function getCafeItemUsageDday(
 
 export function getCafeItemToday() {
   return getKoreanDateValue();
+}
+
+export function createCafeItemDueSoonHref(itemName: string) {
+  const params = new URLSearchParams();
+  const normalizedItemName = itemName.trim();
+
+  params.set("category", "food");
+  params.set("deadline", "dueSoon");
+
+  if (normalizedItemName) {
+    params.set("q", normalizedItemName);
+  }
+
+  return `/work-schedule/cafe?${params.toString()}`;
+}
+
+export function createCafeItemExpiredHref() {
+  return "/work-schedule/cafe?category=food&deadline=expired";
 }
 
 export function shiftCafeItemDate(value: string, days: number) {

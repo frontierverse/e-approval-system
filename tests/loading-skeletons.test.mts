@@ -37,7 +37,9 @@ describe("route loading skeletons", () => {
     assert.match(html, /물품 목록/);
     assert.match(html, /카페 물품 등록 로딩/);
     assert.match(html, /카페 물품 목록 로딩/);
-    assert.match(html, /min-w-\[1080px\]/);
+    assert.match(html, /카페 물품 변경내역 로딩/);
+    assert.match(html, /min-w-\[1152px\]/);
+    assert.match(html, /min-w-\[900px\]/);
     assert.doesNotMatch(html, /자료 목록/);
   });
 });

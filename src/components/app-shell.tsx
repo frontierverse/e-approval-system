@@ -19,6 +19,7 @@ import { UserIdentity } from "@/components/user-identity";
 import { getShellDocumentCounts } from "@/lib/approval-queries";
 import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
+import { getCafeItemExpirationAlert } from "@/lib/cafe-items";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
@@ -148,10 +149,28 @@ async function ShellNavigation({
 }: {
   variant: "mobile" | "desktop" | "topbar";
 }) {
-  const user = await getCurrentUser();
+  const [user, cafeExpirationAlert] = await Promise.all([
+    getCurrentUser(),
+    variant === "topbar"
+      ? getCafeItemExpirationAlert()
+      : Promise.resolve(null),
+  ]);
   const groups = getNavigationGroups(user?.role === UserRole.ADMIN);
 
-  return <AppNav groups={groups} variant={variant} />;
+  return (
+    <AppNav
+      groups={groups}
+      topbarAlert={
+        cafeExpirationAlert
+          ? {
+              ...cafeExpirationAlert,
+              label: "유통기한",
+            }
+          : null
+      }
+      variant={variant}
+    />
+  );
 }
 
 function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {

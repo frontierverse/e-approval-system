@@ -35,7 +35,7 @@ export function AppModal({
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={[
-          "max-h-[calc(100vh-3rem)] w-full overflow-hidden rounded-md bg-white shadow-xl",
+          "max-h-[calc(100vh-3rem)] w-full overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-xl",
           className,
         ]
           .filter(Boolean)

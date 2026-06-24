@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
+  Fragment,
   useEffect,
   useRef,
   type MouseEvent,
@@ -21,8 +22,16 @@ export type NavigationGroup = {
   align?: "end";
 };
 
+export type NavigationTopbarAlert = {
+  ddayLabel: string;
+  href: string;
+  itemName: string;
+  label: string;
+};
+
 type AppNavProps = {
   groups: NavigationGroup[];
+  topbarAlert?: NavigationTopbarAlert | null;
   variant: "mobile" | "desktop" | "topbar";
 };
 
@@ -34,7 +43,7 @@ type MobileDragState = {
   suppressClick: boolean;
 };
 
-export function AppNav({ groups, variant }: AppNavProps) {
+export function AppNav({ groups, topbarAlert = null, variant }: AppNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentHref = getCurrentHref(pathname, searchParams);
@@ -165,12 +174,26 @@ export function AppNav({ groups, variant }: AppNavProps) {
           className="scrollbar-none flex h-[3.25rem] w-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 scroll-px-3 sm:gap-2 sm:px-6 sm:scroll-px-6 lg:px-8 lg:scroll-px-8"
         >
           {groups.map((group, index) => (
-            <CategoryLink
-              key={group.label}
-              group={group}
-              active={group.label === selectedGroup?.label}
-              alignEnd={index === firstEndAlignedGroupIndex}
-            />
+            <Fragment key={group.label}>
+              {topbarAlert && index === firstEndAlignedGroupIndex ? (
+                <TopbarAlertLink
+                  active={isActivePath(
+                    pathname,
+                    topbarAlert.href,
+                    currentHref,
+                  )}
+                  alert={topbarAlert}
+                  alignEnd
+                />
+              ) : null}
+              <CategoryLink
+                group={group}
+                active={group.label === selectedGroup?.label}
+                alignEnd={
+                  index === firstEndAlignedGroupIndex && !topbarAlert
+                }
+              />
+            </Fragment>
           ))}
         </nav>
         <span
@@ -237,6 +260,39 @@ export function AppNav({ groups, variant }: AppNavProps) {
         </div>
       </section>
     </nav>
+  );
+}
+
+function TopbarAlertLink({
+  active,
+  alert,
+  alignEnd,
+}: {
+  active: boolean;
+  alert: NavigationTopbarAlert;
+  alignEnd?: boolean;
+}) {
+  return (
+    <Link
+      href={alert.href}
+      aria-current={active ? "page" : undefined}
+      aria-label={`${alert.itemName} ${alert.ddayLabel} 유통기한 임박 물품 보기`}
+      className={[
+        "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition hover:border-[#e8bc5f] hover:bg-[#fff3d0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
+        alignEnd ? "ml-auto" : "",
+      ].join(" ")}
+      draggable={false}
+      title={`${alert.itemName} ${alert.ddayLabel}`}
+    >
+      <span className="hidden text-[#946200] sm:inline">{alert.label}</span>
+      <span className="max-w-[8rem] truncate text-[#4a2f00]">
+        {alert.itemName}
+      </span>
+      <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#a13a3a]">
+        {alert.ddayLabel}
+      </span>
+      <NavPendingDot variant="topbar" />
+    </Link>
   );
 }
 

@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { AuditAction } from "@/generated/prisma/client";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import {
+  formatCafeItemDateValue,
+  getCafeItemCategoryLabel,
   isCafeItemCategory,
   isCafeItemDate,
   normalizeCafeItemFormValues,
@@ -15,12 +19,31 @@ const cafeManagementPath = "/work-schedule/cafe";
 const maxCafeItemNameLength = 100;
 const maxCafeItemPurchaseReasonLength = 500;
 const maxCafeItemPriceWon = 999_999_999;
+const cafeItemAuditSelect = {
+  id: true,
+  category: true,
+  expirationDate: true,
+  name: true,
+  priceWon: true,
+  purchaseReason: true,
+  purchasedAt: true,
+} as const;
+
+type CafeItemAuditRecord = {
+  id: string;
+  category: string;
+  expirationDate: Date | string | null;
+  name: string;
+  priceWon: number | null;
+  purchaseReason: string | null;
+  purchasedAt: Date | string;
+};
 
 export async function createCafeItemAction(
   _previousState: CafeItemFormState,
   formData: FormData,
 ): Promise<CafeItemFormState> {
-  await requireUser();
+  const user = await requireUser();
 
   const values = normalizeCafeItemFormValues(formData);
   const validationError = validateCafeItemValues(values);
@@ -32,22 +55,30 @@ export async function createCafeItemAction(
     };
   }
 
-  const priceWon = values.priceWon ? Number(values.priceWon) : null;
-  const purchaseReason = values.purchaseReason || null;
-  const expirationDate =
-    values.category === "food"
-      ? parseCafeItemDateValue(values.expirationDate)
-      : null;
+  const auditRequestData = await getCurrentAuditLogRequestData();
 
-  await prisma.cafeItem.create({
-    data: {
-      category: values.category,
-      expirationDate,
-      name: values.name,
-      priceWon,
-      purchaseReason,
-      purchasedAt: parseCafeItemDateValue(values.purchasedAt),
-    },
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.cafeItem.create({
+      data: createCafeItemMutationData(values),
+      select: cafeItemAuditSelect,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_CAFE_ITEM,
+        targetType: "CafeItem",
+        targetId: item.id,
+        message: `${item.name} 물품을 등록했습니다.`,
+        metadata: createCafeItemAuditMetadata({
+          changeType: "create",
+          item,
+          next: createCafeItemSnapshotFromRecord(item),
+          previous: null,
+        }),
+      },
+    });
   });
 
   revalidatePath(cafeManagementPath);
@@ -56,6 +87,119 @@ export async function createCafeItemAction(
     resetKey: `${Date.now()}:${Math.random()}`,
     success: "물품을 등록했습니다.",
   };
+}
+
+export async function updateCafeItemAction(
+  itemId: string,
+  _previousState: CafeItemFormState,
+  formData: FormData,
+): Promise<CafeItemFormState> {
+  const user = await requireUser();
+
+  const values = normalizeCafeItemFormValues(formData);
+  const validationError = validateCafeItemValues(values);
+
+  if (validationError) {
+    return {
+      error: validationError,
+      values,
+    };
+  }
+
+  const existingItem = await prisma.cafeItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    select: cafeItemAuditSelect,
+  });
+
+  if (!existingItem) {
+    return {
+      error: "수정할 물품을 찾을 수 없습니다.",
+      values,
+    };
+  }
+
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.cafeItem.update({
+      where: {
+        id: itemId,
+      },
+      data: createCafeItemMutationData(values),
+      select: cafeItemAuditSelect,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_CAFE_ITEM,
+        targetType: "CafeItem",
+        targetId: item.id,
+        message: `${item.name} 물품 정보를 수정했습니다.`,
+        metadata: createCafeItemAuditMetadata({
+          changeType: "update",
+          item,
+          next: createCafeItemSnapshotFromRecord(item),
+          previous: createCafeItemSnapshotFromRecord(existingItem),
+        }),
+      },
+    });
+  });
+
+  revalidatePath(cafeManagementPath);
+
+  return {
+    resetKey: `${Date.now()}:${Math.random()}`,
+    success: "물품 정보를 수정했습니다.",
+  };
+}
+
+export async function deleteCafeItemAction(itemId: string) {
+  const user = await requireUser();
+
+  const existingItem = await prisma.cafeItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    select: cafeItemAuditSelect,
+  });
+
+  if (!existingItem) {
+    revalidatePath(cafeManagementPath);
+    return;
+  }
+
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cafeItem.delete({
+      where: {
+        id: itemId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_CAFE_ITEM,
+        targetType: "CafeItem",
+        targetId: existingItem.id,
+        message: `${existingItem.name} 물품을 삭제했습니다.`,
+        metadata: createCafeItemAuditMetadata({
+          changeType: "delete",
+          item: existingItem,
+          next: null,
+          previous: createCafeItemSnapshotFromRecord(existingItem),
+        }),
+      },
+    });
+  });
+
+  revalidatePath(cafeManagementPath);
 }
 
 function validateCafeItemValues(
@@ -98,4 +242,57 @@ function validateCafeItemValues(
   }
 
   return "";
+}
+
+function createCafeItemMutationData(
+  values: ReturnType<typeof normalizeCafeItemFormValues>,
+) {
+  return {
+    category: values.category,
+    expirationDate:
+      values.category === "food"
+        ? parseCafeItemDateValue(values.expirationDate)
+        : null,
+    name: values.name,
+    priceWon: values.priceWon ? Number(values.priceWon) : null,
+    purchaseReason: values.purchaseReason || null,
+    purchasedAt: parseCafeItemDateValue(values.purchasedAt),
+  };
+}
+
+function createCafeItemAuditMetadata({
+  changeType,
+  item,
+  next,
+  previous,
+}: {
+  changeType: "create" | "delete" | "update";
+  item: CafeItemAuditRecord;
+  next: ReturnType<typeof createCafeItemSnapshotFromRecord> | null;
+  previous: ReturnType<typeof createCafeItemSnapshotFromRecord> | null;
+}) {
+  return {
+    changeType: `cafeItem.${changeType}`,
+    itemId: item.id,
+    itemName: item.name,
+    next,
+    nextName: next?.name ?? null,
+    previous,
+    previousName: previous?.name ?? null,
+    source: "cafe-item",
+  };
+}
+
+function createCafeItemSnapshotFromRecord(item: CafeItemAuditRecord) {
+  return {
+    category: item.category,
+    categoryLabel: getCafeItemCategoryLabel(item.category),
+    expirationDate: item.expirationDate
+      ? formatCafeItemDateValue(item.expirationDate)
+      : null,
+    name: item.name,
+    priceWon: item.priceWon,
+    purchaseReason: item.purchaseReason,
+    purchasedAt: formatCafeItemDateValue(item.purchasedAt),
+  };
 }
