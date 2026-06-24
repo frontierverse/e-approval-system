@@ -21,8 +21,8 @@ export function CafeItemRegistrationSkeleton() {
       <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-4">
         <CafeFieldSkeleton className="lg:col-span-2" label="물품명" />
         <CafeFieldSkeleton label="물품 종류" />
-        <CafeFieldSkeleton label="구매일" />
-        <CafeFieldSkeleton label="유통기한" />
+        <CafeDateFieldSkeleton className="lg:col-span-2" label="구매일" />
+        <CafeDateFieldSkeleton className="lg:col-span-2" label="유통기한" />
         <CafeFieldSkeleton label="가격" />
         <CafeFieldSkeleton className="lg:col-span-2" label="구매 사유" />
       </div>
@@ -107,6 +107,25 @@ export function CafeItemListSkeleton() {
         </div>
       </div>
     </section>
+  );
+}
+
+function CafeDateFieldSkeleton({
+  className = "",
+  label,
+}: {
+  className?: string;
+  label: string;
+}) {
+  return (
+    <div className={`block min-w-0 ${className}`}>
+      <p className="text-xs font-semibold text-[#697386]">{label}</p>
+      <div className="mt-2 grid min-w-0 grid-cols-3 gap-2">
+        <CafeSkeletonBlock className="h-10 w-full" />
+        <CafeSkeletonBlock className="h-10 w-full" />
+        <CafeSkeletonBlock className="h-10 w-full" />
+      </div>
+    </div>
   );
 }
 

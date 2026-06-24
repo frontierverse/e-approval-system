@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CafeItemList } from "../src/components/cafe-item-list.tsx";
 import {
+  formatCafeItemDateValue,
   getCafeItemUsageDday,
   type CafeItem,
   type CafeItemPage,
@@ -67,6 +68,14 @@ describe("cafe items", () => {
         status: "soon",
       },
     );
+  });
+
+  test("formats database date values from Date objects and strings", () => {
+    assert.equal(
+      formatCafeItemDateValue(new Date(Date.UTC(2026, 5, 24))),
+      "2026-06-24",
+    );
+    assert.equal(formatCafeItemDateValue("2026-07-24"), "2026-07-24");
   });
 
   test("renders cafe item filters, inventory rows, and pagination", () => {

@@ -6,6 +6,7 @@ import {
   isCafeItemCategory,
   isCafeItemDate,
   normalizeCafeItemFormValues,
+  parseCafeItemDateValue,
   type CafeItemFormState,
 } from "@/lib/cafe-items-core";
 import { prisma } from "@/lib/prisma";
@@ -34,7 +35,9 @@ export async function createCafeItemAction(
   const priceWon = values.priceWon ? Number(values.priceWon) : null;
   const purchaseReason = values.purchaseReason || null;
   const expirationDate =
-    values.category === "food" ? values.expirationDate : null;
+    values.category === "food"
+      ? parseCafeItemDateValue(values.expirationDate)
+      : null;
 
   await prisma.cafeItem.create({
     data: {
@@ -43,7 +46,7 @@ export async function createCafeItemAction(
       name: values.name,
       priceWon,
       purchaseReason,
-      purchasedAt: values.purchasedAt,
+      purchasedAt: parseCafeItemDateValue(values.purchasedAt),
     },
   });
 

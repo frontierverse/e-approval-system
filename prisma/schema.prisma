@@ -494,10 +494,10 @@ model CafeItem {
   id             String   @id @default(cuid())
   name           String
   category       String
-  purchasedAt    String
+  purchasedAt    DateTime @db.Date
   priceWon       Int?
   purchaseReason String?
-  expirationDate String?
+  expirationDate DateTime? @db.Date
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

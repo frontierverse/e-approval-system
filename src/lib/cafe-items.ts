@@ -3,7 +3,9 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  formatCafeItemDateValue,
   isCafeItemCategory,
+  parseCafeItemDateValue,
   shiftCafeItemDate,
   type CafeItem,
   type CafeItemCategoryFilter,
@@ -15,10 +17,10 @@ type CafeItemRecord = {
   id: string;
   name: string;
   category: string;
-  purchasedAt: string;
+  purchasedAt: Date | string;
   priceWon: number | null;
   purchaseReason: string | null;
-  expirationDate: string | null;
+  expirationDate: Date | string | null;
   createdAt: Date;
 };
 
@@ -133,15 +135,15 @@ function createCafeItemWhere({
     conditions.push({
       category: "food",
       expirationDate: {
-        lt: today,
+        lt: parseCafeItemDateValue(today),
       },
     });
   } else if (deadline === "dueSoon") {
     conditions.push({
       category: "food",
       expirationDate: {
-        gte: today,
-        lte: shiftCafeItemDate(today, 30),
+        gte: parseCafeItemDateValue(today),
+        lte: parseCafeItemDateValue(shiftCafeItemDate(today, 30)),
       },
     });
   } else if (deadline === "over100") {
@@ -150,7 +152,7 @@ function createCafeItemWhere({
         category: "food",
       },
       purchasedAt: {
-        lte: shiftCafeItemDate(today, -100),
+        lte: parseCafeItemDateValue(shiftCafeItemDate(today, -100)),
       },
     });
   }
@@ -166,7 +168,11 @@ function mapCafeItem(item: CafeItemRecord): CafeItem {
   return {
     ...item,
     category: isCafeItemCategory(item.category) ? item.category : "other",
+    expirationDate: item.expirationDate
+      ? formatCafeItemDateValue(item.expirationDate)
+      : null,
     createdAt: item.createdAt.toISOString(),
+    purchasedAt: formatCafeItemDateValue(item.purchasedAt),
   };
 }
 

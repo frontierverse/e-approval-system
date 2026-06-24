@@ -219,7 +219,7 @@ function getDateDiffInDays(from: string, to: string) {
   );
 }
 
-function parseCafeItemDateValue(value: string) {
+export function parseCafeItemDateValue(value: string) {
   const [yearText, monthText, dayText] = value.split("-");
 
   return new Date(
@@ -227,7 +227,23 @@ function parseCafeItemDateValue(value: string) {
   );
 }
 
-function formatCafeItemDateValue(date: Date) {
+export function formatCafeItemDateValue(date: Date | string): string {
+  if (typeof date === "string") {
+    if (isCafeItemDate(date)) {
+      return date;
+    }
+
+    const parsedDate = new Date(date);
+
+    return Number.isNaN(parsedDate.getTime())
+      ? date
+      : formatCafeItemDateValue(parsedDate);
+  }
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
   return [
     date.getUTCFullYear(),
     String(date.getUTCMonth() + 1).padStart(2, "0"),
