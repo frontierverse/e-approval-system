@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { ChangeEvent, FormEvent, PointerEvent } from "react";
+import type {
+  ChangeEvent,
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent,
+} from "react";
+import { AppModal } from "@/components/app-modal";
 import { UserIdentity } from "@/components/user-identity";
 import type {
   YouthActionResult,
@@ -272,7 +278,7 @@ export function YouthCommonScheduleBoard({
   }
 
   function saveSelectedSchedule() {
-    if (!selectedCell) {
+    if (!selectedCell || pendingScheduleAction) {
       return;
     }
 
@@ -331,6 +337,17 @@ export function YouthCommonScheduleBoard({
       );
       closeScheduleModal();
     });
+  }
+
+  function saveSelectedScheduleWithKeyboard(
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if ((!event.metaKey && !event.ctrlKey) || event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    saveSelectedSchedule();
   }
 
   function startScheduleDrag(
@@ -867,160 +884,163 @@ export function YouthCommonScheduleBoard({
       </section>
 
       {selectedCell && selectedWeekday && selectedSlot ? (
-        <div
-          role="presentation"
-          className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeScheduleModal();
-            }
-          }}
+        <AppModal
+          className="max-w-2xl"
+          labelledBy="common-schedule-modal-title"
+          onClose={closeScheduleModal}
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="common-schedule-modal-title"
-            className="w-full max-w-lg rounded-md border border-[#d9dee7] bg-white shadow-xl"
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveSelectedSchedule();
+            }}
           >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                saveSelectedSchedule();
-              }}
-            >
-              <header className="border-b border-[#eef1f5] px-5 py-4">
-                <p className="text-sm font-semibold text-[#697386]">
-                  {selectedWeekday.label} · {selectedTimeLabel}
+            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+              <div className="px-6 pb-6 pt-6">
+                <p className="text-xs font-semibold text-[#697386]">
+                  일정 입력
                 </p>
                 <h2
                   id="common-schedule-modal-title"
-                  className="mt-1 text-lg font-semibold text-[#16181d]"
+                  className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
                 >
-                  일정 입력
+                  {selectedWeekday.label} · {selectedTimeLabel}
                 </h2>
-              </header>
 
-              <div className="grid gap-3 px-5 py-5">
-                <label>
-                  <span className="text-sm font-semibold text-[#394150]">
-                    일정
-                  </span>
-                  <textarea
-                    value={scheduleDraft}
-                    onChange={(event) => {
-                      setScheduleDraft(event.target.value);
-                      setFormError("");
-                    }}
-                    autoFocus
-                    rows={6}
-                    className="mt-2 w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-3 text-sm leading-6 outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                  />
-                </label>
-                <label>
-                  <span className="text-sm font-semibold text-[#394150]">
-                    시작 시간
-                  </span>
-                  <select
-                    value={startMinuteDraft}
-                    onChange={(event) => {
-                      updateStartMinuteDraft(Number(event.target.value));
-                    }}
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                  >
-                    {createCommonScheduleStartMinuteOptions().map((minute) => (
-                      <option key={minute} value={minute}>
-                        {formatMinuteLabel(minute)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span className="text-sm font-semibold text-[#394150]">
-                    종료 시간
-                  </span>
-                  <select
-                    value={endMinuteDraft}
-                    onChange={(event) => {
-                      setEndMinuteDraft(Number(event.target.value));
-                      setFormError("");
-                    }}
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                  >
-                    {createCommonScheduleEndMinuteOptions(startMinuteDraft).map(
-                      (minute) => (
-                        <option key={minute} value={minute}>
-                          {formatMinuteLabel(minute)}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-                <fieldset className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 pb-3 pt-2">
-                  <legend className="px-1 text-sm font-semibold text-[#394150]">
-                    반복 요일
-                  </legend>
-                  <div className="mt-2 grid grid-cols-7 gap-2">
-                    {youthCommonScheduleWeekdays.map((weekday) => {
-                      const selected = recurrenceWeekdayDraft.includes(
-                        weekday.value,
-                      );
-
-                      return (
-                        <button
-                          key={weekday.value}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => toggleRecurrenceWeekday(weekday.value)}
-                          className={[
-                            "h-9 rounded-md border text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
-                            selected
-                              ? "border-[#196b69] bg-[#196b69] text-white"
-                              : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
-                          ].join(" ")}
-                        >
-                          {weekday.shortLabel}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
                 {formError ? (
-                  <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                  <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
                     {formError}
                   </p>
                 ) : null}
-              </div>
 
-              <footer className="flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:justify-between">
+                <div className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5]">
+                  <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
+                    <span className="text-sm font-medium text-[#697386]">
+                      시간
+                    </span>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                      <select
+                        aria-label="시작 시간"
+                        value={startMinuteDraft}
+                        onChange={(event) => {
+                          updateStartMinuteDraft(Number(event.target.value));
+                        }}
+                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                      >
+                        {createCommonScheduleStartMinuteOptions().map(
+                          (minute) => (
+                            <option key={minute} value={minute}>
+                              {formatMinuteLabel(minute)}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                      <span
+                        aria-hidden="true"
+                        className="hidden text-center text-[#9aa4b2] sm:block"
+                      >
+                        -
+                      </span>
+                      <select
+                        aria-label="종료 시간"
+                        value={endMinuteDraft}
+                        onChange={(event) => {
+                          setEndMinuteDraft(Number(event.target.value));
+                          setFormError("");
+                        }}
+                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                      >
+                        {createCommonScheduleEndMinuteOptions(
+                          startMinuteDraft,
+                        ).map((minute) => (
+                          <option key={minute} value={minute}>
+                            {formatMinuteLabel(minute)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <fieldset className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
+                    <legend className="sr-only">반복 요일</legend>
+                    <span className="text-sm font-medium text-[#697386]">
+                      반복
+                    </span>
+                    <div className="grid grid-cols-7 gap-2">
+                      {youthCommonScheduleWeekdays.map((weekday) => {
+                        const selected = recurrenceWeekdayDraft.includes(
+                          weekday.value,
+                        );
+
+                        return (
+                          <button
+                            key={weekday.value}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              toggleRecurrenceWeekday(weekday.value)
+                            }
+                            className={[
+                              "h-9 rounded-md border text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
+                              selected
+                                ? "border-[#196b69] bg-[#196b69] text-white"
+                                : "border-transparent bg-white text-[#394150] hover:border-[#d9dee7] hover:bg-[#f7f9fc]",
+                            ].join(" ")}
+                          >
+                            {weekday.shortLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                </div>
+
+                <textarea
+                  aria-label="일정 내용"
+                  data-modal-plain-body="true"
+                  value={scheduleDraft}
+                  onChange={(event) => {
+                    setScheduleDraft(event.target.value);
+                    setFormError("");
+                  }}
+                  onKeyDown={saveSelectedScheduleWithKeyboard}
+                  autoFocus
+                  placeholder="일정 내용을 입력하세요."
+                  rows={10}
+                  className="mt-6 block min-h-[16rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd]"
+                />
+              </div>
+            </div>
+
+            <footer className="flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={removeSelectedSchedule}
+                disabled={pendingBoardAction || !selectedSchedule}
+                className="h-10 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                삭제
+              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  onClick={removeSelectedSchedule}
-                  disabled={pendingBoardAction || !selectedSchedule}
-                  className="h-10 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={closeScheduleModal}
+                  disabled={pendingBoardAction}
+                  className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  삭제
+                  취소
                 </button>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={closeScheduleModal}
-                    disabled={pendingBoardAction}
-                    className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={pendingBoardAction}
-                    className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
-                  >
-                    {pendingScheduleAction ? "저장 중" : "저장"}
-                  </button>
-                </div>
-              </footer>
-            </form>
-          </section>
-        </div>
+                <button
+                  type="submit"
+                  disabled={pendingBoardAction}
+                  className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
+                >
+                  {pendingScheduleAction ? "저장 중" : "저장"}
+                </button>
+              </div>
+            </footer>
+          </form>
+        </AppModal>
       ) : null}
     </section>
   );

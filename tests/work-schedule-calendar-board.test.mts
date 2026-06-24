@@ -157,6 +157,14 @@ describe("work schedule calendar", () => {
     assert.match(html, /href="\/work-schedule\?month=2026-05"/);
     assert.match(html, /href="\/work-schedule\?month=2026-07"/);
     assert.match(html, /value="2026-06-01"/);
+    assert.doesNotMatch(html, />이동</);
+    assert.doesNotMatch(html, />추가</);
+    assert.match(html, /role="button"/);
+    assert.match(html, /tabindex="0"/);
+    assert.match(html, /cursor-pointer/);
+    assert.match(html, /hover:bg-\[#f0f8f7\]/);
+    assert.match(html, /group-hover:opacity-100/);
+    assert.match(html, />\+<\/span>/);
     assert.match(html, /월간 업무 점검/);
     assert.match(html, /카페 재고 확인/);
     assert.match(html, /name="logDate"/);

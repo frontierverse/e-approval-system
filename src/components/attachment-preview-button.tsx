@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AppModal } from "@/components/app-modal";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 
@@ -64,16 +65,13 @@ export function AttachmentPreviewButton({
       </button>
 
       {isOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
-          onMouseDown={() => setIsOpen(false)}
+        <AppModal
+          className="flex h-[min(88vh,56rem)] w-[min(94vw,64rem)] max-w-none flex-col"
+          label={previewTitle}
+          onClose={() => setIsOpen(false)}
         >
           <div
-            aria-label={previewTitle}
-            aria-modal="true"
-            className="flex h-[min(88vh,56rem)] w-[min(94vw,64rem)] flex-col overflow-hidden rounded-md bg-white shadow-2xl"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
+            className="flex min-h-0 flex-1 flex-col"
           >
             <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e4e9f2] px-4 py-3">
               <div className="min-w-0">
@@ -133,7 +131,7 @@ export function AttachmentPreviewButton({
               )}
             </div>
           </div>
-        </div>
+        </AppModal>
       ) : null}
     </>
   );

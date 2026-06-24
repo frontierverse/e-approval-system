@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import {
   youthNoteCategories,
@@ -541,44 +542,42 @@ export function YouthManagementBoard({
         </div>
 
         {registeringYouth ? (
-          <div
-            role="presentation"
-            className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                closeRegisterModal();
-              }
-            }}
+          <AppModal
+            className="max-w-2xl"
+            labelledBy="youth-register-modal-title"
+            onClose={closeRegisterModal}
           >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="youth-register-modal-title"
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
-            >
+            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
                   registerYouth();
                 }}
               >
-                <header className="relative border-b border-[#eef1f5] px-5 py-4 pr-20">
+                <header className="sticky top-0 z-10 border-b border-[#eef1f5] bg-white px-6 py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-[#697386]">
+                        청소년 정보
+                      </p>
+                      <h2
+                        id="youth-register-modal-title"
+                        className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d] [overflow-wrap:anywhere]"
+                      >
+                        청소년 등록
+                      </h2>
+                    </div>
                   <button
                     type="button"
                     onClick={closeRegisterModal}
-                    className="absolute right-4 top-4 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                    className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
                   >
                     닫기
                   </button>
-                  <h2
-                    id="youth-register-modal-title"
-                    className="break-words text-xl font-semibold text-[#16181d] [overflow-wrap:anywhere]"
-                  >
-                    청소년 등록
-                  </h2>
+                  </div>
                 </header>
 
-                <div className="grid gap-4 px-5 py-5">
+                <div className="grid gap-4 px-6 py-5">
                   <label>
                     <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
                       이름
@@ -805,49 +804,47 @@ export function YouthManagementBoard({
                   </button>
                 </footer>
               </form>
-            </section>
-          </div>
+            </div>
+          </AppModal>
         ) : null}
 
         {editingYouthId ? (
-          <div
-            role="presentation"
-            className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                closeEditYouthModal();
-              }
-            }}
+          <AppModal
+            className="max-w-2xl"
+            labelledBy="youth-edit-modal-title"
+            onClose={closeEditYouthModal}
           >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="youth-edit-modal-title"
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
-            >
+            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
                   saveEditedYouth();
                 }}
               >
-                <header className="relative border-b border-[#eef1f5] px-5 py-4 pr-20">
+                <header className="sticky top-0 z-10 border-b border-[#eef1f5] bg-white px-6 py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-[#697386]">
+                        청소년 정보
+                      </p>
+                      <h2
+                        id="youth-edit-modal-title"
+                        className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d] [overflow-wrap:anywhere]"
+                      >
+                        청소년 정보 수정
+                      </h2>
+                    </div>
                   <button
                     type="button"
                     onClick={closeEditYouthModal}
-                    className="absolute right-4 top-4 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                    className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
                   >
                     닫기
                   </button>
-                  <h2
-                    id="youth-edit-modal-title"
-                    className="break-words text-xl font-semibold text-[#16181d] [overflow-wrap:anywhere]"
-                  >
-                    청소년 정보 수정
-                  </h2>
+                  </div>
                 </header>
 
-                <div className="grid gap-4 px-5 py-5">
+                <div className="grid gap-4 px-6 py-5">
                   <label>
                     <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
                       이름
@@ -1077,8 +1074,8 @@ export function YouthManagementBoard({
                   </button>
                 </footer>
               </form>
-            </section>
-          </div>
+            </div>
+          </AppModal>
         ) : null}
 
         {youths.length > 0 ? (
@@ -1196,68 +1193,63 @@ export function YouthManagementBoard({
       </section>
 
       {selectedNote && selectedYouth ? (
-        <div
-          role="presentation"
-          className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeModal();
-            }
-          }}
+        <AppModal
+          className="max-w-2xl"
+          labelledBy="youth-note-modal-title"
+          onClose={closeModal}
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="youth-note-modal-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
-          >
+          <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 updateSelectedNote();
               }}
             >
-              <header className="relative border-b border-[#eef1f5] px-5 py-4 pr-20">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="absolute right-4 top-4 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-                >
-                  닫기
-                </button>
-                <p className="text-sm font-semibold text-[#697386]">
-                  {selectedYouth.name}
-                </p>
-                {editing ? (
-                  <>
-                    <h2 id="youth-note-modal-title" className="sr-only">
-                      {draft.title || selectedNote.title}
-                    </h2>
-                    <label className="mt-2 block">
-                      <span className="sr-only">특이사항 제목</span>
-                      <input
-                        value={draft.title}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            title: event.target.value,
-                          }))
-                        }
-                        className="h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-lg font-semibold text-[#16181d] outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                      />
-                    </label>
-                  </>
-                ) : (
-                  <h2
-                    id="youth-note-modal-title"
-                    className="mt-1 break-words text-xl font-semibold text-[#16181d] [overflow-wrap:anywhere]"
+              <header className="sticky top-0 z-10 border-b border-[#eef1f5] bg-white px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[#697386]">
+                      {selectedYouth.name} · 특이사항
+                    </p>
+                    {editing ? (
+                      <>
+                        <h2 id="youth-note-modal-title" className="sr-only">
+                          {draft.title || selectedNote.title}
+                        </h2>
+                        <label className="mt-2 block">
+                          <span className="sr-only">특이사항 제목</span>
+                          <input
+                            value={draft.title}
+                            onChange={(event) =>
+                              setDraft((current) => ({
+                                ...current,
+                                title: event.target.value,
+                              }))
+                            }
+                            className="w-full border-0 bg-transparent px-0 text-2xl font-semibold leading-tight text-[#16181d] outline-none placeholder:text-[#a5afbd] [overflow-wrap:anywhere]"
+                          />
+                        </label>
+                      </>
+                    ) : (
+                      <h2
+                        id="youth-note-modal-title"
+                        className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d] [overflow-wrap:anywhere]"
+                      >
+                        {selectedNote.title}
+                      </h2>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="h-9 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
                   >
-                    {selectedNote.title}
-                  </h2>
-                )}
+                    닫기
+                  </button>
+                </div>
               </header>
 
-              <div className="grid gap-5 px-5 py-5">
+              <div className="grid gap-5 px-6 py-5">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <NoteField label="분류">
                     {editing ? (
@@ -1341,6 +1333,7 @@ export function YouthManagementBoard({
                 <NoteField label="요약">
                   {editing ? (
                     <textarea
+                      data-modal-plain-body="true"
                       value={draft.summary}
                       onChange={(event) =>
                         setDraft((current) => ({
@@ -1349,7 +1342,7 @@ export function YouthManagementBoard({
                         }))
                       }
                       rows={3}
-                      className="w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-2 text-sm leading-6 outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                      className="w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd]"
                     />
                   ) : (
                     selectedNote.summary
@@ -1359,6 +1352,7 @@ export function YouthManagementBoard({
                 <NoteField label="세부사항">
                   {editing ? (
                     <textarea
+                      data-modal-plain-body="true"
                       value={draft.detail}
                       onChange={(event) =>
                         setDraft((current) => ({
@@ -1367,7 +1361,7 @@ export function YouthManagementBoard({
                         }))
                       }
                       rows={6}
-                      className="w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-2 text-sm leading-6 outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                      className="min-h-[12rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd]"
                     />
                   ) : (
                     <span className="whitespace-pre-wrap">{selectedNote.detail}</span>
@@ -1399,8 +1393,8 @@ export function YouthManagementBoard({
                 </button>
               </footer>
             </form>
-          </section>
-        </div>
+          </div>
+        </AppModal>
       ) : null}
     </>
   );

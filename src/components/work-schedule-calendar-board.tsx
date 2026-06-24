@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { UserIdentity } from "@/components/user-identity";
 import type {
@@ -182,7 +183,7 @@ function WorkScheduleCalendarBoardContent({
   }
 
   function saveSelectedSchedule() {
-    if (!selectedCell) {
+    if (!selectedCell || pendingScheduleAction) {
       return;
     }
 
@@ -241,17 +242,41 @@ function WorkScheduleCalendarBoardContent({
     });
   }
 
-  function jumpToDate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function jumpToDate(nextScheduleDate: string) {
+    setDateJumpDraft(nextScheduleDate);
 
-    if (!isYouthLearningScheduleDate(dateJumpDraft)) {
+    if (!isYouthLearningScheduleDate(nextScheduleDate)) {
       setFormError("이동할 날짜를 다시 선택하세요.");
       return;
     }
 
+    setFormError("");
     window.location.href = createWorkScheduleMonthHref(
-      getWorkScheduleMonthFromDate(dateJumpDraft),
+      getWorkScheduleMonthFromDate(nextScheduleDate),
     );
+  }
+
+  function openScheduleModalWithKeyboard(
+    event: KeyboardEvent<HTMLDivElement>,
+    scheduleDate: string,
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    openScheduleModal(scheduleDate);
+  }
+
+  function saveSelectedScheduleWithKeyboard(
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if ((!event.metaKey && !event.ctrlKey) || event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    saveSelectedSchedule();
   }
 
   return (
@@ -286,23 +311,12 @@ function WorkScheduleCalendarBoardContent({
                 이번 달
               </Link>
             </div>
-            <form
-              className="flex min-w-0 gap-2"
-              onSubmit={jumpToDate}
-            >
-              <DatePickerInput
-                aria-label="업무 일정 날짜 이동"
-                value={dateJumpDraft}
-                onChange={(event) => setDateJumpDraft(event.currentTarget.value)}
-                className="h-10 min-w-0 flex-1 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] lg:w-40"
-              />
-              <button
-                type="submit"
-                className="h-10 shrink-0 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#0f5553]"
-              >
-                이동
-              </button>
-            </form>
+            <DatePickerInput
+              aria-label="업무 일정 날짜 이동"
+              value={dateJumpDraft}
+              onChange={(event) => jumpToDate(event.currentTarget.value)}
+              className="h-10 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] lg:w-40"
+            />
           </div>
         </div>
 
@@ -329,37 +343,43 @@ function WorkScheduleCalendarBoardContent({
               return (
                 <div
                   key={day.date}
+                  aria-label={`${formatWorkScheduleDateLabel(day.date)} 업무 일정 등록`}
                   className={[
-                    "min-h-[9.5rem] border-b border-r border-[#eef1f5] px-2.5 py-2.5",
-                    day.isCurrentMonth ? "bg-white" : "bg-[#f7f9fc]",
+                    "group min-h-[9.5rem] cursor-pointer border-b border-r border-[#eef1f5] px-2.5 py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]",
+                    day.isCurrentMonth
+                      ? "bg-white hover:bg-[#f0f8f7]"
+                      : "bg-[#f7f9fc] hover:bg-[#eef4f3]",
                   ]
                     .filter(Boolean)
                     .join(" ")}
+                  onClick={() => openScheduleModal(day.date)}
+                  onKeyDown={(event) =>
+                    openScheduleModalWithKeyboard(event, day.date)
+                  }
+                  role="button"
+                  tabIndex={0}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openScheduleModal(day.date)}
+                    <span
                       className={[
                         "inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition",
                         day.isToday
                           ? "bg-[#196b69] text-white"
                           : day.isCurrentMonth
-                            ? "text-[#16181d] hover:bg-[#e8f3f2]"
-                            : "text-[#8a95a6] hover:bg-[#eef1f5]",
+                            ? "text-[#16181d]"
+                            : "text-[#8a95a6]",
                       ]
                         .filter(Boolean)
                         .join(" ")}
                     >
                       {day.day}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openScheduleModal(day.date)}
-                      className="inline-flex h-8 shrink-0 items-center rounded-md border border-transparent px-2 text-xs font-semibold text-[#196b69] transition hover:border-[#b7d3d0] hover:bg-[#f0f8f7]"
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="grid size-7 shrink-0 place-items-center rounded-full border border-[#b7d3d0] bg-white text-base font-semibold leading-none text-[#196b69] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus:opacity-100"
                     >
-                      추가
-                    </button>
+                      +
+                    </span>
                   </div>
 
                   <div className="mt-2 space-y-1.5">
@@ -367,12 +387,13 @@ function WorkScheduleCalendarBoardContent({
                       <button
                         key={schedule.id}
                         type="button"
-                        onClick={() =>
+                        onClick={(event) => {
+                          event.stopPropagation();
                           openScheduleModal(
                             schedule.scheduleDate,
                             schedule.startMinute,
-                          )
-                        }
+                          );
+                        }}
                         className="block w-full rounded-md border border-[#d6e6e4] bg-[#f5fbfa] px-2 py-1.5 text-left text-xs text-[#1f3f3d] shadow-sm transition hover:border-[#7fb5ae] hover:bg-[#eaf6f4]"
                       >
                         <span className="block font-semibold">
@@ -403,106 +424,114 @@ function WorkScheduleCalendarBoardContent({
       />
 
       {selectedCell ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 px-4 py-6"
-          role="dialog"
+        <AppModal
+          className="max-w-2xl"
+          labelledBy="work-schedule-modal-title"
+          onClose={closeScheduleModal}
         >
-          <div className="w-full max-w-xl overflow-hidden rounded-md bg-white shadow-xl">
-            <div className="border-b border-[#eef1f5] px-5 py-4">
-              <h3 className="text-lg font-semibold text-[#16181d]">
-                {selectedSchedule ? "업무 일정 수정" : "업무 일정 등록"}
-              </h3>
-              <p className="mt-1 text-sm text-[#697386]">
-                {formatWorkScheduleDateLabel(scheduleDateDraft)}
-              </p>
-            </div>
+            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+              <div className="px-6 pb-6 pt-6">
+                <p className="text-xs font-semibold text-[#697386]">
+                  {selectedSchedule ? "업무 일정 수정" : "업무 일정 등록"}
+                </p>
+                <h3
+                  id="work-schedule-modal-title"
+                  className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
+                >
+                  {formatWorkScheduleDateLabel(scheduleDateDraft)}
+                </h3>
 
-            {formError ? (
-              <p className="border-b border-[#f0c6c6] bg-[#fff1f1] px-5 py-2 text-sm text-[#8a1f1f]">
-                {formError}
-              </p>
-            ) : null}
+                {formError ? (
+                  <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                    {formError}
+                  </p>
+                ) : null}
 
-            <div className="grid gap-4 px-5 py-5">
-              <label>
-                <span className="block text-xs font-semibold text-[#697386]">
-                  날짜
-                </span>
-                <DatePickerInput
-                  value={scheduleDateDraft}
-                  disabled={pendingScheduleAction}
-                  onChange={(event) => {
-                    setScheduleDateDraft(event.currentTarget.value);
-                    setFormError("");
-                  }}
-                  className="mt-2 block h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                />
-              </label>
+                <div className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5]">
+                  <label className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
+                    <span className="text-sm font-medium text-[#697386]">
+                      날짜
+                    </span>
+                    <DatePickerInput
+                      value={scheduleDateDraft}
+                      disabled={pendingScheduleAction}
+                      onChange={(event) => {
+                        setScheduleDateDraft(event.currentTarget.value);
+                        setFormError("");
+                      }}
+                      className="block h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                    />
+                  </label>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label>
-                  <span className="block text-xs font-semibold text-[#697386]">
-                    시작 시간
-                  </span>
-                  <select
-                    value={startMinuteDraft}
-                    disabled={pendingScheduleAction}
-                    onChange={(event) =>
-                      updateStartMinuteDraft(Number(event.currentTarget.value))
-                    }
-                    className="mt-2 block h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                  >
-                    {createWorkScheduleStartMinuteOptions().map((minute) => (
-                      <option key={minute} value={minute}>
-                        {formatMinuteLabel(minute)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
+                    <span className="text-sm font-medium text-[#697386]">
+                      시간
+                    </span>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                      <select
+                        aria-label="시작 시간"
+                        value={startMinuteDraft}
+                        disabled={pendingScheduleAction}
+                        onChange={(event) =>
+                          updateStartMinuteDraft(
+                            Number(event.currentTarget.value),
+                          )
+                        }
+                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                      >
+                        {createWorkScheduleStartMinuteOptions().map((minute) => (
+                          <option key={minute} value={minute}>
+                            {formatMinuteLabel(minute)}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        aria-hidden="true"
+                        className="hidden text-center text-[#9aa4b2] sm:block"
+                      >
+                        -
+                      </span>
+                      <select
+                        aria-label="종료 시간"
+                        value={endMinuteDraft}
+                        disabled={pendingScheduleAction}
+                        onChange={(event) => {
+                          setEndMinuteDraft(Number(event.currentTarget.value));
+                          setFormError("");
+                        }}
+                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                      >
+                        {createWorkScheduleEndMinuteOptions(startMinuteDraft).map(
+                          (minute) => (
+                            <option key={minute} value={minute}>
+                              {formatMinuteLabel(minute)}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
-                <label>
-                  <span className="block text-xs font-semibold text-[#697386]">
-                    종료 시간
-                  </span>
-                  <select
-                    value={endMinuteDraft}
-                    disabled={pendingScheduleAction}
-                    onChange={(event) => {
-                      setEndMinuteDraft(Number(event.currentTarget.value));
-                      setFormError("");
-                    }}
-                    className="mt-2 block h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                  >
-                    {createWorkScheduleEndMinuteOptions(startMinuteDraft).map(
-                      (minute) => (
-                        <option key={minute} value={minute}>
-                          {formatMinuteLabel(minute)}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-              </div>
-
-              <label>
-                <span className="block text-xs font-semibold text-[#697386]">
-                  업무 내용
-                </span>
                 <textarea
+                  aria-label="업무 내용"
+                  data-modal-plain-body="true"
                   value={scheduleDraft}
                   disabled={pendingScheduleAction}
                   onChange={(event) => {
                     setScheduleDraft(event.currentTarget.value);
                     setFormError("");
                   }}
-                  rows={4}
-                  className="mt-2 block w-full resize-y rounded-md border border-[#cfd6e3] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  onKeyDown={saveSelectedScheduleWithKeyboard}
+                  autoFocus
+                  placeholder="업무 내용을 입력하세요."
+                  rows={10}
+                  className="mt-6 block min-h-[16rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd] disabled:cursor-not-allowed disabled:opacity-60"
                 />
-              </label>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] px-5 py-4">
+            <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
               <div>
                 {selectedSchedule ? (
                   <button
@@ -533,9 +562,8 @@ function WorkScheduleCalendarBoardContent({
                   {pendingScheduleAction ? "저장 중" : "저장"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+            </footer>
+        </AppModal>
       ) : null}
     </section>
   );
@@ -1093,8 +1121,7 @@ export function WorkScheduleCalendarSkeleton() {
             </h2>
             <WorkScheduleSkeletonBlock className="mt-2 h-4 w-32" />
           </div>
-          <div className="grid w-full gap-2 sm:grid-cols-[5rem_5rem_5rem_10rem_4rem] lg:w-auto">
-            <WorkScheduleSkeletonBlock className="h-10 w-full" />
+          <div className="grid w-full gap-2 sm:grid-cols-[5rem_5rem_5rem_10rem] lg:w-auto">
             <WorkScheduleSkeletonBlock className="h-10 w-full" />
             <WorkScheduleSkeletonBlock className="h-10 w-full" />
             <WorkScheduleSkeletonBlock className="h-10 w-full" />

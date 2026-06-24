@@ -17,6 +17,7 @@ import {
   documentContentLineNumberColumnClass,
   documentContentTextColumnBaseClass,
 } from "@/components/line-numbered-document-content";
+import { AppModal } from "@/components/app-modal";
 
 type DocumentAuditHistoryProps = {
   histories: ApprovalHistory[];
@@ -210,27 +211,17 @@ function AuditHistoryDetailModal({
   }, [onClose]);
 
   return (
-    <div
-      aria-labelledby={titleId}
-      aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[#0f1720]/55 p-4"
-      role="dialog"
+    <AppModal
+      className="max-w-6xl"
+      labelledBy={titleId}
+      onClose={onClose}
+      style={
+        documentContentFrameWidth
+          ? { maxWidth: `${documentContentFrameWidth + 42}px` }
+          : undefined
+      }
     >
-      <button
-        type="button"
-        aria-label="감사 이력 상세 닫기"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-      />
-
-      <section
-        className="relative max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-6xl overflow-auto rounded-md border border-[#d9dee7] bg-white shadow-[0_24px_70px_rgba(15,23,32,0.22)]"
-        style={
-          documentContentFrameWidth
-            ? { maxWidth: `${documentContentFrameWidth + 42}px` }
-            : undefined
-        }
-      >
+      <div className="max-h-[min(44rem,calc(100vh-3rem))] overflow-auto">
         <div className="flex items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#697386]">
@@ -282,8 +273,8 @@ function AuditHistoryDetailModal({
             wrap
           />
         </dl>
-      </section>
-    </div>
+      </div>
+    </AppModal>
   );
 }
 

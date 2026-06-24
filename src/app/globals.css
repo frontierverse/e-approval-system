@@ -46,6 +46,38 @@ button:disabled {
   cursor: not-allowed;
 }
 
+[data-app-modal="true"] input:not([type="checkbox"]):not([type="radio"]):not(
+    [type="file"]
+  ),
+[data-app-modal="true"] select,
+[data-app-modal="true"] textarea {
+  background-color: #f5f8f7 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-app-modal="true"] input:not([type="checkbox"]):not([type="radio"]):not(
+    [type="file"]
+  ):hover,
+[data-app-modal="true"] input:not([type="checkbox"]):not([type="radio"]):not(
+    [type="file"]
+  ):focus,
+[data-app-modal="true"] select:hover,
+[data-app-modal="true"] select:focus,
+[data-app-modal="true"] textarea:hover,
+[data-app-modal="true"] textarea:focus {
+  background-color: #f5f8f7 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+[data-app-modal="true"] [data-modal-plain-body="true"],
+[data-app-modal="true"] [data-modal-plain-body="true"]:hover,
+[data-app-modal="true"] [data-modal-plain-body="true"]:focus {
+  background-color: transparent !important;
+}
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -117,6 +149,41 @@ button:disabled {
 .dark .bg-white,
 .dark .bg-\[\#fbfcfd\] {
   background-color: #161b22;
+}
+
+.dark [data-app-modal="true"] input:not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="file"]),
+.dark [data-app-modal="true"] select,
+.dark [data-app-modal="true"] textarea {
+  background-color: #262c33 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark [data-app-modal="true"] input:not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="file"]):hover,
+.dark [data-app-modal="true"] input:not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="file"]):focus,
+.dark [data-app-modal="true"] select:hover,
+.dark [data-app-modal="true"] select:focus,
+.dark [data-app-modal="true"] textarea:hover,
+.dark [data-app-modal="true"] textarea:focus {
+  background-color: #262c33 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark [data-app-modal="true"] [data-modal-plain-body="true"],
+.dark [data-app-modal="true"] [data-modal-plain-body="true"]:hover,
+.dark [data-app-modal="true"] [data-modal-plain-body="true"]:focus {
+  background-color: transparent !important;
+}
+
+.dark [data-app-modal="true"] input:read-only {
+  color: #8b949e;
 }
 
 .dark .bg-white\/95 {

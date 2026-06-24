@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
 import type { YouthRosterData, YouthRosterItem } from "@/lib/youth-roster";
@@ -374,36 +375,37 @@ function YouthRosterFormModal({
   }
 
   return (
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 grid place-items-center bg-[#101418]/55 p-4"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
+    <AppModal
+      className="max-w-2xl"
+      labelledBy={titleId}
+      onClose={onClose}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl"
-      >
-        <form onSubmit={submitForm}>
-          <header className="relative border-b border-[#eef1f5] px-5 py-4 pr-20">
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-            >
-              닫기
-            </button>
-            <h2 id={titleId} className="text-xl font-semibold text-[#16181d]">
-              {title}
-            </h2>
+      <form onSubmit={submitForm}>
+        <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+          <header className="sticky top-0 z-10 border-b border-[#eef1f5] bg-white px-6 py-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-[#697386]">
+                  청소년 정보
+                </p>
+                <h2
+                  id={titleId}
+                  className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
+                >
+                  {title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+              >
+                닫기
+              </button>
+            </div>
           </header>
 
-          <div className="grid gap-4 px-5 py-5">
+          <div className="grid gap-4 px-6 py-5">
             <label>
               <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
                 이름
@@ -543,9 +545,9 @@ function YouthRosterFormModal({
               {pending ? "저장 중" : "저장"}
             </button>
           </footer>
-        </form>
-      </section>
-    </div>
+        </div>
+      </form>
+    </AppModal>
   );
 }
 

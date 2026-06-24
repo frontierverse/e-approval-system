@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 
 export type AdminFormMessageState = {
@@ -82,6 +83,7 @@ export function TextareaField({
     <label className="block min-w-0">
       <span className="text-xs font-semibold text-[#697386]">{label}</span>
       <textarea
+        data-modal-plain-body="true"
         name={name}
         defaultValue={defaultValue ?? ""}
         placeholder={placeholder}
@@ -201,26 +203,20 @@ export function AdminEditModal({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="모달 닫기"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-[#16181d]/45"
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={description ? descriptionId : undefined}
-            className={[
-              "relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-md border border-[#d9dee7] bg-white shadow-xl",
-              dialogClassName ?? "max-w-3xl",
-            ].join(" ")}
-          >
-            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <AppModal
+          className={dialogClassName ?? "max-w-3xl"}
+          describedBy={description ? descriptionId : undefined}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-6 py-5">
               <div>
-                <h2 id={titleId} className="text-base font-semibold">
+                <p className="text-xs font-semibold text-[#697386]">편집</p>
+                <h2
+                  id={titleId}
+                  className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
+                >
                   {title}
                 </h2>
                 {description ? (
@@ -237,9 +233,9 @@ export function AdminEditModal({
                 닫기
               </button>
             </div>
-            <div className="p-5">{children}</div>
-          </section>
-        </div>
+            <div className="px-6 py-5">{children}</div>
+          </div>
+        </AppModal>
       ) : null}
     </>
   );
