@@ -280,14 +280,13 @@ function WorkScheduleCalendarBoardContent({
   }
 
   return (
-    <section aria-label="업무 일정 달력" className="space-y-6">
+    <section aria-label={`${monthLabel} 업무 일정`} className="space-y-6">
       <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
         <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-[#16181d]">
-              업무 일정 달력
+              {monthLabel}
             </h2>
-            <p className="mt-1 text-sm text-[#697386]">{monthLabel}</p>
           </div>
 
           <div className="flex w-full min-w-0 flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
@@ -1111,13 +1110,15 @@ function formatDateTime(value: string) {
 }
 
 export function WorkScheduleCalendarSkeleton() {
+  const monthLabel = formatWorkScheduleMonthLabel(getWorkScheduleCurrentMonth());
+
   return (
-    <section aria-label="업무 일정 달력 로딩" className="space-y-6">
+    <section aria-label={`${monthLabel} 업무 일정 로딩`} className="space-y-6">
       <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
         <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-[#16181d]">
-              업무 일정 달력
+              {monthLabel}
             </h2>
             <WorkScheduleSkeletonBlock className="mt-2 h-4 w-32" />
           </div>

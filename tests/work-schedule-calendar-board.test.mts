@@ -150,7 +150,10 @@ describe("work schedule calendar", () => {
       }),
     );
 
-    assert.match(html, /업무 일정 달력/);
+    assert.match(
+      html,
+      /<h2 class="text-lg font-semibold text-\[#16181d\]">2026년 6월<\/h2>/,
+    );
     assert.match(html, /2026년 6월/);
     assert.match(html, /grid-cols-7/);
     assert.match(html, /min-w-\[980px\]/);
@@ -180,7 +183,7 @@ describe("work schedule calendar", () => {
       React.createElement(WorkScheduleCalendarSkeleton),
     );
 
-    assert.match(html, /업무 일정 달력 로딩/);
+    assert.match(html, /업무 일정 로딩/);
     assert.match(html, /grid-cols-7/);
     assert.match(html, /min-w-\[980px\]/);
     assert.doesNotMatch(html, /min-w-\[820px\]/);

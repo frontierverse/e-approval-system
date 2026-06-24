@@ -19,7 +19,7 @@ describe("route loading skeletons", () => {
       React.createElement(YouthLearningProgressLoading),
     );
 
-    assert.match(workScheduleHtml, /업무 일정 달력/);
+    assert.match(workScheduleHtml, /업무 일정 로딩/);
     assert.match(workScheduleHtml, /min-w-\[980px\]/);
     assert.doesNotMatch(workScheduleHtml, /자료 목록/);
     assert.match(commonScheduleHtml, /공통 일정표/);
