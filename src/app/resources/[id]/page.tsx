@@ -4,6 +4,7 @@ import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { AttachmentPreviewButton } from "@/components/attachment-preview-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageTitle } from "@/components/page-title";
+import { ResourceCategoryBadge } from "@/components/resource-category-badge";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
 import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
@@ -13,7 +14,6 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 import { getResourcePostById } from "@/lib/resource-library";
-import { getResourceCategoryDisplayLabel } from "@/lib/resource-library-core";
 
 export default async function ResourceDetailPage({
   params,
@@ -36,7 +36,13 @@ export default async function ResourceDetailPage({
     <>
       <PageTitle
         title={resource.title}
-        description={`${getResourceCategoryDisplayLabel(resource)} / ${resource.departmentName}`}
+        description={resource.departmentName}
+        descriptionAccessory={
+          <ResourceCategoryBadge
+            category={resource.category}
+            educationLevel={resource.educationLevel}
+          />
+        }
         titleAccessory={
           <TitleBackLink href={`/resources?category=${resource.category}`} />
         }

@@ -21,6 +21,7 @@ import { PageTitle } from "../src/components/page-title.tsx";
 import { QuickStatusLinks } from "../src/components/quick-status-links.tsx";
 import { ResourceLibraryFilterControlsContent } from "../src/components/resource-library-filter-controls.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
+import { ResourceCategoryBadge } from "../src/components/resource-category-badge.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
 import { ShellQuickStatusLinks } from "../src/components/shell-quick-status-links.tsx";
 import { SignedAttachmentDeleteForm } from "../src/components/signed-attachment-delete-form.tsx";
@@ -926,6 +927,34 @@ describe("major UI rendering", () => {
       html,
       /href="\/admin\?tab=login-history&amp;q=Chrome&amp;dateFrom=2026-05-14&amp;dateTo=2026-05-14&amp;user=user-001&amp;result=failure&amp;page=2"/,
     );
+  });
+
+  test("renders education target badges with distinct tones", () => {
+    const commonHtml = renderToStaticMarkup(
+      React.createElement(ResourceCategoryBadge, {
+        category: "education",
+        educationLevel: "common",
+      }),
+    );
+    const highHtml = renderToStaticMarkup(
+      React.createElement(ResourceCategoryBadge, {
+        category: "education",
+        educationLevel: "high",
+      }),
+    );
+    const middleHtml = renderToStaticMarkup(
+      React.createElement(ResourceCategoryBadge, {
+        category: "education",
+        educationLevel: "middle",
+      }),
+    );
+
+    assert.match(commonHtml, /교육 · 공통/);
+    assert.match(commonHtml, /bg-\[#eef7f6\]/);
+    assert.match(highHtml, /교육 · 고등/);
+    assert.match(highHtml, /bg-\[#eaf0fb\]/);
+    assert.match(middleHtml, /교육 · 중등/);
+    assert.match(middleHtml, /bg-\[#fff8df\]/);
   });
 
   test("renders resource library items with attachment context", () => {
