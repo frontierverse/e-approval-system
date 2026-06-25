@@ -166,6 +166,13 @@ function ResourceFormFields({
   const categoryHasError = Boolean(errors?.category);
   const educationLevelHasError = Boolean(errors?.educationLevel);
   const attachmentHasError = Boolean(errors?.attachments || attachmentError);
+  const hideCategoryField =
+    mode === "create" && initialValues.category === "education";
+  const primaryFieldsGridClass = hideCategoryField
+    ? "lg:grid-cols-[minmax(0,1fr)_12rem]"
+    : category === "education"
+      ? "lg:grid-cols-[minmax(0,1fr)_14rem_12rem]"
+      : "lg:grid-cols-[minmax(0,1fr)_14rem]";
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
 
   useEffect(() => {
@@ -390,14 +397,11 @@ function ResourceFormFields({
       onSubmit={handleSubmit}
       className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
+      {hideCategoryField ? (
+        <input type="hidden" name="category" value={category} />
+      ) : null}
       <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <div
-          className={`grid gap-5 ${
-            category === "education"
-              ? "lg:grid-cols-[minmax(0,1fr)_14rem_12rem]"
-              : "lg:grid-cols-[minmax(0,1fr)_14rem]"
-          }`}
-        >
+        <div className={`grid gap-5 ${primaryFieldsGridClass}`}>
           <div>
             <label
               htmlFor="title"
@@ -420,6 +424,7 @@ function ResourceFormFields({
             ) : null}
           </div>
 
+          {hideCategoryField ? null : (
           <div>
             <label
               htmlFor="category"
@@ -453,6 +458,7 @@ function ResourceFormFields({
               <p className="mt-2 text-sm text-[#8a1f1f]">{errors.category}</p>
             ) : null}
           </div>
+          )}
 
           {category === "education" ? (
             <div>

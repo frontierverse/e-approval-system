@@ -28,6 +28,7 @@ describe("ResourceForm", () => {
     );
 
     assert.match(html, /type="file"/);
+    assert.match(html, /id="category"/);
     assert.match(html, /aria-describedby="attachments-drop-help"/);
     assert.match(
       html,
@@ -68,6 +69,9 @@ describe("ResourceForm", () => {
     );
 
     assert.match(html, /name="educationLevel"/);
+    assert.match(html, /type="hidden" name="category" value="education"/);
+    assert.match(html, /lg:grid-cols-\[minmax\(0,1fr\)_12rem\]/);
+    assert.doesNotMatch(html, /id="category"/);
     assert.match(html, /교육 대상/);
     assert.match(html, /value="common">공통/);
     assert.match(html, /value="middle" selected="">중등/);
