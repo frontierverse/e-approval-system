@@ -14,6 +14,11 @@ import {
 } from "react";
 import { AppModal } from "@/components/app-modal";
 import { formatBirthdayAlertDate } from "@/lib/birthday-alerts-core";
+import {
+  createCurrentCommonScheduleAlert,
+  type CurrentCommonScheduleAlert,
+  type CurrentCommonScheduleSource,
+} from "@/lib/current-common-schedule-core";
 
 export type NavigationItem = {
   label: string;
@@ -61,10 +66,20 @@ export type NavigationTopbarBirthdayAlertItem = {
   typeLabel: string;
 };
 
+export type NavigationTopbarCurrentScheduleAlert = CurrentCommonScheduleAlert & {
+  href: string;
+  label: string;
+  status?: "active" | "empty";
+};
+
+export type NavigationTopbarCurrentScheduleItem = CurrentCommonScheduleSource;
+
 type AppNavProps = {
   groups: NavigationGroup[];
   topbarAlert?: NavigationTopbarAlert | null;
   topbarBirthdayAlert?: NavigationTopbarBirthdayAlert | null;
+  topbarCurrentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
+  topbarCurrentScheduleItems?: NavigationTopbarCurrentScheduleItem[];
   variant: "mobile" | "desktop" | "topbar";
 };
 
@@ -76,10 +91,14 @@ type MobileDragState = {
   suppressClick: boolean;
 };
 
+const emptyCurrentScheduleItems: NavigationTopbarCurrentScheduleItem[] = [];
+
 export function AppNav({
   groups,
   topbarAlert = null,
   topbarBirthdayAlert = null,
+  topbarCurrentScheduleAlert = null,
+  topbarCurrentScheduleItems = emptyCurrentScheduleItems,
   variant,
 }: AppNavProps) {
   const pathname = usePathname();
@@ -91,6 +110,11 @@ export function AppNav({
   const firstEndAlignedGroupIndex = groups.findIndex(
     (group) => group.align === "end",
   );
+  const currentScheduleAlert = useCurrentScheduleAlert({
+    enabled: variant === "topbar",
+    initialAlert: topbarCurrentScheduleAlert,
+    schedules: topbarCurrentScheduleItems,
+  });
   const dragStateRef = useRef<MobileDragState>({
     pointerId: null,
     startX: 0,
@@ -215,16 +239,22 @@ export function AppNav({
             <Fragment key={group.label}>
               {index === firstEndAlignedGroupIndex ? (
                 <>
+                  {currentScheduleAlert ? (
+                    <TopbarCurrentScheduleLink
+                      alert={currentScheduleAlert}
+                      alignEnd
+                    />
+                  ) : null}
                   {topbarBirthdayAlert ? (
                     <TopbarBirthdayAlertButton
                       alert={topbarBirthdayAlert}
-                      alignEnd
+                      alignEnd={!currentScheduleAlert}
                     />
                   ) : null}
                   {topbarAlert ? (
                     <TopbarExpirationAlertButton
                       alert={topbarAlert}
-                      alignEnd={!topbarBirthdayAlert}
+                      alignEnd={!currentScheduleAlert && !topbarBirthdayAlert}
                     />
                   ) : null}
                 </>
@@ -234,6 +264,7 @@ export function AppNav({
                 active={group.label === selectedGroup?.label}
                 alignEnd={
                   index === firstEndAlignedGroupIndex &&
+                  !currentScheduleAlert &&
                   !topbarAlert &&
                   !topbarBirthdayAlert
                 }
@@ -305,6 +336,105 @@ export function AppNav({
         </div>
       </section>
     </nav>
+  );
+}
+
+function useCurrentScheduleAlert({
+  enabled,
+  initialAlert,
+  schedules,
+}: {
+  enabled: boolean;
+  initialAlert: NavigationTopbarCurrentScheduleAlert | null;
+  schedules: NavigationTopbarCurrentScheduleItem[];
+}) {
+  const [alert, setAlert] = useState(initialAlert);
+
+  useEffect(() => {
+    if (!enabled || !initialAlert) {
+      return;
+    }
+
+    const baseAlert = initialAlert;
+
+    function updateAlert() {
+      setAlert(
+        createNavigationCurrentScheduleAlert(
+          createCurrentCommonScheduleAlert(schedules),
+          baseAlert,
+        ),
+      );
+    }
+
+    const timeoutId = window.setTimeout(updateAlert, 0);
+    const intervalId = window.setInterval(updateAlert, 30_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [enabled, initialAlert, schedules]);
+
+  return enabled && initialAlert ? alert : initialAlert;
+}
+
+function createNavigationCurrentScheduleAlert(
+  alert: CurrentCommonScheduleAlert | null,
+  baseAlert: NavigationTopbarCurrentScheduleAlert,
+): NavigationTopbarCurrentScheduleAlert {
+  if (alert) {
+    return {
+      ...baseAlert,
+      ...alert,
+      status: "active",
+    };
+  }
+
+  return {
+    ...baseAlert,
+    content: "현재 일정 없음",
+    status: "empty",
+    timeLabel: "",
+    weekdayLabel: "",
+  };
+}
+
+export function TopbarCurrentScheduleLink({
+  alert,
+  alignEnd,
+}: {
+  alert: NavigationTopbarCurrentScheduleAlert;
+  alignEnd?: boolean;
+}) {
+  const hasSchedule = alert.status !== "empty";
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#b9d8e4] bg-[#edf8fb] px-2.5 text-xs font-semibold text-[#1d5f78] shadow-sm transition hover:border-[#94c4d5] hover:bg-[#dff1f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9d8e4] sm:px-3",
+    alignEnd ? "ml-auto" : "",
+  ].join(" ");
+  const title = hasSchedule
+    ? `${alert.weekdayLabel} ${alert.timeLabel} ${alert.content}`
+    : "현재 시간에 해당하는 공통 일정 없음";
+  const ariaLabel = hasSchedule
+    ? `${alert.weekdayLabel} ${alert.timeLabel} 공통 일정 ${alert.content} 열기`
+    : "공통 일정표 열기, 현재 시간 일정 없음";
+
+  return (
+    <Link
+      href={alert.href}
+      aria-label={ariaLabel}
+      className={className}
+      title={title}
+    >
+      <span className="hidden text-[#1d5f78] sm:inline">{alert.label}</span>
+      <span className="max-w-[10rem] truncate text-[#17475a]">
+        {alert.content}
+      </span>
+      {hasSchedule ? (
+        <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#1d5f78]">
+          {alert.timeLabel}
+        </span>
+      ) : null}
+    </Link>
   );
 }
 

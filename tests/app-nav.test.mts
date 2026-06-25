@@ -5,8 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   isActivePath,
   TopbarBirthdayAlertModalContent,
+  TopbarCurrentScheduleLink,
   TopbarExpirationAlertModalContent,
   type NavigationTopbarBirthdayAlert,
+  type NavigationTopbarCurrentScheduleAlert,
   type NavigationTopbarAlert,
 } from "../src/components/app-nav.tsx";
 
@@ -51,6 +53,46 @@ describe("app navigation active paths", () => {
       ),
       false,
     );
+  });
+
+  test("renders the current common schedule topbar link", () => {
+    const alert: NavigationTopbarCurrentScheduleAlert = {
+      content: "공용 자습",
+      href: "/youth/common-schedule",
+      label: "현재 일정",
+      status: "active",
+      timeLabel: "09:00-10:30",
+      weekdayLabel: "목",
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarCurrentScheduleLink, {
+        alert,
+      }),
+    );
+
+    assert.match(html, /href="\/youth\/common-schedule"/);
+    assert.match(html, /현재 일정/);
+    assert.match(html, /공용 자습/);
+    assert.match(html, /09:00-10:30/);
+  });
+
+  test("renders an empty current common schedule topbar link", () => {
+    const alert: NavigationTopbarCurrentScheduleAlert = {
+      content: "현재 일정 없음",
+      href: "/youth/common-schedule",
+      label: "현재 일정",
+      status: "empty",
+      timeLabel: "",
+      weekdayLabel: "",
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarCurrentScheduleLink, {
+        alert,
+      }),
+    );
+
+    assert.match(html, /현재 일정 없음/);
+    assert.doesNotMatch(html, /<span[^>]*>09:00-10:30<\/span>/);
   });
 
   test("renders cafe expiration alert modal items", () => {

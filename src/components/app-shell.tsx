@@ -21,6 +21,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getBirthdayTopbarAlert } from "@/lib/birthday-alerts";
 import { appName, organizationName } from "@/lib/branding";
 import { getCafeItemExpirationAlert } from "@/lib/cafe-items";
+import { getCurrentCommonScheduleTopbarData } from "@/lib/current-common-schedule";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
@@ -150,18 +151,40 @@ async function ShellNavigation({
 }: {
   variant: "mobile" | "desktop" | "topbar";
 }) {
-  const [user, cafeExpirationAlert, birthdayAlert] = await Promise.all([
-    getCurrentUser(),
-    variant === "topbar"
-      ? getCafeItemExpirationAlert()
-      : Promise.resolve(null),
-    variant === "topbar" ? getBirthdayTopbarAlert() : Promise.resolve(null),
-  ]);
+  const [user, cafeExpirationAlert, birthdayAlert, currentScheduleData] =
+    await Promise.all([
+      getCurrentUser(),
+      variant === "topbar"
+        ? getCafeItemExpirationAlert()
+        : Promise.resolve(null),
+      variant === "topbar" ? getBirthdayTopbarAlert() : Promise.resolve(null),
+      variant === "topbar"
+        ? getCurrentCommonScheduleTopbarData()
+        : Promise.resolve(null),
+    ]);
   const groups = getNavigationGroups(user?.role === UserRole.ADMIN);
 
   return (
     <AppNav
       groups={groups}
+      topbarCurrentScheduleAlert={
+        currentScheduleData?.alert
+          ? {
+              ...currentScheduleData.alert,
+              href: "/youth/common-schedule",
+              label: "현재 일정",
+              status: "active",
+            }
+          : {
+              content: "현재 일정 없음",
+              href: "/youth/common-schedule",
+              label: "현재 일정",
+              status: "empty",
+              timeLabel: "",
+              weekdayLabel: "",
+            }
+      }
+      topbarCurrentScheduleItems={currentScheduleData?.schedules ?? []}
       topbarBirthdayAlert={
         birthdayAlert
           ? {
