@@ -388,10 +388,10 @@ function TopbarBirthdayAlertButton({
   ].join(" ");
   const title = hasItems
     ? `${alert.personName} ${alert.ddayLabel}`
-    : "생일 임박 대상 없음";
+    : "다가오는 생일 대상 없음";
   const ariaLabel = hasItems
-    ? `${alert.personName} ${alert.ddayLabel} 생일 임박 대상 목록 열기`
-    : "생일 임박 대상 목록 열기, 대상 없음";
+    ? `${alert.personName} ${alert.ddayLabel} 다가오는 생일 목록 열기`
+    : "다가오는 생일 목록 열기, 대상 없음";
 
   return (
     <>
@@ -453,10 +453,10 @@ export function TopbarBirthdayAlertModalContent({
             id={titleId}
             className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
           >
-            생일 임박 대상
+            다가오는 생일
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            직원과 입소중 청소년 중 생일이 31일 이하로 남은 대상입니다.
+            직원과 입소중 청소년 중 31일 이내에 생일이 있는 대상입니다.
           </p>
         </div>
         <button
@@ -498,7 +498,7 @@ export function TopbarBirthdayAlertModalContent({
         </ul>
       ) : (
         <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
-          생일이 31일 이하로 남은 직원 또는 입소중 청소년이 없습니다.
+          31일 이내에 생일이 있는 직원 또는 입소중 청소년이 없습니다.
         </p>
       )}
     </div>

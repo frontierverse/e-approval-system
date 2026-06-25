@@ -172,7 +172,7 @@ async function ShellNavigation({
               ddayLabel: "",
               items: [],
               label: "생일",
-              personName: "임박 없음",
+              personName: "예정 없음",
               status: "empty",
             }
       }

@@ -151,10 +151,10 @@ describe("app navigation active paths", () => {
       }),
     );
 
-    assert.match(html, /생일 임박 대상/);
+    assert.match(html, /다가오는 생일/);
     assert.match(
       html,
-      /직원과 입소중 청소년 중 생일이 31일 이하로 남은 대상입니다\./,
+      /직원과 입소중 청소년 중 31일 이내에 생일이 있는 대상입니다\./,
     );
     assert.match(html, /김민지/);
     assert.match(html, /바자울 \/ 팀장/);
@@ -170,7 +170,7 @@ describe("app navigation active paths", () => {
           ddayLabel: "",
           items: [],
           label: "생일",
-          personName: "생일 없음",
+          personName: "예정 없음",
           status: "empty",
         },
         descriptionId: "description-id",
@@ -181,7 +181,7 @@ describe("app navigation active paths", () => {
 
     assert.match(
       html,
-      /생일이 31일 이하로 남은 직원 또는 입소중 청소년이 없습니다\./,
+      /31일 이내에 생일이 있는 직원 또는 입소중 청소년이 없습니다\./,
     );
   });
 });
