@@ -20,6 +20,7 @@ const roster = {
       id: "youth-admitted-001",
       name: "김하늘",
       admissionDate: "2026-05-01",
+      birthDate: "2009-06-10",
       dischargeDate: null,
       age: 17,
       phone: "010-1111-2222",
@@ -37,6 +38,7 @@ const roster = {
       id: "youth-discharged-001",
       name: "이도현",
       admissionDate: "2025-01-10",
+      birthDate: "2008-04-20",
       dischargeDate: "2026-04-30",
       age: 18,
       phone: null,
@@ -53,8 +55,9 @@ const rosterActions = {
         id: "created-youth",
         name: values.name,
         admissionDate: values.admissionDate || null,
+        birthDate: values.birthDate || null,
         dischargeDate: values.dischargeDate || null,
-        age: values.age ? Number(values.age) : null,
+        age: values.birthDate ? 17 : null,
         phone: values.phone || null,
         familyContacts: values.familyContacts.map((contact, index) => ({
           id: `created-family-contact-${index}`,
@@ -72,8 +75,9 @@ const rosterActions = {
         id: _youthId,
         name: values.name,
         admissionDate: values.admissionDate || null,
+        birthDate: values.birthDate || null,
         dischargeDate: values.dischargeDate || null,
-        age: values.age ? Number(values.age) : null,
+        age: values.birthDate ? 17 : null,
         phone: values.phone || null,
         familyContacts: values.familyContacts.map((contact, index) => ({
           id: `updated-family-contact-${index}`,
@@ -118,6 +122,10 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /이도현 정보 수정/);
     assert.match(html, /2026\. 04\. 30\./);
     assert.match(html, /미등록/);
+    assert.match(html, /aria-label="나이 오름차순 정렬"/);
+    assert.match(html, /aria-label="입소 날짜 내림차순 정렬"/);
+    assert.match(html, /aria-label="퇴소 예정 오름차순 정렬"/);
+    assert.match(html, /aria-sort="ascending"/);
     assert.equal((html.match(/aria-haspopup="dialog"/g) ?? []).length, 3);
     assert.doesNotMatch(html, /name="name"/);
     assert.doesNotMatch(html, />저장</);
@@ -155,7 +163,16 @@ describe("YouthRosterBoard", () => {
     );
 
     assert.match(html, /청소년 정보 수정/);
+    assert.match(html, /TAB키를 이용하여 입력칸 이동 가능/);
     assert.match(html, /김하늘/);
+    assert.match(html, /aria-label="입소 날짜 년"/);
+    assert.match(html, /aria-label="입소 날짜 월"/);
+    assert.match(html, /aria-label="입소 날짜 일"/);
+    assert.match(html, /aria-label="퇴소 예정 년"/);
+    assert.match(html, /aria-label="생년월일 년"/);
+    assert.match(html, /value="2026"/);
+    assert.match(html, /value="05"/);
+    assert.match(html, /value="2009"/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);
   });

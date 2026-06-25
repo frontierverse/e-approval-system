@@ -4,7 +4,10 @@ import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
 import { prisma } from "@/lib/prisma";
-import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
+import {
+  getYouthDisplayAge,
+  getYouthLearningScheduleToday,
+} from "@/lib/youth-management-core";
 
 export type CompanyInfoData = {
   business: {
@@ -249,7 +252,7 @@ async function getActiveStaffMembers(referenceDate: string) {
 }
 
 async function getAdmittedYouths(referenceDate: string) {
-  return prisma.youth.findMany({
+  const youths = await prisma.youth.findMany({
     where: {
       OR: [
         {
@@ -271,6 +274,7 @@ async function getAdmittedYouths(referenceDate: string) {
       admissionDate: true,
       dischargeDate: true,
       age: true,
+      birthDate: true,
       phone: true,
     },
     orderBy: [
@@ -282,4 +286,19 @@ async function getAdmittedYouths(referenceDate: string) {
       },
     ],
   });
+
+  return youths.map((youth) => ({
+    id: youth.id,
+    name: youth.name,
+    admissionDate: youth.admissionDate,
+    dischargeDate: youth.dischargeDate,
+    age: getYouthDisplayAge(
+      {
+        age: youth.age,
+        birthDate: youth.birthDate,
+      },
+      referenceDate,
+    ),
+    phone: youth.phone,
+  }));
 }

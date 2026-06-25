@@ -91,6 +91,7 @@ export type YouthProfile = {
   id: string;
   name: string;
   admissionDate: string | null;
+  birthDate: string | null;
   dischargeDate: string | null;
   age: number | null;
   phone: string | null;
@@ -225,8 +226,8 @@ export type YouthFamilyContactInput = {
 export type YouthCreateInput = {
   name: string;
   admissionDate: string;
+  birthDate: string;
   dischargeDate: string;
-  age: string;
   phone: string;
   familyContacts: YouthFamilyContactInput[];
 };
@@ -363,6 +364,64 @@ export function getYouthLearningScheduleToday() {
   return year && month && day
     ? `${year}-${month}-${day}`
     : formatYouthLearningScheduleDate(new Date());
+}
+
+export function getYouthDisplayAge(
+  youth: {
+    age: number | null;
+    birthDate: string | null;
+  },
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  return calculateYouthAge(youth.birthDate, referenceDate) ?? youth.age;
+}
+
+export function calculateYouthAge(
+  birthDate: string | null | undefined,
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  if (!birthDate || !isYouthLearningScheduleDate(birthDate)) {
+    return null;
+  }
+
+  if (!isYouthLearningScheduleDate(referenceDate)) {
+    return null;
+  }
+
+  const birth = getIsoDateParts(birthDate);
+  const reference = getIsoDateParts(referenceDate);
+
+  if (!birth || !reference) {
+    return null;
+  }
+
+  let age = reference.year - birth.year;
+
+  if (
+    reference.month < birth.month ||
+    (reference.month === birth.month && reference.day < birth.day)
+  ) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+}
+
+function getIsoDateParts(value: string) {
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return {
+    day,
+    month,
+    year,
+  };
 }
 
 export function shiftYouthLearningScheduleDate(value: string, days: number) {

@@ -6,6 +6,7 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  isYouthLearningScheduleDate,
   isYouthNoteCategory,
   isYouthNotePriority,
   type YouthActionResult,
@@ -52,20 +53,13 @@ export async function createYouthAction(
     };
   }
 
-  const parsedAge = parseOptionalAge(values.age);
+  const normalizedBirthDate = normalizeOptionalDate(values.birthDate);
   const normalizedPhone = normalizeOptionalPhone(values.phone);
   const normalizedFamilyContacts = normalizeFamilyContacts(
     values.familyContacts,
   );
   const normalizedAdmissionDate = normalizeOptionalDate(values.admissionDate);
   const normalizedDischargeDate = normalizeOptionalDate(values.dischargeDate);
-
-  if (parsedAge.error) {
-    return {
-      ok: false,
-      error: parsedAge.error,
-    };
-  }
 
   if (normalizedPhone.error) {
     return {
@@ -81,7 +75,11 @@ export async function createYouthAction(
     };
   }
 
-  if (normalizedAdmissionDate.error || normalizedDischargeDate.error) {
+  if (
+    normalizedAdmissionDate.error ||
+    normalizedBirthDate.error ||
+    normalizedDischargeDate.error
+  ) {
     return {
       ok: false,
       error: "날짜는 YYYY-MM-DD 형식으로 입력하세요.",
@@ -95,8 +93,9 @@ export async function createYouthAction(
       data: {
         name: normalizedName,
         admissionDate: normalizedAdmissionDate.value,
+        birthDate: normalizedBirthDate.value,
         dischargeDate: normalizedDischargeDate.value,
-        age: parsedAge.value,
+        age: null,
         phone: normalizedPhone.value,
         familyRelationship: firstFamilyContact?.relationship ?? null,
         familyPhone: firstFamilyContact?.phone ?? null,
@@ -218,20 +217,13 @@ export async function updateYouthAction(
     };
   }
 
-  const parsedAge = parseOptionalAge(values.age);
+  const normalizedBirthDate = normalizeOptionalDate(values.birthDate);
   const normalizedPhone = normalizeOptionalPhone(values.phone);
   const normalizedFamilyContacts = normalizeFamilyContacts(
     values.familyContacts,
   );
   const normalizedAdmissionDate = normalizeOptionalDate(values.admissionDate);
   const normalizedDischargeDate = normalizeOptionalDate(values.dischargeDate);
-
-  if (parsedAge.error) {
-    return {
-      ok: false,
-      error: parsedAge.error,
-    };
-  }
 
   if (normalizedPhone.error) {
     return {
@@ -247,7 +239,11 @@ export async function updateYouthAction(
     };
   }
 
-  if (normalizedAdmissionDate.error || normalizedDischargeDate.error) {
+  if (
+    normalizedAdmissionDate.error ||
+    normalizedBirthDate.error ||
+    normalizedDischargeDate.error
+  ) {
     return {
       ok: false,
       error: "날짜는 YYYY-MM-DD 형식으로 입력하세요.",
@@ -264,8 +260,9 @@ export async function updateYouthAction(
       data: {
         name: normalizedName,
         admissionDate: normalizedAdmissionDate.value,
+        birthDate: normalizedBirthDate.value,
         dischargeDate: normalizedDischargeDate.value,
-        age: parsedAge.value,
+        age: null,
         phone: normalizedPhone.value,
         familyRelationship: firstFamilyContact?.relationship ?? null,
         familyPhone: firstFamilyContact?.phone ?? null,
@@ -577,29 +574,6 @@ function validateYouthNoteInput(values: YouthNoteInput) {
   return "";
 }
 
-function parseOptionalAge(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return {
-      value: null,
-    };
-  }
-
-  const age = Number(trimmed);
-
-  if (!Number.isInteger(age) || age < 0 || age > 150) {
-    return {
-      error: "나이는 0-150 사이의 숫자로 입력하세요.",
-      value: null,
-    };
-  }
-
-  return {
-    value: age,
-  };
-}
-
 function normalizeOptionalDate(value: string) {
   const trimmed = value.trim();
 
@@ -609,7 +583,7 @@ function normalizeOptionalDate(value: string) {
     };
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+  if (!isYouthLearningScheduleDate(trimmed)) {
     return {
       error: "invalid date",
       value: null,

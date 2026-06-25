@@ -360,6 +360,7 @@ model Youth {
   name          String   @unique
   admissionDate String?
   dischargeDate String?
+  birthDate     String?
   age           Int?
   phone         String?
   familyContact String?
@@ -374,6 +375,7 @@ model Youth {
   rules          YouthRule[]
 
   @@index([name])
+  @@index([birthDate])
   @@index([dischargeDate])
 }
 

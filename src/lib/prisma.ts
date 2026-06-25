@@ -29,6 +29,7 @@ const requiredYouthLearningScheduleFields = [
   "recurrenceSourceDate",
   "recurrenceWeekdays",
 ] as const;
+const requiredYouthFields = ["birthDate"] as const;
 const requiredWorkScheduleFields = ["scheduleDate"] as const;
 const requiredUserFields = ["hireDate", "resignationDate"] as const;
 
@@ -69,6 +70,7 @@ function isReusablePrismaClient(
 
   return (
     hasRequiredPrismaDelegates(client) &&
+    hasRequiredYouthFields(client) &&
     hasRequiredYouthLearningScheduleFields(client) &&
     hasRequiredWorkScheduleFields(client) &&
     hasRequiredUserFields(client)
@@ -102,6 +104,27 @@ function hasRequiredYouthLearningScheduleFields(client: PrismaClient) {
   return requiredYouthLearningScheduleFields.every((field) =>
     fieldNames.has(field),
   );
+}
+
+function hasRequiredYouthFields(client: PrismaClient) {
+  const model = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: {
+          Youth?: {
+            fields?: Array<{ name?: string }>;
+          };
+        };
+      };
+    }
+  )._runtimeDataModel?.models?.Youth;
+  const fieldNames = new Set(
+    (model?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+
+  return requiredYouthFields.every((field) => fieldNames.has(field));
 }
 
 function hasRequiredUserFields(client: PrismaClient) {

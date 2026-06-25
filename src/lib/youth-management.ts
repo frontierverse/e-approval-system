@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  getYouthDisplayAge,
   type YouthFamilyContact,
   normalizeYouthNoteCategory,
   normalizeYouthNotePriority,
@@ -76,8 +77,12 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
     id: record.id,
     name: record.name,
     admissionDate: record.admissionDate,
+    birthDate: record.birthDate,
     dischargeDate: record.dischargeDate,
-    age: record.age,
+    age: getYouthDisplayAge({
+      age: record.age,
+      birthDate: record.birthDate,
+    }),
     phone: record.phone,
     familyContacts: mapYouthFamilyContacts(record),
     notes: record.notes.map(mapYouthSpecialNote),

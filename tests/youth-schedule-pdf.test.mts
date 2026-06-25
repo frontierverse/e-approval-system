@@ -43,6 +43,7 @@ const youths: YouthProfile[] = Array.from({ length: 5 }, (_, index) => ({
   name: `학생 ${index + 1}`,
   admissionDate: null,
   dischargeDate: null,
+  birthDate: null,
   age: null,
   phone: null,
   familyContacts: [],

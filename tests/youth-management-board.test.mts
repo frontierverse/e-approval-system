@@ -11,6 +11,7 @@ const youths: YouthProfile[] = [
     name: "김하늘",
     admissionDate: "2026-05-01",
     dischargeDate: "2026-12-31",
+    birthDate: "2009-06-10",
     age: 17,
     phone: "010-1111-2222",
     familyContacts: [
@@ -43,6 +44,7 @@ const youths: YouthProfile[] = [
     name: "이도현",
     admissionDate: null,
     dischargeDate: null,
+    birthDate: null,
     age: null,
     phone: null,
     familyContacts: [],
@@ -62,7 +64,8 @@ describe("YouthManagementBoard", () => {
               name: name.name,
               admissionDate: name.admissionDate || null,
               dischargeDate: name.dischargeDate || null,
-              age: name.age ? Number(name.age) : null,
+              birthDate: name.birthDate || null,
+              age: name.birthDate ? 17 : null,
               phone: name.phone || null,
               familyContacts: name.familyContacts.map((contact, index) => ({
                 id: `created-family-contact-${index}`,
@@ -86,7 +89,8 @@ describe("YouthManagementBoard", () => {
               name: values.name,
               admissionDate: values.admissionDate || null,
               dischargeDate: values.dischargeDate || null,
-              age: values.age ? Number(values.age) : null,
+              birthDate: values.birthDate || null,
+              age: values.birthDate ? 17 : null,
               phone: values.phone || null,
               familyContacts: values.familyContacts.map((contact, index) => ({
                 id: `updated-family-contact-${index}`,

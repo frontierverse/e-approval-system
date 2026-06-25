@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
+import { SplitDateInput } from "@/components/split-date-input";
 import {
   youthNoteCategories,
   youthNotePriorities,
@@ -74,7 +75,7 @@ export function YouthManagementBoard({
   const [newYouthName, setNewYouthName] = useState("");
   const [newYouthAdmissionDate, setNewYouthAdmissionDate] = useState("");
   const [newYouthDischargeDate, setNewYouthDischargeDate] = useState("");
-  const [newYouthAge, setNewYouthAge] = useState("");
+  const [newYouthBirthDate, setNewYouthBirthDate] = useState("");
   const [newYouthPhoneMiddle, setNewYouthPhoneMiddle] = useState("");
   const [newYouthPhoneLast, setNewYouthPhoneLast] = useState("");
   const newYouthPhoneLastRef = useRef<HTMLInputElement>(null);
@@ -90,7 +91,7 @@ export function YouthManagementBoard({
   const [editYouthName, setEditYouthName] = useState("");
   const [editYouthAdmissionDate, setEditYouthAdmissionDate] = useState("");
   const [editYouthDischargeDate, setEditYouthDischargeDate] = useState("");
-  const [editYouthAge, setEditYouthAge] = useState("");
+  const [editYouthBirthDate, setEditYouthBirthDate] = useState("");
   const [editYouthPhoneMiddle, setEditYouthPhoneMiddle] = useState("");
   const [editYouthPhoneLast, setEditYouthPhoneLast] = useState("");
   const editYouthPhoneLastRef = useRef<HTMLInputElement>(null);
@@ -129,8 +130,8 @@ export function YouthManagementBoard({
         ? hasYouthDraftChanged(editedYouth, {
             name: editYouthName,
             admissionDate: editYouthAdmissionDate,
+            birthDate: editYouthBirthDate,
             dischargeDate: editYouthDischargeDate,
-            age: editYouthAge,
             phoneMiddle: editYouthPhoneMiddle,
             phoneLast: editYouthPhoneLast,
             familyContacts: editYouthFamilyContacts,
@@ -138,7 +139,7 @@ export function YouthManagementBoard({
         : false,
     [
       editYouthAdmissionDate,
-      editYouthAge,
+      editYouthBirthDate,
       editYouthDischargeDate,
       editYouthFamilyContacts,
       editedYouth,
@@ -192,8 +193,8 @@ export function YouthManagementBoard({
   function resetRegisterForm() {
     setNewYouthName("");
     setNewYouthAdmissionDate("");
+    setNewYouthBirthDate("");
     setNewYouthDischargeDate("");
-    setNewYouthAge("");
     setNewYouthPhoneMiddle("");
     setNewYouthPhoneLast("");
     familyContactKey.current = 1;
@@ -241,8 +242,8 @@ export function YouthManagementBoard({
     setEditingYouthId(youth.id);
     setEditYouthName(youth.name);
     setEditYouthAdmissionDate(youth.admissionDate ?? "");
+    setEditYouthBirthDate(youth.birthDate ?? "");
     setEditYouthDischargeDate(youth.dischargeDate ?? "");
-    setEditYouthAge(youth.age === null ? "" : String(youth.age));
     setEditYouthPhoneMiddle(phoneDraft.middle);
     setEditYouthPhoneLast(phoneDraft.last);
     editFamilyContactKey.current = youth.familyContacts.length + 1;
@@ -263,8 +264,8 @@ export function YouthManagementBoard({
   function resetEditYouthForm() {
     setEditYouthName("");
     setEditYouthAdmissionDate("");
+    setEditYouthBirthDate("");
     setEditYouthDischargeDate("");
-    setEditYouthAge("");
     setEditYouthPhoneMiddle("");
     setEditYouthPhoneLast("");
     editFamilyContactKey.current = 1;
@@ -322,8 +323,8 @@ export function YouthManagementBoard({
       const result = await createYouth({
         name,
         admissionDate: newYouthAdmissionDate,
+        birthDate: newYouthBirthDate,
         dischargeDate: newYouthDischargeDate,
-        age: newYouthAge,
         phone: getRegistrationPhoneValue(
           newYouthPhoneMiddle,
           newYouthPhoneLast,
@@ -377,8 +378,8 @@ export function YouthManagementBoard({
       const result = await updateYouth(editingYouthId, {
         name,
         admissionDate: editYouthAdmissionDate,
+        birthDate: editYouthBirthDate,
         dischargeDate: editYouthDischargeDate,
-        age: editYouthAge,
         phone: getRegistrationPhoneValue(
           editYouthPhoneMiddle,
           editYouthPhoneLast,
@@ -582,34 +583,27 @@ export function YouthManagementBoard({
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <OptionalRegisterField label="입소날짜">
-                      <DatePickerInput
+                      <SplitDateInput
+                        ariaLabel="입소날짜"
                         value={newYouthAdmissionDate}
-                        onChange={(event) =>
-                          setNewYouthAdmissionDate(event.target.value)
-                        }
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        onChange={setNewYouthAdmissionDate}
                       />
                     </OptionalRegisterField>
-                    <OptionalRegisterField label="퇴소날짜">
-                      <DatePickerInput
+                    <OptionalRegisterField label="퇴소 예정">
+                      <SplitDateInput
+                        ariaLabel="퇴소 예정"
                         value={newYouthDischargeDate}
-                        onChange={(event) =>
-                          setNewYouthDischargeDate(event.target.value)
-                        }
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        onChange={setNewYouthDischargeDate}
                       />
                     </OptionalRegisterField>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <OptionalRegisterField label="나이">
-                      <input
-                        type="number"
-                        min="0"
-                        max="150"
-                        value={newYouthAge}
-                        onChange={(event) => setNewYouthAge(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                    <OptionalRegisterField label="생년월일">
+                      <SplitDateInput
+                        ariaLabel="생년월일"
+                        value={newYouthBirthDate}
+                        onChange={setNewYouthBirthDate}
                       />
                     </OptionalRegisterField>
                     <OptionalRegisterField label="핸드폰 번호">
@@ -849,34 +843,27 @@ export function YouthManagementBoard({
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <OptionalRegisterField label="입소날짜">
-                      <DatePickerInput
+                      <SplitDateInput
+                        ariaLabel="수정 입소날짜"
                         value={editYouthAdmissionDate}
-                        onChange={(event) =>
-                          setEditYouthAdmissionDate(event.target.value)
-                        }
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        onChange={setEditYouthAdmissionDate}
                       />
                     </OptionalRegisterField>
-                    <OptionalRegisterField label="퇴소날짜">
-                      <DatePickerInput
+                    <OptionalRegisterField label="퇴소 예정">
+                      <SplitDateInput
+                        ariaLabel="수정 퇴소 예정"
                         value={editYouthDischargeDate}
-                        onChange={(event) =>
-                          setEditYouthDischargeDate(event.target.value)
-                        }
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        onChange={setEditYouthDischargeDate}
                       />
                     </OptionalRegisterField>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <OptionalRegisterField label="나이">
-                      <input
-                        type="number"
-                        min="0"
-                        max="150"
-                        value={editYouthAge}
-                        onChange={(event) => setEditYouthAge(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                    <OptionalRegisterField label="생년월일">
+                      <SplitDateInput
+                        ariaLabel="수정 생년월일"
+                        value={editYouthBirthDate}
+                        onChange={setEditYouthBirthDate}
                       />
                     </OptionalRegisterField>
                     <OptionalRegisterField label="핸드폰 번호">
@@ -1461,6 +1448,7 @@ function YouthMetaSummary({
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <YouthMetaItem label="입소 날짜" value={formatOptionalDate(youth.admissionDate)} />
+        <YouthMetaItem label="생년월일" value={formatOptionalDate(youth.birthDate)} />
         <YouthMetaItem label="퇴소 날짜" value={formatOptionalDate(youth.dischargeDate)} />
         <YouthMetaItem label="퇴소까지" value={dday} highlight />
         <YouthMetaItem
@@ -1560,7 +1548,7 @@ function hasYouthDraftChanged(
   youth: YouthProfile,
   draft: {
     admissionDate: string;
-    age: string;
+    birthDate: string;
     dischargeDate: string;
     familyContacts: FamilyContactDraft[];
     name: string;
@@ -1573,8 +1561,8 @@ function hasYouthDraftChanged(
   return (
     youth.name !== draft.name.trim() ||
     (youth.admissionDate ?? "") !== draft.admissionDate ||
+    (youth.birthDate ?? "") !== draft.birthDate ||
     (youth.dischargeDate ?? "") !== draft.dischargeDate ||
-    (youth.age === null ? "" : String(youth.age)) !== draft.age.trim() ||
     phoneDraft.middle !== draft.phoneMiddle ||
     phoneDraft.last !== draft.phoneLast ||
     JSON.stringify(getComparableFamilyContacts(youth.familyContacts)) !==

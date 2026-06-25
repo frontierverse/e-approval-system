@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { AppModal } from "@/components/app-modal";
-import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
+import { SplitDateInput } from "@/components/split-date-input";
 import type { YouthRosterData, YouthRosterItem } from "@/lib/youth-roster";
 import type {
   YouthActionResult,
@@ -46,7 +46,7 @@ type YouthRosterModalState =
 
 type YouthFormDraft = {
   admissionDate: string;
-  age: string;
+  birthDate: string;
   dischargeDate: string;
   familyContacts: FamilyContactDraft[];
   name: string;
@@ -55,6 +55,13 @@ type YouthFormDraft = {
 
 type FamilyContactDraft = YouthFamilyContactInput & {
   key: string;
+};
+
+type YouthRosterSortField = "admissionDate" | "age" | "dischargeDate";
+type YouthRosterSortDirection = "asc" | "desc";
+type YouthRosterSortState = {
+  direction: YouthRosterSortDirection;
+  field: YouthRosterSortField;
 };
 
 export function YouthRosterBoard({
@@ -67,19 +74,39 @@ export function YouthRosterBoard({
     ...data.admittedYouths,
     ...data.dischargedYouths,
   ]);
+  const [admittedSort, setAdmittedSort] = useState<YouthRosterSortState>({
+    direction: "asc",
+    field: "admissionDate",
+  });
   const [modal, setModal] = useState<YouthRosterModalState | null>(null);
   const rosterData = useMemo(
     () => ({
       referenceDate: data.referenceDate,
       admittedYouths: youths
         .filter((youth) => isAdmittedYouth(youth, data.referenceDate))
-        .sort(compareAdmittedYouth),
+        .sort((first, second) =>
+          compareAdmittedYouth(first, second, admittedSort),
+        ),
       dischargedYouths: youths
         .filter((youth) => isDischargedYouth(youth, data.referenceDate))
         .sort(compareDischargedYouth),
     }),
-    [data.referenceDate, youths],
+    [admittedSort, data.referenceDate, youths],
   );
+
+  function sortAdmittedYouths(field: YouthRosterSortField) {
+    setAdmittedSort((current) =>
+      current.field === field
+        ? {
+            field,
+            direction: current.direction === "asc" ? "desc" : "asc",
+          }
+        : {
+            field,
+            direction: "asc",
+          },
+    );
+  }
 
   function saveYouthInRoster(youth: YouthRosterItem) {
     setYouths((current) => {
@@ -112,6 +139,8 @@ export function YouthRosterBoard({
         emptyDescription="입소 상태의 청소년이 등록되면 이곳에 표시됩니다."
         emptyTitle="입소중인 청소년이 없습니다."
         onEdit={(youth) => setModal({ mode: "edit", canDelete: true, youth })}
+        onSort={sortAdmittedYouths}
+        sortState={admittedSort}
         title="입소중인 청소년 목록"
         youths={rosterData.admittedYouths}
         variant="admitted"
@@ -190,6 +219,8 @@ function YouthRosterSection({
   emptyDescription,
   emptyTitle,
   onEdit,
+  onSort,
+  sortState,
   title,
   youths,
   variant,
@@ -197,10 +228,14 @@ function YouthRosterSection({
   emptyDescription: string;
   emptyTitle: string;
   onEdit: (youth: YouthRosterItem) => void;
+  onSort?: (field: YouthRosterSortField) => void;
+  sortState?: YouthRosterSortState;
   title: string;
   youths: YouthRosterItem[];
   variant: "admitted" | "discharged";
 }) {
+  const canSort = variant === "admitted" && onSort && sortState;
+
   return (
     <section
       aria-labelledby={`${variant}-youth-roster-title`}
@@ -219,15 +254,40 @@ function YouthRosterSection({
                 <th scope="col" className="px-4 py-3">
                   이름
                 </th>
-                <th scope="col" className="px-4 py-3">
-                  나이
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  입소 날짜
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  {variant === "admitted" ? "퇴소 예정" : "퇴소 날짜"}
-                </th>
+                {canSort ? (
+                  <>
+                    <SortableRosterHeader
+                      field="age"
+                      label="나이"
+                      onSort={onSort}
+                      sortState={sortState}
+                    />
+                    <SortableRosterHeader
+                      field="admissionDate"
+                      label="입소 날짜"
+                      onSort={onSort}
+                      sortState={sortState}
+                    />
+                    <SortableRosterHeader
+                      field="dischargeDate"
+                      label="퇴소 예정"
+                      onSort={onSort}
+                      sortState={sortState}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <th scope="col" className="px-4 py-3">
+                      나이
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      입소 날짜
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      {variant === "admitted" ? "퇴소 예정" : "퇴소 날짜"}
+                    </th>
+                  </>
+                )}
                 <th scope="col" className="px-4 py-3">
                   연락처
                 </th>
@@ -281,6 +341,52 @@ function YouthRosterSection({
         </div>
       )}
     </section>
+  );
+}
+
+function SortableRosterHeader({
+  field,
+  label,
+  onSort,
+  sortState,
+}: {
+  field: YouthRosterSortField;
+  label: string;
+  onSort: (field: YouthRosterSortField) => void;
+  sortState: YouthRosterSortState;
+}) {
+  const isActive = sortState.field === field;
+  const nextDirection =
+    isActive && sortState.direction === "asc" ? "desc" : "asc";
+  const sortLabel = nextDirection === "asc" ? "오름차순" : "내림차순";
+
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        isActive
+          ? sortState.direction === "asc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+      className="px-4 py-3"
+    >
+      <button
+        type="button"
+        aria-label={`${label} ${sortLabel} 정렬`}
+        onClick={() => onSort(field)}
+        className="-mx-2 inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[#394150] transition hover:bg-[#eaf0f7] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+      >
+        <span>{label}</span>
+        <span
+          aria-hidden="true"
+          className="inline-flex w-3 justify-center text-[11px] text-[#697386]"
+        >
+          {isActive ? (sortState.direction === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </button>
+    </th>
   );
 }
 
@@ -432,6 +538,9 @@ export function YouthRosterFormModal({
                 >
                   {title}
                 </h2>
+                <p className="mt-2 text-sm font-semibold text-[#196b69]">
+                  TAB키를 이용하여 입력칸 이동 가능
+                </p>
               </div>
               <button
                 type="button"
@@ -461,34 +570,27 @@ export function YouthRosterFormModal({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <RosterFormField label="입소 날짜">
-                <DatePickerInput
+                <SplitDateInput
+                  ariaLabel="입소 날짜"
                   value={draft.admissionDate}
-                  onChange={(event) =>
-                    updateDraft({ admissionDate: event.target.value })
-                  }
-                  className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  onChange={(value) => updateDraft({ admissionDate: value })}
                 />
               </RosterFormField>
-              <RosterFormField label="퇴소 날짜">
-                <DatePickerInput
+              <RosterFormField label="퇴소 예정">
+                <SplitDateInput
+                  ariaLabel="퇴소 예정"
                   value={draft.dischargeDate}
-                  onChange={(event) =>
-                    updateDraft({ dischargeDate: event.target.value })
-                  }
-                  className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  onChange={(value) => updateDraft({ dischargeDate: value })}
                 />
               </RosterFormField>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <RosterFormField label="나이">
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  value={draft.age}
-                  onChange={(event) => updateDraft({ age: event.target.value })}
-                  className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              <RosterFormField label="생년월일">
+                <SplitDateInput
+                  ariaLabel="생년월일"
+                  value={draft.birthDate}
+                  onChange={(value) => updateDraft({ birthDate: value })}
                 />
               </RosterFormField>
               <RosterFormField label="핸드폰 번호">
@@ -711,7 +813,7 @@ function formatDate(value: string) {
 function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
   return {
     admissionDate: youth?.admissionDate ?? "",
-    age: youth?.age === null || youth?.age === undefined ? "" : String(youth.age),
+    birthDate: youth?.birthDate ?? "",
     dischargeDate: youth?.dischargeDate ?? "",
     familyContacts:
       youth && youth.familyContacts.length > 0
@@ -737,7 +839,7 @@ function createFamilyContactDraft(index: number): FamilyContactDraft {
 function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
   return {
     admissionDate: draft.admissionDate,
-    age: draft.age,
+    birthDate: draft.birthDate,
     dischargeDate: draft.dischargeDate,
     familyContacts: draft.familyContacts.map((contact) => ({
       phone: contact.phone,
@@ -752,6 +854,7 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
   return {
     id: youth.id,
     admissionDate: youth.admissionDate,
+    birthDate: youth.birthDate,
     age: youth.age,
     dischargeDate: youth.dischargeDate,
     familyContacts: youth.familyContacts.map((contact) => ({
@@ -772,10 +875,37 @@ function isDischargedYouth(youth: YouthRosterItem, referenceDate: string) {
   return Boolean(youth.dischargeDate && youth.dischargeDate < referenceDate);
 }
 
-function compareAdmittedYouth(first: YouthRosterItem, second: YouthRosterItem) {
-  return (
-    compareOptionalDateAsc(first.admissionDate, second.admissionDate) ||
-    first.name.localeCompare(second.name, "ko")
+function compareAdmittedYouth(
+  first: YouthRosterItem,
+  second: YouthRosterItem,
+  sortState: YouthRosterSortState,
+) {
+  const compared = compareAdmittedYouthSortField(first, second, sortState);
+
+  return compared || first.name.localeCompare(second.name, "ko");
+}
+
+function compareAdmittedYouthSortField(
+  first: YouthRosterItem,
+  second: YouthRosterItem,
+  sortState: YouthRosterSortState,
+) {
+  if (sortState.field === "age") {
+    return compareOptionalNumber(first.age, second.age, sortState.direction);
+  }
+
+  if (sortState.field === "dischargeDate") {
+    return compareOptionalDate(
+      first.dischargeDate,
+      second.dischargeDate,
+      sortState.direction,
+    );
+  }
+
+  return compareOptionalDate(
+    first.admissionDate,
+    second.admissionDate,
+    sortState.direction,
   );
 }
 
@@ -804,6 +934,50 @@ function compareOptionalDateAsc(first: string | null, second: string | null) {
 
 function compareOptionalDateDesc(first: string | null, second: string | null) {
   return compareOptionalDateAsc(second, first);
+}
+
+function compareOptionalDate(
+  first: string | null,
+  second: string | null,
+  direction: YouthRosterSortDirection,
+) {
+  if (!first && !second) {
+    return 0;
+  }
+
+  if (!first) {
+    return 1;
+  }
+
+  if (!second) {
+    return -1;
+  }
+
+  const compared = first.localeCompare(second);
+
+  return direction === "asc" ? compared : -compared;
+}
+
+function compareOptionalNumber(
+  first: number | null,
+  second: number | null,
+  direction: YouthRosterSortDirection,
+) {
+  if (first === null && second === null) {
+    return 0;
+  }
+
+  if (first === null) {
+    return 1;
+  }
+
+  if (second === null) {
+    return -1;
+  }
+
+  const compared = first - second;
+
+  return direction === "asc" ? compared : -compared;
 }
 
 function normalizePhoneText(value: string) {

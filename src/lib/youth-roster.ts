@@ -1,7 +1,10 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
+import {
+  getYouthDisplayAge,
+  getYouthLearningScheduleToday,
+} from "@/lib/youth-management-core";
 
 export type YouthRosterData = {
   admittedYouths: YouthRosterItem[];
@@ -12,6 +15,7 @@ export type YouthRosterData = {
 export type YouthRosterItem = {
   id: string;
   admissionDate: string | null;
+  birthDate: string | null;
   age: number | null;
   dischargeDate: string | null;
   familyContacts: YouthRosterFamilyContact[];
@@ -29,7 +33,9 @@ type YouthRosterRecord = Awaited<ReturnType<typeof getYouthRosterRows>>[number];
 
 export async function getYouthRoster(): Promise<YouthRosterData> {
   const referenceDate = getYouthLearningScheduleToday();
-  const youths = (await getYouthRosterRows()).map(mapYouthRosterItem);
+  const youths = (await getYouthRosterRows()).map((youth) =>
+    mapYouthRosterItem(youth, referenceDate),
+  );
 
   return {
     admittedYouths: youths
@@ -48,6 +54,7 @@ async function getYouthRosterRows() {
       id: true,
       admissionDate: true,
       age: true,
+      birthDate: true,
       dischargeDate: true,
       familyContact: true,
       familyContacts: {
@@ -66,11 +73,21 @@ async function getYouthRosterRows() {
   });
 }
 
-function mapYouthRosterItem(record: YouthRosterRecord): YouthRosterItem {
+function mapYouthRosterItem(
+  record: YouthRosterRecord,
+  referenceDate: string,
+): YouthRosterItem {
   return {
     id: record.id,
     admissionDate: normalizeBlank(record.admissionDate),
-    age: record.age,
+    birthDate: normalizeBlank(record.birthDate),
+    age: getYouthDisplayAge(
+      {
+        age: record.age,
+        birthDate: normalizeBlank(record.birthDate),
+      },
+      referenceDate,
+    ),
     dischargeDate: normalizeBlank(record.dischargeDate),
     familyContacts: getFamilyContacts(record),
     name: record.name,
