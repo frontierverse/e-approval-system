@@ -3,10 +3,13 @@ import "server-only";
 import { Prisma, UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  getResourceSearchTerms,
+  isResourceEducationLevel,
   isResourceCategory,
   paginateResourceItems,
   type ResourceCategory,
   type ResourceCategoryFilter,
+  type ResourceEducationLevelFilter,
   type ResourceLibraryItem,
   type ResourcePostDetail,
 } from "@/lib/resource-library-core";
@@ -82,6 +85,7 @@ type ResourcePostDetailRecord = Prisma.ResourcePostGetPayload<{
 
 export async function getResourceLibraryPage({
   category,
+  educationLevel,
   currentUserId,
   currentUserRole,
   page,
@@ -89,13 +93,14 @@ export async function getResourceLibraryPage({
   query,
 }: {
   category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
   currentUserId: string;
   currentUserRole: UserRole;
   page: number;
   pageSize: number;
   query: string;
 }) {
-  const where = getResourceWhere({ category, query });
+  const where = getResourceWhere({ category, educationLevel, query });
   const [records, total] = await Promise.all([
     prisma.resourcePost.findMany({
       where,
@@ -112,6 +117,7 @@ export async function getResourceLibraryPage({
   if (currentPage !== page && total > 0) {
     return getResourceLibraryPage({
       category,
+      educationLevel,
       currentUserId,
       currentUserRole,
       page: currentPage,
@@ -254,37 +260,43 @@ export function canManageResourcePost(
 
 function getResourceWhere({
   category,
+  educationLevel,
   query,
 }: {
   category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
   query: string;
 }): Prisma.ResourcePostWhereInput {
   const and: Prisma.ResourcePostWhereInput[] = [];
-  const normalizedQuery = query.trim();
+  const searchTerms = getResourceSearchTerms(query);
 
   if (category !== "all") {
     and.push({ category });
   }
 
-  if (normalizedQuery) {
+  if (category === "education" && educationLevel !== "all") {
+    and.push({ educationLevel });
+  }
+
+  for (const searchTerm of searchTerms) {
     and.push({
       OR: [
         {
           title: {
-            contains: normalizedQuery,
+            contains: searchTerm,
             mode: Prisma.QueryMode.insensitive,
           },
         },
         {
           summary: {
-            contains: normalizedQuery,
+            contains: searchTerm,
             mode: Prisma.QueryMode.insensitive,
           },
         },
         {
           author: {
             name: {
-              contains: normalizedQuery,
+              contains: searchTerm,
               mode: Prisma.QueryMode.insensitive,
             },
           },
@@ -293,7 +305,7 @@ function getResourceWhere({
           author: {
             department: {
               name: {
-                contains: normalizedQuery,
+                contains: searchTerm,
                 mode: Prisma.QueryMode.insensitive,
               },
             },
@@ -303,7 +315,7 @@ function getResourceWhere({
           attachments: {
             some: {
               originalName: {
-                contains: normalizedQuery,
+                contains: searchTerm,
                 mode: Prisma.QueryMode.insensitive,
               },
             },
@@ -324,12 +336,16 @@ function mapResourcePost(
   const category = isResourceCategory(record.category)
     ? record.category
     : ("bajaul" satisfies ResourceCategory);
+  const educationLevel = record.educationLevel ?? "";
 
   return {
     id: record.id,
     title: record.title,
     summary: record.summary,
     category,
+    educationLevel: isResourceEducationLevel(educationLevel)
+      ? educationLevel
+      : null,
     authorId: record.authorId,
     authorName: record.author.name,
     departmentName: record.author.department.name,
@@ -387,6 +403,8 @@ export type {
   ResourceAttachment,
   ResourceCategory,
   ResourceCategoryFilter,
+  ResourceEducationLevel,
+  ResourceEducationLevelFilter,
   ResourceLibraryItem,
   ResourceLibraryPage,
   ResourcePostDetail,

@@ -4,6 +4,9 @@ import {
   defaultResourceLibraryPageSize,
   educationResourceLibraryPageSize,
   getResourceLibraryPageSize,
+  getResourceSearchTerms,
+  normalizeResourceEducationLevel,
+  normalizeResourceEducationLevelFilter,
   normalizeResourceCategoryFilter,
   paginateResourceItems,
   type ResourceLibraryItem,
@@ -35,6 +38,29 @@ describe("resource library", () => {
     assert.equal(defaultResourceLibraryPageSize, 3);
   });
 
+  test("normalizes education level filters", () => {
+    assert.equal(normalizeResourceEducationLevel("high"), "high");
+    assert.equal(normalizeResourceEducationLevel("middle"), "middle");
+    assert.equal(normalizeResourceEducationLevel("unknown"), "");
+    assert.equal(normalizeResourceEducationLevel(undefined), "");
+    assert.equal(normalizeResourceEducationLevelFilter("high"), "high");
+    assert.equal(normalizeResourceEducationLevelFilter("middle"), "middle");
+    assert.equal(normalizeResourceEducationLevelFilter("unknown"), "all");
+    assert.equal(normalizeResourceEducationLevelFilter(undefined), "all");
+  });
+
+  test("splits resource search queries into terms", () => {
+    assert.deepEqual(getResourceSearchTerms("고등 검정고시"), [
+      "고등",
+      "검정고시",
+    ]);
+    assert.deepEqual(getResourceSearchTerms("  중등   기출문제  "), [
+      "중등",
+      "기출문제",
+    ]);
+    assert.deepEqual(getResourceSearchTerms(""), []);
+  });
+
   test("paginates resource results", () => {
     const page = paginateResourceItems({
       items: resources,
@@ -55,6 +81,7 @@ function createResource(id: string): ResourceLibraryItem {
     title: id,
     summary: "테스트 자료",
     category: "bajaul",
+    educationLevel: null,
     authorId: "user-001",
     authorName: "김민준",
     departmentName: "바자울",

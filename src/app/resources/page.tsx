@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EducationResourceQuickFilters } from "@/components/education-resource-quick-filters";
 import { PageTitle } from "@/components/page-title";
 import { ResourceLibraryFilterControls } from "@/components/resource-library-filter-controls";
 import { ResourceLibraryList } from "@/components/resource-library-list";
@@ -7,14 +8,17 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { getResourceLibraryPage } from "@/lib/resource-library";
 import {
   getResourceLibraryPageSize,
+  normalizeResourceEducationLevelFilter,
   normalizeResourceCategoryFilter,
   type ResourceCategory,
   type ResourceCategoryFilter,
+  type ResourceEducationLevelFilter,
 } from "@/lib/resource-library-core";
 
 type ResourcesPageSearchParams = {
   q?: string;
   category?: string;
+  level?: string;
   page?: string;
 };
 
@@ -61,7 +65,9 @@ export default async function ResourcesPage({
     currentUserRole: user.role,
     pageSize,
   });
-  const hasActiveFilter = Boolean(filters.query);
+  const hasActiveFilter = Boolean(
+    filters.query || filters.educationLevel !== "all",
+  );
   const firstItemNumber =
     resourcePage.total - (resourcePage.page - 1) * resourcePage.pageSize;
   const pageCopy = getResourcePageCopy(filters.category);
@@ -73,7 +79,7 @@ export default async function ResourcesPage({
         description={pageCopy.description}
         action={
           <Link
-            href={`/resources/new?category=${filters.category}`}
+            href={getNewResourceHref(filters)}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.create,
@@ -93,6 +99,7 @@ export default async function ResourcesPage({
         toolbar={
           <ResourceListToolbar
             category={filters.category}
+            educationLevel={filters.educationLevel}
             page={resourcePage.page}
             pageSize={resourcePage.pageSize}
             query={filters.query}
@@ -103,6 +110,7 @@ export default async function ResourcesPage({
 
       <ResourcePagination
         category={filters.category}
+        educationLevel={filters.educationLevel}
         page={resourcePage.page}
         query={filters.query}
         totalPages={resourcePage.totalPages}
@@ -112,9 +120,15 @@ export default async function ResourcesPage({
 }
 
 function getFilters(params: ResourcesPageSearchParams) {
+  const category = normalizeCategory(params.category);
+
   return {
     query: String(params.q ?? "").trim(),
-    category: normalizeCategory(params.category),
+    category,
+    educationLevel:
+      category === "education"
+        ? normalizeResourceEducationLevelFilter(params.level)
+        : "all",
     page: normalizePage(params.page),
   };
 }
@@ -147,12 +161,14 @@ function normalizePage(value: string | undefined) {
 
 function ResourceListToolbar({
   category,
+  educationLevel,
   page,
   pageSize,
   query,
   total,
 }: {
   category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
   page: number;
   pageSize: number;
   query: string;
@@ -161,7 +177,18 @@ function ResourceListToolbar({
   return (
     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
       <div className="min-w-0 flex-1">
-        <ResourceLibraryFilterControls category={category} query={query} />
+        <ResourceLibraryFilterControls
+          category={category}
+          query={query}
+          leadingControl={
+            category === "education" ? (
+              <EducationResourceQuickFilters
+                educationLevel={educationLevel}
+                query={query}
+              />
+            ) : null
+          }
+        />
       </div>
 
       <ResourceListSummary page={page} pageSize={pageSize} total={total} />
@@ -192,11 +219,13 @@ function ResourceListSummary({
 
 function ResourcePagination({
   category,
+  educationLevel,
   page,
   query,
   totalPages,
 }: {
   category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
   page: number;
   query: string;
   totalPages: number;
@@ -216,13 +245,23 @@ function ResourcePagination({
       <div className="flex gap-2">
         <ResourcePaginationLink
           disabled={page <= 1}
-          href={getResourcePageHref({ category, page: page - 1, query })}
+          href={getResourcePageHref({
+            category,
+            educationLevel,
+            page: page - 1,
+            query,
+          })}
         >
           이전
         </ResourcePaginationLink>
         <ResourcePaginationLink
           disabled={page >= totalPages}
-          href={getResourcePageHref({ category, page: page + 1, query })}
+          href={getResourcePageHref({
+            category,
+            educationLevel,
+            page: page + 1,
+            query,
+          })}
         >
           다음
         </ResourcePaginationLink>
@@ -264,10 +303,12 @@ function ResourcePaginationLink({
 
 function getResourcePageHref({
   category,
+  educationLevel,
   page,
   query,
 }: {
   category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
   page: number;
   query: string;
 }) {
@@ -281,6 +322,10 @@ function getResourcePageHref({
     params.set("category", category);
   }
 
+  if (category === "education" && educationLevel !== "all") {
+    params.set("level", educationLevel);
+  }
+
   if (page > 1) {
     params.set("page", String(page));
   }
@@ -288,4 +333,26 @@ function getResourcePageHref({
   const queryString = params.toString();
 
   return queryString ? `/resources?${queryString}` : "/resources";
+}
+
+function getNewResourceHref({
+  category,
+  educationLevel,
+}: {
+  category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
+}) {
+  const params = new URLSearchParams();
+
+  if (category !== "all") {
+    params.set("category", category);
+  }
+
+  if (category === "education" && educationLevel !== "all") {
+    params.set("level", educationLevel);
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `/resources/new?${queryString}` : "/resources/new";
 }

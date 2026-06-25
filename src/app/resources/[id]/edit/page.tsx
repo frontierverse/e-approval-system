@@ -4,7 +4,10 @@ import { PageTitle } from "@/components/page-title";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
 import { getResourcePostForEdit } from "@/lib/resource-library";
-import { isResourceCategory } from "@/lib/resource-library-core";
+import {
+  isResourceCategory,
+  normalizeResourceEducationLevel,
+} from "@/lib/resource-library-core";
 import { updateResourceAction } from "../../actions";
 
 export default async function EditResourcePage({
@@ -49,6 +52,9 @@ export default async function EditResourcePage({
           category: isResourceCategory(resource.category)
             ? resource.category
             : "bajaul",
+          educationLevel: normalizeResourceEducationLevel(
+            resource.educationLevel ?? undefined,
+          ),
         }}
         mode="edit"
       />

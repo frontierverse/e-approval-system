@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { ResourceCategoryFilter } from "@/lib/resource-library-core";
 
 type ResourceLibraryFilterControlsProps = {
   category: ResourceCategoryFilter;
+  leadingControl?: ReactNode;
   query: string;
 };
 
@@ -35,6 +36,7 @@ export function ResourceLibraryFilterControls(
 export function ResourceLibraryFilterControlsContent({
   category,
   isPending = false,
+  leadingControl,
   navigate,
   query,
 }: ResourceLibraryFilterControlsProps & {
@@ -63,6 +65,7 @@ export function ResourceLibraryFilterControlsContent({
       onSubmit={submitFilters}
     >
       <input type="hidden" name="category" value={category} />
+      {leadingControl ? leadingControl : null}
       <label htmlFor="resourceSearch" className="sr-only">
         검색
       </label>

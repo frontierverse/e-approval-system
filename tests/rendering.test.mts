@@ -14,6 +14,7 @@ import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
 import { DocumentAuditHistory } from "../src/components/document-audit-history.tsx";
+import { EducationResourceQuickFiltersContent } from "../src/components/education-resource-quick-filters.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { LineNumberedDocumentContent } from "../src/components/line-numbered-document-content.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
@@ -92,6 +93,7 @@ const resourceItem: ResourceLibraryItem = {
   title: "업무 자료 공유",
   summary: "직원들이 참고할 공통 자료입니다.",
   category: "bajaul",
+  educationLevel: null,
   authorId: "user-001",
   authorName: "김민준",
   departmentName: "바자울",
@@ -942,20 +944,21 @@ describe("major UI rendering", () => {
     assert.match(html, /PDF/);
     assert.match(html, /업무자료\.pdf/);
     assert.doesNotMatch(html, /총 1개 · PDF 1개/);
+    assert.doesNotMatch(html, /break-all text-xs leading-5/);
     assert.match(html, /2026\. 05\. 11\. 오후 12:02/);
     assert.match(html, /12명/);
   });
 
-  test("renders every resource attachment file name in the list", () => {
+  test("summarizes resource attachment file names in the list", () => {
     const html = renderToStaticMarkup(
       React.createElement(ResourceLibraryList, {
         items: [
           {
             ...resourceItem,
             attachments: [
-              { fileName: "교육운영계획.pdf", size: 1024 },
-              { fileName: "안전점검표_상세버전.xlsx", size: 2048 },
-              { fileName: "프로그램사진모음.zip", size: 4096 },
+              { fileName: "education-plan.pdf", size: 1024 },
+              { fileName: "safety-checklist.xlsx", size: 2048 },
+              { fileName: "program-photos.zip", size: 4096 },
             ],
           },
         ],
@@ -963,10 +966,11 @@ describe("major UI rendering", () => {
       }),
     );
 
-    assert.match(html, /교육운영계획\.pdf/);
-    assert.match(html, /안전점검표_상세버전\.xlsx/);
-    assert.match(html, /프로그램사진모음\.zip/);
-    assert.match(html, /break-all text-xs leading-5/);
+    assert.match(html, /education-plan\.pdf/);
+    assert.match(html, /외 2개/);
+    assert.doesNotMatch(html, /safety-checklist\.xlsx/);
+    assert.doesNotMatch(html, /program-photos\.zip/);
+    assert.match(html, /min-w-0 truncate text-\[#394150\]/);
     assert.doesNotMatch(html, /총 3개/);
   });
 
@@ -1011,6 +1015,11 @@ describe("major UI rendering", () => {
     const html = renderToStaticMarkup(
       React.createElement(ResourceLibraryFilterControlsContent, {
         category: "education",
+        leadingControl: React.createElement(
+          "div",
+          { className: "education-category-control" },
+          "category",
+        ),
         query: "safety",
         navigate: () => {},
       }),
@@ -1023,7 +1032,36 @@ describe("major UI rendering", () => {
     assert.match(html, /class="sr-only"/);
     assert.match(html, /h-9 min-w-0 flex-1/);
     assert.match(html, /h-9 flex-1 px-3 text-sm sm:flex-none/);
+    assert.ok(
+      html.indexOf("education-category-control") <
+        html.indexOf('id="resourceSearch"'),
+    );
     assert.doesNotMatch(html, /mt-2 h-10/);
+  });
+
+  test("renders education resource category dropdown filters", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(EducationResourceQuickFiltersContent, {
+        educationLevel: "high",
+        query: "검정고시",
+        navigate: () => {},
+      }),
+    );
+
+    assert.match(html, /aria-label="교육 자료 카테고리 검색"/);
+    assert.match(html, /role="group"/);
+    assert.match(html, /flex min-w-0 gap-2 sm:shrink-0/);
+    assert.match(html, /<select/);
+    assert.match(html, /sm:w-24/);
+    assert.match(html, /sm:w-28/);
+    assert.match(html, />대상</);
+    assert.match(html, />분류</);
+    assert.match(html, /value="high" selected="">고등/);
+    assert.match(html, /value="middle">중등/);
+    assert.match(html, /value="검정고시" selected="">검정고시/);
+    assert.match(html, /value="기출문제">기출문제/);
+    assert.match(html, /value="개념">개념/);
+    assert.doesNotMatch(html, /href="\/resources/);
   });
 
   test("renders resource post viewers", () => {

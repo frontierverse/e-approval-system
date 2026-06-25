@@ -9,8 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
+import { PendingOverlay } from "@/components/form-pending-overlay";
 import { useAttachmentThumbnailUrls } from "@/components/use-attachment-thumbnail-urls";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -26,8 +28,10 @@ import type {
   ResourceFormValues,
 } from "@/lib/resource-form-state";
 import {
+  resourceEducationLevelOptions,
   resourceCategoryOptions,
   type ResourceCategory,
+  type ResourceEducationLevel,
 } from "@/lib/resource-library-core";
 
 type ExistingResourceAttachment = {
@@ -67,31 +71,52 @@ export function ResourceForm({
 }: ResourceFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [isUploading, setIsUploading] = useState(false);
+  const serverSubmissionStartedRef = useRef(false);
   const values = {
     title: state.values?.title ?? initialValues?.title ?? "",
     summary: state.values?.summary ?? initialValues?.summary ?? "",
     category: state.values?.category ?? initialValues?.category ?? "bajaul",
+    educationLevel:
+      state.values?.educationLevel ?? initialValues?.educationLevel ?? "",
   };
 
   useEffect(() => {
-    if (!pending && isUploading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (pending) {
+      serverSubmissionStartedRef.current = true;
+      return;
+    }
+
+    if (isUploading && serverSubmissionStartedRef.current) {
+      serverSubmissionStartedRef.current = false;
       setIsUploading(false);
     }
   }, [pending, isUploading]);
 
   return (
-    <ResourceFormFields
-      action={formAction}
-      attachmentPolicy={attachmentPolicy}
-      cancelHref={cancelHref}
-      errors={state.errors}
-      existingAttachments={existingAttachments}
-      initialValues={values}
-      mode={mode}
-      pending={pending || isUploading}
-      isUploading={isUploading}
-      setIsUploading={setIsUploading}
+    <>
+      <ResourceFormFields
+        action={formAction}
+        attachmentPolicy={attachmentPolicy}
+        cancelHref={cancelHref}
+        errors={state.errors}
+        existingAttachments={existingAttachments}
+        initialValues={values}
+        mode={mode}
+        pending={pending || isUploading}
+        isUploading={isUploading}
+        setIsUploading={setIsUploading}
+      />
+      <ResourceUploadPendingOverlay show={pending || isUploading} />
+    </>
+  );
+}
+
+export function ResourceUploadPendingOverlay({ show }: { show: boolean }) {
+  return (
+    <PendingOverlay
+      description="자료를 업로드하고 있습니다. 화면을 닫지 말고 잠시만 기다려 주세요."
+      label="업로드 중"
+      show={show}
     />
   );
 }
@@ -126,6 +151,9 @@ function ResourceFormFields({
   const [category, setCategory] = useState<ResourceCategory>(
     initialValues.category,
   );
+  const [educationLevel, setEducationLevel] = useState<
+    ResourceEducationLevel | ""
+  >(initialValues.educationLevel);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
@@ -136,6 +164,7 @@ function ResourceFormFields({
   const titleHasError = Boolean(errors?.title);
   const summaryHasError = Boolean(errors?.summary);
   const categoryHasError = Boolean(errors?.category);
+  const educationLevelHasError = Boolean(errors?.educationLevel);
   const attachmentHasError = Boolean(errors?.attachments || attachmentError);
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
 
@@ -278,10 +307,12 @@ function ResourceFormFields({
     }
 
     setAttachmentError(null);
+    flushSync(() => {
+      setIsUploading(true);
+    });
 
     if (input instanceof HTMLInputElement && input.files && input.files.length > 0) {
       event.preventDefault();
-      setIsUploading(true);
 
       try {
         const filesToUpload = Array.from(input.files);
@@ -360,7 +391,13 @@ function ResourceFormFields({
       className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
       <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_14rem]">
+        <div
+          className={`grid gap-5 ${
+            category === "education"
+              ? "lg:grid-cols-[minmax(0,1fr)_14rem_12rem]"
+              : "lg:grid-cols-[minmax(0,1fr)_14rem]"
+          }`}
+        >
           <div>
             <label
               htmlFor="title"
@@ -394,9 +431,14 @@ function ResourceFormFields({
               id="category"
               name="category"
               value={category}
-              onChange={(event) =>
-                setCategory(event.target.value as ResourceCategory)
-              }
+              onChange={(event) => {
+                const nextCategory = event.target.value as ResourceCategory;
+                setCategory(nextCategory);
+
+                if (nextCategory !== "education") {
+                  setEducationLevel("");
+                }
+              }}
               className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
                 categoryHasError ? ` ${errorBorderClass}` : ""
               }`}
@@ -411,6 +453,51 @@ function ResourceFormFields({
               <p className="mt-2 text-sm text-[#8a1f1f]">{errors.category}</p>
             ) : null}
           </div>
+
+          {category === "education" ? (
+            <div>
+              <label
+                htmlFor="educationLevel"
+                className="text-sm font-semibold text-[#394150]"
+              >
+                교육 대상
+              </label>
+              <select
+                id="educationLevel"
+                name="educationLevel"
+                value={educationLevel}
+                onChange={(event) =>
+                  setEducationLevel(
+                    event.target.value as ResourceEducationLevel | "",
+                  )
+                }
+                className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+                  educationLevelHasError ? ` ${errorBorderClass}` : ""
+                }`}
+              >
+                <option value="">대상 선택</option>
+                {resourceEducationLevelOptions
+                  .filter(
+                    (
+                      option,
+                    ): option is {
+                      value: ResourceEducationLevel;
+                      label: string;
+                    } => option.value !== "all",
+                  )
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+              </select>
+              {errors?.educationLevel ? (
+                <p className="mt-2 text-sm text-[#8a1f1f]">
+                  {errors.educationLevel}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-5">

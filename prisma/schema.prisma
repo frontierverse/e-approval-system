@@ -298,6 +298,7 @@ model ResourcePost {
   title     String
   summary   String
   category  String   @default("bajaul")
+  educationLevel String?
   pinned    Boolean  @default(false)
   viewCount Int      @default(0)
   createdAt DateTime @default(now())
@@ -312,6 +313,7 @@ model ResourcePost {
 
   @@index([authorId])
   @@index([category])
+  @@index([category, educationLevel])
   @@index([createdAt])
   @@index([pinned, createdAt])
 }

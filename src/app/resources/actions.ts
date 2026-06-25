@@ -87,6 +87,8 @@ export async function createResourceAction(
           title: values.title,
           summary: values.summary,
           category: values.category,
+          educationLevel:
+            values.category === "education" ? values.educationLevel : null,
           authorId: user.id,
           attachments: {
             create: attachmentResult.files.map((file) => ({
@@ -239,6 +241,8 @@ export async function updateResourceAction(
           title: values.title,
           summary: values.summary,
           category: values.category,
+          educationLevel:
+            values.category === "education" ? values.educationLevel : null,
           attachments: {
             deleteMany:
               removableAttachments.length > 0

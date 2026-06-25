@@ -219,38 +219,41 @@ function ResourceAttachmentSummary({
   attachments: ResourceAttachment[];
   compact?: boolean;
 }) {
+  const firstAttachment = attachments[0];
+  const firstFile = firstAttachment
+    ? getAttachmentFileDisplay(firstAttachment.fileName)
+    : null;
   const summary =
     attachments.length > 0
-      ? `첨부파일 ${attachments.length}개: ${attachments
-          .map((attachment) => attachment.fileName)
-          .join(", ")}`
+      ? `첨부파일 ${attachments.length}개`
       : "첨부 없음";
 
   return (
     <div className="min-w-0" aria-label={summary}>
-      {attachments.length > 0 ? (
-        <ul className={compact ? "space-y-1" : "space-y-1.5"}>
-          {attachments.map((attachment, index) => {
-            const file = getAttachmentFileDisplay(attachment.fileName);
-            const key = `${index}:${attachment.fileName}`;
-
-            return (
-              <li key={key} className="flex min-w-0 items-start gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
-                    compact ? "h-6" : "h-7"
-                  } ${attachmentIconTone[file.kind]}`}
-                >
-                  {file.extensionLabel}
-                </span>
-                <span className="min-w-0 break-all text-xs leading-5 text-[#394150]">
-                  {attachment.fileName}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+      {firstAttachment && firstFile ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={`inline-flex min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
+              compact ? "h-6" : "h-7"
+            } ${attachmentIconTone[firstFile.kind]}`}
+          >
+            {firstFile.extensionLabel}
+          </span>
+          <div className="flex min-w-0 items-center gap-1 text-xs">
+            <span
+              className="min-w-0 truncate text-[#394150]"
+              title={firstAttachment.fileName}
+            >
+              {firstAttachment.fileName}
+            </span>
+            {attachments.length > 1 ? (
+              <span className="shrink-0 text-[#697386]">
+                외 {attachments.length - 1}개
+              </span>
+            ) : null}
+          </div>
+        </div>
       ) : (
         <span className="text-sm text-[#8a95a6]">없음</span>
       )}

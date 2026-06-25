@@ -1,13 +1,17 @@
 import {
+  isResourceEducationLevel,
   isResourceCategory,
+  normalizeResourceEducationLevel,
   normalizeResourceCategory,
   type ResourceCategory,
+  type ResourceEducationLevel,
 } from "@/lib/resource-library-core";
 
 export type ResourceFormValues = {
   title: string;
   summary: string;
   category: ResourceCategory;
+  educationLevel: ResourceEducationLevel | "";
 };
 
 export type ResourceFormState = {
@@ -16,18 +20,27 @@ export type ResourceFormState = {
     title?: string;
     summary?: string;
     category?: string;
+    educationLevel?: string;
     attachments?: string;
     form?: string;
   };
 };
 
 export function getResourceFormValues(formData: FormData): ResourceFormValues {
+  const category = normalizeResourceCategory(
+    String(formData.get("category") ?? "").trim(),
+  );
+
   return {
     title: String(formData.get("title") ?? "").trim(),
     summary: String(formData.get("summary") ?? "").trim(),
-    category: normalizeResourceCategory(
-      String(formData.get("category") ?? "").trim(),
-    ),
+    category,
+    educationLevel:
+      category === "education"
+        ? normalizeResourceEducationLevel(
+            String(formData.get("educationLevel") ?? "").trim(),
+          )
+        : "",
   };
 }
 
@@ -57,6 +70,13 @@ export function validateResourceFormValues(
 
   if (!isResourceCategory(values.category)) {
     errors.category = "자료실을 선택하세요.";
+  }
+
+  if (
+    values.category === "education" &&
+    !isResourceEducationLevel(values.educationLevel)
+  ) {
+    errors.educationLevel = "교육 대상을 선택하세요.";
   }
 
   if (options.attachmentError) {

@@ -1,4 +1,5 @@
 export type ResourceCategory = "corporation" | "cafe" | "bajaul" | "education";
+export type ResourceEducationLevel = "high" | "middle";
 
 export type ResourceAttachment = {
   id?: string;
@@ -21,6 +22,7 @@ export type ResourceLibraryItem = {
   title: string;
   summary: string;
   category: ResourceCategory;
+  educationLevel: ResourceEducationLevel | null;
   authorId: string;
   authorName: string;
   departmentName: string;
@@ -50,6 +52,7 @@ export type ResourcePostDetail = ResourceLibraryItem & {
 };
 
 export type ResourceCategoryFilter = "all" | ResourceCategory;
+export type ResourceEducationLevelFilter = "all" | ResourceEducationLevel;
 
 export type ResourceLibraryPage = {
   items: ResourceLibraryItem[];
@@ -77,6 +80,23 @@ export const resourceCategoryOptions: {
   { value: "education", label: resourceCategoryLabels.education },
 ];
 
+export const resourceEducationLevelLabels: Record<
+  ResourceEducationLevel,
+  string
+> = {
+  high: "고등",
+  middle: "중등",
+};
+
+export const resourceEducationLevelOptions: {
+  value: ResourceEducationLevelFilter;
+  label: string;
+}[] = [
+  { value: "all", label: "대상" },
+  { value: "high", label: resourceEducationLevelLabels.high },
+  { value: "middle", label: resourceEducationLevelLabels.middle },
+];
+
 export const defaultResourceLibraryPageSize = 3;
 export const educationResourceLibraryPageSize = 10;
 
@@ -99,10 +119,32 @@ export function normalizeResourceCategoryFilter(
   return value && isResourceCategory(value) ? value : "all";
 }
 
+export function isResourceEducationLevel(
+  value: string,
+): value is ResourceEducationLevel {
+  return value === "high" || value === "middle";
+}
+
+export function normalizeResourceEducationLevel(
+  value: string | undefined,
+): ResourceEducationLevel | "" {
+  return value && isResourceEducationLevel(value) ? value : "";
+}
+
+export function normalizeResourceEducationLevelFilter(
+  value: string | undefined,
+): ResourceEducationLevelFilter {
+  return value && isResourceEducationLevel(value) ? value : "all";
+}
+
 export function getResourceLibraryPageSize(category: ResourceCategoryFilter) {
   return category === "education"
     ? educationResourceLibraryPageSize
     : defaultResourceLibraryPageSize;
+}
+
+export function getResourceSearchTerms(query: string) {
+  return query.trim().split(/\s+/).filter(Boolean);
 }
 
 export function paginateResourceItems({

@@ -2,11 +2,15 @@ import { ResourceForm } from "@/components/resource-form";
 import { PageTitle } from "@/components/page-title";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
-import { normalizeResourceCategory } from "@/lib/resource-library-core";
+import {
+  normalizeResourceCategory,
+  normalizeResourceEducationLevel,
+} from "@/lib/resource-library-core";
 import { createResourceAction } from "../actions";
 
 type NewResourcePageSearchParams = {
   category?: string;
+  level?: string;
 };
 
 export default async function NewResourcePage({
@@ -15,8 +19,12 @@ export default async function NewResourcePage({
   searchParams: Promise<NewResourcePageSearchParams>;
 }) {
   await requireUser();
-  const { category } = await searchParams;
+  const { category, level } = await searchParams;
   const initialCategory = normalizeResourceCategory(category);
+  const initialEducationLevel =
+    initialCategory === "education"
+      ? normalizeResourceEducationLevel(level)
+      : "";
   const attachmentPolicy = await getAttachmentPolicy();
 
   return (
@@ -30,6 +38,7 @@ export default async function NewResourcePage({
         attachmentPolicy={attachmentPolicy}
         initialValues={{
           category: initialCategory,
+          educationLevel: initialEducationLevel,
           summary: "",
           title: "",
         }}
