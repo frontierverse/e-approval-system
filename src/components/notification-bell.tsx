@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getNotificationTypeLabel } from "@/lib/notification-labels";
 import type { AppNotification } from "@/lib/notification-types";
 
@@ -44,6 +45,23 @@ export function NotificationBell({
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [notifications, setNotifications] = useState(initialNotifications);
+  const [dismissedModalIds, setDismissedModalIds] = useState<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  const modalNotification = notifications.find(
+    (n) =>
+      !n.readAt &&
+      (n.type === "APPROVAL_APPROVED" ||
+        n.type === "APPROVAL_REJECTED" ||
+        n.type === "APPROVAL_COMPLETED") &&
+      n.latestComment &&
+      !dismissedModalIds.has(n.id)
+  ) || null;
   const displayUnreadCount = unreadCount > 99 ? "99+" : String(unreadCount);
   const hasUnread = unreadCount > 0;
   const buttonLabel = hasUnread
@@ -162,6 +180,33 @@ export function NotificationBell({
     }
 
     router.push(`/documents/${notification.documentId}`);
+  }
+
+  async function handleCloseModal(nId: string) {
+    setDismissedModalIds((prev) => {
+      const next = new Set(prev);
+      next.add(nId);
+      return next;
+    });
+
+    setUnreadCount((current) => Math.max(0, current - 1));
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === nId
+          ? { ...item, readAt: new Date().toISOString() }
+          : item,
+      ),
+    );
+
+    await fetch(`/api/notifications/${nId}/read`, {
+      method: "POST",
+    }).catch(() => {});
+    window.dispatchEvent(new Event("gyeoljaeon:notifications-changed"));
+  }
+
+  async function handleGoToApproval(n: AppNotification) {
+    await handleCloseModal(n.id);
+    router.push(`/documents/${n.documentId}`);
   }
 
   async function markAllRead() {
@@ -285,6 +330,97 @@ export function NotificationBell({
           </button>
         </div>
       ) : null}
+
+      {mounted && modalNotification && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg rounded-xl border border-[#d9dee7] bg-white p-6 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-[#eef1f5] pb-4">
+              <div>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
+                  modalNotification.type === "APPROVAL_REJECTED"
+                    ? "bg-[#fff1f1] text-[#8a1f1f] border-[#f0c6c6]"
+                    : "bg-[#e8f5ed] text-[#22633a] border-[#bddfc9]"
+                }`}>
+                  {modalNotification.type === "APPROVAL_REJECTED" ? "반려됨" : "승인됨"}
+                </span>
+                <h3 className="mt-2 text-lg font-bold text-[#16181d]">
+                  결재 의견 알림
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCloseModal(modalNotification.id)}
+                className="rounded-lg p-1 text-[#697386] transition hover:bg-[#f7f9fc] hover:text-[#16181d]"
+              >
+                <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="mt-4 space-y-4">
+              {/* Document Metadata */}
+              <div className="grid grid-cols-3 gap-2 rounded-lg bg-[#f7f9fc] p-3 text-xs text-[#697386]">
+                <div>
+                  <span className="font-semibold text-[#394150]">일련번호</span>
+                  <p className="mt-0.5 font-mono text-[#16181d]">{modalNotification.documentNo || "-"}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="font-semibold text-[#394150]">결재 제목</span>
+                  <p className="mt-0.5 truncate text-[#16181d]">{modalNotification.documentTitle}</p>
+                </div>
+              </div>
+
+              {/* Document body snippet */}
+              {modalNotification.documentContent && (
+                <div>
+                  <h4 className="text-xs font-semibold text-[#697386]">기안 내용</h4>
+                  <div className="mt-1 max-h-24 overflow-y-auto rounded-lg border border-[#eef1f5] bg-[#fbfcfd] p-2.5 text-xs text-[#394150] whitespace-pre-wrap leading-relaxed">
+                    {modalNotification.documentContent}
+                  </div>
+                </div>
+              )}
+
+              {/* Approver Comment */}
+              <div className={`rounded-xl border p-4 ${
+                modalNotification.type === "APPROVAL_REJECTED"
+                  ? "border-[#f0c6c6] bg-[#fff1f1]"
+                  : "border-[#b9c9ea] bg-[#eaf0fb]"
+              }`}>
+                <h4 className={`text-xs font-bold ${
+                  modalNotification.type === "APPROVAL_REJECTED" ? "text-[#8a1f1f]" : "text-[#274f9f]"
+                }`}>
+                  {modalNotification.latestApproverName || "결재자"}님의 의견
+                </h4>
+                <p className="mt-1.5 text-sm leading-relaxed text-[#16181d] font-medium whitespace-pre-wrap">
+                  {modalNotification.latestComment}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-6 flex justify-end gap-2 border-t border-[#eef1f5] pt-4">
+              <button
+                type="button"
+                onClick={() => handleCloseModal(modalNotification.id)}
+                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGoToApproval(modalNotification)}
+                className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#143f3e]"
+              >
+                해당 결재로 이동
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

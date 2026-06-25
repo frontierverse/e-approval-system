@@ -18,6 +18,21 @@ const notificationInclude = {
       id: true,
       title: true,
       documentNo: true,
+      content: true,
+      approvalSteps: {
+        select: {
+          id: true,
+          order: true,
+          status: true,
+          comment: true,
+          actedAt: true,
+          approver: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
     },
   },
 } satisfies Prisma.NotificationInclude;
@@ -118,6 +133,14 @@ export async function markDocumentNotificationsRead(
 }
 
 function toAppNotification(record: NotificationRecord): AppNotification {
+  const commentSteps = (record.document.approvalSteps || [])
+    .filter((step) => step.actedAt && step.comment)
+    .sort((a, b) => b.actedAt!.getTime() - a.actedAt!.getTime());
+
+  const latestStep = commentSteps[0];
+  const latestComment = latestStep ? latestStep.comment : null;
+  const latestApproverName = latestStep ? latestStep.approver.name : null;
+
   return {
     id: record.id,
     type: record.type,
@@ -128,5 +151,8 @@ function toAppNotification(record: NotificationRecord): AppNotification {
     documentNo: record.document.documentNo,
     readAt: record.readAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
+    documentContent: record.document.content,
+    latestComment,
+    latestApproverName,
   };
 }
