@@ -62,8 +62,8 @@ export function CafeItemList({ itemPage, today }: CafeItemListProps) {
             <thead>
               <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
                 <th className="w-[12rem] px-6 py-3.5">물품</th>
-                <th className="w-[8rem] px-6 py-3.5">종류</th>
                 <th className="w-[9rem] px-6 py-3.5">구매일</th>
+                <th className="w-[8rem] px-6 py-3.5">종류</th>
                 <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
                 <th className="w-[9rem] px-6 py-3.5">유통기한</th>
                 <th className="w-[8rem] px-6 py-3.5">가격</th>

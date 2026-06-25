@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useId,
   useMemo,
   useState,
@@ -312,20 +311,6 @@ export function YouthRosterFormModal({
   >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
 
   function updateDraft(values: Partial<Omit<YouthFormDraft, "familyContacts">>) {
     setDraft((current) => ({
@@ -708,7 +693,7 @@ function SkeletonBlock({ className }: { className: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`block animate-pulse rounded bg-[#e5e9f0] ${className}`}
+      className={`block animate-pulse rounded bg-[#e5e9f0] dark:bg-[#2a3038] ${className}`}
     />
   );
 }

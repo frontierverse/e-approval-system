@@ -61,10 +61,10 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
         </p>
       </td>
       <td className="px-6 py-5 leading-6 text-[#394150]">
-        {getCafeItemCategoryLabel(item.category)}
+        {formatCafeItemDate(item.purchasedAt)}
       </td>
       <td className="px-6 py-5 leading-6 text-[#394150]">
-        {formatCafeItemDate(item.purchasedAt)}
+        {getCafeItemCategoryLabel(item.category)}
       </td>
       <td className="px-6 py-5">
         <span

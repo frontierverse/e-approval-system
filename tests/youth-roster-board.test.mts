@@ -186,5 +186,6 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /입소중인 청소년 목록/);
     assert.match(html, /퇴소 청소년 목록/);
     assert.match(html, /animate-pulse/);
+    assert.match(html, /dark:bg-\[#2a3038\]/);
   });
 });

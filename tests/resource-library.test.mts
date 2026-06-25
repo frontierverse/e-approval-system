@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  defaultResourceLibraryPageSize,
+  educationResourceLibraryPageSize,
+  getResourceLibraryPageSize,
   normalizeResourceCategoryFilter,
   paginateResourceItems,
   type ResourceLibraryItem,
@@ -20,6 +23,16 @@ describe("resource library", () => {
     assert.equal(normalizeResourceCategoryFilter("education"), "education");
     assert.equal(normalizeResourceCategoryFilter("unknown"), "all");
     assert.equal(normalizeResourceCategoryFilter(undefined), "all");
+  });
+
+  test("uses ten items per page for education resources", () => {
+    assert.equal(getResourceLibraryPageSize("education"), 10);
+    assert.equal(educationResourceLibraryPageSize, 10);
+    assert.equal(getResourceLibraryPageSize("corporation"), 3);
+    assert.equal(getResourceLibraryPageSize("cafe"), 3);
+    assert.equal(getResourceLibraryPageSize("bajaul"), 3);
+    assert.equal(getResourceLibraryPageSize("all"), 3);
+    assert.equal(defaultResourceLibraryPageSize, 3);
   });
 
   test("paginates resource results", () => {

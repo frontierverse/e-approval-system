@@ -20,7 +20,8 @@ const initialState: CafeItemFormState = {};
 const inputClassName =
   "h-10 w-full min-w-0 rounded-md border border-transparent bg-[#f5f8f7] px-3 text-sm text-[#16181d] outline-none transition placeholder:text-[#9aa4b2] focus:bg-[#f5f8f7]";
 const dateInputClassName = `${inputClassName} text-center`;
-const fieldLabelClassName = "text-xs font-semibold text-[#697386]";
+const fieldLabelClassName =
+  "block text-xs font-semibold leading-4 text-[#697386]";
 
 export function CafeItemRowActions({ item }: { item: CafeItem }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -122,7 +123,16 @@ export function CafeItemEditModal({
                 />
               </label>
 
-              <label className="block min-w-0">
+              <CafeItemDateInput
+                defaultValue={state.values?.purchasedAt ?? item.purchasedAt}
+                disabled={pending}
+                inputClassName={dateInputClassName}
+                label="구매일"
+                name="purchasedAt"
+                required
+              />
+
+              <label className="block min-w-0 sm:-mt-2">
                 <span className={fieldLabelClassName}>물품 종류</span>
                 <select
                   name="category"
@@ -145,16 +155,27 @@ export function CafeItemEditModal({
                 </select>
               </label>
 
-              <CafeItemDateInput
-                defaultValue={state.values?.purchasedAt ?? item.purchasedAt}
-                disabled={pending}
-                inputClassName={dateInputClassName}
-                label="구매일"
-                name="purchasedAt"
-                required
-              />
+              {isFood ? (
+                <CafeItemDateInput
+                  defaultValue={
+                    state.values?.expirationDate ?? item.expirationDate ?? ""
+                  }
+                  disabled={pending}
+                  inputClassName={dateInputClassName}
+                  label="유통기한"
+                  name="expirationDate"
+                  required
+                />
+              ) : null}
 
-              <label className="block min-w-0">
+              <label
+                className={[
+                  "block min-w-0",
+                  isFood ? "sm:-mt-2" : "sm:col-span-2",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
                 <span className={fieldLabelClassName}>
                   가격
                   <span className="ml-1 font-normal text-[#9aa4b2]">
@@ -173,19 +194,6 @@ export function CafeItemEditModal({
                   className={`mt-2 ${inputClassName}`}
                 />
               </label>
-
-              {isFood ? (
-                <CafeItemDateInput
-                  defaultValue={
-                    state.values?.expirationDate ?? item.expirationDate ?? ""
-                  }
-                  disabled={pending}
-                  inputClassName={dateInputClassName}
-                  label="유통기한"
-                  name="expirationDate"
-                  required
-                />
-              ) : null}
 
               <label className="block min-w-0 sm:col-span-2">
                 <span className={fieldLabelClassName}>

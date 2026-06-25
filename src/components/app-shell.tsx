@@ -188,7 +188,7 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       items: youthNavigationItems,
     },
     {
-      label: "업무 일정",
+      label: "업무 관리",
       items: workScheduleNavigationItems,
     },
     {

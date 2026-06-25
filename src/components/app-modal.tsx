@@ -1,4 +1,12 @@
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+"use client";
+
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 export function AppModal({
   children,
@@ -17,6 +25,34 @@ export function AppModal({
   onClose: () => void;
   style?: CSSProperties;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    function closeFromEscape(event: globalThis.KeyboardEvent) {
+      if (event.defaultPrevented || event.key !== "Escape") {
+        return;
+      }
+
+      const dialogs = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-app-modal='true']"),
+      );
+      const topmostDialog = dialogs[dialogs.length - 1];
+
+      if (topmostDialog !== dialogRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      onClose();
+    }
+
+    document.addEventListener("keydown", closeFromEscape);
+
+    return () => {
+      document.removeEventListener("keydown", closeFromEscape);
+    };
+  }, [onClose]);
+
   function closeFromBackdrop(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) {
       onClose();
@@ -41,6 +77,7 @@ export function AppModal({
           .filter(Boolean)
           .join(" ")}
         data-app-modal="true"
+        ref={dialogRef}
         role="dialog"
         style={style}
       >

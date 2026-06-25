@@ -299,22 +299,6 @@ export function YouthLearningProgressBoardContent({
     return () => window.removeEventListener("popstate", loadDateFromHistory);
   }, [loadScheduleDate, selectedScheduleDate]);
 
-  useEffect(() => {
-    if (!selectedCell) {
-      return;
-    }
-
-    function closeWithEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeScheduleModal();
-      }
-    }
-
-    window.addEventListener("keydown", closeWithEscape);
-
-    return () => window.removeEventListener("keydown", closeWithEscape);
-  }, [selectedCell]);
-
   function openScheduleModal(youthId: string, startMinute: number) {
     const schedule = scheduleMap.get(
       createScheduleKey(youthId, selectedScheduleDate, startMinute),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AppModal } from "@/components/app-modal";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -23,22 +23,6 @@ export function AttachmentPreviewButton({
   const [isOpen, setIsOpen] = useState(false);
   const [hasPreviewError, setHasPreviewError] = useState(false);
   const previewKind = getAttachmentPreviewKind(fileName, mimeType);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
 
   if (!previewKind) {
     return null;

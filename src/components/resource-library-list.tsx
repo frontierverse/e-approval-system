@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/empty-state";
+import type { ReactNode } from "react";
 import { UserIdentity } from "@/components/user-identity";
 import {
   getAttachmentFileDisplay,
@@ -13,6 +13,8 @@ import {
 } from "@/lib/resource-library-core";
 
 type ResourceLibraryListProps = {
+  compact?: boolean;
+  toolbar?: ReactNode;
   items: ResourceLibraryItem[];
   firstItemNumber?: number;
   hasActiveFilter: boolean;
@@ -30,78 +32,101 @@ const attachmentIconTone: Record<AttachmentFileKind, string> = {
 };
 
 export function ResourceLibraryList({
+  compact = false,
   firstItemNumber,
   items,
   hasActiveFilter,
+  toolbar,
 }: ResourceLibraryListProps) {
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title={
-          hasActiveFilter ? "조건에 맞는 자료가 없습니다" : "등록된 자료가 없습니다"
-        }
-        description={
-          hasActiveFilter
-            ? "검색어나 자료실을 조정하면 다른 자료를 찾을 수 있습니다."
-            : "업무 자료가 등록되면 이곳에 표시됩니다."
-        }
-      />
-    );
-  }
+  const emptyTitle = hasActiveFilter
+    ? "조건에 맞는 자료가 없습니다"
+    : "등록된 자료가 없습니다";
+  const emptyDescription = hasActiveFilter
+    ? "검색어나 자료실을 조정하면 다른 자료를 찾을 수 있습니다."
+    : "업무 자료가 등록되면 이곳에 표시됩니다.";
 
   return (
     <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
-      <div className="hidden lg:block">
-        <div className="grid grid-cols-[4rem_minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] gap-5 border-b border-[#d9dee7] bg-[#f7f9fc] px-5 py-3 text-xs font-semibold text-[#394150]">
-          <span>번호</span>
-          <span>자료명</span>
-          <span>첨부파일</span>
-          <span>등록 정보</span>
-          <span className="text-right">확인</span>
+      {toolbar ? (
+        <div className="border-b border-[#d9dee7] bg-white px-4 py-2">
+          {toolbar}
         </div>
-        {items.map((item, index) => (
-          <article
-            key={item.id}
-            className="border-b border-[#eef1f5] last:border-b-0"
-          >
-            <ResourceItemLink
-              displayNumber={getResourceDisplayNumber(
-                firstItemNumber,
-                items.length,
-                index,
-              )}
-              item={item}
-              className="grid min-h-24 grid-cols-[4rem_minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] items-center gap-5 px-5 py-3"
-            />
-          </article>
-        ))}
-      </div>
+      ) : null}
 
-      <div className="divide-y divide-[#eef1f5] lg:hidden">
-        {items.map((item, index) => (
-          <article key={item.id}>
-            <ResourceItemLink
-              displayNumber={getResourceDisplayNumber(
-                firstItemNumber,
-                items.length,
-                index,
-              )}
-              item={item}
-              className="block p-3"
-            />
-          </article>
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="flex min-h-60 flex-col items-center justify-center bg-white px-6 py-10 text-center">
+          <p className="text-lg font-semibold text-[#16181d]">{emptyTitle}</p>
+          <p className="mt-2 max-w-md text-sm leading-6 text-[#697386]">
+            {emptyDescription}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="hidden lg:block">
+            <div
+              className={`grid grid-cols-[4rem_minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] border-b border-[#d9dee7] bg-[#f7f9fc] text-xs font-semibold text-[#394150] ${
+                compact ? "gap-4 px-4 py-2.5" : "gap-5 px-5 py-3"
+              }`}
+            >
+              <span>번호</span>
+              <span>자료명</span>
+              <span>첨부파일</span>
+              <span>등록 정보</span>
+              <span className="text-right">확인</span>
+            </div>
+            {items.map((item, index) => (
+              <article
+                key={item.id}
+                className="border-b border-[#eef1f5] last:border-b-0"
+              >
+                <ResourceItemLink
+                  displayNumber={getResourceDisplayNumber(
+                    firstItemNumber,
+                    items.length,
+                    index,
+                  )}
+                  item={item}
+                  compact={compact}
+                  className={`grid grid-cols-[4rem_minmax(0,1.8fr)_minmax(14rem,0.9fr)_10rem_6rem] items-center ${
+                    compact
+                      ? "min-h-20 gap-4 px-4 py-2"
+                      : "min-h-24 gap-5 px-5 py-3"
+                  }`}
+                />
+              </article>
+            ))}
+          </div>
+
+          <div className="divide-y divide-[#eef1f5] lg:hidden">
+            {items.map((item, index) => (
+              <article key={item.id}>
+                <ResourceItemLink
+                  displayNumber={getResourceDisplayNumber(
+                    firstItemNumber,
+                    items.length,
+                    index,
+                  )}
+                  item={item}
+                  compact={compact}
+                  className={compact ? "block p-2.5" : "block p-3"}
+                />
+              </article>
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
 
 function ResourceItemLink({
   className,
+  compact = false,
   displayNumber,
   item,
 }: {
   className: string;
+  compact?: boolean;
   displayNumber: number;
   item: ResourceLibraryItem;
 }) {
@@ -111,12 +136,19 @@ function ResourceItemLink({
       aria-label={`${item.title} 자료 상세 보기`}
       className={`group cursor-pointer transition hover:bg-[#f7fbfb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69] ${className}`}
     >
-      <ResourceNumber displayNumber={displayNumber} />
-      <ResourceTitle item={item} />
-      <div className="mt-3 lg:mt-0">
-        <ResourceAttachmentSummary attachments={item.attachments} />
+      <ResourceNumber compact={compact} displayNumber={displayNumber} />
+      <ResourceTitle compact={compact} item={item} />
+      <div className={compact ? "mt-2 lg:mt-0" : "mt-3 lg:mt-0"}>
+        <ResourceAttachmentSummary
+          attachments={item.attachments}
+          compact={compact}
+        />
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 lg:mt-0 lg:contents">
+      <div
+        className={`flex flex-wrap items-center justify-between lg:mt-0 lg:contents ${
+          compact ? "mt-2 gap-2" : "mt-3 gap-3"
+        }`}
+      >
         <ResourceMeta item={item} />
         <ResourceViewCount item={item} />
       </div>
@@ -124,15 +156,31 @@ function ResourceItemLink({
   );
 }
 
-function ResourceNumber({ displayNumber }: { displayNumber: number }) {
+function ResourceNumber({
+  compact = false,
+  displayNumber,
+}: {
+  compact?: boolean;
+  displayNumber: number;
+}) {
   return (
-    <span className="mb-3 block tabular-nums text-sm font-semibold text-[#697386] lg:mb-0 lg:text-center">
+    <span
+      className={`block tabular-nums text-sm font-semibold text-[#697386] lg:mb-0 lg:text-center ${
+        compact ? "mb-2" : "mb-3"
+      }`}
+    >
       {displayNumber}
     </span>
   );
 }
 
-function ResourceTitle({ item }: { item: ResourceLibraryItem }) {
+function ResourceTitle({
+  compact = false,
+  item,
+}: {
+  compact?: boolean;
+  item: ResourceLibraryItem;
+}) {
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -143,7 +191,11 @@ function ResourceTitle({ item }: { item: ResourceLibraryItem }) {
           {item.title}
         </h2>
       </div>
-      <p className="mt-1 line-clamp-1 text-xs leading-5 text-[#697386]">
+      <p
+        className={`mt-1 line-clamp-1 text-xs text-[#697386] ${
+          compact ? "leading-4" : "leading-5"
+        }`}
+      >
         {item.summary}
       </p>
     </div>
@@ -162,8 +214,10 @@ function getResourceDisplayNumber(
 
 function ResourceAttachmentSummary({
   attachments,
+  compact = false,
 }: {
   attachments: ResourceAttachment[];
+  compact?: boolean;
 }) {
   const groups = getAttachmentGroups(attachments);
   const visibleGroups = groups.slice(0, 4);
@@ -179,13 +233,19 @@ function ResourceAttachmentSummary({
 
   return (
     <div className="flex min-w-0 items-center gap-2" aria-label={summary}>
-      <div className="flex h-8 shrink-0 items-center gap-1.5 overflow-hidden">
+      <div
+        className={`flex shrink-0 items-center gap-1.5 overflow-hidden ${
+          compact ? "h-7" : "h-8"
+        }`}
+      >
         {visibleGroups.length > 0 ? (
           visibleGroups.map((group) => (
             <span
               key={group.extensionLabel}
               title={`${group.extensionLabel} ${group.count}개`}
-              className={`relative inline-flex h-7 min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
+              className={`relative inline-flex min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
+                compact ? "h-6" : "h-7"
+              } ${
                 attachmentIconTone[group.kind]
               }`}
             >
@@ -201,7 +261,11 @@ function ResourceAttachmentSummary({
           <span className="text-sm text-[#8a95a6]">없음</span>
         )}
         {hiddenCount > 0 ? (
-          <span className="inline-flex h-7 shrink-0 items-center rounded-md border border-[#cfd6e3] bg-white px-2 text-xs font-semibold text-[#394150]">
+          <span
+            className={`inline-flex shrink-0 items-center rounded-md border border-[#cfd6e3] bg-white px-2 text-xs font-semibold text-[#394150] ${
+              compact ? "h-6" : "h-7"
+            }`}
+          >
             +{hiddenCount}
           </span>
         ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import {
@@ -147,22 +147,6 @@ export function YouthManagementBoard({
       editYouthPhoneMiddle,
     ],
   );
-
-  useEffect(() => {
-    if (!selectedNote) {
-      return;
-    }
-
-    function closeWithEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeModal();
-      }
-    }
-
-    window.addEventListener("keydown", closeWithEscape);
-
-    return () => window.removeEventListener("keydown", closeWithEscape);
-  }, [selectedNote]);
 
   const totalNotes = youths.reduce((total, youth) => total + youth.notes.length, 0);
 

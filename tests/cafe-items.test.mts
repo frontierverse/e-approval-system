@@ -135,6 +135,12 @@ describe("cafe items", () => {
         today: "2026-06-24",
       }),
     );
+    const purchaseDateHeaderIndex = html.indexOf(
+      '<th class="w-[9rem] px-6 py-3.5">구매일</th>',
+    );
+    const categoryHeaderIndex = html.indexOf(
+      '<th class="w-[8rem] px-6 py-3.5">종류</th>',
+    );
 
     assert.match(html, /물품 목록/);
     assert.match(html, /10건 중 1-8건 표시/);
@@ -147,6 +153,9 @@ describe("cafe items", () => {
     assert.match(html, /name="q"/);
     assert.match(html, /name="category"/);
     assert.match(html, /name="deadline"/);
+    assert.notEqual(purchaseDateHeaderIndex, -1);
+    assert.notEqual(categoryHeaderIndex, -1);
+    assert.ok(purchaseDateHeaderIndex < categoryHeaderIndex);
     assert.match(html, /flex min-w-0 items-center gap-3/);
     assert.match(html, /관리/);
     assert.match(html, /우유/);

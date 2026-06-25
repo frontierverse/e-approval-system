@@ -43,8 +43,10 @@ export function CafeItemDateInput({
   }
 
   return (
-    <fieldset className={`block min-w-0 ${className}`.trim()}>
-      <legend className="text-xs font-semibold text-[#697386]">{label}</legend>
+    <fieldset className={`m-0 block min-w-0 border-0 p-0 ${className}`.trim()}>
+      <legend className="block p-0 text-xs font-semibold leading-4 text-[#697386]">
+        {label}
+      </legend>
       <input name={name} type="hidden" value={dateValue} />
       <div className="mt-2 grid min-w-0 grid-cols-3 gap-2">
         {datePartFields.map((field) => (

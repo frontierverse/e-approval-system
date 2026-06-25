@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { getResourceLibraryPage } from "@/lib/resource-library";
 import {
+  getResourceLibraryPageSize,
   normalizeResourceCategoryFilter,
   type ResourceCategory,
   type ResourceCategoryFilter,
@@ -17,7 +18,6 @@ type ResourcesPageSearchParams = {
   page?: string;
 };
 
-const pageSize = 3;
 const resourcePageCopy: Record<
   ResourceCategory,
   {
@@ -54,6 +54,7 @@ export default async function ResourcesPage({
 }) {
   const user = await requireUser();
   const filters = getFilters(await searchParams);
+  const pageSize = getResourceLibraryPageSize(filters.category);
   const resourcePage = await getResourceLibraryPage({
     ...filters,
     currentUserId: user.id,
@@ -84,23 +85,20 @@ export default async function ResourcesPage({
         }
       />
 
-      <section className="mb-4 rounded-md border border-[#d9dee7] bg-white p-4">
-        <ResourceLibraryFilterControls
-          category={filters.category}
-          query={filters.query}
-        />
-
-        <ResourceListSummary
-          page={resourcePage.page}
-          pageSize={resourcePage.pageSize}
-          total={resourcePage.total}
-        />
-      </section>
-
       <ResourceLibraryList
         items={resourcePage.items}
         firstItemNumber={firstItemNumber}
         hasActiveFilter={hasActiveFilter}
+        compact={filters.category === "education"}
+        toolbar={
+          <ResourceListToolbar
+            category={filters.category}
+            page={resourcePage.page}
+            pageSize={resourcePage.pageSize}
+            query={filters.query}
+            total={resourcePage.total}
+          />
+        }
       />
 
       <ResourcePagination
@@ -147,6 +145,30 @@ function normalizePage(value: string | undefined) {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
+function ResourceListToolbar({
+  category,
+  page,
+  pageSize,
+  query,
+  total,
+}: {
+  category: ResourceCategoryFilter;
+  page: number;
+  pageSize: number;
+  query: string;
+  total: number;
+}) {
+  return (
+    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0 flex-1">
+        <ResourceLibraryFilterControls category={category} query={query} />
+      </div>
+
+      <ResourceListSummary page={page} pageSize={pageSize} total={total} />
+    </div>
+  );
+}
+
 function ResourceListSummary({
   page,
   pageSize,
@@ -160,7 +182,7 @@ function ResourceListSummary({
   const lastItem = Math.min(page * pageSize, total);
 
   return (
-    <p className="mt-3 text-xs text-[#697386]">
+    <p className="shrink-0 text-xs text-[#697386]">
       {total > 0
         ? `${total}건 중 ${firstItem}-${lastItem}건 표시`
         : "표시할 자료가 없습니다."}

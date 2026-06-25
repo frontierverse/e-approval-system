@@ -199,17 +199,6 @@ function AuditHistoryDetailModal({
   const changes = getAuditChangeItems(history);
   const tone = getAuditHistoryTone(history.action);
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
     <AppModal
       className="max-w-6xl"

@@ -18,6 +18,7 @@ import { EmptyState } from "../src/components/empty-state.tsx";
 import { LineNumberedDocumentContent } from "../src/components/line-numbered-document-content.tsx";
 import { PageTitle } from "../src/components/page-title.tsx";
 import { QuickStatusLinks } from "../src/components/quick-status-links.tsx";
+import { ResourceLibraryFilterControlsContent } from "../src/components/resource-library-filter-controls.tsx";
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
 import { ShellQuickStatusLinks } from "../src/components/shell-quick-status-links.tsx";
@@ -928,6 +929,62 @@ describe("major UI rendering", () => {
     assert.doesNotMatch(html, /업무자료\.pdf/);
     assert.match(html, /2026\. 05\. 11\. 오후 12:02/);
     assert.match(html, /12명/);
+  });
+
+  test("renders compact resource library rows", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceLibraryList, {
+        compact: true,
+        items: [resourceItem],
+        hasActiveFilter: false,
+      }),
+    );
+
+    assert.match(html, /min-h-20 gap-4 px-4 py-2/);
+    assert.match(html, /block p-2\.5/);
+    assert.match(html, /leading-4/);
+    assert.match(html, /h-6 border-\[#f0c6c6\]/);
+    assert.doesNotMatch(html, /min-h-24 gap-5 px-5 py-3/);
+  });
+
+  test("renders resource library toolbar inside the list panel", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceLibraryList, {
+        items: [resourceItem],
+        hasActiveFilter: false,
+        toolbar: React.createElement(
+          "div",
+          { className: "resource-toolbar-test" },
+          "toolbar",
+        ),
+      }),
+    );
+
+    assert.match(
+      html,
+      /border-b border-\[#d9dee7\] bg-white px-4 py-2/,
+    );
+    assert.match(html, /resource-toolbar-test/);
+    assert.ok(html.indexOf("resource-toolbar-test") < html.indexOf("자료명"));
+  });
+
+  test("renders resource library filter controls as a compact row", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceLibraryFilterControlsContent, {
+        category: "education",
+        query: "safety",
+        navigate: () => {},
+      }),
+    );
+
+    assert.match(
+      html,
+      /flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center/,
+    );
+    assert.match(html, /class="sr-only"/);
+    assert.match(html, /h-9 min-w-0 flex-1/);
+    assert.match(html, /h-9 flex-1 px-3 text-sm sm:flex-none/);
+    assert.doesNotMatch(html, /mt-2 h-10/);
   });
 
   test("renders resource post viewers", () => {

@@ -19,6 +19,8 @@ const inputBaseClassName =
   "h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 const inputClassName =
   `mt-2 ${inputBaseClassName}`;
+const fieldLabelClassName =
+  "block text-xs font-semibold leading-4 text-[#697386]";
 
 export function CafeItemRegistrationForm({
   today,
@@ -59,24 +61,20 @@ function CafeItemRegistrationFormFields({
   return (
     <section className="rounded-md border border-[#d9dee7] bg-white p-5 shadow-sm">
       <form action={formAction}>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] pb-4">
-          <h2 className="text-base font-semibold text-[#16181d]">물품 등록</h2>
-          <button
-            type="submit"
-            disabled={pending}
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.save,
-              "h-10 shrink-0 px-4 text-sm",
-            )}
-          >
-            {pending ? "등록 중" : "등록"}
-          </button>
+        <div className="border-b border-[#eef1f5] pb-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-[#16181d]">
+              물품 등록
+            </h2>
+            <p className="mt-1 text-sm font-semibold text-[#196b69]">
+              TAB 키를 사용하여 입력칸 이동 가능
+            </p>
+          </div>
         </div>
 
         <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-4">
           <label className="block min-w-0 lg:col-span-2">
-            <span className="text-xs font-semibold text-[#697386]">물품명</span>
+            <span className={fieldLabelClassName}>물품명</span>
             <input
               name="name"
               required
@@ -87,10 +85,16 @@ function CafeItemRegistrationFormFields({
             />
           </label>
 
-          <label className="block min-w-0">
-            <span className="text-xs font-semibold text-[#697386]">
-              물품 종류
-            </span>
+          <CafeItemDateInput
+            className="lg:col-span-2"
+            defaultValue={state.values?.purchasedAt || today}
+            label="구매일"
+            name="purchasedAt"
+            required
+          />
+
+          <label className="block min-w-0 lg:-mt-2">
+            <span className={fieldLabelClassName}>물품 종류</span>
             <select
               name="category"
               value={selectedCategory}
@@ -111,26 +115,8 @@ function CafeItemRegistrationFormFields({
             </select>
           </label>
 
-          <CafeItemDateInput
-            className="lg:col-span-2"
-            defaultValue={state.values?.purchasedAt || today}
-            label="구매일"
-            name="purchasedAt"
-            required
-          />
-
-          {isFood ? (
-            <CafeItemDateInput
-              className="lg:col-span-2"
-              defaultValue={state.values?.expirationDate ?? ""}
-              label="유통기한"
-              name="expirationDate"
-              required
-            />
-          ) : null}
-
-          <label className="block min-w-0">
-            <span className="text-xs font-semibold text-[#697386]">
+          <label className="block min-w-0 lg:-mt-2">
+            <span className={fieldLabelClassName}>
               가격
               <span className="ml-1 font-normal text-[#9aa4b2]">선택</span>
             </span>
@@ -144,8 +130,25 @@ function CafeItemRegistrationFormFields({
             />
           </label>
 
-          <label className="block min-w-0 lg:col-span-2">
-            <span className="text-xs font-semibold text-[#697386]">
+          {isFood ? (
+            <CafeItemDateInput
+              className="lg:col-span-2"
+              defaultValue={state.values?.expirationDate ?? ""}
+              label="유통기한"
+              name="expirationDate"
+              required
+            />
+          ) : null}
+
+          <label
+            className={[
+              "block min-w-0",
+              "lg:col-span-3",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <span className={fieldLabelClassName}>
               구매 사유
               <span className="ml-1 font-normal text-[#9aa4b2]">선택</span>
             </span>
@@ -157,6 +160,17 @@ function CafeItemRegistrationFormFields({
               className={inputClassName}
             />
           </label>
+          <button
+            type="submit"
+            disabled={pending}
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.save,
+              "h-10 w-full self-end px-4 text-sm lg:w-auto",
+            )}
+          >
+            {pending ? "등록 중" : "등록"}
+          </button>
         </div>
       </form>
 

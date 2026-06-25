@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 
@@ -169,24 +169,6 @@ export function AdminEditModal({
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const descriptionId = useId();
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
 
   return (
     <>

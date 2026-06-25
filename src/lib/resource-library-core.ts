@@ -77,6 +77,9 @@ export const resourceCategoryOptions: {
   { value: "education", label: resourceCategoryLabels.education },
 ];
 
+export const defaultResourceLibraryPageSize = 3;
+export const educationResourceLibraryPageSize = 10;
+
 export function isResourceCategory(value: string): value is ResourceCategory {
   return (
     value === "corporation" ||
@@ -94,6 +97,12 @@ export function normalizeResourceCategoryFilter(
   value: string | undefined,
 ): ResourceCategoryFilter {
   return value && isResourceCategory(value) ? value : "all";
+}
+
+export function getResourceLibraryPageSize(category: ResourceCategoryFilter) {
+  return category === "education"
+    ? educationResourceLibraryPageSize
+    : defaultResourceLibraryPageSize;
 }
 
 export function paginateResourceItems({

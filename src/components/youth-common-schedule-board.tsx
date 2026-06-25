@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type {
   ChangeEvent,
   FormEvent,
@@ -233,22 +233,6 @@ export function YouthCommonScheduleBoard({
   const selectedTimeLabel = selectedCell
     ? formatScheduleRangeLabel(startMinuteDraft, endMinuteDraft)
     : "";
-
-  useEffect(() => {
-    if (!selectedCell) {
-      return;
-    }
-
-    function closeWithEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeScheduleModal();
-      }
-    }
-
-    window.addEventListener("keydown", closeWithEscape);
-
-    return () => window.removeEventListener("keydown", closeWithEscape);
-  }, [selectedCell]);
 
   function openScheduleModal(
     weekday: YouthLearningScheduleWeekday,
