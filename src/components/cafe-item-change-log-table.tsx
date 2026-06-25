@@ -267,6 +267,9 @@ function ItemFilterHiddenFields({ filters }: { filters: CafeItemPageFilters }) {
       {filters.deadline !== "all" ? (
         <input type="hidden" name="deadline" value={filters.deadline} />
       ) : null}
+      {filters.sort !== "latest" ? (
+        <input type="hidden" name="sort" value={filters.sort} />
+      ) : null}
       {filters.page > 1 ? (
         <input type="hidden" name="page" value={filters.page} />
       ) : null}
@@ -293,6 +296,10 @@ function createCafeManagementHref({
 
   if (itemFilters.deadline !== "all") {
     params.set("deadline", itemFilters.deadline);
+  }
+
+  if (itemFilters.sort !== "latest") {
+    params.set("sort", itemFilters.sort);
   }
 
   if (itemFilters.page > 1) {

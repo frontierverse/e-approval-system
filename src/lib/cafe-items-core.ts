@@ -22,6 +22,12 @@ export const cafeItemChangeLogActionFilters = [
   { value: "delete", label: "삭제" },
 ] as const;
 
+export const cafeItemSortOptions = [
+  { value: "latest", label: "등록 최신순" },
+  { value: "expirationAsc", label: "유통기한 빠른순" },
+  { value: "expirationDesc", label: "유통기한 늦은순" },
+] as const;
+
 export type CafeItemCategory = (typeof cafeItemCategories)[number]["value"];
 export type CafeItemCategoryFilter = "all" | CafeItemCategory;
 export type CafeItemDeadlineFilter =
@@ -30,6 +36,7 @@ export type CafeItemChangeLogAction =
   Exclude<(typeof cafeItemChangeLogActionFilters)[number]["value"], "all">;
 export type CafeItemChangeLogActionFilter =
   (typeof cafeItemChangeLogActionFilters)[number]["value"];
+export type CafeItemSort = (typeof cafeItemSortOptions)[number]["value"];
 
 export type CafeItem = {
   id: string;
@@ -47,6 +54,7 @@ export type CafeItemPageFilters = {
   deadline: CafeItemDeadlineFilter;
   page: number;
   query: string;
+  sort: CafeItemSort;
 };
 
 export type CafeItemPage = {
@@ -118,6 +126,15 @@ export type CafeItemExpirationAlert = {
   ddayLabel: string;
   href: string;
   itemName: string;
+  items: CafeItemExpirationAlertItem[];
+};
+
+export type CafeItemExpirationAlertItem = {
+  ddayLabel: string;
+  expirationDate: string;
+  href: string;
+  id: string;
+  itemName: string;
 };
 
 const dayInMs = 24 * 60 * 60 * 1000;
@@ -160,6 +177,12 @@ export function normalizeCafeItemChangeLogAction(
   value: string | undefined,
 ): CafeItemChangeLogActionFilter {
   return value && isCafeItemChangeLogActionFilter(value) ? value : "all";
+}
+
+export function normalizeCafeItemSort(value: string | undefined): CafeItemSort {
+  return value === "expirationAsc" || value === "expirationDesc"
+    ? value
+    : "latest";
 }
 
 export function normalizeCafeItemPage(value: string | undefined) {
@@ -267,6 +290,20 @@ export function createCafeItemDueSoonHref(itemName: string) {
 
   params.set("category", "food");
   params.set("deadline", "dueSoon");
+
+  if (normalizedItemName) {
+    params.set("q", normalizedItemName);
+  }
+
+  return `/work-schedule/cafe?${params.toString()}`;
+}
+
+export function createCafeItemExpirationSearchHref(itemName: string) {
+  const params = new URLSearchParams();
+  const normalizedItemName = itemName.trim();
+
+  params.set("category", "food");
+  params.set("sort", "expirationAsc");
 
   if (normalizedItemName) {
     params.set("q", normalizedItemName);

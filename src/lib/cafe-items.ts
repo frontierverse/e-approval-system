@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  createCafeItemDueSoonHref,
+  createCafeItemExpirationSearchHref,
   formatCafeItemDateValue,
   getCafeItemChangeLogActionLabel,
   getCafeItemToday,
@@ -20,7 +20,9 @@ import {
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
   type CafeItemExpirationAlert,
+  type CafeItemExpirationAlertItem,
   type CafeItemPage,
+  type CafeItemSort,
 } from "@/lib/cafe-items-core";
 
 type CafeItemRecord = {
@@ -46,39 +48,57 @@ const cafeItemChangeLogPageSize = 5;
 export async function getCafeItemExpirationAlert(
   today = getCafeItemToday(),
 ): Promise<CafeItemExpirationAlert | null> {
-  const item = await prisma.cafeItem.findFirst({
+  const items = await prisma.cafeItem.findMany({
     where: {
       category: "food",
       expirationDate: {
         gte: formatCafeItemDateTimeFilterValue(today),
-        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, 30)),
+        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, 31)),
       },
     },
     orderBy: [{ expirationDate: "asc" }, { createdAt: "desc" }],
     select: {
+      id: true,
       expirationDate: true,
       name: true,
     },
   });
+  const alertItems = items.flatMap((item): CafeItemExpirationAlertItem[] => {
+    if (!item.expirationDate) {
+      return [];
+    }
 
-  if (!item?.expirationDate) {
+    const expirationDate = formatCafeItemDateValue(item.expirationDate);
+    const usageDday = getCafeItemUsageDday(
+      {
+        category: "food",
+        expirationDate,
+        purchasedAt: today,
+      },
+      today,
+    );
+
+    return [
+      {
+        ddayLabel: usageDday.label,
+        expirationDate,
+        href: createCafeItemExpirationSearchHref(item.name),
+        id: item.id,
+        itemName: item.name,
+      },
+    ];
+  });
+  const firstItem = alertItems[0];
+
+  if (!firstItem) {
     return null;
   }
 
-  const expirationDate = formatCafeItemDateValue(item.expirationDate);
-  const usageDday = getCafeItemUsageDday(
-    {
-      category: "food",
-      expirationDate,
-      purchasedAt: today,
-    },
-    today,
-  );
-
   return {
-    ddayLabel: usageDday.label,
-    href: createCafeItemDueSoonHref(item.name),
-    itemName: item.name,
+    ddayLabel: firstItem.ddayLabel,
+    href: firstItem.href,
+    itemName: firstItem.itemName,
+    items: alertItems,
   };
 }
 
@@ -88,6 +108,7 @@ export async function getCafeItemPage({
   page,
   pageSize,
   query,
+  sort,
   today,
 }: {
   category: CafeItemCategoryFilter;
@@ -95,6 +116,7 @@ export async function getCafeItemPage({
   page: number;
   pageSize: number;
   query: string;
+  sort: CafeItemSort;
   today: string;
 }): Promise<CafeItemPage> {
   const where = createCafeItemWhere({ category, deadline, query, today });
@@ -102,10 +124,7 @@ export async function getCafeItemPage({
   const [items, total, expiredFoodCount] = await Promise.all([
     prisma.cafeItem.findMany({
       where,
-      orderBy:
-        deadline === "dueSoon"
-          ? [{ expirationDate: "asc" }, { createdAt: "desc" }]
-          : [{ createdAt: "desc" }],
+      orderBy: createCafeItemOrderBy({ deadline, sort }),
       skip: (Math.max(page, 1) - 1) * normalizedPageSize,
       take: normalizedPageSize,
       select: {
@@ -134,6 +153,7 @@ export async function getCafeItemPage({
       page: normalizedPage,
       pageSize: normalizedPageSize,
       query,
+      sort,
       today,
     });
   }
@@ -145,6 +165,7 @@ export async function getCafeItemPage({
       deadline,
       page: normalizedPage,
       query,
+      sort,
     },
     items: items.map(mapCafeItem),
     page: normalizedPage,
@@ -152,6 +173,40 @@ export async function getCafeItemPage({
     total,
     totalPages,
   };
+}
+
+function createCafeItemOrderBy({
+  deadline,
+  sort,
+}: {
+  deadline: CafeItemDeadlineFilter;
+  sort: CafeItemSort;
+}): Prisma.CafeItemOrderByWithRelationInput[] {
+  if (sort === "expirationAsc" || sort === "expirationDesc") {
+    return [
+      {
+        expirationDate: {
+          nulls: "last",
+          sort: sort === "expirationAsc" ? "asc" : "desc",
+        },
+      },
+      { createdAt: "desc" },
+    ];
+  }
+
+  if (deadline === "dueSoon") {
+    return [
+      {
+        expirationDate: {
+          nulls: "last",
+          sort: "asc",
+        },
+      },
+      { createdAt: "desc" },
+    ];
+  }
+
+  return [{ createdAt: "desc" }];
 }
 
 function createExpiredFoodWhere(today: string): Prisma.CafeItemWhereInput {

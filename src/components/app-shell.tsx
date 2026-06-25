@@ -18,6 +18,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { UserIdentity } from "@/components/user-identity";
 import { getShellDocumentCounts } from "@/lib/approval-queries";
 import { getCurrentUser } from "@/lib/auth";
+import { getBirthdayTopbarAlert } from "@/lib/birthday-alerts";
 import { appName, organizationName } from "@/lib/branding";
 import { getCafeItemExpirationAlert } from "@/lib/cafe-items";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
@@ -149,17 +150,32 @@ async function ShellNavigation({
 }: {
   variant: "mobile" | "desktop" | "topbar";
 }) {
-  const [user, cafeExpirationAlert] = await Promise.all([
+  const [user, cafeExpirationAlert, birthdayAlert] = await Promise.all([
     getCurrentUser(),
     variant === "topbar"
       ? getCafeItemExpirationAlert()
       : Promise.resolve(null),
+    variant === "topbar" ? getBirthdayTopbarAlert() : Promise.resolve(null),
   ]);
   const groups = getNavigationGroups(user?.role === UserRole.ADMIN);
 
   return (
     <AppNav
       groups={groups}
+      topbarBirthdayAlert={
+        birthdayAlert
+          ? {
+              ...birthdayAlert,
+              label: "생일",
+            }
+          : {
+              ddayLabel: "",
+              items: [],
+              label: "생일",
+              personName: "임박 없음",
+              status: "empty",
+            }
+      }
       topbarAlert={
         cafeExpirationAlert
           ? {
@@ -170,6 +186,7 @@ async function ShellNavigation({
               ddayLabel: "",
               href: "",
               itemName: "임박 없음",
+              items: [],
               label: "유통기한",
               status: "empty",
             }

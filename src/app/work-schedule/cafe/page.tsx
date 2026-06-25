@@ -9,6 +9,7 @@ import {
   normalizeCafeItemCategory,
   normalizeCafeItemDeadlineFilter,
   normalizeCafeItemPage,
+  normalizeCafeItemSort,
 } from "@/lib/cafe-items-core";
 import { getCafeItemChangeLogPage, getCafeItemPage } from "@/lib/cafe-items";
 
@@ -21,6 +22,7 @@ type CafeManagementSearchParams = {
   logStaff?: string;
   page?: string;
   q?: string;
+  sort?: string;
 };
 
 const cafeItemPageSize = 8;
@@ -40,6 +42,7 @@ export default async function WorkScheduleCafePage({
     deadline: normalizeCafeItemDeadlineFilter(params.deadline),
     page: normalizeCafeItemPage(params.page),
     query: String(params.q ?? "").trim(),
+    sort: normalizeCafeItemSort(params.sort),
   };
   const itemPage = await getCafeItemPage({
     ...filters,

@@ -9,6 +9,7 @@ import {
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
   type CafeItemPage,
+  type CafeItemSort,
 } from "@/lib/cafe-items-core";
 
 type CafeItemListProps = {
@@ -65,7 +66,7 @@ export function CafeItemList({ itemPage, today }: CafeItemListProps) {
                 <th className="w-[9rem] px-6 py-3.5">구매일</th>
                 <th className="w-[8rem] px-6 py-3.5">종류</th>
                 <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
-                <th className="w-[9rem] px-6 py-3.5">유통기한</th>
+                <SortableExpirationHeader filters={itemPage.filters} />
                 <th className="w-[8rem] px-6 py-3.5">가격</th>
                 <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
                 <th className="w-[10rem] px-6 py-3.5">관리</th>
@@ -97,10 +98,14 @@ function CafeItemFilterControls({
   const hasFilters =
     filters.query ||
     filters.category !== "all" ||
-    filters.deadline !== "all";
+    filters.deadline !== "all" ||
+    filters.sort !== "latest";
 
   return (
     <form className="mt-4 flex min-w-0 flex-wrap items-end gap-2">
+      {filters.sort !== "latest" ? (
+        <input type="hidden" name="sort" value={filters.sort} />
+      ) : null}
       <label className="flex min-w-0 items-center gap-3">
         <span className="shrink-0 text-xs font-semibold text-[#697386]">
           검색
@@ -171,6 +176,47 @@ function CafeItemFilterControls({
   );
 }
 
+function SortableExpirationHeader({
+  filters,
+}: {
+  filters: CafeItemPage["filters"];
+}) {
+  const isActive =
+    filters.sort === "expirationAsc" || filters.sort === "expirationDesc";
+  const nextSort =
+    filters.sort === "expirationAsc" ? "expirationDesc" : "expirationAsc";
+  const nextSortLabel =
+    nextSort === "expirationAsc" ? "오름차순" : "내림차순";
+
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        isActive
+          ? filters.sort === "expirationAsc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+      className="w-[9rem] px-6 py-3.5"
+    >
+      <Link
+        href={getCafeItemSortHref(filters, nextSort)}
+        aria-label={`유통기한 ${nextSortLabel} 정렬`}
+        className="-mx-2 inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[#394150] transition hover:bg-[#eaf0f7] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+      >
+        <span>유통기한</span>
+        <span
+          aria-hidden="true"
+          className="inline-flex w-3 justify-center text-[11px] text-[#697386]"
+        >
+          {isActive ? (filters.sort === "expirationAsc" ? "↑" : "↓") : "↕"}
+        </span>
+      </Link>
+    </th>
+  );
+}
+
 function CafeItemPagination({ itemPage }: { itemPage: CafeItemPage }) {
   if (itemPage.totalPages <= 1) {
     return null;
@@ -238,6 +284,7 @@ function getCafeItemPageHref(
     category: CafeItemCategoryFilter;
     deadline: CafeItemDeadlineFilter;
     query: string;
+    sort: CafeItemSort;
   },
   page: number,
 ) {
@@ -255,6 +302,10 @@ function getCafeItemPageHref(
     params.set("deadline", filters.deadline);
   }
 
+  if (filters.sort !== "latest") {
+    params.set("sort", filters.sort);
+  }
+
   if (page > 1) {
     params.set("page", String(page));
   }
@@ -262,4 +313,21 @@ function getCafeItemPageHref(
   const queryString = params.toString();
 
   return queryString ? `/work-schedule/cafe?${queryString}` : "/work-schedule/cafe";
+}
+
+function getCafeItemSortHref(
+  filters: {
+    category: CafeItemCategoryFilter;
+    deadline: CafeItemDeadlineFilter;
+    query: string;
+  },
+  sort: CafeItemSort,
+) {
+  return getCafeItemPageHref(
+    {
+      ...filters,
+      sort,
+    },
+    1,
+  );
 }

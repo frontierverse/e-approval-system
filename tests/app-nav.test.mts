@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { isActivePath } from "../src/components/app-nav.tsx";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  isActivePath,
+  TopbarBirthdayAlertModalContent,
+  TopbarExpirationAlertModalContent,
+  type NavigationTopbarBirthdayAlert,
+  type NavigationTopbarAlert,
+} from "../src/components/app-nav.tsx";
 
 describe("app navigation active paths", () => {
   test("keeps work schedule and cafe management sibling links exclusive", () => {
@@ -42,6 +50,138 @@ describe("app navigation active paths", () => {
         "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%BB%A4%ED%94%BC",
       ),
       false,
+    );
+  });
+
+  test("renders cafe expiration alert modal items", () => {
+    const alert: NavigationTopbarAlert = {
+      ddayLabel: "D-5",
+      href: "/work-schedule/cafe?category=food&deadline=dueSoon&q=%EC%9A%B0%EC%9C%A0",
+      itemName: "우유",
+      label: "유통기한",
+      items: [
+        {
+          ddayLabel: "D-5",
+          expirationDate: "2026-06-30",
+          href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
+          id: "cafe-item-001",
+          itemName: "우유",
+        },
+        {
+          ddayLabel: "D-31",
+          expirationDate: "2026-07-26",
+          href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%BB%A4%ED%94%BC",
+          id: "cafe-item-002",
+          itemName: "커피 원두",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarExpirationAlertModalContent, {
+        alert,
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /임박 물품 목록/);
+    assert.match(html, /유통기한이 31일 이하로 남은 식품 목록입니다\./);
+    assert.match(html, /우유/);
+    assert.match(html, /2026\.06\.30/);
+    assert.match(html, /D-31/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\?category=food&amp;sort=expirationAsc&amp;q=%EC%BB%A4%ED%94%BC"/,
+    );
+  });
+
+  test("renders an empty cafe expiration alert modal state", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarExpirationAlertModalContent, {
+        alert: {
+          ddayLabel: "",
+          href: "",
+          itemName: "임박 없음",
+          items: [],
+          label: "유통기한",
+          status: "empty",
+        },
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /유통기한이 31일 이하로 남은 물품이 없습니다\./);
+  });
+
+  test("renders birthday alert modal items", () => {
+    const alert: NavigationTopbarBirthdayAlert = {
+      ddayLabel: "D-5",
+      label: "생일",
+      personName: "김민지",
+      items: [
+        {
+          birthdayDate: "2026-06-30",
+          birthDate: "1990-06-30",
+          ddayLabel: "D-5",
+          detailLabel: "바자울 / 팀장",
+          id: "staff-001",
+          name: "김민지",
+          typeLabel: "직원",
+        },
+        {
+          birthdayDate: "2026-07-26",
+          birthDate: "2009-07-26",
+          ddayLabel: "D-31",
+          detailLabel: "입소중 청소년",
+          id: "youth-001",
+          name: "이하늘",
+          typeLabel: "입소중",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarBirthdayAlertModalContent, {
+        alert,
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /생일 임박 대상/);
+    assert.match(
+      html,
+      /직원과 입소중 청소년 중 생일이 31일 이하로 남은 대상입니다\./,
+    );
+    assert.match(html, /김민지/);
+    assert.match(html, /바자울 \/ 팀장/);
+    assert.match(html, /생년월일 1990\.06\.30 · 생일 2026\.06\.30/);
+    assert.match(html, /이하늘/);
+    assert.match(html, /D-31/);
+  });
+
+  test("renders an empty birthday alert modal state", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarBirthdayAlertModalContent, {
+        alert: {
+          ddayLabel: "",
+          items: [],
+          label: "생일",
+          personName: "생일 없음",
+          status: "empty",
+        },
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(
+      html,
+      /생일이 31일 이하로 남은 직원 또는 입소중 청소년이 없습니다\./,
     );
   });
 });

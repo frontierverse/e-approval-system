@@ -6,8 +6,10 @@ import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-t
 import { CafeItemList } from "../src/components/cafe-item-list.tsx";
 import {
   createCafeItemDueSoonHref,
+  createCafeItemExpirationSearchHref,
   formatCafeItemDateValue,
   getCafeItemUsageDday,
+  normalizeCafeItemSort,
   type CafeItemChangeLogPage,
   type CafeItem,
   type CafeItemPage,
@@ -43,6 +45,7 @@ const itemPage: CafeItemPage = {
     deadline: "all",
     page: 1,
     query: "",
+    sort: "latest",
   },
   items: cafeItems,
   page: 1,
@@ -128,6 +131,25 @@ describe("cafe items", () => {
     );
   });
 
+  test("creates cafe item expiration search links", () => {
+    assert.equal(
+      createCafeItemExpirationSearchHref("우유"),
+      "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
+    );
+    assert.equal(
+      createCafeItemExpirationSearchHref(" "),
+      "/work-schedule/cafe?category=food&sort=expirationAsc",
+    );
+  });
+
+  test("normalizes cafe item sort values", () => {
+    assert.equal(normalizeCafeItemSort("expirationAsc"), "expirationAsc");
+    assert.equal(normalizeCafeItemSort("expirationDesc"), "expirationDesc");
+    assert.equal(normalizeCafeItemSort("latest"), "latest");
+    assert.equal(normalizeCafeItemSort("createdAt"), "latest");
+    assert.equal(normalizeCafeItemSort(undefined), "latest");
+  });
+
   test("renders cafe item filters, inventory rows, and pagination", () => {
     const html = renderToStaticMarkup(
       React.createElement(CafeItemList, {
@@ -153,6 +175,9 @@ describe("cafe items", () => {
     assert.match(html, /name="q"/);
     assert.match(html, /name="category"/);
     assert.match(html, /name="deadline"/);
+    assert.match(html, /aria-label="유통기한 오름차순 정렬"/);
+    assert.match(html, /aria-sort="none"/);
+    assert.match(html, /href="\/work-schedule\/cafe\?sort=expirationAsc"/);
     assert.notEqual(purchaseDateHeaderIndex, -1);
     assert.notEqual(categoryHeaderIndex, -1);
     assert.ok(purchaseDateHeaderIndex < categoryHeaderIndex);
@@ -172,6 +197,36 @@ describe("cafe items", () => {
     assert.match(html, /href="\/work-schedule\/cafe\?page=2"/);
   });
 
+  test("renders active cafe item expiration sort links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemList, {
+        itemPage: {
+          ...itemPage,
+          filters: {
+            ...itemPage.filters,
+            category: "food",
+            deadline: "dueSoon",
+            query: "우유",
+            sort: "expirationAsc",
+          },
+        },
+        today: "2026-06-24",
+      }),
+    );
+
+    assert.match(html, /aria-sort="ascending"/);
+    assert.match(html, /aria-label="유통기한 내림차순 정렬"/);
+    assert.match(html, /name="sort" value="expirationAsc"/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\?q=%EC%9A%B0%EC%9C%A0&amp;category=food&amp;deadline=dueSoon&amp;sort=expirationDesc"/,
+    );
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\?q=%EC%9A%B0%EC%9C%A0&amp;category=food&amp;deadline=dueSoon&amp;sort=expirationAsc&amp;page=2"/,
+    );
+  });
+
   test("renders cafe item change log filters and pagination", () => {
     const html = renderToStaticMarkup(
       React.createElement(CafeItemChangeLogTable, {
@@ -189,5 +244,21 @@ describe("cafe items", () => {
     assert.match(html, /우유 물품 정보를 수정했습니다\./);
     assert.match(html, /최윤서/);
     assert.match(html, /href="\/work-schedule\/cafe\?logQ=%EC%9A%B0%EC%9C%A0&amp;logAction=update&amp;logStaff=user-001"/);
+
+    const sortedHtml = renderToStaticMarkup(
+      React.createElement(CafeItemChangeLogTable, {
+        itemFilters: {
+          ...itemPage.filters,
+          sort: "expirationDesc",
+        },
+        logPage: changeLogPage,
+      }),
+    );
+
+    assert.match(sortedHtml, /name="sort" value="expirationDesc"/);
+    assert.match(
+      sortedHtml,
+      /href="\/work-schedule\/cafe\?sort=expirationDesc&amp;logQ=%EC%9A%B0%EC%9C%A0&amp;logAction=update&amp;logStaff=user-001"/,
+    );
   });
 });

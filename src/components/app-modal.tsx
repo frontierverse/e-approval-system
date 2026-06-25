@@ -7,6 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 export function AppModal({
   children,
@@ -59,7 +60,7 @@ export function AppModal({
     }
   }
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 px-4 py-6"
       onMouseDown={closeFromBackdrop}
@@ -85,4 +86,8 @@ export function AppModal({
       </section>
     </div>
   );
+
+  return typeof document === "undefined"
+    ? modal
+    : createPortal(modal, document.body);
 }

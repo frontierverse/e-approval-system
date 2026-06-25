@@ -6,10 +6,14 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Fragment,
   useEffect,
+  useId,
   useRef,
+  useState,
   type MouseEvent,
   type PointerEvent,
 } from "react";
+import { AppModal } from "@/components/app-modal";
+import { formatBirthdayAlertDate } from "@/lib/birthday-alerts-core";
 
 export type NavigationItem = {
   label: string;
@@ -26,13 +30,41 @@ export type NavigationTopbarAlert = {
   ddayLabel: string;
   href: string;
   itemName: string;
+  items: NavigationTopbarAlertItem[];
   label: string;
   status?: "active" | "empty";
+};
+
+export type NavigationTopbarAlertItem = {
+  ddayLabel: string;
+  expirationDate: string;
+  href: string;
+  id: string;
+  itemName: string;
+};
+
+export type NavigationTopbarBirthdayAlert = {
+  ddayLabel: string;
+  items: NavigationTopbarBirthdayAlertItem[];
+  label: string;
+  personName: string;
+  status?: "active" | "empty";
+};
+
+export type NavigationTopbarBirthdayAlertItem = {
+  birthdayDate: string;
+  birthDate: string;
+  ddayLabel: string;
+  detailLabel: string;
+  id: string;
+  name: string;
+  typeLabel: string;
 };
 
 type AppNavProps = {
   groups: NavigationGroup[];
   topbarAlert?: NavigationTopbarAlert | null;
+  topbarBirthdayAlert?: NavigationTopbarBirthdayAlert | null;
   variant: "mobile" | "desktop" | "topbar";
 };
 
@@ -44,7 +76,12 @@ type MobileDragState = {
   suppressClick: boolean;
 };
 
-export function AppNav({ groups, topbarAlert = null, variant }: AppNavProps) {
+export function AppNav({
+  groups,
+  topbarAlert = null,
+  topbarBirthdayAlert = null,
+  variant,
+}: AppNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentHref = getCurrentHref(pathname, searchParams);
@@ -176,22 +213,29 @@ export function AppNav({ groups, topbarAlert = null, variant }: AppNavProps) {
         >
           {groups.map((group, index) => (
             <Fragment key={group.label}>
-              {topbarAlert && index === firstEndAlignedGroupIndex ? (
-                <TopbarAlertLink
-                  active={isActivePath(
-                    pathname,
-                    topbarAlert.href,
-                    currentHref,
-                  )}
-                  alert={topbarAlert}
-                  alignEnd
-                />
+              {index === firstEndAlignedGroupIndex ? (
+                <>
+                  {topbarBirthdayAlert ? (
+                    <TopbarBirthdayAlertButton
+                      alert={topbarBirthdayAlert}
+                      alignEnd
+                    />
+                  ) : null}
+                  {topbarAlert ? (
+                    <TopbarExpirationAlertButton
+                      alert={topbarAlert}
+                      alignEnd={!topbarBirthdayAlert}
+                    />
+                  ) : null}
+                </>
               ) : null}
               <CategoryLink
                 group={group}
                 active={group.label === selectedGroup?.label}
                 alignEnd={
-                  index === firstEndAlignedGroupIndex && !topbarAlert
+                  index === firstEndAlignedGroupIndex &&
+                  !topbarAlert &&
+                  !topbarBirthdayAlert
                 }
               />
             </Fragment>
@@ -264,56 +308,267 @@ export function AppNav({ groups, topbarAlert = null, variant }: AppNavProps) {
   );
 }
 
-function TopbarAlertLink({
-  active,
+function TopbarExpirationAlertButton({
   alert,
   alignEnd,
 }: {
-  active: boolean;
   alert: NavigationTopbarAlert;
   alignEnd?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
+  const hasItems = alert.items.length > 0;
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
-    alert.status === "empty"
-      ? "cursor-default"
-      : "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
+    "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
     alignEnd ? "ml-auto" : "",
   ].join(" ");
+  const title = hasItems
+    ? `${alert.itemName} ${alert.ddayLabel}`
+    : "유통기한 임박 물품 없음";
+  const ariaLabel = hasItems
+    ? `${alert.itemName} ${alert.ddayLabel} 유통기한 임박 물품 목록 열기`
+    : "유통기한 임박 물품 목록 열기, 임박 없음";
 
-  if (alert.status === "empty") {
-    return (
-      <span
-        aria-label="유통기한 임박 물품 없음"
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
         className={className}
-        title="유통기한 임박 물품 없음"
+        onClick={() => setOpen(true)}
+        title={title}
       >
         <span className="hidden text-[#946200] sm:inline">{alert.label}</span>
         <span className="max-w-[8rem] truncate text-[#4a2f00]">
           {alert.itemName}
         </span>
-      </span>
-    );
-  }
+        {hasItems ? (
+          <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#a13a3a]">
+            {alert.ddayLabel}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={descriptionId}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <TopbarExpirationAlertModalContent
+            alert={alert}
+            descriptionId={descriptionId}
+            onClose={() => setOpen(false)}
+            titleId={titleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
+function TopbarBirthdayAlertButton({
+  alert,
+  alignEnd,
+}: {
+  alert: NavigationTopbarBirthdayAlert;
+  alignEnd?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
+  const hasItems = alert.items.length > 0;
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2.5 text-xs font-semibold text-[#22633a] shadow-sm transition hover:border-[#9dcfaf] hover:bg-[#dcf0e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bddfc9] sm:px-3",
+    alignEnd ? "ml-auto" : "",
+  ].join(" ");
+  const title = hasItems
+    ? `${alert.personName} ${alert.ddayLabel}`
+    : "생일 임박 대상 없음";
+  const ariaLabel = hasItems
+    ? `${alert.personName} ${alert.ddayLabel} 생일 임박 대상 목록 열기`
+    : "생일 임박 대상 목록 열기, 대상 없음";
 
   return (
-    <Link
-      href={alert.href}
-      aria-current={active ? "page" : undefined}
-      aria-label={`${alert.itemName} ${alert.ddayLabel} 유통기한 임박 물품 보기`}
-      className={className}
-      draggable={false}
-      title={`${alert.itemName} ${alert.ddayLabel}`}
-    >
-      <span className="hidden text-[#946200] sm:inline">{alert.label}</span>
-      <span className="max-w-[8rem] truncate text-[#4a2f00]">
-        {alert.itemName}
-      </span>
-      <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#a13a3a]">
-        {alert.ddayLabel}
-      </span>
-      <NavPendingDot variant="topbar" />
-    </Link>
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
+        className={className}
+        onClick={() => setOpen(true)}
+        title={title}
+      >
+        <span className="hidden text-[#22633a] sm:inline">{alert.label}</span>
+        <span className="max-w-[8rem] truncate text-[#174429]">
+          {alert.personName}
+        </span>
+        {hasItems ? (
+          <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#22633a]">
+            {alert.ddayLabel}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={descriptionId}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <TopbarBirthdayAlertModalContent
+            alert={alert}
+            descriptionId={descriptionId}
+            onClose={() => setOpen(false)}
+            titleId={titleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
+export function TopbarBirthdayAlertModalContent({
+  alert,
+  descriptionId,
+  onClose,
+  titleId,
+}: {
+  alert: NavigationTopbarBirthdayAlert;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#22633a]">생일</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            생일 임박 대상
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            직원과 입소중 청소년 중 생일이 31일 이하로 남은 대상입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      {alert.items.length > 0 ? (
+        <ul className="divide-y divide-[#eef1f5] px-5">
+          {alert.items.map((item) => (
+            <li key={`${item.typeLabel}-${item.id}`} className="py-4">
+              <div className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2">
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                      {item.name}
+                    </span>
+                    <span className="rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2 py-0.5 text-xs font-semibold text-[#22633a]">
+                      {item.typeLabel}
+                    </span>
+                  </span>
+                  <span className="mt-1 block break-words text-xs text-[#697386] [overflow-wrap:anywhere]">
+                    {item.detailLabel}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#697386]">
+                    생년월일 {formatBirthdayAlertDate(item.birthDate)} · 생일{" "}
+                    {formatBirthdayAlertDate(item.birthdayDate)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2.5 py-1 text-xs font-semibold text-[#22633a]">
+                  {item.ddayLabel}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+          생일이 31일 이하로 남은 직원 또는 입소중 청소년이 없습니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function TopbarExpirationAlertModalContent({
+  alert,
+  descriptionId,
+  onClose,
+  titleId,
+}: {
+  alert: NavigationTopbarAlert;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#946200]">유통기한</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            임박 물품 목록
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            유통기한이 31일 이하로 남은 식품 목록입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      {alert.items.length > 0 ? (
+        <ul className="divide-y divide-[#eef1f5] px-5">
+          {alert.items.map((item) => (
+            <li key={item.id} className="py-4">
+              <Link
+                href={item.href}
+                onClick={onClose}
+                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#fff8e8] focus:outline-none focus:ring-2 focus:ring-[#f0d28a]"
+              >
+                <span className="min-w-0">
+                  <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                    {item.itemName}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#697386]">
+                    유통기한 {formatTopbarAlertDate(item.expirationDate)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 py-1 text-xs font-semibold text-[#a13a3a]">
+                  {item.ddayLabel}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+          유통기한이 31일 이하로 남은 물품이 없습니다.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -404,6 +659,10 @@ function NavPendingDot({
       ].join(" ")}
     />
   );
+}
+
+function formatTopbarAlertDate(value: string) {
+  return value.replaceAll("-", ".");
 }
 
 function getActiveGroup(
