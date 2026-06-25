@@ -950,7 +950,7 @@ describe("major UI rendering", () => {
     );
 
     assert.match(commonHtml, /교육 · 공통/);
-    assert.match(commonHtml, /bg-\[#eef7f6\]/);
+    assert.match(commonHtml, /bg-\[#eef2f7\]/);
     assert.match(highHtml, /교육 · 고등/);
     assert.match(highHtml, /bg-\[#eaf0fb\]/);
     assert.match(middleHtml, /교육 · 중등/);

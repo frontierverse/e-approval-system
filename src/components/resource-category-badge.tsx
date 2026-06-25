@@ -10,7 +10,7 @@ type ResourceCategoryBadgeProps = {
 };
 
 const educationLevelBadgeTone: Record<ResourceEducationLevel, string> = {
-  common: "border-[#b8d9d7] bg-[#eef7f6] text-[#196b69]",
+  common: "border-[#c8d2df] bg-[#eef2f7] text-[#4a5568]",
   high: "border-[#b9c9ea] bg-[#eaf0fb] text-[#274f9f]",
   middle: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
 };
