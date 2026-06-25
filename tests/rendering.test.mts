@@ -545,6 +545,20 @@ describe("major UI rendering", () => {
     assert.match(sheetHtml, /bg-\[#e8f5ed\]/);
   });
 
+  test("renders full attachment file names when requested", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AttachmentFileRow, {
+        fileName: "교육자료_상세운영가이드_최종본.pdf",
+        showFullFileName: true,
+        size: 153600,
+      }),
+    );
+
+    assert.match(html, /교육자료_상세운영가이드_최종본\.pdf/);
+    assert.match(html, /break-all leading-5 whitespace-normal/);
+    assert.doesNotMatch(html, /truncate/);
+  });
+
   test("renders image attachment thumbnails when provided", () => {
     const html = renderToStaticMarkup(
       React.createElement(AttachmentFileRow, {
@@ -925,10 +939,35 @@ describe("major UI rendering", () => {
     assert.match(html, /tabular-nums text-sm font-semibold text-\[#697386\]/);
     assert.match(html, /바자울/);
     assert.doesNotMatch(html, /고정/);
-    assert.match(html, /총 1개 · PDF 1개/);
-    assert.doesNotMatch(html, /업무자료\.pdf/);
+    assert.match(html, /PDF/);
+    assert.match(html, /업무자료\.pdf/);
+    assert.doesNotMatch(html, /총 1개 · PDF 1개/);
     assert.match(html, /2026\. 05\. 11\. 오후 12:02/);
     assert.match(html, /12명/);
+  });
+
+  test("renders every resource attachment file name in the list", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ResourceLibraryList, {
+        items: [
+          {
+            ...resourceItem,
+            attachments: [
+              { fileName: "교육운영계획.pdf", size: 1024 },
+              { fileName: "안전점검표_상세버전.xlsx", size: 2048 },
+              { fileName: "프로그램사진모음.zip", size: 4096 },
+            ],
+          },
+        ],
+        hasActiveFilter: false,
+      }),
+    );
+
+    assert.match(html, /교육운영계획\.pdf/);
+    assert.match(html, /안전점검표_상세버전\.xlsx/);
+    assert.match(html, /프로그램사진모음\.zip/);
+    assert.match(html, /break-all text-xs leading-5/);
+    assert.doesNotMatch(html, /총 3개/);
   });
 
   test("renders compact resource library rows", () => {

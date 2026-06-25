@@ -98,6 +98,7 @@ export default async function ResourceDetailPage({
                   <li key={attachment.id} className="min-w-0 px-3 py-2">
                     <AttachmentFileRow
                       fileName={attachment.fileName}
+                      showFullFileName
                       size={attachment.size}
                       thumbnailHref={
                         getAttachmentPreviewKind(

@@ -219,90 +219,43 @@ function ResourceAttachmentSummary({
   attachments: ResourceAttachment[];
   compact?: boolean;
 }) {
-  const groups = getAttachmentGroups(attachments);
-  const visibleGroups = groups.slice(0, 4);
-  const hiddenCount = groups
-    .slice(4)
-    .reduce((total, group) => total + group.count, 0);
   const summary =
-    groups.length > 0
-      ? `총 ${attachments.length}개 · ${groups
-          .map((group) => `${group.extensionLabel} ${group.count}개`)
+    attachments.length > 0
+      ? `첨부파일 ${attachments.length}개: ${attachments
+          .map((attachment) => attachment.fileName)
           .join(", ")}`
       : "첨부 없음";
 
   return (
-    <div className="flex min-w-0 items-center gap-2" aria-label={summary}>
-      <div
-        className={`flex shrink-0 items-center gap-1.5 overflow-hidden ${
-          compact ? "h-7" : "h-8"
-        }`}
-      >
-        {visibleGroups.length > 0 ? (
-          visibleGroups.map((group) => (
-            <span
-              key={group.extensionLabel}
-              title={`${group.extensionLabel} ${group.count}개`}
-              className={`relative inline-flex min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
-                compact ? "h-6" : "h-7"
-              } ${
-                attachmentIconTone[group.kind]
-              }`}
-            >
-              {group.extensionLabel}
-              {group.count > 1 ? (
-                <span className="absolute -right-1 -top-1 grid size-3.5 place-items-center rounded-full bg-[#394150] text-[0.5rem] font-semibold text-white">
-                  {group.count}
+    <div className="min-w-0" aria-label={summary}>
+      {attachments.length > 0 ? (
+        <ul className={compact ? "space-y-1" : "space-y-1.5"}>
+          {attachments.map((attachment, index) => {
+            const file = getAttachmentFileDisplay(attachment.fileName);
+            const key = `${index}:${attachment.fileName}`;
+
+            return (
+              <li key={key} className="flex min-w-0 items-start gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`inline-flex min-w-8 shrink-0 items-center justify-center rounded-md border px-1 text-[0.58rem] font-bold leading-none ${
+                    compact ? "h-6" : "h-7"
+                  } ${attachmentIconTone[file.kind]}`}
+                >
+                  {file.extensionLabel}
                 </span>
-              ) : null}
-            </span>
-          ))
-        ) : (
-          <span className="text-sm text-[#8a95a6]">없음</span>
-        )}
-        {hiddenCount > 0 ? (
-          <span
-            className={`inline-flex shrink-0 items-center rounded-md border border-[#cfd6e3] bg-white px-2 text-xs font-semibold text-[#394150] ${
-              compact ? "h-6" : "h-7"
-            }`}
-          >
-            +{hiddenCount}
-          </span>
-        ) : null}
-      </div>
-      <p className="min-w-0 truncate text-xs text-[#697386]">{summary}</p>
+                <span className="min-w-0 break-all text-xs leading-5 text-[#394150]">
+                  {attachment.fileName}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <span className="text-sm text-[#8a95a6]">없음</span>
+      )}
     </div>
   );
-}
-
-function getAttachmentGroups(attachments: ResourceAttachment[]) {
-  const groups = new Map<
-    string,
-    {
-      count: number;
-      extensionLabel: string;
-      kind: AttachmentFileKind;
-    }
-  >();
-
-  for (const attachment of attachments) {
-    const file = getAttachmentFileDisplay(attachment.fileName);
-    const key = file.extension || file.kind;
-    const current = groups.get(key);
-
-    if (current) {
-      current.count += 1;
-      continue;
-    }
-
-    groups.set(key, {
-      count: 1,
-      extensionLabel: file.extensionLabel,
-      kind: file.kind,
-    });
-  }
-
-  return Array.from(groups.values());
 }
 
 function ResourceMeta({ item }: { item: ResourceLibraryItem }) {

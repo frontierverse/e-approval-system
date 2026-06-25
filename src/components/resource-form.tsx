@@ -505,6 +505,7 @@ function ResourceFormFields({
                     <AttachmentFileRow
                       fileName={attachment.originalName}
                       note={isRemoved ? "삭제 예정" : "기존 첨부"}
+                      showFullFileName
                       size={attachment.size}
                       thumbnailHref={
                         getAttachmentPreviewKind(
@@ -598,6 +599,7 @@ function ResourceFormFields({
                 <AttachmentFileRow
                   fileName={file.name}
                   note="새로 추가"
+                  showFullFileName
                   size={file.size}
                   thumbnailHref={
                     selectedFileThumbnailUrls[getAttachmentSelectionKey(file)]

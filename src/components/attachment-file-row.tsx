@@ -4,6 +4,7 @@ type AttachmentFileRowProps = {
   action?: React.ReactNode;
   fileName: string;
   note?: string;
+  showFullFileName?: boolean;
   size?: number;
   thumbnailHref?: string;
 };
@@ -23,6 +24,7 @@ export function AttachmentFileRow({
   action,
   fileName,
   note,
+  showFullFileName = false,
   size,
   thumbnailHref,
 }: AttachmentFileRowProps) {
@@ -54,7 +56,13 @@ export function AttachmentFileRow({
           </span>
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[#16181d]">
+          <p
+            className={`text-sm font-semibold text-[#16181d] ${
+              showFullFileName
+                ? "break-all leading-5 whitespace-normal"
+                : "truncate"
+            }`}
+          >
             {fileName}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#697386]">
