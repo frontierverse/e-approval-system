@@ -40,10 +40,12 @@ describe("resource library", () => {
   });
 
   test("normalizes education level filters", () => {
+    assert.equal(normalizeResourceEducationLevel("common"), "common");
     assert.equal(normalizeResourceEducationLevel("high"), "high");
     assert.equal(normalizeResourceEducationLevel("middle"), "middle");
     assert.equal(normalizeResourceEducationLevel("unknown"), "");
     assert.equal(normalizeResourceEducationLevel(undefined), "");
+    assert.equal(normalizeResourceEducationLevelFilter("common"), "common");
     assert.equal(normalizeResourceEducationLevelFilter("high"), "high");
     assert.equal(normalizeResourceEducationLevelFilter("middle"), "middle");
     assert.equal(normalizeResourceEducationLevelFilter("unknown"), "all");
@@ -51,6 +53,13 @@ describe("resource library", () => {
   });
 
   test("formats education resource category labels with the level", () => {
+    assert.equal(
+      getResourceCategoryDisplayLabel({
+        category: "education",
+        educationLevel: "common",
+      }),
+      "교육 · 공통",
+    );
     assert.equal(
       getResourceCategoryDisplayLabel({
         category: "education",

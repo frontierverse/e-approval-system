@@ -69,6 +69,7 @@ describe("ResourceForm", () => {
 
     assert.match(html, /name="educationLevel"/);
     assert.match(html, /교육 대상/);
+    assert.match(html, /value="common">공통/);
     assert.match(html, /value="middle" selected="">중등/);
   });
 });

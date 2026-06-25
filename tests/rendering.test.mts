@@ -1056,6 +1056,7 @@ describe("major UI rendering", () => {
     assert.match(html, /sm:w-28/);
     assert.match(html, />대상</);
     assert.match(html, />분류</);
+    assert.match(html, /value="common">공통/);
     assert.match(html, /value="high" selected="">고등/);
     assert.match(html, /value="middle">중등/);
     assert.match(html, /value="검정고시" selected="">검정고시/);

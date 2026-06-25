@@ -1,5 +1,5 @@
 export type ResourceCategory = "corporation" | "cafe" | "bajaul" | "education";
-export type ResourceEducationLevel = "high" | "middle";
+export type ResourceEducationLevel = "common" | "high" | "middle";
 
 export type ResourceAttachment = {
   id?: string;
@@ -84,6 +84,7 @@ export const resourceEducationLevelLabels: Record<
   ResourceEducationLevel,
   string
 > = {
+  common: "공통",
   high: "고등",
   middle: "중등",
 };
@@ -93,6 +94,7 @@ export const resourceEducationLevelOptions: {
   label: string;
 }[] = [
   { value: "all", label: "대상" },
+  { value: "common", label: resourceEducationLevelLabels.common },
   { value: "high", label: resourceEducationLevelLabels.high },
   { value: "middle", label: resourceEducationLevelLabels.middle },
 ];
@@ -136,7 +138,7 @@ export function normalizeResourceCategoryFilter(
 export function isResourceEducationLevel(
   value: string,
 ): value is ResourceEducationLevel {
-  return value === "high" || value === "middle";
+  return value === "common" || value === "high" || value === "middle";
 }
 
 export function normalizeResourceEducationLevel(
