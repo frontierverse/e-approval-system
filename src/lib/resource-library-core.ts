@@ -97,6 +97,20 @@ export const resourceEducationLevelOptions: {
   { value: "middle", label: resourceEducationLevelLabels.middle },
 ];
 
+export function getResourceCategoryDisplayLabel({
+  category,
+  educationLevel,
+}: {
+  category: ResourceCategory;
+  educationLevel?: ResourceEducationLevel | null;
+}) {
+  const categoryLabel = resourceCategoryLabels[category];
+
+  return category === "education" && educationLevel
+    ? `${categoryLabel} · ${resourceEducationLevelLabels[educationLevel]}`
+    : categoryLabel;
+}
+
 export const defaultResourceLibraryPageSize = 3;
 export const educationResourceLibraryPageSize = 10;
 

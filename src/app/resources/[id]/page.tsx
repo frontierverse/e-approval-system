@@ -13,7 +13,7 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 import { getResourcePostById } from "@/lib/resource-library";
-import { resourceCategoryLabels } from "@/lib/resource-library-core";
+import { getResourceCategoryDisplayLabel } from "@/lib/resource-library-core";
 
 export default async function ResourceDetailPage({
   params,
@@ -36,7 +36,7 @@ export default async function ResourceDetailPage({
     <>
       <PageTitle
         title={resource.title}
-        description={`${resourceCategoryLabels[resource.category]} / ${resource.departmentName}`}
+        description={`${getResourceCategoryDisplayLabel(resource)} / ${resource.departmentName}`}
         titleAccessory={
           <TitleBackLink href={`/resources?category=${resource.category}`} />
         }

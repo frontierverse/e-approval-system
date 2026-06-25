@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   defaultResourceLibraryPageSize,
   educationResourceLibraryPageSize,
+  getResourceCategoryDisplayLabel,
   getResourceLibraryPageSize,
   getResourceSearchTerms,
   normalizeResourceEducationLevel,
@@ -47,6 +48,30 @@ describe("resource library", () => {
     assert.equal(normalizeResourceEducationLevelFilter("middle"), "middle");
     assert.equal(normalizeResourceEducationLevelFilter("unknown"), "all");
     assert.equal(normalizeResourceEducationLevelFilter(undefined), "all");
+  });
+
+  test("formats education resource category labels with the level", () => {
+    assert.equal(
+      getResourceCategoryDisplayLabel({
+        category: "education",
+        educationLevel: "high",
+      }),
+      "교육 · 고등",
+    );
+    assert.equal(
+      getResourceCategoryDisplayLabel({
+        category: "education",
+        educationLevel: "middle",
+      }),
+      "교육 · 중등",
+    );
+    assert.equal(
+      getResourceCategoryDisplayLabel({
+        category: "education",
+        educationLevel: null,
+      }),
+      "교육",
+    );
   });
 
   test("splits resource search queries into terms", () => {

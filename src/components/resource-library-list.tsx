@@ -7,7 +7,7 @@ import {
 } from "@/lib/file-display";
 import { formatDateTime } from "@/lib/mock-data";
 import {
-  resourceCategoryLabels,
+  getResourceCategoryDisplayLabel,
   type ResourceAttachment,
   type ResourceLibraryItem,
 } from "@/lib/resource-library-core";
@@ -185,7 +185,7 @@ function ResourceTitle({
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-2 py-0.5 text-xs font-semibold text-[#394150]">
-          {resourceCategoryLabels[item.category]}
+          {getResourceCategoryDisplayLabel(item)}
         </span>
         <h2 className="truncate text-sm font-semibold text-[#16181d] group-hover:underline">
           {item.title}
