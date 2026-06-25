@@ -425,7 +425,6 @@ export function TopbarCurrentScheduleLink({
       className={className}
       title={title}
     >
-      <span className="hidden text-[#1d5f78] sm:inline">{alert.label}</span>
       <span className="max-w-[10rem] truncate text-[#17475a]">
         {alert.content}
       </span>
@@ -472,7 +471,6 @@ function TopbarExpirationAlertButton({
         onClick={() => setOpen(true)}
         title={title}
       >
-        <span className="hidden text-[#946200] sm:inline">{alert.label}</span>
         <span className="max-w-[8rem] truncate text-[#4a2f00]">
           {alert.itemName}
         </span>

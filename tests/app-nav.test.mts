@@ -71,7 +71,7 @@ describe("app navigation active paths", () => {
     );
 
     assert.match(html, /href="\/youth\/common-schedule"/);
-    assert.match(html, /현재 일정/);
+    assert.doesNotMatch(html, />현재 일정<\/span>/);
     assert.match(html, /공용 자습/);
     assert.match(html, /09:00-10:30/);
   });
