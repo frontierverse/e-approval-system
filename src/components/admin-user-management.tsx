@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   type AdminUserFormState,
   createAdminUserAction,
@@ -13,6 +13,7 @@ import {
   SelectField,
   TextField,
 } from "@/components/admin-form-controls";
+import { SplitDateInput } from "@/components/split-date-input";
 import { UserAvatar } from "@/components/user-avatar";
 import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -29,6 +30,7 @@ type AdminUser = {
   email: string | null;
   role: "USER" | "ADMIN";
   status: "ACTIVE" | "INACTIVE";
+  birthDate: string | null;
   hireDate: string | null;
   resignationDate: string | null;
   profileImageStorageKey: string | null;
@@ -112,6 +114,7 @@ function UserListItem({
     <AdminEditModal
       title="직원 정보 수정"
       description="권한, 상태, 조직 정보와 비밀번호를 재설정합니다."
+      showTabNavigationNotice
       trigger={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -130,6 +133,9 @@ function UserListItem({
               </p>
               <p className="mt-1 text-xs text-[#697386]">
                 {formatEmploymentPeriod(user)}
+              </p>
+              <p className="mt-1 text-xs text-[#697386]">
+                {formatBirthDateLabel(user.birthDate)}
               </p>
             </div>
           </div>
@@ -170,6 +176,9 @@ function CreateUserForm({
       className="self-start rounded-md border border-[#d9dee7] bg-white p-5"
     >
       <h2 className="text-base font-semibold">직원 추가</h2>
+      <p className="mt-2 text-sm font-semibold text-[#196b69]">
+        TAB키를 사용하여 입력칸 이동 가능
+      </p>
       <p className="mt-1 text-sm text-[#697386]">
         직원 계정의 기본 조직 정보를 입력합니다. (초기 비밀번호: 0000)
       </p>
@@ -189,19 +198,23 @@ function CreateUserForm({
           defaultValue={state.values?.email}
           placeholder="입력하지 않아도 생성됩니다"
         />
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <TextField
+        <div className="grid min-w-0 gap-3">
+          <AdminSplitDateField
+            label="생년월일"
+            description="선택"
+            name="birthDate"
+            defaultValue={state.values?.birthDate}
+          />
+          <AdminSplitDateField
             label="입사일"
             description="선택"
             name="hireDate"
-            type="date"
             defaultValue={state.values?.hireDate}
           />
-          <TextField
+          <AdminSplitDateField
             label="퇴사일"
             description="선택"
             name="resignationDate"
-            type="date"
             defaultValue={state.values?.resignationDate}
           />
         </div>
@@ -326,19 +339,26 @@ function EditUserForm({
           />
         </div>
 
-        <div className="grid min-w-0 gap-3 sm:col-span-2 sm:grid-cols-2">
-          <TextField
+        <div className="grid min-w-0 gap-3 sm:col-span-2 lg:grid-cols-3">
+          <AdminSplitDateField
+            label="생년월일"
+            description="선택"
+            name="birthDate"
+            ariaLabel="수정 생년월일"
+            defaultValue={state.values?.birthDate ?? user.birthDate ?? ""}
+          />
+          <AdminSplitDateField
             label="입사일"
             description="선택"
             name="hireDate"
-            type="date"
+            ariaLabel="수정 입사일"
             defaultValue={state.values?.hireDate ?? user.hireDate ?? ""}
           />
-          <TextField
+          <AdminSplitDateField
             label="퇴사일"
             description="선택"
             name="resignationDate"
-            type="date"
+            ariaLabel="수정 퇴사일"
             defaultValue={
               state.values?.resignationDate ?? user.resignationDate ?? ""
             }
@@ -391,6 +411,43 @@ function EditUserForm({
   );
 }
 
+function AdminSplitDateField({
+  ariaLabel,
+  defaultValue,
+  description,
+  label,
+  name,
+}: {
+  ariaLabel?: string;
+  defaultValue?: string | null;
+  description?: string;
+  label: string;
+  name: string;
+}) {
+  const descriptionId = useId();
+  const [value, setValue] = useState(defaultValue ?? "");
+
+  return (
+    <label className="block min-w-0">
+      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-xs font-semibold text-[#697386]">{label}</span>
+        {description ? (
+          <span id={descriptionId} className="text-xs text-[#9aa4b2]">
+            {description}
+          </span>
+        ) : null}
+      </span>
+      <input type="hidden" name={name} value={value} />
+      <SplitDateInput
+        ariaLabel={ariaLabel ?? label}
+        value={value}
+        onChange={setValue}
+        className="h-10"
+      />
+    </label>
+  );
+}
+
 function RolePill({ role }: { role: "USER" | "ADMIN" }) {
   return (
     <span
@@ -420,6 +477,10 @@ function formatEmploymentPeriod({
     : "재직 중";
 
   return `${hireLabel} · ${resignationLabel}`;
+}
+
+function formatBirthDateLabel(value: string | null) {
+  return value ? `생년월일 ${formatDateValue(value)}` : "생년월일 미등록";
 }
 
 function formatDateValue(value: string) {

@@ -40,6 +40,7 @@ export type CompanyInfoStaffMember = {
   id: string;
   name: string;
   email: string | null;
+  birthDate: string | null;
   hireDate: string | null;
   departmentName: string;
   positionName: string;
@@ -208,6 +209,7 @@ async function getActiveStaffMembers(referenceDate: string) {
       id: true,
       name: true,
       email: true,
+      birthDate: true,
       hireDate: true,
       profileImageStorageKey: true,
       profileImageUpdatedAt: true,
@@ -243,6 +245,7 @@ async function getActiveStaffMembers(referenceDate: string) {
     id: user.id,
     name: user.name,
     email: user.email,
+    birthDate: user.birthDate,
     hireDate: user.hireDate,
     departmentName: user.department.name,
     positionName: user.position.name,

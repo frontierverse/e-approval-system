@@ -31,7 +31,7 @@ const requiredYouthLearningScheduleFields = [
 ] as const;
 const requiredYouthFields = ["birthDate"] as const;
 const requiredWorkScheduleFields = ["scheduleDate"] as const;
-const requiredUserFields = ["hireDate", "resignationDate"] as const;
+const requiredUserFields = ["birthDate", "hireDate", "resignationDate"] as const;
 
 const adapter = new PrismaPg({
   connectionString: getDatabaseUrl(),

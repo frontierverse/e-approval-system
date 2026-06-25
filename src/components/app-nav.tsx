@@ -27,6 +27,7 @@ export type NavigationTopbarAlert = {
   href: string;
   itemName: string;
   label: string;
+  status?: "active" | "empty";
 };
 
 type AppNavProps = {
@@ -272,15 +273,35 @@ function TopbarAlertLink({
   alert: NavigationTopbarAlert;
   alignEnd?: boolean;
 }) {
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
+    alert.status === "empty"
+      ? "cursor-default"
+      : "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
+    alignEnd ? "ml-auto" : "",
+  ].join(" ");
+
+  if (alert.status === "empty") {
+    return (
+      <span
+        aria-label="유통기한 임박 물품 없음"
+        className={className}
+        title="유통기한 임박 물품 없음"
+      >
+        <span className="hidden text-[#946200] sm:inline">{alert.label}</span>
+        <span className="max-w-[8rem] truncate text-[#4a2f00]">
+          {alert.itemName}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <Link
       href={alert.href}
       aria-current={active ? "page" : undefined}
       aria-label={`${alert.itemName} ${alert.ddayLabel} 유통기한 임박 물품 보기`}
-      className={[
-        "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition hover:border-[#e8bc5f] hover:bg-[#fff3d0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
-        alignEnd ? "ml-auto" : "",
-      ].join(" ")}
+      className={className}
       draggable={false}
       title={`${alert.itemName} ${alert.ddayLabel}`}
     >

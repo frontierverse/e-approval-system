@@ -81,6 +81,7 @@ model User {
   passwordHash                  String?
   role                          UserRole   @default(USER)
   status                        UserStatus @default(ACTIVE)
+  birthDate                     String?
   hireDate                      String?
   resignationDate               String?
   profileImageStorageProvider   String?
@@ -121,6 +122,7 @@ model User {
 
   @@index([departmentId])
   @@index([positionId])
+  @@index([birthDate])
   @@index([hireDate])
   @@index([resignationDate])
 }

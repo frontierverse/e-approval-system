@@ -166,7 +166,13 @@ async function ShellNavigation({
               ...cafeExpirationAlert,
               label: "유통기한",
             }
-          : null
+          : {
+              ddayLabel: "",
+              href: "",
+              itemName: "임박 없음",
+              label: "유통기한",
+              status: "empty",
+            }
       }
       variant={variant}
     />

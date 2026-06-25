@@ -33,6 +33,7 @@ export type AdminUserFormState = {
     email?: string;
     departmentId?: string;
     positionId?: string;
+    birthDate?: string;
     hireDate?: string;
     resignationDate?: string;
     role?: string;
@@ -150,6 +151,7 @@ export async function createAdminUserAction(
       passwordHash: hashPassword(password),
       role: values.role,
       status: values.status,
+      birthDate: values.birthDate || null,
       hireDate: values.hireDate || null,
       resignationDate: values.resignationDate || null,
       departmentId: values.departmentId,
@@ -174,6 +176,7 @@ export async function createAdminUserAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/company-info");
 
   return {
     success: "사용자를 생성했습니다.",
@@ -211,6 +214,7 @@ export async function updateAdminUserAction(
       name: true,
       role: true,
       status: true,
+      birthDate: true,
       hireDate: true,
       resignationDate: true,
       departmentId: true,
@@ -247,6 +251,7 @@ export async function updateAdminUserAction(
 
   const nextHireDate = values.hireDate || null;
   const nextResignationDate = values.resignationDate || null;
+  const nextBirthDate = values.birthDate || null;
   const employmentDatesChanged =
     target.hireDate !== nextHireDate ||
     target.resignationDate !== nextResignationDate;
@@ -270,6 +275,7 @@ export async function updateAdminUserAction(
   ]);
   const auditChanges = createUserUpdateAuditChanges({
     after: {
+      birthDate: nextBirthDate,
       departmentId: values.departmentId,
       departmentName: nextDepartment?.name ?? values.departmentId,
       hireDate: nextHireDate,
@@ -293,6 +299,7 @@ export async function updateAdminUserAction(
         name: values.name,
         role: values.role,
         status: values.status,
+        birthDate: nextBirthDate,
         hireDate: nextHireDate,
         resignationDate: nextResignationDate,
         departmentId: values.departmentId,
@@ -337,6 +344,7 @@ export async function updateAdminUserAction(
 
   revalidatePath("/");
   revalidatePath("/admin");
+  revalidatePath("/company-info");
 
   return {
     success: willResetPassword
@@ -918,6 +926,7 @@ function getUserFormValues(formData: FormData) {
     departmentId: String(formData.get("departmentId") ?? "").trim(),
     positionId: String(formData.get("positionId") ?? "").trim(),
     hireDate: String(formData.get("hireDate") ?? "").trim(),
+    birthDate: String(formData.get("birthDate") ?? "").trim(),
     resignationDate: String(formData.get("resignationDate") ?? "").trim(),
     role:
       formData.get("role") === UserRole.ADMIN ? UserRole.ADMIN : UserRole.USER,
@@ -936,6 +945,7 @@ function createUserUpdateAuditChanges({
   after: {
     departmentId: string;
     departmentName: string;
+    birthDate: string | null;
     hireDate: string | null;
     name: string;
     positionId: string;
@@ -949,6 +959,7 @@ function createUserUpdateAuditChanges({
       name: string;
     };
     departmentId: string;
+    birthDate: string | null;
     hireDate: string | null;
     name: string;
     position: {
@@ -996,6 +1007,13 @@ function createUserUpdateAuditChanges({
     "직급",
     before.positionId === after.positionId ? after.positionName : before.position.name,
     after.positionName,
+  );
+  pushAuditChange(
+    changes,
+    "birthDate",
+    "생년월일",
+    before.birthDate,
+    after.birthDate,
   );
   pushAuditChange(
     changes,
@@ -1076,12 +1094,16 @@ async function validateUserFormValues(
     return "새 비밀번호는 4자 이상 입력하세요.";
   }
 
+  if (values.birthDate && !isDateValue(values.birthDate)) {
+    return "생년월일은 날짜 형식으로 입력하세요.";
+  }
+
   if (values.hireDate && !isDateValue(values.hireDate)) {
-    return "입사일은 날짜 형식으로 선택하세요.";
+    return "입사일은 날짜 형식으로 입력하세요.";
   }
 
   if (values.resignationDate && !isDateValue(values.resignationDate)) {
-    return "퇴사일은 날짜 형식으로 선택하세요.";
+    return "퇴사일은 날짜 형식으로 입력하세요.";
   }
 
   if (

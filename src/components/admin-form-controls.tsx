@@ -154,6 +154,7 @@ export function FormMessage({ state }: { state: AdminFormMessageState }) {
 export function AdminEditModal({
   title,
   description,
+  showTabNavigationNotice = false,
   trigger,
   triggerClassName,
   dialogClassName,
@@ -161,6 +162,7 @@ export function AdminEditModal({
 }: {
   title: string;
   description?: string;
+  showTabNavigationNotice?: boolean;
   trigger: ReactNode;
   triggerClassName?: string;
   dialogClassName?: string;
@@ -201,6 +203,11 @@ export function AdminEditModal({
                 >
                   {title}
                 </h2>
+                {showTabNavigationNotice ? (
+                  <p className="mt-2 text-sm font-semibold text-[#196b69]">
+                    TAB키를 사용하여 입력칸 이동 가능
+                  </p>
+                ) : null}
                 {description ? (
                   <p id={descriptionId} className="mt-1 text-sm text-[#697386]">
                     {description}

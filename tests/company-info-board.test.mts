@@ -44,6 +44,7 @@ const companyInfo = {
       id: "staff-001",
       name: "김민지",
       email: "staff@example.com",
+      birthDate: "1990-03-15",
       hireDate: "2026-01-01",
       departmentName: "바자울",
       positionName: "팀장",
@@ -54,6 +55,7 @@ const companyInfo = {
       id: "staff-002",
       name: "박서준",
       email: null,
+      birthDate: null,
       hireDate: null,
       departmentName: "법인",
       positionName: "주임",
@@ -96,6 +98,8 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /직원 목록/);
     assert.match(html, /재직 직원 2명/);
     assert.match(html, /김민지/);
+    assert.match(html, /생년월일/);
+    assert.match(html, /1990\. 03\. 15\./);
     assert.match(html, /staff@example\.com/);
     assert.match(html, /박서준/);
     assert.match(html, /입소중 청소년 목록/);

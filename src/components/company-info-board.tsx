@@ -126,7 +126,7 @@ function StaffSection({ staff }: { staff: CompanyInfoStaffMember[] }) {
       />
       {staff.length > 0 ? (
         <div className="overflow-x-auto border-t border-[#eef1f5]">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
             <thead className="bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
               <tr className="border-b border-[#d9dee7]">
                 <th scope="col" className="px-4 py-3">
@@ -140,6 +140,9 @@ function StaffSection({ staff }: { staff: CompanyInfoStaffMember[] }) {
                 </th>
                 <th scope="col" className="px-4 py-3">
                   이메일
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  생년월일
                 </th>
                 <th scope="col" className="px-4 py-3">
                   입사일
@@ -160,6 +163,7 @@ function StaffSection({ staff }: { staff: CompanyInfoStaffMember[] }) {
                   <TableCell>{member.departmentName}</TableCell>
                   <TableCell>{member.positionName}</TableCell>
                   <TableCell>{member.email ?? "미등록"}</TableCell>
+                  <TableCell>{formatOptionalDate(member.birthDate)}</TableCell>
                   <TableCell>{formatOptionalDate(member.hireDate)}</TableCell>
                 </tr>
               ))}
