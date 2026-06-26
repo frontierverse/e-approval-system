@@ -53,7 +53,10 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
       tabIndex={0}
     >
       <td className="w-[12rem] max-w-[12rem] px-6 py-5">
-        <p className="break-words font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+        <p
+          className="max-w-full truncate font-semibold text-[#16181d]"
+          title={item.name}
+        >
           {item.name}
         </p>
         <p className="mt-2 text-xs text-[#9aa4b2]">
