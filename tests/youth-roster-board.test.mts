@@ -173,7 +173,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /aria-label="퇴소 예정 년"/);
     assert.match(html, /aria-label="생년월일 년"/);
     assert.match(html, /value="2026"/);
-    assert.match(html, /value="05"/);
+    assert.match(html, /value="5"/);
     assert.match(html, /value="2009"/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);

@@ -2,16 +2,26 @@
 
 import { useState } from "react";
 import { isCafeItemDate } from "@/lib/cafe-items-core";
+import {
+  normalizeSplitDatePart,
+  normalizeSplitDateParts,
+  type SplitDatePartOptions,
+  type SplitDateParts,
+} from "@/lib/split-date-input-core";
 
 const defaultInputClassName =
   "h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-center text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 const datePartFields = [
-  { key: "year", label: "년", max: 99, min: 0, placeholder: "년" },
-  { key: "month", label: "월", max: 12, min: 1, placeholder: "월" },
-  { key: "day", label: "일", max: 31, min: 1, placeholder: "일" },
+  { key: "year", label: "년", maxLength: 2, placeholder: "년" },
+  { key: "month", label: "월", maxLength: 2, placeholder: "월" },
+  { key: "day", label: "일", maxLength: 2, placeholder: "일" },
 ] as const;
+const cafeSplitDatePartOptions = {
+  yearLength: 2,
+  yearPrefix: "20",
+} satisfies SplitDatePartOptions;
 
-type DateParts = Record<(typeof datePartFields)[number]["key"], string>;
+type DateParts = SplitDateParts;
 
 export function CafeItemDateInput({
   className = "",
@@ -34,12 +44,48 @@ export function CafeItemDateInput({
   const dateValue = getDateValue(parts);
 
   function updatePart(part: keyof DateParts, value: string) {
-    const normalizedValue = value.replace(/\D/g, "").slice(0, 2);
+    setParts((currentParts) =>
+      normalizeSplitDatePart(
+        part,
+        value,
+        currentParts,
+        cafeSplitDatePartOptions,
+      ),
+    );
+  }
 
-    setParts((currentParts) => ({
-      ...currentParts,
-      [part]: normalizedValue,
-    }));
+  function completePart(part: keyof DateParts) {
+    const currentValue = parts[part];
+
+    if (part === "year" || currentValue.length !== 1) {
+      return;
+    }
+
+    if (part === "month") {
+      const nextValue = currentValue === "0" ? "" : currentValue;
+
+      setParts((currentParts) =>
+        normalizeSplitDatePart(
+          part,
+          nextValue,
+          currentParts,
+          cafeSplitDatePartOptions,
+        ),
+      );
+      return;
+    }
+
+    const paddedValue =
+      currentValue === "0" ? "01" : currentValue.padStart(2, "0");
+
+    setParts((currentParts) =>
+      normalizeSplitDatePart(
+        part,
+        paddedValue,
+        currentParts,
+        cafeSplitDatePartOptions,
+      ),
+    );
   }
 
   return (
@@ -56,13 +102,14 @@ export function CafeItemDateInput({
             className={inputClassName}
             disabled={disabled}
             inputMode="numeric"
-            max={field.max}
-            min={field.min}
+            maxLength={field.maxLength}
             onChange={(event) => updatePart(field.key, event.target.value)}
+            onBlur={() => completePart(field.key)}
+            onFocus={(event) => event.currentTarget.select()}
+            pattern="[0-9]*"
             placeholder={field.placeholder}
             required={required}
-            step={1}
-            type="number"
+            type="text"
             value={parts[field.key]}
           />
         ))}
@@ -82,11 +129,14 @@ function getDateParts(value: string): DateParts {
 
   const [year, month, day] = value.split("-");
 
-  return {
-    day: String(Number(day)),
-    month: String(Number(month)),
-    year: year.slice(-2),
-  };
+  return normalizeSplitDateParts(
+    {
+      day: String(Number(day)),
+      month: String(Number(month)),
+      year: year.slice(-2),
+    },
+    cafeSplitDatePartOptions,
+  );
 }
 
 function getDateValue(parts: DateParts) {

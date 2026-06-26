@@ -1,6 +1,12 @@
 "use client";
 
 import { useRef } from "react";
+import {
+  normalizeSplitDatePart,
+  normalizeSplitDateParts,
+  type SplitDatePart,
+  type SplitDateParts,
+} from "@/lib/split-date-input-core";
 
 type SplitDateInputProps = {
   ariaLabel: string;
@@ -9,8 +15,6 @@ type SplitDateInputProps = {
   onChange: (value: string) => void;
 };
 
-type DatePart = "day" | "month" | "year";
-
 export function SplitDateInput({
   ariaLabel,
   className = "",
@@ -18,7 +22,6 @@ export function SplitDateInput({
   value,
 }: SplitDateInputProps) {
   const monthRef = useRef<HTMLInputElement>(null);
-  const dayRef = useRef<HTMLInputElement>(null);
   const parts = getDateParts(value);
   const inputClassName = [
     "h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-center text-sm outline-none placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]",
@@ -27,36 +30,39 @@ export function SplitDateInput({
     .filter(Boolean)
     .join(" ");
 
-  function updatePart(part: DatePart, nextRawValue: string) {
-    const nextParts = {
-      ...parts,
-      [part]: normalizeDatePart(part, nextRawValue),
-    };
+  function updatePart(
+    part: SplitDatePart,
+    nextRawValue: string,
+    input?: HTMLInputElement,
+  ) {
+    const nextParts = normalizeSplitDatePart(part, nextRawValue, parts);
 
     onChange(createDateValue(nextParts));
+    keepCaretAtEnd(input, nextParts[part].length);
 
     if (part === "year" && nextParts.year.length === 4) {
       monthRef.current?.focus();
     }
-
-    if (part === "month" && nextParts.month.length === 2) {
-      dayRef.current?.focus();
-    }
   }
 
-  function completePart(part: Exclude<DatePart, "year">) {
+  function completePart(part: Exclude<SplitDatePart, "year">) {
     const currentValue = parts[part];
 
     if (currentValue.length !== 1) {
       return;
     }
 
-    onChange(
-      createDateValue({
-        ...parts,
-        [part]: currentValue.padStart(2, "0"),
-      }),
-    );
+    if (part === "month") {
+      const nextValue = currentValue === "0" ? "" : currentValue;
+
+      onChange(createDateValue(normalizeSplitDatePart(part, nextValue, parts)));
+      return;
+    }
+
+    const paddedValue =
+      currentValue === "0" ? "01" : currentValue.padStart(2, "0");
+
+    onChange(createDateValue(normalizeSplitDatePart(part, paddedValue, parts)));
   }
 
   return (
@@ -69,8 +75,12 @@ export function SplitDateInput({
         type="text"
         inputMode="numeric"
         maxLength={4}
+        pattern="[0-9]*"
         value={parts.year}
-        onChange={(event) => updatePart("year", event.target.value)}
+        onChange={(event) =>
+          updatePart("year", event.target.value, event.currentTarget)
+        }
+        onFocus={(event) => event.currentTarget.select()}
         placeholder="년"
         aria-label={`${ariaLabel} 년`}
         className={inputClassName}
@@ -80,21 +90,28 @@ export function SplitDateInput({
         type="text"
         inputMode="numeric"
         maxLength={2}
+        pattern="[0-9]*"
         value={parts.month}
-        onChange={(event) => updatePart("month", event.target.value)}
+        onChange={(event) =>
+          updatePart("month", event.target.value, event.currentTarget)
+        }
         onBlur={() => completePart("month")}
+        onFocus={(event) => event.currentTarget.select()}
         placeholder="월"
         aria-label={`${ariaLabel} 월`}
         className={inputClassName}
       />
       <input
-        ref={dayRef}
         type="text"
         inputMode="numeric"
         maxLength={2}
+        pattern="[0-9]*"
         value={parts.day}
-        onChange={(event) => updatePart("day", event.target.value)}
+        onChange={(event) =>
+          updatePart("day", event.target.value, event.currentTarget)
+        }
         onBlur={() => completePart("day")}
+        onFocus={(event) => event.currentTarget.select()}
         placeholder="일"
         aria-label={`${ariaLabel} 일`}
         className={inputClassName}
@@ -106,35 +123,45 @@ export function SplitDateInput({
 function getDateParts(value: string) {
   const [year = "", month = "", day = ""] = value.split("-");
 
-  return {
+  return normalizeSplitDateParts({
     day: day.replace(/\D/g, "").slice(0, 2),
     month: month.replace(/\D/g, "").slice(0, 2),
     year: year.replace(/\D/g, "").slice(0, 4),
-  };
+  });
 }
 
-function normalizeDatePart(part: DatePart, value: string) {
-  const limit = part === "year" ? 4 : 2;
-
-  return value.replace(/\D/g, "").slice(0, limit);
-}
-
-function createDateValue(parts: ReturnType<typeof getDateParts>) {
+function createDateValue(parts: SplitDateParts) {
   if (!parts.year && !parts.month && !parts.day) {
     return "";
   }
 
   if (
     parts.year.length === 4 &&
-    parts.month.length === 2 &&
+    isCompleteMonth(parts.month) &&
     parts.day.length === 2
   ) {
     return [
       parts.year,
-      parts.month,
+      parts.month.padStart(2, "0"),
       parts.day,
     ].join("-");
   }
 
   return [parts.year, parts.month, parts.day].join("-");
+}
+
+function isCompleteMonth(value: string) {
+  const month = Number(value);
+
+  return Number.isInteger(month) && month >= 1 && month <= 12;
+}
+
+function keepCaretAtEnd(input: HTMLInputElement | undefined, position: number) {
+  if (!input) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    input.setSelectionRange(position, position);
+  });
 }
