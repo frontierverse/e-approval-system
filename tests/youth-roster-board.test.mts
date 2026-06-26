@@ -7,7 +7,11 @@ import {
   YouthRosterFormModal,
   YouthRosterSkeleton,
 } from "../src/components/youth-roster-board.tsx";
-import type { YouthRosterData } from "../src/lib/youth-roster.ts";
+import type {
+  YouthRosterChangeLog,
+  YouthRosterChangeLogFilters,
+  YouthRosterData,
+} from "../src/lib/youth-roster.ts";
 import type {
   YouthCreateInput,
   YouthUpdateInput,
@@ -46,6 +50,32 @@ const roster = {
     },
   ],
 } satisfies YouthRosterData;
+
+const changeLogs: YouthRosterChangeLog[] = [
+  {
+    id: "log-001",
+    action: "CREATE_YOUTH",
+    targetType: "Youth",
+    targetId: "youth-admitted-001",
+    message: "created roster item",
+    metadata: {},
+    createdAt: "2026-06-22T09:30:00.000Z",
+    actor: {
+      id: "user-001",
+      name: "staff user",
+      email: "staff@example.com",
+      profileImageStorageKey: null,
+      profileImageUpdatedAt: null,
+    },
+  },
+];
+
+const changeLogFilters: YouthRosterChangeLogFilters = {
+  page: 1,
+  pageSize: 5,
+  total: 6,
+  totalPages: 2,
+};
 
 const rosterActions = {
   createYouth: async (values: YouthCreateInput) => ({
@@ -147,6 +177,23 @@ describe("YouthRosterBoard", () => {
 
     assert.match(html, /입소중인 청소년이 없습니다/);
     assert.match(html, /퇴소 청소년이 없습니다/);
+  });
+
+  test("renders roster change logs with pagination links", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRosterBoard, {
+        ...rosterActions,
+        changeLogFilters,
+        changeLogs,
+        data: roster,
+      }),
+    );
+
+    assert.match(html, /created roster item/);
+    assert.match(html, /staff user/);
+    assert.match(html, /staff@example\.com/);
+    assert.match(html, /1 \/ 2/);
+    assert.match(html, /href="\/youth\/roster\?logPage=2"/);
   });
 
   test("renders a delete action in admitted youth edit modals", () => {

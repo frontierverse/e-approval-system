@@ -1,16 +1,36 @@
 import { PageTitle } from "@/components/page-title";
 import { YouthRosterBoard } from "@/components/youth-roster-board";
 import { requireUser } from "@/lib/auth";
-import { getYouthRoster } from "@/lib/youth-roster";
+import {
+  getYouthRoster,
+  getYouthRosterChangeLogs,
+} from "@/lib/youth-roster";
 import {
   createYouthAction,
   deleteYouthAction,
+  getYouthRosterChangeLogsAction,
   updateYouthAction,
 } from "@/app/youth/actions";
 
-export default async function YouthRosterPage() {
+type SearchParamValue = string | string[] | undefined;
+
+type YouthRosterPageProps = {
+  searchParams: Promise<{
+    logPage?: SearchParamValue;
+  }>;
+};
+
+export default async function YouthRosterPage({
+  searchParams,
+}: YouthRosterPageProps) {
   await requireUser();
-  const roster = await getYouthRoster();
+  const params = await searchParams;
+  const [roster, changeLogResult] = await Promise.all([
+    getYouthRoster(),
+    getYouthRosterChangeLogs({
+      page: getSelectedPage(params.logPage),
+    }),
+  ]);
 
   return (
     <>
@@ -20,11 +40,26 @@ export default async function YouthRosterPage() {
       />
 
       <YouthRosterBoard
+        changeLogFilters={{
+          page: changeLogResult.page,
+          pageSize: changeLogResult.pageSize,
+          total: changeLogResult.total,
+          totalPages: changeLogResult.totalPages,
+        }}
+        changeLogs={changeLogResult.logs}
         createYouth={createYouthAction}
         data={roster}
         deleteYouth={deleteYouthAction}
+        loadChangeLogs={getYouthRosterChangeLogsAction}
         updateYouth={updateYouthAction}
       />
     </>
   );
+}
+
+function getSelectedPage(value: SearchParamValue) {
+  const pageValue = Array.isArray(value) ? value[0] : value;
+  const page = Number(pageValue);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
 }

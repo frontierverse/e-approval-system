@@ -1,18 +1,32 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
   useTransition,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { AppModal } from "@/components/app-modal";
 import { EmptyState } from "@/components/empty-state";
 import { SplitDateInput } from "@/components/split-date-input";
-import type { YouthRosterData, YouthRosterItem } from "@/lib/youth-roster";
+import { UserIdentity } from "@/components/user-identity";
+import {
+  getAuditActionBadgeClass,
+  getAuditActionLabel,
+} from "@/lib/audit-log-display";
+import type {
+  YouthRosterChangeLog,
+  YouthRosterChangeLogFilters,
+  YouthRosterChangeLogsResult,
+  YouthRosterData,
+  YouthRosterItem,
+} from "@/lib/youth-roster";
 import type {
   YouthActionResult,
   YouthCreateInput,
@@ -22,6 +36,8 @@ import type {
 } from "@/lib/youth-management-core";
 
 type YouthRosterBoardProps = {
+  changeLogFilters?: YouthRosterChangeLogFilters;
+  changeLogs?: YouthRosterChangeLog[];
   createYouth: (
     values: YouthCreateInput,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
@@ -29,6 +45,9 @@ type YouthRosterBoardProps = {
   deleteYouth: (
     youthId: string,
   ) => Promise<YouthActionResult<{ youthId: string }>>;
+  loadChangeLogs?: (
+    page: number,
+  ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
   updateYouth: (
     youthId: string,
     values: YouthUpdateInput,
@@ -66,9 +85,12 @@ type YouthRosterSortState = {
 };
 
 export function YouthRosterBoard({
+  changeLogFilters,
+  changeLogs = [],
   createYouth,
   data,
   deleteYouth,
+  loadChangeLogs,
   updateYouth,
 }: YouthRosterBoardProps) {
   const [youths, setYouths] = useState(() => [
@@ -94,6 +116,79 @@ export function YouthRosterBoard({
     }),
     [admittedSort, data.referenceDate, youths],
   );
+  const [changeLogState, setChangeLogState] = useState(() => ({
+    filters: changeLogFilters ?? createDefaultChangeLogFilters(changeLogs.length),
+    logs: changeLogs,
+  }));
+  const [changeLogError, setChangeLogError] = useState("");
+  const [pendingChangeLogPage, setPendingChangeLogPage] = useState<
+    number | null
+  >(null);
+  const [isChangeLogPending, startChangeLogTransition] = useTransition();
+
+  const loadChangeLogPage = useCallback(
+    (
+      page: number,
+      { updateHistory = true }: { updateHistory?: boolean } = {},
+    ) => {
+      if (!loadChangeLogs) {
+        return;
+      }
+
+      setPendingChangeLogPage(page);
+
+      startChangeLogTransition(async () => {
+        try {
+          const result = await loadChangeLogs(page);
+
+          if (!result.ok) {
+            setChangeLogError(result.error);
+            return;
+          }
+
+          const { changeLogResult } = result.data;
+
+          setChangeLogState({
+            filters: {
+              page: changeLogResult.page,
+              pageSize: changeLogResult.pageSize,
+              total: changeLogResult.total,
+              totalPages: changeLogResult.totalPages,
+            },
+            logs: changeLogResult.logs,
+          });
+          setChangeLogError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { youthRosterLogPage: changeLogResult.page },
+              "",
+              getYouthRosterChangeLogPageHref(changeLogResult.page),
+            );
+          }
+        } finally {
+          setPendingChangeLogPage(null);
+        }
+      });
+    },
+    [loadChangeLogs],
+  );
+
+  useEffect(() => {
+    if (!loadChangeLogs) {
+      return;
+    }
+
+    function loadPageFromHistory() {
+      loadChangeLogPage(getYouthRosterChangeLogPageFromLocation(), {
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadPageFromHistory);
+
+    return () => window.removeEventListener("popstate", loadPageFromHistory);
+  }, [loadChangeLogPage, loadChangeLogs]);
 
   function sortAdmittedYouths(field: YouthRosterSortField) {
     setAdmittedSort((current) =>
@@ -153,6 +248,14 @@ export function YouthRosterBoard({
         title="퇴소 청소년 목록"
         youths={rosterData.dischargedYouths}
         variant="discharged"
+      />
+      <YouthRosterChangeLogSection
+        error={changeLogError}
+        filters={changeLogState.filters}
+        isPending={isChangeLogPending}
+        logs={changeLogState.logs}
+        onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+        pendingPage={pendingChangeLogPage}
       />
       {modal ? (
         <YouthRosterFormModal
@@ -214,6 +317,258 @@ function RosterSummary({ data }: { data: YouthRosterData }) {
       ))}
     </section>
   );
+}
+
+function YouthRosterChangeLogSection({
+  error,
+  filters,
+  isPending,
+  logs,
+  onPageChange,
+  pendingPage,
+}: {
+  error: string;
+  filters: YouthRosterChangeLogFilters;
+  isPending: boolean;
+  logs: YouthRosterChangeLog[];
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
+}) {
+  return (
+    <section
+      aria-label="청소년 명단 변경기록"
+      className="rounded-md border border-[#d9dee7] bg-white"
+    >
+      <header className="border-b border-[#eef1f5] px-4 py-4">
+        <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-base font-semibold text-[#16181d]">
+            변경기록
+          </h2>
+          <YouthRosterChangeLogListSummary filters={filters} />
+        </div>
+      </header>
+
+      {error ? (
+        <p className="mx-4 mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+          {error}
+        </p>
+      ) : null}
+
+      {logs.length > 0 ? (
+        <ol
+          className={[
+            "divide-y divide-[#eef1f5]",
+            isPending ? "opacity-60" : "",
+          ].join(" ")}
+        >
+          {logs.map((log) => (
+            <li
+              key={log.id}
+              className="grid gap-3 px-4 py-4 lg:grid-cols-[12rem_minmax(0,1fr)]"
+            >
+              <div className="min-w-0">
+                <time
+                  dateTime={log.createdAt}
+                  className="text-sm font-semibold text-[#394150]"
+                >
+                  {formatDateTime(log.createdAt)}
+                </time>
+                <UserIdentity
+                  user={log.actor}
+                  size="xs"
+                  meta={log.actor.email ?? "이메일 미등록"}
+                  className="mt-2"
+                  nameClassName="text-[#394150]"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                  <span
+                    className={[
+                      "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold",
+                      getAuditActionBadgeClass(log.action),
+                    ].join(" ")}
+                  >
+                    {getAuditActionLabel(log.action)}
+                  </span>
+                  <span className="inline-flex h-7 items-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-2.5 text-xs font-semibold text-[#394150]">
+                    {getYouthRosterChangeLogTargetLabel(log)}
+                  </span>
+                </div>
+                <p className="break-words text-sm font-semibold leading-6 text-[#16181d] [overflow-wrap:anywhere]">
+                  {log.message ?? "청소년 명단 변경기록을 기록했습니다."}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="m-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+          표시할 변경기록이 없습니다.
+        </p>
+      )}
+
+      <YouthRosterChangeLogPagination
+        filters={filters}
+        isPending={isPending}
+        onPageChange={onPageChange}
+        pendingPage={pendingPage}
+      />
+    </section>
+  );
+}
+
+function YouthRosterChangeLogListSummary({
+  filters,
+}: {
+  filters: YouthRosterChangeLogFilters;
+}) {
+  if (filters.total === 0) {
+    return (
+      <p className="text-sm text-[#697386]">
+        표시할 변경기록이 없습니다.
+      </p>
+    );
+  }
+
+  const firstItem = (filters.page - 1) * filters.pageSize + 1;
+  const lastItem = Math.min(filters.page * filters.pageSize, filters.total);
+
+  return (
+    <p className="text-sm text-[#697386]">
+      총 {filters.total}건 중 {firstItem}-{lastItem}건 표시
+    </p>
+  );
+}
+
+function YouthRosterChangeLogPagination({
+  filters,
+  isPending,
+  onPageChange,
+  pendingPage,
+}: {
+  filters: YouthRosterChangeLogFilters;
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
+}) {
+  if (filters.totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="청소년 명단 변경기록 페이지"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1f5] px-4 py-3"
+    >
+      <p className="text-sm text-[#697386]">
+        {filters.page} / {filters.totalPages} 페이지
+      </p>
+      <div className="flex gap-2">
+        <YouthRosterChangeLogPaginationLink
+          disabled={filters.page <= 1 || isPending}
+          href={getYouthRosterChangeLogPageHref(filters.page - 1)}
+          onPageChange={onPageChange}
+          page={filters.page - 1}
+          pending={pendingPage === filters.page - 1}
+        >
+          이전
+        </YouthRosterChangeLogPaginationLink>
+        <YouthRosterChangeLogPaginationLink
+          disabled={filters.page >= filters.totalPages || isPending}
+          href={getYouthRosterChangeLogPageHref(filters.page + 1)}
+          onPageChange={onPageChange}
+          page={filters.page + 1}
+          pending={pendingPage === filters.page + 1}
+        >
+          다음
+        </YouthRosterChangeLogPaginationLink>
+      </div>
+    </nav>
+  );
+}
+
+function YouthRosterChangeLogPaginationLink({
+  children,
+  disabled,
+  href,
+  onPageChange,
+  page,
+  pending,
+}: {
+  children: ReactNode;
+  disabled: boolean;
+  href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
+}) {
+  if (disabled) {
+    return (
+      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      aria-busy={pending || undefined}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
+      className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+    >
+      {children}
+    </a>
+  );
+}
+
+function getYouthRosterChangeLogPageHref(page: number) {
+  if (page <= 1) {
+    return "/youth/roster";
+  }
+
+  const params = new URLSearchParams({
+    logPage: String(page),
+  });
+
+  return `/youth/roster?${params.toString()}`;
+}
+
+function getYouthRosterChangeLogPageFromLocation() {
+  const page = Number(new URLSearchParams(window.location.search).get("logPage"));
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
+}
+
+function getYouthRosterChangeLogTargetLabel(log: YouthRosterChangeLog) {
+  if (log.targetType === "YouthSpecialNote") {
+    return "특이사항";
+  }
+
+  if (log.targetType === "Youth") {
+    return "기본정보";
+  }
+
+  return log.targetType;
 }
 
 function YouthRosterSection({
@@ -846,6 +1201,17 @@ function SkeletonBlock({ className }: { className: string }) {
   );
 }
 
+function createDefaultChangeLogFilters(
+  total: number,
+): YouthRosterChangeLogFilters {
+  return {
+    page: 1,
+    pageSize: Math.max(total, 5),
+    total,
+    totalPages: 1,
+  };
+}
+
 function formatOptionalDate(value: string | null) {
   return value ? formatDate(value) : "미등록";
 }
@@ -854,6 +1220,16 @@ function formatDate(value: string) {
   const [year, month, day] = value.split("-");
 
   return year && month && day ? `${year}. ${month}. ${day}.` : value;
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
 }
 
 function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {

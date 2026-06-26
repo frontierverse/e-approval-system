@@ -21,6 +21,24 @@ import {
   mapYouthProfile,
   mapYouthSpecialNote,
 } from "@/lib/youth-management";
+import {
+  getYouthRosterChangeLogs,
+  type YouthRosterChangeLogsResult,
+} from "@/lib/youth-roster";
+
+export async function getYouthRosterChangeLogsAction(
+  page: number,
+): Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>> {
+  await requireUser();
+  const changeLogResult = await getYouthRosterChangeLogs({ page });
+
+  return {
+    ok: true,
+    data: {
+      changeLogResult,
+    },
+  };
+}
 
 export async function createYouthAction(
   values: YouthCreateInput,

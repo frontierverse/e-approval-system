@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthDisplayAge,
@@ -29,7 +30,43 @@ export type YouthRosterFamilyContact = {
   phone: string | null;
 };
 
+export type YouthRosterChangeLog = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  message: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string;
+    email: string | null;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
+export type YouthRosterChangeLogFilters = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type YouthRosterChangeLogsResult = YouthRosterChangeLogFilters & {
+  logs: YouthRosterChangeLog[];
+};
+
 type YouthRosterRecord = Awaited<ReturnType<typeof getYouthRosterRows>>[number];
+
+const youthRosterChangeLogPageSize = 5;
+const youthRosterAuditActions = [
+  AuditAction.CREATE_YOUTH,
+  AuditAction.UPDATE_YOUTH,
+  AuditAction.UPDATE_YOUTH_NOTE,
+  AuditAction.DELETE_YOUTH_NOTE,
+];
 
 export async function getYouthRoster(): Promise<YouthRosterData> {
   const referenceDate = getYouthLearningScheduleToday();
@@ -45,6 +82,67 @@ export async function getYouthRoster(): Promise<YouthRosterData> {
       .filter((youth) => isDischargedYouth(youth, referenceDate))
       .sort(compareDischargedYouth),
     referenceDate,
+  };
+}
+
+export async function getYouthRosterChangeLogs({
+  page = 1,
+  pageSize = youthRosterChangeLogPageSize,
+}: {
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<YouthRosterChangeLogsResult> {
+  const normalizedPageSize = Math.max(1, pageSize);
+  const where = createYouthRosterChangeLogWhere();
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
+  const normalizedPage = clampPage(page, totalPages);
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (normalizedPage - 1) * normalizedPageSize,
+    take: normalizedPageSize,
+    select: {
+      id: true,
+      action: true,
+      targetType: true,
+      targetId: true,
+      message: true,
+      metadata: true,
+      createdAt: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+        },
+      },
+    },
+  });
+
+  return {
+    logs: logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      targetType: log.targetType,
+      targetId: log.targetId,
+      message: log.message,
+      metadata: log.metadata,
+      createdAt: log.createdAt.toISOString(),
+      actor: {
+        ...log.actor,
+        profileImageUpdatedAt:
+          log.actor.profileImageUpdatedAt?.toISOString() ?? null,
+      },
+    })),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    total,
+    totalPages,
   };
 }
 
@@ -171,4 +269,23 @@ function normalizeBlank(value: string | null) {
   const normalized = value?.trim();
 
   return normalized ? normalized : null;
+}
+
+function createYouthRosterChangeLogWhere(): Prisma.AuditLogWhereInput {
+  return {
+    action: {
+      in: [...youthRosterAuditActions],
+    },
+    targetType: {
+      in: ["Youth", "YouthSpecialNote"],
+    },
+  };
+}
+
+function clampPage(page: number, totalPages: number) {
+  if (!Number.isInteger(page) || page < 1) {
+    return 1;
+  }
+
+  return Math.min(page, totalPages);
 }
