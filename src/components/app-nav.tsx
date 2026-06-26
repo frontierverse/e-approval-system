@@ -630,6 +630,15 @@ export function TopbarBirthdayAlertModalContent({
           31일 이내에 생일이 있는 직원 또는 입소중 청소년이 없습니다.
         </p>
       )}
+      <div className="border-t border-[#eef1f5] px-5 py-4">
+        <Link
+          href="/youth/roster"
+          onClick={onClose}
+          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7eceb] sm:w-auto"
+        >
+          청소년 명단으로 이동
+        </Link>
+      </div>
     </div>
   );
 }

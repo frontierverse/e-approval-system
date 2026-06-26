@@ -84,6 +84,9 @@ type YouthRosterSortState = {
   field: YouthRosterSortField;
 };
 
+const youthUpdateConfirmMessage =
+  "정보 변경시 변경 기록이 남습니다.\n정말로 수정하시겠습니까?";
+
 export function YouthRosterBoard({
   changeLogFilters,
   changeLogs = [],
@@ -867,6 +870,10 @@ export function YouthRosterFormModal({
     setError("");
 
     const values = getYouthInputFromDraft(draft);
+
+    if (modal.mode === "edit" && !window.confirm(youthUpdateConfirmMessage)) {
+      return;
+    }
 
     setPendingIntent("save");
 

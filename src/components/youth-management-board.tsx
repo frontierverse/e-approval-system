@@ -49,6 +49,9 @@ type YouthManagementBoardProps = {
   ) => Promise<YouthActionResult<{ note: YouthSpecialNote }>>;
 };
 
+const youthUpdateConfirmMessage =
+  "정보 변경시 변경 기록이 남습니다.\n정말로 수정하시겠습니까?";
+
 const priorityStyles: Record<YouthNotePriority, string> = {
   보통: "border-[#2f746f] bg-[#eef8f7] text-[#17524f]",
   긴급: "border-[#c24a3a] bg-[#fff5f2] text-[#8c2f24]",
@@ -371,6 +374,10 @@ export function YouthManagementBoard({
       )
     ) {
       setEditYouthError("이미 등록된 청소년 이름입니다.");
+      return;
+    }
+
+    if (!window.confirm(youthUpdateConfirmMessage)) {
       return;
     }
 

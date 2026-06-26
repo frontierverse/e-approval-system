@@ -210,6 +210,8 @@ describe("app navigation active paths", () => {
     assert.match(html, /생년월일 1990\.06\.30 · 생일 2026\.06\.30/);
     assert.match(html, /이하늘/);
     assert.match(html, /D-31/);
+    assert.match(html, /href="\/youth\/roster"/);
+    assert.match(html, /청소년 명단으로 이동/);
   });
 
   test("renders an empty birthday alert modal state", () => {
