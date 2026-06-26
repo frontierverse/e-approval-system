@@ -113,6 +113,21 @@ export function formatBirthdayAlertDate(value: string) {
   return value.replaceAll("-", ".");
 }
 
+export function formatBirthdayAlertDateWithWeekday(value: string) {
+  const parts = getDateParts(value);
+
+  if (!parts) {
+    return formatBirthdayAlertDate(value);
+  }
+
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(createUtcDate(parts.year, parts.month, parts.day));
+
+  return `${formatBirthdayAlertDate(value)} (${weekday})`;
+}
+
 function compareBirthdayAlertItems(
   first: BirthdayAlertItem,
   second: BirthdayAlertItem,

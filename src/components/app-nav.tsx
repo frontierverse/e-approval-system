@@ -13,7 +13,10 @@ import {
   type PointerEvent,
 } from "react";
 import { AppModal } from "@/components/app-modal";
-import { formatBirthdayAlertDate } from "@/lib/birthday-alerts-core";
+import {
+  formatBirthdayAlertDate,
+  formatBirthdayAlertDateWithWeekday,
+} from "@/lib/birthday-alerts-core";
 import { createCafeItemExpiringFoodPrintHref } from "@/lib/cafe-items-core";
 import {
   createCurrentCommonScheduleAlert,
@@ -615,7 +618,7 @@ export function TopbarBirthdayAlertModalContent({
                   </span>
                   <span className="mt-1 block text-xs text-[#697386]">
                     생년월일 {formatBirthdayAlertDate(item.birthDate)} · 생일{" "}
-                    {formatBirthdayAlertDate(item.birthdayDate)}
+                    {formatBirthdayAlertDateWithWeekday(item.birthdayDate)}
                   </span>
                 </span>
                 <span className="shrink-0 rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2.5 py-1 text-xs font-semibold text-[#22633a]">

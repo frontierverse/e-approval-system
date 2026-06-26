@@ -207,7 +207,7 @@ describe("app navigation active paths", () => {
     );
     assert.match(html, /김민지/);
     assert.match(html, /바자울 \/ 팀장/);
-    assert.match(html, /생년월일 1990\.06\.30 · 생일 2026\.06\.30/);
+    assert.match(html, /생년월일 1990\.06\.30 · 생일 2026\.06\.30 \(화\)/);
     assert.match(html, /이하늘/);
     assert.match(html, /D-31/);
     assert.match(html, /href="\/youth\/roster"/);

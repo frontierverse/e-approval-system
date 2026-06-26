@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   createBirthdayAlertItems,
   createBirthdayTopbarAlert,
+  formatBirthdayAlertDateWithWeekday,
   getUpcomingBirthday,
   type BirthdayAlertPerson,
 } from "../src/lib/birthday-alerts-core.ts";
@@ -60,5 +61,16 @@ describe("birthday alerts", () => {
       ddayLabel: "D-5",
     });
     assert.equal(getUpcomingBirthday("not-a-date", "2026-12-31"), null);
+  });
+
+  test("formats birthday dates with weekdays", () => {
+    assert.equal(
+      formatBirthdayAlertDateWithWeekday("2026-06-30"),
+      "2026.06.30 (화)",
+    );
+    assert.equal(
+      formatBirthdayAlertDateWithWeekday("not-a-date"),
+      "not.a.date",
+    );
   });
 });
