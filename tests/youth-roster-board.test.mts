@@ -113,6 +113,8 @@ describe("YouthRosterBoard", () => {
     assert.match(html, />청소년 추가</);
     assert.match(html, /김하늘/);
     assert.match(html, /김하늘 정보 수정/);
+    assert.match(html, /role="button"/);
+    assert.match(html, /group cursor-pointer transition hover:bg-\[#f7fbfb\]/);
     assert.match(html, /17세/);
     assert.match(html, /입소중/);
     assert.match(html, /010-1111-2222/);

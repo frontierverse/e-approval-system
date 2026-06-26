@@ -6,6 +6,7 @@ import {
   useState,
   useTransition,
   type FormEvent,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { AppModal } from "@/components/app-modal";
@@ -235,6 +236,7 @@ function YouthRosterSection({
   variant: "admitted" | "discharged";
 }) {
   const canSort = variant === "admitted" && onSort && sortState;
+  const rowsOpenEditor = variant === "admitted";
 
   return (
     <section
@@ -298,21 +300,52 @@ function YouthRosterSection({
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
               {youths.map((youth) => (
-                <tr key={youth.id}>
+                <tr
+                  key={youth.id}
+                  aria-haspopup={rowsOpenEditor ? "dialog" : undefined}
+                  aria-label={
+                    rowsOpenEditor ? `${youth.name} 정보 수정` : undefined
+                  }
+                  onClick={rowsOpenEditor ? () => onEdit(youth) : undefined}
+                  onKeyDown={
+                    rowsOpenEditor
+                      ? (event) =>
+                          handleEditableRosterRowKeyDown(event, youth, onEdit)
+                      : undefined
+                  }
+                  role={rowsOpenEditor ? "button" : undefined}
+                  tabIndex={rowsOpenEditor ? 0 : undefined}
+                  className={
+                    rowsOpenEditor
+                      ? "group cursor-pointer transition hover:bg-[#f7fbfb] focus:bg-[#f7fbfb] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                      : undefined
+                  }
+                >
                   <td className="break-words px-4 py-3 font-semibold text-[#16181d] [overflow-wrap:anywhere]">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                         {youth.name}
                       </span>
-                      <button
-                        type="button"
-                        aria-haspopup="dialog"
-                        onClick={() => onEdit(youth)}
-                        className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] bg-white text-sm font-semibold text-[#394150] transition hover:border-[#196b69] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-                      >
-                        <span aria-hidden="true">✎</span>
-                        <span className="sr-only">{youth.name} 정보 수정</span>
-                      </button>
+                      {rowsOpenEditor ? (
+                        <span
+                          aria-hidden="true"
+                          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] bg-white text-sm font-semibold text-[#394150] transition group-hover:border-[#196b69] group-hover:text-[#196b69]"
+                        >
+                          ✎
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-haspopup="dialog"
+                          onClick={() => onEdit(youth)}
+                          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] bg-white text-sm font-semibold text-[#394150] transition hover:border-[#196b69] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                        >
+                          <span aria-hidden="true">✎</span>
+                          <span className="sr-only">
+                            {youth.name} 정보 수정
+                          </span>
+                        </button>
+                      )}
                     </span>
                   </td>
                   <TableCell>
@@ -388,6 +421,19 @@ function SortableRosterHeader({
       </button>
     </th>
   );
+}
+
+function handleEditableRosterRowKeyDown(
+  event: KeyboardEvent<HTMLTableRowElement>,
+  youth: YouthRosterItem,
+  onEdit: (youth: YouthRosterItem) => void,
+) {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+
+  event.preventDefault();
+  onEdit(youth);
 }
 
 export function YouthRosterFormModal({
