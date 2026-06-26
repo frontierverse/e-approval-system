@@ -1071,7 +1071,7 @@ describe("major UI rendering", () => {
   test("renders education resource category dropdown filters", () => {
     const html = renderToStaticMarkup(
       React.createElement(EducationResourceQuickFiltersContent, {
-        educationLevel: "high",
+        educationLevel: "common",
         query: "검정고시",
         navigate: () => {},
       }),
@@ -1085,13 +1085,58 @@ describe("major UI rendering", () => {
     assert.match(html, /sm:w-28/);
     assert.match(html, />대상</);
     assert.match(html, />분류</);
-    assert.match(html, /value="common">공통/);
-    assert.match(html, /value="high" selected="">고등/);
+    assert.match(html, /value="common" selected="">공통/);
+    assert.match(html, /value="high">고등/);
     assert.match(html, /value="middle">중등/);
     assert.match(html, /value="검정고시" selected="">검정고시/);
     assert.match(html, /value="기출문제">기출문제/);
     assert.match(html, /value="개념">개념/);
     assert.doesNotMatch(html, /href="\/resources/);
+  });
+
+  test("renders high school subject filters for education resources", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(EducationResourceQuickFiltersContent, {
+        educationLevel: "high",
+        query: "한국사",
+        navigate: () => {},
+      }),
+    );
+
+    assert.match(html, />과목</);
+    assert.match(html, /value="high" selected="">고등/);
+    assert.match(html, /value="국어">국어/);
+    assert.match(html, /value="수학">수학/);
+    assert.match(html, /value="영어">영어/);
+    assert.match(html, /value="한국사" selected="">한국사/);
+    assert.match(html, /value="통합사회">통합사회/);
+    assert.doesNotMatch(html, /value="검정고시">검정고시/);
+  });
+
+  test("renders middle school subject filters for education resources", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(EducationResourceQuickFiltersContent, {
+        educationLevel: "middle",
+        query: "수학",
+        navigate: () => {},
+      }),
+    );
+
+    assert.match(html, />과목</);
+    assert.match(html, /value="middle" selected="">중등/);
+    assert.match(html, /value="국어">국어/);
+    assert.match(html, /value="수학" selected="">수학/);
+    assert.match(html, /value="영어">영어/);
+    assert.match(html, /value="사회">사회/);
+    assert.match(html, /value="역사">역사/);
+    assert.match(html, /value="도덕">도덕/);
+    assert.match(html, /value="과학">과학/);
+    assert.match(html, /value="기술·가정">기술·가정/);
+    assert.match(html, /value="정보">정보/);
+    assert.match(html, /value="체육">체육/);
+    assert.match(html, /value="음악">음악/);
+    assert.match(html, /value="미술">미술/);
+    assert.doesNotMatch(html, /value="검정고시">검정고시/);
   });
 
   test("renders resource post viewers", () => {
