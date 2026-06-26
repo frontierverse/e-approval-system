@@ -158,7 +158,10 @@ function StaffSection({ staff }: { staff: CompanyInfoStaffMember[] }) {
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
               {staff.map((member) => (
-                <tr key={member.id}>
+                <tr
+                  key={member.id}
+                  className="transition-colors hover:bg-[#f7fbfb]"
+                >
                   <td className="px-4 py-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <UserAvatar user={member} decorative />
@@ -233,7 +236,10 @@ function AdmittedYouthSection({
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
               {youths.map((youth) => (
-                <tr key={youth.id}>
+                <tr
+                  key={youth.id}
+                  className="transition-colors hover:bg-[#f7fbfb]"
+                >
                   <td className="px-4 py-3 font-semibold text-[#16181d]">
                     {youth.name}
                   </td>

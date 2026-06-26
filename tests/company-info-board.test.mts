@@ -109,6 +109,10 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /만 17세\(18세\)/);
     assert.match(html, /고2/);
     assert.match(html, /010-1111-2222/);
+    assert.equal(
+      (html.match(/transition-colors hover:bg-\[#f7fbfb\]/g) ?? []).length,
+      3,
+    );
   });
 
   test("renders loading skeleton panels", () => {
