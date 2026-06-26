@@ -10,7 +10,14 @@ import {
 } from "@/lib/resource-library-core";
 
 const educationTopics = ["검정고시", "기출문제", "개념"] as const;
-const highSchoolSubjects = ["국어", "수학", "영어", "한국사", "통합사회"] as const;
+const highSchoolSubjects = [
+  "국어",
+  "수학",
+  "영어",
+  "한국사",
+  "과학",
+  "사회",
+] as const;
 const middleSchoolSubjects = [
   "국어",
   "수학",
