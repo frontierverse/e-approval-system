@@ -4,18 +4,28 @@ import { revalidatePath } from "next/cache";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
+import { getCafeItemPage } from "@/lib/cafe-items";
 import {
   formatCafeItemDateValue,
   getCafeItemCategoryLabel,
+  getCafeItemToday,
   isCafeItemCategory,
   isCafeItemDate,
+  normalizeCafeItemCategory,
+  normalizeCafeItemDeadlineFilter,
   normalizeCafeItemFormValues,
+  normalizeCafeItemPage,
+  normalizeCafeItemSort,
   parseCafeItemDateValue,
+  type CafeItemActionResult,
+  type CafeItemPage,
+  type CafeItemPageFilters,
   type CafeItemFormState,
 } from "@/lib/cafe-items-core";
 import { prisma } from "@/lib/prisma";
 
 const cafeManagementPath = "/work-schedule/cafe";
+const cafeItemPageSize = 7;
 const maxCafeItemNameLength = 100;
 const maxCafeItemPurchaseReasonLength = 500;
 const maxCafeItemPriceWon = 999_999_999;
@@ -38,6 +48,31 @@ type CafeItemAuditRecord = {
   purchaseReason: string | null;
   purchasedAt: Date | string;
 };
+
+export async function getCafeItemPageAction(
+  filters: CafeItemPageFilters,
+): Promise<CafeItemActionResult<{ itemPage: CafeItemPage; today: string }>> {
+  await requireUser();
+
+  const today = getCafeItemToday();
+  const itemPage = await getCafeItemPage({
+    category: normalizeCafeItemCategory(filters.category),
+    deadline: normalizeCafeItemDeadlineFilter(filters.deadline),
+    page: normalizeCafeItemPage(String(filters.page)),
+    pageSize: cafeItemPageSize,
+    query: filters.query.trim(),
+    sort: normalizeCafeItemSort(filters.sort),
+    today,
+  });
+
+  return {
+    ok: true,
+    data: {
+      itemPage,
+      today,
+    },
+  };
+}
 
 export async function createCafeItemAction(
   _previousState: CafeItemFormState,

@@ -52,7 +52,7 @@ const itemPage: CafeItemPage = {
   },
   items: cafeItems,
   page: 1,
-  pageSize: 8,
+  pageSize: 7,
   total: 10,
   totalPages: 2,
 };
@@ -175,7 +175,7 @@ describe("cafe items", () => {
     );
 
     assert.match(html, /물품 목록/);
-    assert.match(html, /10건 중 1-8건 표시/);
+    assert.match(html, /10건 중 1-7건 표시/);
     assert.match(html, /PDF 출력 · 유통기한 15일 이내/);
     assert.match(
       html,

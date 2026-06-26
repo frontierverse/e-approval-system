@@ -116,6 +116,16 @@ export type CafeItemFormState = {
   values?: CafeItemFormValues;
 };
 
+export type CafeItemActionResult<T> =
+  | {
+      ok: true;
+      data: T;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export type CafeItemUsageDday = {
   basisLabel: string;
   label: string;

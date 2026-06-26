@@ -12,6 +12,7 @@ import {
   normalizeCafeItemSort,
 } from "@/lib/cafe-items-core";
 import { getCafeItemChangeLogPage, getCafeItemPage } from "@/lib/cafe-items";
+import { getCafeItemPageAction } from "@/app/work-schedule/cafe/actions";
 
 type CafeManagementSearchParams = {
   category?: string;
@@ -25,7 +26,7 @@ type CafeManagementSearchParams = {
   sort?: string;
 };
 
-const cafeItemPageSize = 8;
+const cafeItemPageSize = 7;
 const cafeItemChangeLogPageSize = 5;
 
 export default async function WorkScheduleCafePage({
@@ -49,6 +50,14 @@ export default async function WorkScheduleCafePage({
     pageSize: cafeItemPageSize,
     today,
   });
+  const cafeItemListKey = [
+    filters.category,
+    filters.deadline,
+    filters.page,
+    filters.query,
+    filters.sort,
+    today,
+  ].join(":");
   const changeLogPage = await getCafeItemChangeLogPage({
     action: normalizeCafeItemChangeLogAction(params.logAction),
     actorId: String(params.logStaff ?? "all"),
@@ -66,7 +75,12 @@ export default async function WorkScheduleCafePage({
 
       <div className="space-y-5">
         <CafeItemRegistrationForm today={today} />
-        <CafeItemList itemPage={itemPage} today={today} />
+        <CafeItemList
+          key={cafeItemListKey}
+          itemPage={itemPage}
+          loadItemPage={getCafeItemPageAction}
+          today={today}
+        />
         <CafeItemChangeLogTable
           itemFilters={itemPage.filters}
           logPage={changeLogPage}
