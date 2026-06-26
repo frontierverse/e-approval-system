@@ -52,6 +52,7 @@ export type CompanyInfoAdmittedYouth = {
   id: string;
   name: string;
   admissionDate: string | null;
+  birthDate: string | null;
   dischargeDate: string | null;
   age: number | null;
   phone: string | null;
@@ -294,6 +295,7 @@ async function getAdmittedYouths(referenceDate: string) {
     id: youth.id,
     name: youth.name,
     admissionDate: youth.admissionDate,
+    birthDate: youth.birthDate,
     dischargeDate: youth.dischargeDate,
     age: getYouthDisplayAge(
       {

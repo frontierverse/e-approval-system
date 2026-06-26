@@ -376,6 +376,67 @@ export function getYouthDisplayAge(
   return calculateYouthAge(youth.birthDate, referenceDate) ?? youth.age;
 }
 
+export function formatYouthAgeLabel(
+  youth: {
+    age: number | null;
+    birthDate: string | null;
+  },
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  const legalAge = getYouthDisplayAge(youth, referenceDate);
+
+  if (legalAge === null) {
+    return null;
+  }
+
+  const koreanAge = calculateYouthKoreanAge(youth.birthDate, referenceDate);
+  const legalAgeLabel = `만 ${legalAge}세`;
+
+  return koreanAge === null ? legalAgeLabel : `${legalAgeLabel}(${koreanAge}세)`;
+}
+
+export function formatYouthSchoolGradeLabel(
+  youth: {
+    age: number | null;
+    birthDate: string | null;
+  },
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  const koreanAge =
+    calculateYouthKoreanAge(youth.birthDate, referenceDate) ??
+    getFallbackKoreanAge(youth, referenceDate);
+
+  if (koreanAge === null) {
+    return null;
+  }
+
+  if (koreanAge >= 8 && koreanAge <= 13) {
+    return `초${koreanAge - 7}`;
+  }
+
+  if (koreanAge >= 14 && koreanAge <= 16) {
+    return `중${koreanAge - 13}`;
+  }
+
+  if (koreanAge >= 17 && koreanAge <= 19) {
+    return `고${koreanAge - 16}`;
+  }
+
+  return "해당 없음";
+}
+
+function getFallbackKoreanAge(
+  youth: {
+    age: number | null;
+    birthDate: string | null;
+  },
+  referenceDate: string,
+) {
+  const legalAge = getYouthDisplayAge(youth, referenceDate);
+
+  return legalAge === null ? null : legalAge + 1;
+}
+
 export function calculateYouthAge(
   birthDate: string | null | undefined,
   referenceDate = getYouthLearningScheduleToday(),
@@ -405,6 +466,30 @@ export function calculateYouthAge(
   }
 
   return age >= 0 ? age : null;
+}
+
+export function calculateYouthKoreanAge(
+  birthDate: string | null | undefined,
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  if (!birthDate || !isYouthLearningScheduleDate(birthDate)) {
+    return null;
+  }
+
+  if (!isYouthLearningScheduleDate(referenceDate)) {
+    return null;
+  }
+
+  const birth = getIsoDateParts(birthDate);
+  const reference = getIsoDateParts(referenceDate);
+
+  if (!birth || !reference) {
+    return null;
+  }
+
+  const age = reference.year - birth.year + 1;
+
+  return age >= 1 ? age : null;
 }
 
 function getIsoDateParts(value: string) {

@@ -27,6 +27,7 @@ const roster = {
       birthDate: "2009-06-10",
       dischargeDate: null,
       age: 17,
+      koreanAge: 18,
       phone: "010-1111-2222",
       familyContacts: [
         {
@@ -45,6 +46,7 @@ const roster = {
       birthDate: "2008-04-20",
       dischargeDate: "2026-04-30",
       age: 18,
+      koreanAge: 19,
       phone: null,
       familyContacts: [],
     },
@@ -145,7 +147,8 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /김하늘 정보 수정/);
     assert.match(html, /role="button"/);
     assert.match(html, /group cursor-pointer transition hover:bg-\[#f7fbfb\]/);
-    assert.match(html, /17세/);
+    assert.match(html, /만 17세\(18세\)/);
+    assert.match(html, /고2/);
     assert.match(html, /입소중/);
     assert.match(html, /010-1111-2222/);
     assert.match(html, /어머니/);

@@ -20,6 +20,16 @@ import {
   getAuditActionBadgeClass,
   getAuditActionLabel,
 } from "@/lib/audit-log-display";
+import {
+  calculateYouthKoreanAge,
+  formatYouthSchoolGradeLabel,
+  getYouthDisplayAge,
+  type YouthActionResult,
+  type YouthCreateInput,
+  type YouthFamilyContactInput,
+  type YouthProfile,
+  type YouthUpdateInput,
+} from "@/lib/youth-management-core";
 import type {
   YouthRosterChangeLog,
   YouthRosterChangeLogFilters,
@@ -27,14 +37,6 @@ import type {
   YouthRosterData,
   YouthRosterItem,
 } from "@/lib/youth-roster";
-import type {
-  YouthActionResult,
-  YouthCreateInput,
-  YouthFamilyContactInput,
-  YouthProfile,
-  YouthUpdateInput,
-} from "@/lib/youth-management-core";
-
 type YouthRosterBoardProps = {
   changeLogFilters?: YouthRosterChangeLogFilters;
   changeLogs?: YouthRosterChangeLog[];
@@ -239,6 +241,7 @@ export function YouthRosterBoard({
         emptyTitle="입소중인 청소년이 없습니다."
         onEdit={(youth) => setModal({ mode: "edit", canDelete: true, youth })}
         onSort={sortAdmittedYouths}
+        referenceDate={rosterData.referenceDate}
         sortState={admittedSort}
         title="입소중인 청소년 목록"
         youths={rosterData.admittedYouths}
@@ -248,6 +251,7 @@ export function YouthRosterBoard({
         emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
         emptyTitle="퇴소 청소년이 없습니다."
         onEdit={(youth) => setModal({ mode: "edit", canDelete: false, youth })}
+        referenceDate={rosterData.referenceDate}
         title="퇴소 청소년 목록"
         youths={rosterData.dischargedYouths}
         variant="discharged"
@@ -579,6 +583,7 @@ function YouthRosterSection({
   emptyTitle,
   onEdit,
   onSort,
+  referenceDate,
   sortState,
   title,
   youths,
@@ -588,6 +593,7 @@ function YouthRosterSection({
   emptyTitle: string;
   onEdit: (youth: YouthRosterItem) => void;
   onSort?: (field: YouthRosterSortField) => void;
+  referenceDate: string;
   sortState?: YouthRosterSortState;
   title: string;
   youths: YouthRosterItem[];
@@ -608,7 +614,7 @@ function YouthRosterSection({
       />
       {youths.length > 0 ? (
         <div className="overflow-x-auto border-t border-[#eef1f5]">
-          <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
             <thead className="bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
               <tr className="border-b border-[#d9dee7]">
                 <th scope="col" className="px-4 py-3">
@@ -622,6 +628,9 @@ function YouthRosterSection({
                       onSort={onSort}
                       sortState={sortState}
                     />
+                    <th scope="col" className="px-4 py-3">
+                      학년
+                    </th>
                     <SortableRosterHeader
                       field="admissionDate"
                       label="입소 날짜"
@@ -639,6 +648,9 @@ function YouthRosterSection({
                   <>
                     <th scope="col" className="px-4 py-3">
                       나이
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      학년
                     </th>
                     <th scope="col" className="px-4 py-3">
                       입소 날짜
@@ -706,8 +718,10 @@ function YouthRosterSection({
                       )}
                     </span>
                   </td>
+                  <TableCell>{formatYouthRosterAge(youth)}</TableCell>
                   <TableCell>
-                    {youth.age === null ? "미등록" : `${youth.age}세`}
+                    {formatYouthSchoolGradeLabel(youth, referenceDate) ??
+                      "미등록"}
                   </TableCell>
                   <TableCell>{formatOptionalDate(youth.admissionDate)}</TableCell>
                   <TableCell>
@@ -1239,6 +1253,18 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatYouthRosterAge(youth: Pick<YouthRosterItem, "age" | "koreanAge">) {
+  if (youth.age === null) {
+    return "미등록";
+  }
+
+  const legalAgeLabel = `만 ${youth.age}세`;
+
+  return youth.koreanAge === null
+    ? legalAgeLabel
+    : `${legalAgeLabel}(${youth.koreanAge}세)`;
+}
+
 function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
   return {
     admissionDate: youth?.admissionDate ?? "",
@@ -1280,11 +1306,17 @@ function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
 }
 
 function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
+  const birthDate = youth.birthDate;
+
   return {
     id: youth.id,
     admissionDate: youth.admissionDate,
-    birthDate: youth.birthDate,
-    age: youth.age,
+    birthDate,
+    age: getYouthDisplayAge({
+      age: youth.age,
+      birthDate,
+    }),
+    koreanAge: calculateYouthKoreanAge(birthDate),
     dischargeDate: youth.dischargeDate,
     familyContacts: youth.familyContacts.map((contact) => ({
       id: contact.id,

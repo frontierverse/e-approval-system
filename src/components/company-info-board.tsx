@@ -7,13 +7,20 @@ import type {
   CompanyInfoData,
   CompanyInfoStaffMember,
 } from "@/lib/company-info";
+import {
+  formatYouthAgeLabel,
+  formatYouthSchoolGradeLabel,
+} from "@/lib/youth-management-core";
 
 export function CompanyInfoBoard({ data }: { data: CompanyInfoData }) {
   return (
     <section className="space-y-6" aria-label="회사 정보">
       <BusinessInfoSection data={data} />
       <StaffSection staff={data.staff} />
-      <AdmittedYouthSection youths={data.admittedYouths} />
+      <AdmittedYouthSection
+        referenceDate={data.business.referenceDate}
+        youths={data.admittedYouths}
+      />
     </section>
   );
 }
@@ -183,8 +190,10 @@ function StaffSection({ staff }: { staff: CompanyInfoStaffMember[] }) {
 }
 
 function AdmittedYouthSection({
+  referenceDate,
   youths,
 }: {
+  referenceDate: string;
   youths: CompanyInfoAdmittedYouth[];
 }) {
   return (
@@ -199,7 +208,7 @@ function AdmittedYouthSection({
       />
       {youths.length > 0 ? (
         <div className="overflow-x-auto border-t border-[#eef1f5]">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[840px] border-collapse text-left text-sm">
             <thead className="bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
               <tr className="border-b border-[#d9dee7]">
                 <th scope="col" className="px-4 py-3">
@@ -207,6 +216,9 @@ function AdmittedYouthSection({
                 </th>
                 <th scope="col" className="px-4 py-3">
                   나이
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  학년
                 </th>
                 <th scope="col" className="px-4 py-3">
                   입소 날짜
@@ -226,7 +238,11 @@ function AdmittedYouthSection({
                     {youth.name}
                   </td>
                   <TableCell>
-                    {youth.age === null ? "미등록" : `${youth.age}세`}
+                    {formatYouthAgeLabel(youth, referenceDate) ?? "미등록"}
+                  </TableCell>
+                  <TableCell>
+                    {formatYouthSchoolGradeLabel(youth, referenceDate) ??
+                      "미등록"}
                   </TableCell>
                   <TableCell>{formatOptionalDate(youth.admissionDate)}</TableCell>
                   <TableCell>

@@ -3,6 +3,7 @@ import "server-only";
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  calculateYouthKoreanAge,
   getYouthDisplayAge,
   getYouthLearningScheduleToday,
 } from "@/lib/youth-management-core";
@@ -18,6 +19,7 @@ export type YouthRosterItem = {
   admissionDate: string | null;
   birthDate: string | null;
   age: number | null;
+  koreanAge: number | null;
   dischargeDate: string | null;
   familyContacts: YouthRosterFamilyContact[];
   name: string;
@@ -175,17 +177,20 @@ function mapYouthRosterItem(
   record: YouthRosterRecord,
   referenceDate: string,
 ): YouthRosterItem {
+  const birthDate = normalizeBlank(record.birthDate);
+
   return {
     id: record.id,
     admissionDate: normalizeBlank(record.admissionDate),
-    birthDate: normalizeBlank(record.birthDate),
+    birthDate,
     age: getYouthDisplayAge(
       {
         age: record.age,
-        birthDate: normalizeBlank(record.birthDate),
+        birthDate,
       },
       referenceDate,
     ),
+    koreanAge: calculateYouthKoreanAge(birthDate, referenceDate),
     dischargeDate: normalizeBlank(record.dischargeDate),
     familyContacts: getFamilyContacts(record),
     name: record.name,

@@ -68,6 +68,7 @@ const companyInfo = {
       id: "youth-001",
       name: "최하늘",
       admissionDate: "2026-05-01",
+      birthDate: "2009-06-10",
       dischargeDate: null,
       age: 17,
       phone: "010-1111-2222",
@@ -105,7 +106,8 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /입소중 청소년 목록/);
     assert.match(html, /입소중 청소년 1명/);
     assert.match(html, /최하늘/);
-    assert.match(html, /17세/);
+    assert.match(html, /만 17세\(18세\)/);
+    assert.match(html, /고2/);
     assert.match(html, /010-1111-2222/);
   });
 

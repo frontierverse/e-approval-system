@@ -5,6 +5,7 @@ import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { SplitDateInput } from "@/components/split-date-input";
 import {
+  formatYouthAgeLabel,
   youthNoteCategories,
   youthNotePriorities,
   type YouthActionResult,
@@ -1460,7 +1461,7 @@ function YouthMetaSummary({
         <YouthMetaItem label="퇴소까지" value={dday} highlight />
         <YouthMetaItem
           label="나이"
-          value={youth.age === null ? "미입력" : `${youth.age}세`}
+          value={formatYouthAgeLabel(youth) ?? "미입력"}
         />
         <YouthMetaItem label="핸드폰 번호" value={youth.phone ?? "미입력"} />
       </div>
