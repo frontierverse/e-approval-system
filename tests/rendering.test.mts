@@ -1111,6 +1111,7 @@ describe("major UI rendering", () => {
     assert.match(html, /value="한국사" selected="">한국사/);
     assert.match(html, /value="과학">과학/);
     assert.match(html, /value="사회">사회/);
+    assert.match(html, /value="윤리">윤리/);
     assert.doesNotMatch(html, /value="통합사회">통합사회/);
     assert.doesNotMatch(html, /value="검정고시">검정고시/);
   });

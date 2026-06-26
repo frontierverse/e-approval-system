@@ -17,6 +17,7 @@ const highSchoolSubjects = [
   "한국사",
   "과학",
   "사회",
+  "윤리",
 ] as const;
 const middleSchoolSubjects = [
   "국어",
