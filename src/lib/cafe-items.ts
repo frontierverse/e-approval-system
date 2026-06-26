@@ -175,6 +175,37 @@ export async function getCafeItemPage({
   };
 }
 
+export async function getCafeItemsExpiringWithin({
+  days,
+  today,
+}: {
+  days: number;
+  today: string;
+}): Promise<CafeItem[]> {
+  const items = await prisma.cafeItem.findMany({
+    where: {
+      category: "food",
+      expirationDate: {
+        gte: formatCafeItemDateTimeFilterValue(today),
+        lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, days)),
+      },
+    },
+    orderBy: [{ expirationDate: "asc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      purchasedAt: true,
+      priceWon: true,
+      purchaseReason: true,
+      expirationDate: true,
+      createdAt: true,
+    },
+  });
+
+  return items.map(mapCafeItem);
+}
+
 function createCafeItemOrderBy({
   deadline,
   sort,

@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { PDFDocument } from "pdf-lib";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-table.tsx";
 import { CafeItemList } from "../src/components/cafe-item-list.tsx";
+import { createCafeExpiringFoodsPdf } from "../src/lib/cafe-item-expiration-pdf.ts";
 import {
   createCafeItemDueSoonHref,
   createCafeItemExpirationSearchHref,
+  createCafeItemExpiringFoodPrintHref,
   formatCafeItemDateValue,
   getCafeItemUsageDday,
   normalizeCafeItemSort,
@@ -142,6 +145,13 @@ describe("cafe items", () => {
     );
   });
 
+  test("creates cafe item expiring food print links", () => {
+    assert.equal(
+      createCafeItemExpiringFoodPrintHref(),
+      "/work-schedule/cafe/expiring-foods/print",
+    );
+  });
+
   test("normalizes cafe item sort values", () => {
     assert.equal(normalizeCafeItemSort("expirationAsc"), "expirationAsc");
     assert.equal(normalizeCafeItemSort("expirationDesc"), "expirationDesc");
@@ -166,6 +176,14 @@ describe("cafe items", () => {
 
     assert.match(html, /물품 목록/);
     assert.match(html, /10건 중 1-8건 표시/);
+    assert.match(html, /PDF 출력 · 유통기한 15일 이내/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\/expiring-foods\/print"/,
+    );
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /bg-\[#196b69\]/);
+    assert.match(html, /sm:ml-auto/);
     assert.match(html, /유통기한 경과 식품/);
     assert.match(html, /2개/);
     assert.match(
@@ -261,4 +279,25 @@ describe("cafe items", () => {
       /href="\/work-schedule\/cafe\?sort=expirationDesc&amp;logQ=%EC%9A%B0%EC%9C%A0&amp;logAction=update&amp;logStaff=user-001"/,
     );
   });
+
+  test("creates an expiring food PDF", async () => {
+    const buffer = await createCafeExpiringFoodsPdf({
+      days: 15,
+      items: [
+        {
+          ...cafeItems[0],
+          expirationDate: "2026-07-09",
+        },
+      ],
+      today: "2026-06-24",
+    });
+    const pdf = await PDFDocument.load(buffer);
+
+    assert.equal(readPdfHeader(buffer), "%PDF");
+    assert.equal(pdf.getPageCount(), 1);
+  });
 });
+
+function readPdfHeader(buffer: Uint8Array) {
+  return Buffer.from(buffer.slice(0, 4)).toString("utf8");
+}

@@ -5,6 +5,7 @@ import {
   cafeItemCategories,
   cafeItemDeadlineFilters,
   createCafeItemExpiredHref,
+  createCafeItemExpiringFoodPrintHref,
   formatCafeItemDate,
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
@@ -172,6 +173,14 @@ function CafeItemFilterControls({
           초기화
         </Link>
       ) : null}
+      <Link
+        href={createCafeItemExpiringFoodPrintHref()}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex h-10 items-center justify-center rounded-md border border-[#0f5553] bg-[#196b69] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12514f] focus:outline-none focus:ring-2 focus:ring-[#d7eceb] sm:ml-auto"
+      >
+        PDF 출력 · 유통기한 15일 이내
+      </Link>
     </form>
   );
 }

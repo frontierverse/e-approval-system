@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AppModal } from "@/components/app-modal";
 import { formatBirthdayAlertDate } from "@/lib/birthday-alerts-core";
+import { createCafeItemExpiringFoodPrintHref } from "@/lib/cafe-items-core";
 import {
   createCurrentCommonScheduleAlert,
   type CurrentCommonScheduleAlert,
@@ -659,13 +660,23 @@ export function TopbarExpirationAlertModalContent({
             유통기한이 31일 이하로 남은 식품 목록입니다.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
-        >
-          닫기
-        </button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <Link
+            href={createCafeItemExpiringFoodPrintHref()}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center justify-center rounded-md border border-[#0f5553] bg-[#196b69] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12514f] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+          >
+            PDF 출력 · 15일 이내
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+          >
+            닫기
+          </button>
+        </div>
       </div>
       {alert.items.length > 0 ? (
         <ul className="divide-y divide-[#eef1f5] px-5">

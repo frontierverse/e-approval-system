@@ -129,6 +129,13 @@ describe("app navigation active paths", () => {
 
     assert.match(html, /임박 물품 목록/);
     assert.match(html, /유통기한이 31일 이하로 남은 식품 목록입니다\./);
+    assert.match(html, /PDF 출력 · 15일 이내/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/cafe\/expiring-foods\/print"/,
+    );
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /bg-\[#196b69\]/);
     assert.match(html, /우유/);
     assert.match(html, /2026\.06\.30/);
     assert.match(html, /D-31/);

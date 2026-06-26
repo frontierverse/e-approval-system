@@ -316,6 +316,10 @@ export function createCafeItemExpiredHref() {
   return "/work-schedule/cafe?category=food&deadline=expired";
 }
 
+export function createCafeItemExpiringFoodPrintHref() {
+  return "/work-schedule/cafe/expiring-foods/print";
+}
+
 export function shiftCafeItemDate(value: string, days: number) {
   const [yearText, monthText, dayText] = value.split("-");
   const date = new Date(
