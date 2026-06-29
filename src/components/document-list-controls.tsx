@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import type { MouseEvent } from "react";
 import {
   DocumentListFilterControls,
   type DocumentListStatusOption,
@@ -28,7 +30,10 @@ type DocumentPaginationProps = {
   dateFrom: string;
   dateTo: string;
   extraParams?: Record<string, string>;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
   page: number;
+  pendingPage?: number | null;
   totalPages: number;
 };
 
@@ -105,7 +110,10 @@ export function DocumentPagination({
   dateFrom,
   dateTo,
   extraParams,
+  isPending = false,
+  onPageChange,
   page,
+  pendingPage = null,
   totalPages,
 }: DocumentPaginationProps) {
   if (totalPages <= 1) {
@@ -122,7 +130,7 @@ export function DocumentPagination({
       </p>
       <div className="flex gap-2">
         <PaginationLink
-          disabled={page <= 1}
+          disabled={page <= 1 || isPending}
           href={getDocumentListHref({
             basePath,
             query,
@@ -133,11 +141,14 @@ export function DocumentPagination({
             extraParams,
             page: page - 1,
           })}
+          onPageChange={onPageChange}
+          page={page - 1}
+          pending={pendingPage === page - 1}
         >
           이전
         </PaginationLink>
         <PaginationLink
-          disabled={page >= totalPages}
+          disabled={page >= totalPages || isPending}
           href={getDocumentListHref({
             basePath,
             query,
@@ -148,6 +159,9 @@ export function DocumentPagination({
             extraParams,
             page: page + 1,
           })}
+          onPageChange={onPageChange}
+          page={page + 1}
+          pending={pendingPage === page + 1}
         >
           다음
         </PaginationLink>
@@ -176,34 +190,49 @@ function PaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
         "h-10 px-4 text-sm",
       )}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
-function getDocumentListHref({
+export function getDocumentListHref({
   basePath,
   query,
   status,
@@ -259,4 +288,15 @@ function getDocumentListHref({
 
 function getVisibleExtraParams(extraParams?: Record<string, string>) {
   return Object.entries(extraParams ?? {}).filter(([, value]) => Boolean(value));
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }

@@ -5,7 +5,11 @@ import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getYouthLearningSchedules } from "@/lib/youth-learning-schedules";
+import {
+  getYouthLearningProgressChangeLogs,
+  getYouthLearningSchedules,
+  type YouthLearningProgressChangeLogsResult,
+} from "@/lib/youth-learning-schedules";
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
@@ -17,6 +21,7 @@ import {
   parseYouthLearningScheduleWeekdays,
   serializeYouthLearningScheduleWeekdays,
   type YouthActionResult,
+  type YouthLearningProgressChangeLogFilters,
   type YouthLearningSchedule,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
@@ -43,6 +48,29 @@ export async function getYouthLearningSchedulesAction(
     data: {
       scheduleDate,
       schedules: await getYouthLearningSchedules(scheduleDate),
+    },
+  };
+}
+
+export async function getYouthLearningProgressChangeLogsAction(
+  filters: Pick<
+    YouthLearningProgressChangeLogFilters,
+    "actorId" | "page" | "scheduleDate"
+  >,
+): Promise<
+  YouthActionResult<{ changeLogResult: YouthLearningProgressChangeLogsResult }>
+> {
+  await requireUser();
+  const changeLogResult = await getYouthLearningProgressChangeLogs({
+    actorId: filters.actorId,
+    page: filters.page,
+    scheduleDate: filters.scheduleDate,
+  });
+
+  return {
+    ok: true,
+    data: {
+      changeLogResult,
     },
   };
 }

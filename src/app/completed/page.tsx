@@ -1,14 +1,7 @@
-import { cache, Suspense } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { DocumentList } from "@/components/document-list";
-import {
-  DocumentListControls,
-  DocumentListSummary,
-  DocumentListSummarySkeleton,
-  DocumentPagination,
-  hasDocumentListFilter,
-} from "@/components/document-list-controls";
+import { DocumentPageSection } from "@/components/document-page-section";
+import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
+import { getCompletedDocumentPageAction } from "@/app/document-list-actions";
 import {
   getCompletedDocumentPage,
   type CompletedDocumentArchiveReviewFilter,
@@ -17,7 +10,6 @@ import {
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
-import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type CompletedPageSearchParams = {
   q?: string;
@@ -47,38 +39,34 @@ type CompletedDocumentFilters = {
   page: number;
 };
 
-const getCachedCompletedDocumentPage = cache(
-  async (
-    userId: string,
-    query: string,
-    status: CompletedDocumentStatusFilter,
-    sort: DocumentPageSort,
-    dateFrom: string,
-    dateTo: string,
-    archiveReview: CompletedDocumentArchiveReviewFilter,
-    page: number,
-  ) =>
-    getCompletedDocumentPage(userId, {
-      query,
-      status,
-      sort,
-      dateFrom,
-      dateTo,
-      archiveReview,
-      page,
-      pageSize,
-    }),
-);
-
 export default async function CompletedPage({
   searchParams,
 }: {
   searchParams: Promise<CompletedPageSearchParams>;
 }) {
   const filters = getFilters(await searchParams);
+  const user = await requireUser();
+  const completedPage = await getCompletedDocumentPage(user.id, {
+    query: filters.query,
+    status: filters.status,
+    sort: filters.sort,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    archiveReview: filters.archiveReview,
+    page: filters.page,
+    pageSize,
+  });
   const archiveReviewParams = getArchiveReviewParams(filters);
   const isArchiveReviewFilter = filters.archiveReview === "review";
   const isTodayArchiveReview = isTodayArchiveReviewFilter(filters);
+  const hasActiveFilter =
+    hasDocumentListFilter(
+      filters.query,
+      filters.status,
+      filters.sort,
+      filters.dateFrom,
+      filters.dateTo,
+    ) || filters.archiveReview !== "none";
 
   return (
     <>
@@ -87,134 +75,64 @@ export default async function CompletedPage({
         description={
           isArchiveReviewFilter
             ? isTodayArchiveReview
-              ? "오늘자 보관 검토가 필요한 문서를 확인합니다."
+              ? "오늘 보관 검토가 필요한 문서를 확인합니다."
               : "선택한 날짜 기준으로 보관 검토가 필요한 문서를 확인합니다."
-            : "승인완료 또는 반려로 처리가 끝난 문서를 확인하는 화면입니다."
+            : "승인완료 또는 반려로 처리가 끝난 문서를 확인합니다."
         }
       />
 
-      <DocumentListControls
-        basePath="/completed"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        extraParams={archiveReviewParams}
-        statusOptions={statusOptions}
-        summary={
-          <Suspense fallback={<DocumentListSummarySkeleton />}>
-            <CompletedDocumentSummary filters={filters} />
-          </Suspense>
-        }
-      />
-
-      <Suspense fallback={<DocumentResultsSkeleton />}>
-        <CompletedDocumentContent filters={filters} />
-      </Suspense>
-    </>
-  );
-}
-
-async function CompletedDocumentContent({
-  filters,
-}: {
-  filters: CompletedDocumentFilters;
-}) {
-  const user = await requireUser();
-  const completedPage = await getCachedCompletedDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.archiveReview,
-    filters.page,
-  );
-  const hasActiveFilter = hasDocumentListFilter(
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-  ) || filters.archiveReview !== "none";
-  const isTodayArchiveReview = isTodayArchiveReviewFilter(filters);
-
-  return (
-    <>
-      <DocumentList
-        documents={completedPage.documents}
-        empty={
-          <EmptyState
-            title={
-              filters.archiveReview === "review"
-                ? isTodayArchiveReview
-                  ? "오늘자 보관 검토 문서가 없습니다"
-                  : "보관 검토 문서가 없습니다"
-                : hasActiveFilter
-                ? "조건에 맞는 완료 문서가 없습니다"
-                : "완료된 문서가 없습니다"
-            }
-            description={
-              filters.archiveReview === "review"
-                ? isTodayArchiveReview
-                  ? "오늘자 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
-                  : "선택한 날짜에 보관 검토가 필요한 문서가 생기면 이곳에 표시됩니다."
-                : hasActiveFilter
-                ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
-                : "처리가 끝난 문서가 생기면 최종 상태와 처리일이 표시됩니다."
-            }
-          />
-        }
-      />
-
-      <DocumentPagination
+      <DocumentPageSection
+        key={[
+          filters.query,
+          filters.status,
+          filters.sort,
+          filters.dateFrom,
+          filters.dateTo,
+          filters.archiveReview,
+          completedPage.page,
+        ].join(":")}
         ariaLabel="완료문서함 페이지"
         basePath="/completed"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        extraParams={getArchiveReviewParams(filters)}
-        page={completedPage.page}
-        totalPages={completedPage.totalPages}
+        documentPage={completedPage}
+        emptyDescription={
+          filters.archiveReview === "review"
+            ? isTodayArchiveReview
+              ? "오늘 보관 검토가 필요한 문서가 생기면 여기에 표시됩니다."
+              : "선택한 날짜에 보관 검토가 필요한 문서가 생기면 여기에 표시됩니다."
+            : hasActiveFilter
+            ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
+            : "처리가 끝난 문서가 생기면 최종 상태와 처리일이 표시됩니다."
+        }
+        emptyTitle={
+          filters.archiveReview === "review"
+            ? isTodayArchiveReview
+              ? "오늘 보관 검토 문서가 없습니다"
+              : "보관 검토 문서가 없습니다"
+            : hasActiveFilter
+            ? "조건에 맞는 완료 문서가 없습니다"
+            : "완료한 문서가 없습니다"
+        }
+        extraParamNames={["archiveReview"]}
+        filters={{
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          extraParams: archiveReviewParams,
+          page: filters.page,
+          query: filters.query,
+          sort: filters.sort,
+          status: filters.status,
+        }}
+        loadPage={getCompletedDocumentPageAction}
+        statusOptions={statusOptions}
+        summaryBadgeLabel={
+          filters.archiveReview === "review"
+            ? isTodayArchiveReview
+              ? "오늘 보관 검토"
+              : "보관 검토"
+            : undefined
+        }
       />
     </>
-  );
-}
-
-async function CompletedDocumentSummary({
-  filters,
-}: {
-  filters: CompletedDocumentFilters;
-}) {
-  const user = await requireUser();
-  const completedPage = await getCachedCompletedDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.archiveReview,
-    filters.page,
-  );
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <DocumentListSummary
-        total={completedPage.total}
-        page={completedPage.page}
-        pageSize={pageSize}
-      />
-      {filters.archiveReview === "review" ? (
-        <span className="inline-flex rounded-md border border-[#ead8a8] bg-[#fff8df] px-2 py-0.5 text-xs font-semibold text-[#82620d]">
-          {isTodayArchiveReviewFilter(filters) ? "오늘자 보관 검토" : "보관 검토"}
-        </span>
-      ) : null}
-    </div>
   );
 }
 

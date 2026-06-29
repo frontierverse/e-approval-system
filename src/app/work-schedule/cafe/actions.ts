@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
-import { getCafeItemPage } from "@/lib/cafe-items";
+import { getCafeItemChangeLogPage, getCafeItemPage } from "@/lib/cafe-items";
 import {
+  normalizeCafeItemChangeLogAction,
   formatCafeItemDateValue,
   getCafeItemCategoryLabel,
   getCafeItemToday,
@@ -18,6 +19,8 @@ import {
   normalizeCafeItemSort,
   parseCafeItemDateValue,
   type CafeItemActionResult,
+  type CafeItemChangeLogPage,
+  type CafeItemChangeLogPageFilters,
   type CafeItemPage,
   type CafeItemPageFilters,
   type CafeItemFormState,
@@ -26,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 
 const cafeManagementPath = "/work-schedule/cafe";
 const cafeItemPageSize = 7;
+const cafeItemChangeLogPageSize = 5;
 const maxCafeItemNameLength = 100;
 const maxCafeItemPurchaseReasonLength = 500;
 const maxCafeItemPriceWon = 999_999_999;
@@ -70,6 +74,27 @@ export async function getCafeItemPageAction(
     data: {
       itemPage,
       today,
+    },
+  };
+}
+
+export async function getCafeItemChangeLogPageAction(
+  filters: CafeItemChangeLogPageFilters,
+): Promise<CafeItemActionResult<{ logPage: CafeItemChangeLogPage }>> {
+  await requireUser();
+
+  const logPage = await getCafeItemChangeLogPage({
+    action: normalizeCafeItemChangeLogAction(filters.action),
+    actorId: String(filters.actorId ?? "all").trim() || "all",
+    page: normalizeCafeItemPage(String(filters.page)),
+    pageSize: cafeItemChangeLogPageSize,
+    query: String(filters.query ?? "").trim(),
+  });
+
+  return {
+    ok: true,
+    data: {
+      logPage,
     },
   };
 }

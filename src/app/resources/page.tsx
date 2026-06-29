@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { EducationResourceQuickFilters } from "@/components/education-resource-quick-filters";
 import { PageTitle } from "@/components/page-title";
-import { ResourceLibraryFilterControls } from "@/components/resource-library-filter-controls";
-import { ResourceLibraryList } from "@/components/resource-library-list";
+import { ResourceLibraryPageSection } from "@/components/resource-library-page-section";
+import { getResourceLibraryPageAction } from "@/app/resources/actions";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { getResourceLibraryPage } from "@/lib/resource-library";
 import {
   getResourceLibraryPageSize,
-  normalizeResourceEducationLevelFilter,
   normalizeResourceCategoryFilter,
+  normalizeResourceEducationLevelFilter,
   type ResourceCategory,
   type ResourceCategoryFilter,
   type ResourceEducationLevelFilter,
@@ -31,23 +30,19 @@ const resourcePageCopy: Record<
 > = {
   corporation: {
     title: "법인 자료실",
-    description:
-      "법인 운영, 공문, 규정, 회의자료처럼 조직 공통 기준이 되는 자료를 보관합니다.",
+    description: "법인 운영, 공문, 규정, 회의자료처럼 조직 공통 기준이 되는 자료를 보관합니다.",
   },
   bajaul: {
     title: "바자울 자료실",
-    description:
-      "바자울 운영, 현장 업무, 프로그램 진행에 필요한 자료를 모아둡니다.",
+    description: "바자울 운영, 현장 업무, 프로그램 진행에 필요한 자료를 모아둡니다.",
   },
   cafe: {
     title: "카페 자료실",
-    description:
-      "카페 운영, 매장 관리, 판매와 서비스 업무에 필요한 자료를 정리합니다.",
+    description: "카페 운영, 매장 관리, 판매와 서비스 업무에 필요한 자료를 정리합니다.",
   },
   education: {
     title: "교육 자료실",
-    description:
-      "직원 교육, 청소년 지도, 프로그램 운영에 필요한 교육자료를 보관합니다.",
+    description: "직원 교육, 청소년 지원, 프로그램 운영에 필요한 교육자료를 보관합니다.",
   },
 };
 
@@ -65,11 +60,6 @@ export default async function ResourcesPage({
     currentUserRole: user.role,
     pageSize,
   });
-  const hasActiveFilter = Boolean(
-    filters.query || filters.educationLevel !== "all",
-  );
-  const firstItemNumber =
-    resourcePage.total - (resourcePage.page - 1) * resourcePage.pageSize;
   const pageCopy = getResourcePageCopy(filters.category);
 
   return (
@@ -91,29 +81,16 @@ export default async function ResourcesPage({
         }
       />
 
-      <ResourceLibraryList
-        items={resourcePage.items}
-        firstItemNumber={firstItemNumber}
-        hasActiveFilter={hasActiveFilter}
-        compact={filters.category === "education"}
-        toolbar={
-          <ResourceListToolbar
-            category={filters.category}
-            educationLevel={filters.educationLevel}
-            page={resourcePage.page}
-            pageSize={resourcePage.pageSize}
-            query={filters.query}
-            total={resourcePage.total}
-          />
-        }
-      />
-
-      <ResourcePagination
-        category={filters.category}
-        educationLevel={filters.educationLevel}
-        page={resourcePage.page}
-        query={filters.query}
-        totalPages={resourcePage.totalPages}
+      <ResourceLibraryPageSection
+        key={[
+          filters.query,
+          filters.category,
+          filters.educationLevel,
+          resourcePage.page,
+        ].join(":")}
+        filters={filters}
+        loadPage={getResourceLibraryPageAction}
+        resourcePage={resourcePage}
       />
     </>
   );
@@ -137,8 +114,7 @@ function getResourcePageCopy(category: ResourceCategoryFilter) {
   if (category === "all") {
     return {
       title: "자료실",
-      description:
-        "법인, 카페, 바자울, 교육 자료를 구분해서 확인하는 공간입니다.",
+      description: "법인, 카페, 바자울, 교육 자료를 구분해서 확인하는 공간입니다.",
     };
   }
 
@@ -157,182 +133,6 @@ function normalizePage(value: string | undefined) {
   const page = Number(value);
 
   return Number.isInteger(page) && page > 0 ? page : 1;
-}
-
-function ResourceListToolbar({
-  category,
-  educationLevel,
-  page,
-  pageSize,
-  query,
-  total,
-}: {
-  category: ResourceCategoryFilter;
-  educationLevel: ResourceEducationLevelFilter;
-  page: number;
-  pageSize: number;
-  query: string;
-  total: number;
-}) {
-  return (
-    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-      <div className="min-w-0 flex-1">
-        <ResourceLibraryFilterControls
-          category={category}
-          query={query}
-          leadingControl={
-            category === "education" ? (
-              <EducationResourceQuickFilters
-                educationLevel={educationLevel}
-                query={query}
-              />
-            ) : null
-          }
-        />
-      </div>
-
-      <ResourceListSummary page={page} pageSize={pageSize} total={total} />
-    </div>
-  );
-}
-
-function ResourceListSummary({
-  page,
-  pageSize,
-  total,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-}) {
-  const firstItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const lastItem = Math.min(page * pageSize, total);
-
-  return (
-    <p className="shrink-0 text-xs text-[#697386]">
-      {total > 0
-        ? `${total}건 중 ${firstItem}-${lastItem}건 표시`
-        : "표시할 자료가 없습니다."}
-    </p>
-  );
-}
-
-function ResourcePagination({
-  category,
-  educationLevel,
-  page,
-  query,
-  totalPages,
-}: {
-  category: ResourceCategoryFilter;
-  educationLevel: ResourceEducationLevelFilter;
-  page: number;
-  query: string;
-  totalPages: number;
-}) {
-  if (totalPages <= 1) {
-    return null;
-  }
-
-  return (
-    <nav
-      aria-label="자료실 페이지"
-      className="mt-4 flex flex-wrap items-center justify-between gap-3"
-    >
-      <p className="text-sm text-[#697386]">
-        {page} / {totalPages} 페이지
-      </p>
-      <div className="flex gap-2">
-        <ResourcePaginationLink
-          disabled={page <= 1}
-          href={getResourcePageHref({
-            category,
-            educationLevel,
-            page: page - 1,
-            query,
-          })}
-        >
-          이전
-        </ResourcePaginationLink>
-        <ResourcePaginationLink
-          disabled={page >= totalPages}
-          href={getResourcePageHref({
-            category,
-            educationLevel,
-            page: page + 1,
-            query,
-          })}
-        >
-          다음
-        </ResourcePaginationLink>
-      </div>
-    </nav>
-  );
-}
-
-function ResourcePaginationLink({
-  children,
-  disabled,
-  href,
-}: {
-  children: React.ReactNode;
-  disabled: boolean;
-  href: string;
-}) {
-  if (disabled) {
-    return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
-      </span>
-    );
-  }
-
-  return (
-    <Link
-      href={href}
-      className={buttonClass(
-        buttonStyles.base,
-        buttonStyles.neutral,
-        "h-10 px-4 text-sm",
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
-function getResourcePageHref({
-  category,
-  educationLevel,
-  page,
-  query,
-}: {
-  category: ResourceCategoryFilter;
-  educationLevel: ResourceEducationLevelFilter;
-  page: number;
-  query: string;
-}) {
-  const params = new URLSearchParams();
-
-  if (query) {
-    params.set("q", query);
-  }
-
-  if (category !== "all") {
-    params.set("category", category);
-  }
-
-  if (category === "education" && educationLevel !== "all") {
-    params.set("level", educationLevel);
-  }
-
-  if (page > 1) {
-    params.set("page", String(page));
-  }
-
-  const queryString = params.toString();
-
-  return queryString ? `/resources?${queryString}` : "/resources";
 }
 
 function getNewResourceHref({

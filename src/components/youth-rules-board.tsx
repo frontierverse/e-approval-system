@@ -1,4 +1,7 @@
-import Link from "next/link";
+"use client";
+
+import { useCallback, useEffect, useState, useTransition } from "react";
+import type { MouseEvent } from "react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { YouthRuleChangeLogFilterControls } from "@/components/youth-rule-change-log-filter-controls";
@@ -10,7 +13,9 @@ import {
 } from "@/components/youth-rule-filter-controls";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
+  isYouthRuleCategory,
   youthRuleCategories,
+  type YouthActionResult,
   youthRuleDetailMaxLength,
   type YouthRule,
   type YouthRuleChangeLogActor,
@@ -20,11 +25,20 @@ import {
   type YouthRuleTarget,
   type YouthRuleTargetFilter,
 } from "@/lib/youth-management-core";
+import type {
+  YouthRuleChangeLogsResult,
+  YouthRulesResult,
+} from "@/lib/youth-rules";
 
 type YouthRulesBoardProps = {
   createRuleAction: (formData: FormData) => Promise<void>;
   deleteRuleAction: (ruleId: string) => Promise<void>;
   filterControls?: React.ReactNode;
+  loadRules?: (filters: {
+    category: YouthRuleCategoryFilter;
+    page: number;
+    target: YouthRuleTargetFilter;
+  }) => Promise<YouthActionResult<{ ruleResult: YouthRulesResult }>>;
   page: number;
   pageSize: number;
   ruleError?: string;
@@ -40,6 +54,7 @@ export function YouthRulesBoard({
   createRuleAction,
   deleteRuleAction,
   filterControls,
+  loadRules,
   page,
   pageSize,
   ruleError,
@@ -53,6 +68,113 @@ export function YouthRulesBoard({
   const RulesListWrapper = filterControls
     ? StaticRulesListWrapper
     : YouthRuleListTransitionProvider;
+  const [ruleState, setRuleState] = useState({
+    page,
+    pageSize,
+    rules,
+    selectedCategory,
+    selectedTarget,
+    total,
+    totalPages,
+  });
+  const [rulePageError, setRulePageError] = useState("");
+  const [pendingRulePage, setPendingRulePage] = useState<number | null>(null);
+  const [isRulePagePending, startRulePageTransition] = useTransition();
+  const currentRules = ruleState.rules;
+
+  const loadRulePage = useCallback(
+    (
+      nextPage: number,
+      options?: {
+        filters?: {
+          category: YouthRuleCategoryFilter;
+          page: number;
+          target: YouthRuleTargetFilter;
+        };
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadRules) {
+        return;
+      }
+
+      const nextFilters = {
+        category: options?.filters?.category ?? ruleState.selectedCategory,
+        page: nextPage,
+        target: options?.filters?.target ?? ruleState.selectedTarget,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingRulePage(nextPage);
+      startRulePageTransition(async () => {
+        try {
+          const result = await loadRules(nextFilters);
+
+          if (!result.ok) {
+            setRulePageError(result.error);
+            return;
+          }
+
+          const { ruleResult } = result.data;
+
+          setRuleState({
+            page: ruleResult.page,
+            pageSize: ruleResult.pageSize,
+            rules: ruleResult.rules,
+            selectedCategory: ruleResult.category,
+            selectedTarget: ruleResult.target,
+            total: ruleResult.total,
+            totalPages: ruleResult.totalPages,
+          });
+          setRulePageError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { youthRulesPage: ruleResult.page },
+              "",
+              getYouthRulesPageHref({
+                category: ruleResult.category,
+                page: ruleResult.page,
+                target: ruleResult.target,
+              }),
+            );
+          }
+        } finally {
+          setPendingRulePage(null);
+        }
+      });
+    },
+    [
+      loadRules,
+      ruleState.selectedCategory,
+      ruleState.selectedTarget,
+    ],
+  );
+
+  useEffect(() => {
+    if (!loadRules) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.get("tab") === "history") {
+        return;
+      }
+
+      const filters = getYouthRulesFiltersFromLocation(params);
+
+      loadRulePage(filters.page, {
+        filters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadRulePage, loadRules]);
 
   return (
     <section
@@ -140,23 +262,36 @@ export function YouthRulesBoard({
                 등록된 규칙
               </h2>
               <RuleListSummary
-                page={page}
-                pageSize={pageSize}
-                total={total}
+                page={ruleState.page}
+                pageSize={ruleState.pageSize}
+                total={ruleState.total}
               />
             </div>
             {filterControls ?? (
               <YouthRuleFilterControls
-                selectedCategory={selectedCategory}
-                selectedTarget={selectedTarget}
+                selectedCategory={ruleState.selectedCategory}
+                selectedTarget={ruleState.selectedTarget}
                 targets={targets}
               />
             )}
           </header>
 
-          {rules.length > 0 ? (
-            <ul className="divide-y divide-[#eef1f5]">
-              {rules.map((rule) => (
+          {rulePageError ? (
+            <p className="m-5 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+              {rulePageError}
+            </p>
+          ) : null}
+
+          {currentRules.length > 0 ? (
+            <ul
+              className={[
+                "divide-y divide-[#eef1f5]",
+                isRulePagePending ? "opacity-60" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {currentRules.map((rule) => (
                 <li key={rule.id} className="grid gap-3 px-5 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -200,10 +335,13 @@ export function YouthRulesBoard({
           )}
 
           <YouthRulesPagination
-            page={page}
-            selectedCategory={selectedCategory}
-            selectedTarget={selectedTarget}
-            totalPages={totalPages}
+            isPending={isRulePagePending}
+            onPageChange={loadRules ? loadRulePage : undefined}
+            page={ruleState.page}
+            pendingPage={pendingRulePage}
+            selectedCategory={ruleState.selectedCategory}
+            selectedTarget={ruleState.selectedTarget}
+            totalPages={ruleState.totalPages}
           />
           <YouthRulePendingOverlay />
         </section>
@@ -240,12 +378,18 @@ function RuleListSummary({
 }
 
 function YouthRulesPagination({
+  isPending,
+  onPageChange,
   page,
+  pendingPage,
   selectedCategory,
   selectedTarget,
   totalPages,
 }: {
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
   page: number;
+  pendingPage: number | null;
   selectedCategory: YouthRuleCategoryFilter;
   selectedTarget: YouthRuleTargetFilter;
   totalPages: number;
@@ -264,22 +408,28 @@ function YouthRulesPagination({
       </p>
       <div className="flex gap-2">
         <YouthRulesPaginationLink
-          disabled={page <= 1}
+          disabled={page <= 1 || isPending}
           href={getYouthRulesPageHref({
             category: selectedCategory,
             page: page - 1,
             target: selectedTarget,
           })}
+          onPageChange={onPageChange}
+          page={page - 1}
+          pending={pendingPage === page - 1}
         >
           이전
         </YouthRulesPaginationLink>
         <YouthRulesPaginationLink
-          disabled={page >= totalPages}
+          disabled={page >= totalPages || isPending}
           href={getYouthRulesPageHref({
             category: selectedCategory,
             page: page + 1,
             target: selectedTarget,
           })}
+          onPageChange={onPageChange}
+          page={page + 1}
+          pending={pendingPage === page + 1}
         >
           다음
         </YouthRulesPaginationLink>
@@ -292,30 +442,45 @@ function YouthRulesPaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
         "h-10 px-4 text-sm",
       )}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
@@ -347,19 +512,157 @@ function getYouthRulesPageHref({
   return queryString ? `/youth/rules?${queryString}` : "/youth/rules";
 }
 
+function getYouthRulesFiltersFromLocation(params: URLSearchParams): {
+  category: YouthRuleCategoryFilter;
+  page: number;
+  target: YouthRuleTargetFilter;
+} {
+  return {
+    category: normalizeRuleCategoryFilter(params.get("category")),
+    page: normalizePositivePage(params.get("page")),
+    target: normalizeRuleTargetFilter(params.get("target")),
+  };
+}
+
 export function YouthRuleChangeLogList({
   actors,
   filterControls,
   filters,
+  loadChangeLogs,
   logs,
   targets,
 }: {
   actors: YouthRuleChangeLogActor[];
   filterControls?: React.ReactNode;
   filters: YouthRuleChangeLogFilters;
+  loadChangeLogs?: (filters: {
+    actorId: string;
+    category: YouthRuleCategoryFilter;
+    page: number;
+    target: YouthRuleTargetFilter;
+  }) => Promise<YouthActionResult<{ changeLogResult: YouthRuleChangeLogsResult }>>;
   logs: YouthRuleChangeLog[];
   targets: YouthRuleTarget[];
 }) {
+  const [changeLogState, setChangeLogState] = useState({
+    filters,
+    logs,
+  });
+  const [changeLogError, setChangeLogError] = useState("");
+  const [pendingChangeLogPage, setPendingChangeLogPage] = useState<
+    number | null
+  >(null);
+  const [isChangeLogPending, startChangeLogTransition] = useTransition();
+  const currentFilters = changeLogState.filters;
+  const currentLogs = changeLogState.logs;
+
+  const loadChangeLogPage = useCallback(
+    (
+      nextPage: number,
+      options?: {
+        filters?: {
+          actorId: string;
+          category: YouthRuleCategoryFilter;
+          page: number;
+          target: YouthRuleTargetFilter;
+        };
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadChangeLogs) {
+        return;
+      }
+
+      const nextFilters = {
+        actorId: options?.filters?.actorId ?? changeLogState.filters.actorId,
+        category: options?.filters?.category ?? changeLogState.filters.category,
+        page: nextPage,
+        target: options?.filters?.target ?? changeLogState.filters.target,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingChangeLogPage(nextPage);
+      startChangeLogTransition(async () => {
+        try {
+          const result = await loadChangeLogs(nextFilters);
+
+          if (!result.ok) {
+            setChangeLogError(result.error);
+            return;
+          }
+
+          const { changeLogResult } = result.data;
+
+          setChangeLogState({
+            filters: {
+              actorId: changeLogResult.actorId,
+              category: changeLogResult.category,
+              page: changeLogResult.page,
+              pageSize: changeLogResult.pageSize,
+              target: changeLogResult.target,
+              total: changeLogResult.total,
+              totalPages: changeLogResult.totalPages,
+            },
+            logs: changeLogResult.logs,
+          });
+          setChangeLogError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { youthRuleChangeLogPage: changeLogResult.page },
+              "",
+              getYouthRuleChangeLogPageHref(
+                {
+                  actorId: changeLogResult.actorId,
+                  category: changeLogResult.category,
+                  page: changeLogResult.page,
+                  pageSize: changeLogResult.pageSize,
+                  target: changeLogResult.target,
+                  total: changeLogResult.total,
+                  totalPages: changeLogResult.totalPages,
+                },
+                changeLogResult.page,
+              ),
+            );
+          }
+        } finally {
+          setPendingChangeLogPage(null);
+        }
+      });
+    },
+    [
+      changeLogState.filters.actorId,
+      changeLogState.filters.category,
+      changeLogState.filters.target,
+      loadChangeLogs,
+    ],
+  );
+
+  useEffect(() => {
+    if (!loadChangeLogs) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.get("tab") !== "history") {
+        return;
+      }
+
+      const nextFilters = getYouthRuleChangeLogFiltersFromLocation(params);
+
+      loadChangeLogPage(nextFilters.page, {
+        filters: nextFilters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadChangeLogPage, loadChangeLogs]);
+
   return (
     <section
       aria-label="규칙 변경 내역"
@@ -369,20 +672,33 @@ export function YouthRuleChangeLogList({
         <h2 className="text-base font-semibold text-[#16181d]">
           규칙 변경 내역
         </h2>
-        <RuleChangeLogListSummary filters={filters} />
+        <RuleChangeLogListSummary filters={currentFilters} />
       </header>
 
       {filterControls ?? (
         <YouthRuleChangeLogFilterControls
           actors={actors}
-          filters={filters}
+          filters={currentFilters}
           targets={targets}
         />
       )}
 
-      {logs.length > 0 ? (
-        <ol className="divide-y divide-[#eef1f5]">
-          {logs.map((log) => {
+      {changeLogError ? (
+        <p className="m-5 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+          {changeLogError}
+        </p>
+      ) : null}
+
+      {currentLogs.length > 0 ? (
+        <ol
+          className={[
+            "divide-y divide-[#eef1f5]",
+            isChangeLogPending ? "opacity-60" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {currentLogs.map((log) => {
             const detail = getRuleChangeLogDetail(log.metadata);
 
             return (
@@ -433,7 +749,10 @@ export function YouthRuleChangeLogList({
       )}
 
       <YouthRuleChangeLogPagination
-        filters={filters}
+        filters={currentFilters}
+        isPending={isChangeLogPending}
+        onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+        pendingPage={pendingChangeLogPage}
       />
     </section>
   );
@@ -464,8 +783,14 @@ function RuleChangeLogListSummary({
 
 function YouthRuleChangeLogPagination({
   filters,
+  isPending,
+  onPageChange,
+  pendingPage,
 }: {
   filters: YouthRuleChangeLogFilters;
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
 }) {
   if (filters.totalPages <= 1) {
     return null;
@@ -481,14 +806,20 @@ function YouthRuleChangeLogPagination({
       </p>
       <div className="flex gap-2">
         <YouthRulesPaginationLink
-          disabled={filters.page <= 1}
+          disabled={filters.page <= 1 || isPending}
           href={getYouthRuleChangeLogPageHref(filters, filters.page - 1)}
+          onPageChange={onPageChange}
+          page={filters.page - 1}
+          pending={pendingPage === filters.page - 1}
         >
           이전
         </YouthRulesPaginationLink>
         <YouthRulesPaginationLink
-          disabled={filters.page >= filters.totalPages}
+          disabled={filters.page >= filters.totalPages || isPending}
           href={getYouthRuleChangeLogPageHref(filters, filters.page + 1)}
+          onPageChange={onPageChange}
+          page={filters.page + 1}
+          pending={pendingPage === filters.page + 1}
         >
           다음
         </YouthRulesPaginationLink>
@@ -522,6 +853,59 @@ function getYouthRuleChangeLogPageHref(
   }
 
   return `/youth/rules?${params.toString()}`;
+}
+
+function getYouthRuleChangeLogFiltersFromLocation(
+  params: URLSearchParams,
+): {
+  actorId: string;
+  category: YouthRuleCategoryFilter;
+  page: number;
+  target: YouthRuleTargetFilter;
+} {
+  return {
+    actorId: normalizeRuleActorId(params.get("historyStaff")),
+    category: normalizeRuleCategoryFilter(params.get("historyCategory")),
+    page: normalizePositivePage(params.get("historyPage")),
+    target: normalizeRuleTargetFilter(params.get("historyTarget")),
+  };
+}
+
+function normalizeRuleCategoryFilter(
+  value: string | null | undefined,
+): YouthRuleCategoryFilter {
+  return value && isYouthRuleCategory(value) ? value : "all";
+}
+
+function normalizeRuleTargetFilter(
+  value: string | null | undefined,
+): YouthRuleTargetFilter {
+  const target = String(value ?? "").trim();
+
+  return target || "all";
+}
+
+function normalizeRuleActorId(value: string | null | undefined) {
+  const actorId = String(value ?? "").trim();
+
+  return actorId || "all";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function getRuleChangeLogDetail(metadata: unknown) {

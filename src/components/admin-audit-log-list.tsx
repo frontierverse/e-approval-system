@@ -1,4 +1,7 @@
-import Link from "next/link";
+"use client";
+
+import { useCallback, useEffect, useState, useTransition } from "react";
+import type { MouseEvent } from "react";
 import {
   AdminAuditLogFilterControls,
   type AdminAuditActor,
@@ -8,6 +11,7 @@ import { adminListStyles } from "@/lib/admin-list-styles";
 import {
   getAuditActionBadgeClass,
   getAuditActionLabel,
+  isAuditActionValue,
 } from "@/lib/audit-log-display";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -38,11 +42,30 @@ type AdminAuditLog = {
   } | null;
 };
 
+type AdminAuditLogPageActionResult = Promise<
+  | {
+      ok: true;
+      data: {
+        auditPage: {
+          logs: AdminAuditLog[];
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        };
+      };
+    }
+  | { ok: false; error: string }
+>;
+
 type AdminAuditLogListProps = {
   logs: AdminAuditLog[];
   actors?: AdminAuditActor[];
   filters?: AdminAuditLogFilters;
   filterControls?: React.ReactNode;
+  loadPage?: (
+    filters: AdminAuditLogFilters & { page: number },
+  ) => AdminAuditLogPageActionResult;
   page?: number;
   pageSize?: number;
   total?: number;
@@ -62,14 +85,120 @@ export function AdminAuditLogList({
   actors = [],
   filters = defaultFilters,
   filterControls,
+  loadPage,
   page = 1,
   pageSize = 12,
   total = logs.length,
   totalPages = 1,
 }: AdminAuditLogListProps) {
-  const hasActiveFilter = hasAuditLogFilter(filters);
-  const firstItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const lastItem = Math.min(page * pageSize, total);
+  const [pageState, setPageState] = useState({
+    filters,
+    logs,
+    page,
+    pageSize,
+    total,
+    totalPages,
+  });
+  const [pageError, setPageError] = useState("");
+  const [pendingPage, setPendingPage] = useState<number | null>(null);
+  const [isPagePending, startPageTransition] = useTransition();
+
+  const loadAuditLogPage = useCallback(
+    (
+      nextPage: number,
+      options?: {
+        filters?: AdminAuditLogFilters & { page: number };
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadPage) {
+        return;
+      }
+
+      const nextFilters = {
+        ...pageState.filters,
+        ...(options?.filters ?? {}),
+        page: nextPage,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingPage(nextPage);
+      startPageTransition(async () => {
+        try {
+          const result = await loadPage(nextFilters);
+
+          if (!result.ok) {
+            setPageError(result.error);
+            return;
+          }
+
+          const { auditPage } = result.data;
+
+          setPageState({
+            filters: {
+              actorId: nextFilters.actorId,
+              dateFrom: nextFilters.dateFrom,
+              dateTo: nextFilters.dateTo,
+              query: nextFilters.query,
+              status: nextFilters.status,
+            },
+            logs: auditPage.logs,
+            page: auditPage.page,
+            pageSize: auditPage.pageSize,
+            total: auditPage.total,
+            totalPages: auditPage.totalPages,
+          });
+          setPageError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { adminAuditPage: auditPage.page },
+              "",
+              getAuditLogHref(nextFilters, auditPage.page),
+            );
+          }
+        } finally {
+          setPendingPage(null);
+        }
+      });
+    },
+    [loadPage, pageState.filters],
+  );
+
+  useEffect(() => {
+    if (!loadPage) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.get("tab") !== "audit") {
+        return;
+      }
+
+      const nextFilters = getAuditLogFiltersFromLocation(params);
+
+      loadAuditLogPage(nextFilters.page, {
+        filters: nextFilters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadAuditLogPage, loadPage]);
+
+  const currentFilters = pageState.filters;
+  const currentLogs = pageState.logs;
+  const hasActiveFilter = hasAuditLogFilter(currentFilters);
+  const firstItem =
+    pageState.total === 0 ? 0 : (pageState.page - 1) * pageState.pageSize + 1;
+  const lastItem = Math.min(
+    pageState.page * pageState.pageSize,
+    pageState.total,
+  );
 
   return (
     <section className={adminListStyles.panel}>
@@ -81,21 +210,34 @@ export function AdminAuditLogList({
           </p>
         </div>
         <span className={adminListStyles.count}>
-          총 {total}건
+          총 {pageState.total}건
         </span>
       </div>
 
       {filterControls ?? (
         <AdminAuditLogFilterControls
           actors={actors}
-          filters={filters}
-          total={total}
+          filters={currentFilters}
+          total={pageState.total}
         />
       )}
 
-      {logs.length > 0 ? (
-        <ol className="divide-y divide-[#eef1f5]">
-          {logs.map((log) => (
+      {pageError ? (
+        <p className="m-5 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+          {pageError}
+        </p>
+      ) : null}
+
+      {currentLogs.length > 0 ? (
+        <ol
+          className={[
+            "divide-y divide-[#eef1f5]",
+            isPagePending ? "opacity-60" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {currentLogs.map((log) => (
             <li key={log.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[12rem_9rem_minmax(0,1fr)]">
               <time
                 dateTime={log.createdAt.toISOString()}
@@ -170,12 +312,15 @@ export function AdminAuditLogList({
       )}
 
       <AuditLogPagination
-        filters={filters}
+        filters={currentFilters}
         firstItem={firstItem}
+        isPending={isPagePending}
         lastItem={lastItem}
-        page={page}
-        total={total}
-        totalPages={totalPages}
+        onPageChange={loadPage ? loadAuditLogPage : undefined}
+        page={pageState.page}
+        pendingPage={pendingPage}
+        total={pageState.total}
+        totalPages={pageState.totalPages}
       />
     </section>
   );
@@ -184,15 +329,21 @@ export function AdminAuditLogList({
 function AuditLogPagination({
   filters,
   firstItem,
+  isPending,
   lastItem,
+  onPageChange,
   page,
+  pendingPage,
   total,
   totalPages,
 }: {
   filters: AdminAuditLogFilters;
   firstItem: number;
+  isPending: boolean;
   lastItem: number;
+  onPageChange?: (page: number) => void;
   page: number;
+  pendingPage: number | null;
   total: number;
   totalPages: number;
 }) {
@@ -215,14 +366,20 @@ function AuditLogPagination({
           className="flex flex-wrap items-center gap-2"
         >
           <PaginationLink
-            disabled={page <= 1}
+            disabled={page <= 1 || isPending}
             href={getAuditLogHref(filters, 1)}
+            onPageChange={onPageChange}
+            page={1}
+            pending={pendingPage === 1}
           >
             처음
           </PaginationLink>
           <PaginationLink
-            disabled={page <= 1}
+            disabled={page <= 1 || isPending}
             href={getAuditLogHref(filters, page - 1)}
+            onPageChange={onPageChange}
+            page={page - 1}
+            pending={pendingPage === page - 1}
           >
             이전
           </PaginationLink>
@@ -239,19 +396,28 @@ function AuditLogPagination({
                 key={item}
                 current={item === page}
                 filters={filters}
+                isPending={isPending}
+                onPageChange={onPageChange}
                 page={item}
+                pending={pendingPage === item}
               />
             ),
           )}
           <PaginationLink
-            disabled={page >= totalPages}
+            disabled={page >= totalPages || isPending}
             href={getAuditLogHref(filters, page + 1)}
+            onPageChange={onPageChange}
+            page={page + 1}
+            pending={pendingPage === page + 1}
           >
             다음
           </PaginationLink>
           <PaginationLink
-            disabled={page >= totalPages}
+            disabled={page >= totalPages || isPending}
             href={getAuditLogHref(filters, totalPages)}
+            onPageChange={onPageChange}
+            page={totalPages}
+            pending={pendingPage === totalPages}
           >
             끝
           </PaginationLink>
@@ -265,64 +431,99 @@ function PaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
         "h-10 px-4 text-sm",
       )}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
 function PaginationPageLink({
   current,
   filters,
+  isPending,
+  onPageChange,
   page,
+  pending,
 }: {
   current: boolean;
   filters: AdminAuditLogFilters;
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
   page: number;
+  pending: boolean;
 }) {
-  if (current) {
+  if (current || isPending) {
     return (
       <span
-        aria-current="page"
-        className="inline-flex size-10 items-center justify-center rounded-md border border-[#196b69] bg-[#196b69] text-sm font-semibold text-white"
+        aria-current={current ? "page" : undefined}
+        className={[
+          "inline-flex size-10 items-center justify-center rounded-md border text-sm font-semibold",
+          current
+            ? "border-[#196b69] bg-[#196b69] text-white"
+            : "border-[#d9dee7] bg-[#f7f9fc] text-[#9aa4b2]",
+        ].join(" ")}
       >
-        {page}
+        {pending ? "..." : page}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={getAuditLogHref(filters, page)}
+      aria-busy={pending || undefined}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
         "size-10 px-0 text-sm",
       )}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {page}
-    </Link>
+      {pending ? "..." : page}
+    </a>
   );
 }
 
@@ -398,6 +599,54 @@ function getAuditLogHref(filters: AdminAuditLogFilters, page: number) {
   }
 
   return `/admin?${params.toString()}`;
+}
+
+function getAuditLogFiltersFromLocation(
+  params: URLSearchParams,
+): AdminAuditLogFilters & { page: number } {
+  return {
+    actorId: normalizeActorId(params.get("user")),
+    dateFrom: normalizeDateParam(params.get("dateFrom")),
+    dateTo: normalizeDateParam(params.get("dateTo")),
+    page: normalizePositivePage(params.get("page")),
+    query: String(params.get("q") ?? "").trim(),
+    status: normalizeAuditStatus(params.get("status")),
+  };
+}
+
+function normalizeAuditStatus(
+  value: string | null | undefined,
+): AdminAuditLogFilters["status"] {
+  return value && isAuditActionValue(value) ? value : "all";
+}
+
+function normalizeActorId(value: string | null | undefined) {
+  const actorId = String(value ?? "").trim();
+
+  return actorId || "all";
+}
+
+function normalizeDateParam(value: string | null | undefined) {
+  const date = String(value ?? "").trim();
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function hasAuditLogFilter(filters: AdminAuditLogFilters) {

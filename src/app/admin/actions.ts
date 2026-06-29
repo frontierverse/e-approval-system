@@ -15,6 +15,13 @@ import {
 } from "@/lib/attachment-policy";
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { maxAttachmentPolicyTotalSizeMb } from "@/lib/attachment-limits";
+import {
+  getAdminAuditLogPage,
+  getAdminLoginHistoryPage,
+  type AdminAuditLogStatusFilter,
+  type AdminLoginHistoryResultFilter,
+} from "@/lib/admin-queries";
+import { isAuditActionValue } from "@/lib/audit-log-display";
 import { requireAdmin } from "@/lib/auth";
 import {
   getDefaultDocumentTemplateSchema,
@@ -105,6 +112,68 @@ export type AdminAttachmentPolicyFormState = {
     allowedExtensions?: string;
   };
 };
+
+export type AdminAuditLogPageActionFilters = {
+  actorId: string;
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  query: string;
+  status: string;
+};
+
+export type AdminLoginHistoryPageActionFilters = {
+  dateFrom: string;
+  dateTo: string;
+  page: number;
+  query: string;
+  result: string;
+  userId: string;
+};
+
+export async function getAdminAuditLogPageAction(
+  filters: AdminAuditLogPageActionFilters,
+) {
+  await requireAdmin();
+  const auditPage = await getAdminAuditLogPage({
+    actorId: normalizeActionActorId(filters.actorId),
+    dateFrom: normalizeActionDate(filters.dateFrom),
+    dateTo: normalizeActionDate(filters.dateTo),
+    page: normalizeActionPage(filters.page),
+    pageSize: 12,
+    query: normalizeActionText(filters.query),
+    status: normalizeActionAuditStatus(filters.status),
+  });
+
+  return {
+    ok: true,
+    data: {
+      auditPage,
+    },
+  } as const;
+}
+
+export async function getAdminLoginHistoryPageAction(
+  filters: AdminLoginHistoryPageActionFilters,
+) {
+  await requireAdmin();
+  const historyPage = await getAdminLoginHistoryPage({
+    dateFrom: normalizeActionDate(filters.dateFrom),
+    dateTo: normalizeActionDate(filters.dateTo),
+    page: normalizeActionPage(filters.page),
+    pageSize: 12,
+    query: normalizeActionText(filters.query),
+    result: normalizeActionLoginResult(filters.result),
+    userId: normalizeActionActorId(filters.userId),
+  });
+
+  return {
+    ok: true,
+    data: {
+      historyPage,
+    },
+  } as const;
+}
 
 export async function createAdminUserAction(
   _state: AdminUserFormState,
@@ -917,6 +986,36 @@ export async function updateAdminAttachmentPolicyAction(
   return {
     success: "첨부파일 정책을 수정했습니다.",
   };
+}
+
+function normalizeActionActorId(value: string) {
+  const actorId = value.trim();
+
+  return actorId || "all";
+}
+
+function normalizeActionAuditStatus(value: string): AdminAuditLogStatusFilter {
+  return isAuditActionValue(value) ? value : "all";
+}
+
+function normalizeActionDate(value: string) {
+  const date = value.trim();
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function normalizeActionLoginResult(
+  value: string,
+): AdminLoginHistoryResultFilter {
+  return value === "success" || value === "failure" ? value : "all";
+}
+
+function normalizeActionPage(value: number) {
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function normalizeActionText(value: string) {
+  return value.trim();
 }
 
 function getUserFormValues(formData: FormData) {

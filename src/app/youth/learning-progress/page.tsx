@@ -9,6 +9,7 @@ import {
 import { getYouthProfiles } from "@/lib/youth-management";
 import {
   deleteYouthLearningScheduleAction,
+  getYouthLearningProgressChangeLogsAction,
   getYouthLearningSchedulesAction,
   saveYouthLearningScheduleAction,
 } from "@/app/youth/learning-progress/actions";
@@ -68,6 +69,7 @@ export default async function YouthLearningProgressPage({
         }}
         changeLogs={changeLogResult.logs}
         deleteSchedule={deleteYouthLearningScheduleAction}
+        loadChangeLogs={getYouthLearningProgressChangeLogsAction}
         loadSchedules={getYouthLearningSchedulesAction}
         saveSchedule={saveYouthLearningScheduleAction}
         schedules={schedules}

@@ -1,4 +1,3 @@
-import { PageTitle } from "@/components/page-title";
 import { YouthCommonScheduleBoard } from "@/components/youth-common-schedule-board";
 import { requireUser } from "@/lib/auth";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/lib/youth-management-core";
 import {
   deleteYouthCommonScheduleAction,
+  getYouthCommonScheduleChangeLogsAction,
   saveYouthCommonScheduleAction,
 } from "@/app/youth/common-schedule/actions";
 
@@ -45,28 +45,22 @@ export default async function YouthCommonSchedulePage({
   });
 
   return (
-    <>
-      <PageTitle
-        title="공통 일정표"
-        description="청소년관리에서 함께 적용할 요일별 공통 일정을 기록합니다."
-      />
-
-      <YouthCommonScheduleBoard
-        changeLogActors={changeLogActors}
-        changeLogFilters={{
-          actorId: changeLogResult.actorId,
-          page: changeLogResult.page,
-          pageSize: changeLogResult.pageSize,
-          total: changeLogResult.total,
-          totalPages: changeLogResult.totalPages,
-          weekday: changeLogResult.weekday,
-        }}
-        changeLogs={changeLogResult.logs}
-        deleteSchedule={deleteYouthCommonScheduleAction}
-        saveSchedule={saveYouthCommonScheduleAction}
-        schedules={schedules}
-      />
-    </>
+    <YouthCommonScheduleBoard
+      changeLogActors={changeLogActors}
+      changeLogFilters={{
+        actorId: changeLogResult.actorId,
+        page: changeLogResult.page,
+        pageSize: changeLogResult.pageSize,
+        total: changeLogResult.total,
+        totalPages: changeLogResult.totalPages,
+        weekday: changeLogResult.weekday,
+      }}
+      changeLogs={changeLogResult.logs}
+      deleteSchedule={deleteYouthCommonScheduleAction}
+      loadChangeLogs={getYouthCommonScheduleChangeLogsAction}
+      saveSchedule={saveYouthCommonScheduleAction}
+      schedules={schedules}
+    />
   );
 }
 

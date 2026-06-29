@@ -1,21 +1,13 @@
-import { cache, Suspense } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { DocumentList } from "@/components/document-list";
-import {
-  DocumentListControls,
-  DocumentListSummary,
-  DocumentListSummarySkeleton,
-  DocumentPagination,
-  hasDocumentListFilter,
-} from "@/components/document-list-controls";
+import { DocumentPageSection } from "@/components/document-page-section";
+import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
+import { getSentDocumentPageAction } from "@/app/document-list-actions";
 import {
   getSentDocumentPage,
   type DocumentPageSort,
   type SentDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
-import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
 
 type SentPageSearchParams = {
   q?: string;
@@ -43,78 +35,22 @@ type SentDocumentFilters = {
   page: number;
 };
 
-const getCachedSentDocumentPage = cache(
-  async (
-    userId: string,
-    query: string,
-    status: SentDocumentStatusFilter,
-    sort: DocumentPageSort,
-    dateFrom: string,
-    dateTo: string,
-    page: number,
-  ) =>
-    getSentDocumentPage(userId, {
-      query,
-      status,
-      sort,
-      dateFrom,
-      dateTo,
-      page,
-      pageSize,
-    }),
-);
-
 export default async function SentPage({
   searchParams,
 }: {
   searchParams: Promise<SentPageSearchParams>;
 }) {
   const filters = getFilters(await searchParams);
-
-  return (
-    <>
-      <PageTitle
-        title="제출 문서함"
-        description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인하는 화면입니다."
-      />
-
-      <DocumentListControls
-        basePath="/sent"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        statusOptions={statusOptions}
-        summary={
-          <Suspense fallback={<DocumentListSummarySkeleton />}>
-            <SentDocumentSummary filters={filters} />
-          </Suspense>
-        }
-      />
-
-      <Suspense fallback={<DocumentResultsSkeleton />}>
-        <SentDocumentContent filters={filters} />
-      </Suspense>
-    </>
-  );
-}
-
-async function SentDocumentContent({
-  filters,
-}: {
-  filters: SentDocumentFilters;
-}) {
   const user = await requireUser();
-  const sentPage = await getCachedSentDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.page,
-  );
+  const sentPage = await getSentDocumentPage(user.id, {
+    query: filters.query,
+    status: filters.status,
+    sort: filters.sort,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    page: filters.page,
+    pageSize,
+  });
   const hasActiveFilter = hasDocumentListFilter(
     filters.query,
     filters.status,
@@ -125,61 +61,38 @@ async function SentDocumentContent({
 
   return (
     <>
-      <DocumentList
-        documents={sentPage.documents}
-        empty={
-          <EmptyState
-            title={
-              hasActiveFilter
-                ? "조건에 맞는 제출 문서가 없습니다"
-                : "제출한 문서가 없습니다"
-            }
-            description={
-              hasActiveFilter
-                ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
-                : "결재 요청한 문서가 생기면 진행 상태와 현재 결재자가 표시됩니다."
-            }
-          />
-        }
+      <PageTitle
+        title="제출 문서함"
+        description="내가 작성하고 결재 요청한 문서의 진행 상태를 확인합니다."
       />
 
-      <DocumentPagination
+      <DocumentPageSection
+        key={[
+          filters.query,
+          filters.status,
+          filters.sort,
+          filters.dateFrom,
+          filters.dateTo,
+          sentPage.page,
+        ].join(":")}
         ariaLabel="제출 문서함 페이지"
         basePath="/sent"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        page={sentPage.page}
-        totalPages={sentPage.totalPages}
+        documentPage={sentPage}
+        emptyDescription={
+          hasActiveFilter
+            ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
+            : "결재 요청한 문서가 생기면 진행 상태와 현재 결재자가 표시됩니다."
+        }
+        emptyTitle={
+          hasActiveFilter
+            ? "조건에 맞는 제출 문서가 없습니다"
+            : "제출한 문서가 없습니다"
+        }
+        filters={filters}
+        loadPage={getSentDocumentPageAction}
+        statusOptions={statusOptions}
       />
     </>
-  );
-}
-
-async function SentDocumentSummary({
-  filters,
-}: {
-  filters: SentDocumentFilters;
-}) {
-  const user = await requireUser();
-  const sentPage = await getCachedSentDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.page,
-  );
-
-  return (
-    <DocumentListSummary
-      total={sentPage.total}
-      page={sentPage.page}
-      pageSize={pageSize}
-    />
   );
 }
 

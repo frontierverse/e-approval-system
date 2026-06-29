@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { UserIdentity } from "@/components/user-identity";
@@ -12,6 +12,7 @@ import type {
   WorkScheduleChangeLog,
   WorkScheduleChangeLogActor,
   WorkScheduleChangeLogFilters,
+  WorkScheduleChangeLogsResult,
 } from "@/lib/work-schedules";
 import {
   createWorkScheduleCalendarDays,
@@ -40,6 +41,14 @@ type WorkScheduleCalendarBoardProps = {
     scheduleDate: string,
     startMinute: number,
   ) => Promise<YouthActionResult<{ scheduleDate: string; startMinute: number }>>;
+  loadChangeLogs?: (
+    filters: Pick<
+      WorkScheduleChangeLogFilters,
+      "actorId" | "page" | "scheduleDate"
+    >,
+  ) => Promise<
+    YouthActionResult<{ changeLogResult: WorkScheduleChangeLogsResult }>
+  >;
   saveSchedule: (
     scheduleDate: string,
     startMinute: number,
@@ -73,6 +82,7 @@ function WorkScheduleCalendarBoardContent({
   changeLogFilters,
   changeLogs,
   deleteSchedule,
+  loadChangeLogs,
   saveSchedule,
   schedules,
   selectedMonth,
@@ -93,6 +103,15 @@ function WorkScheduleCalendarBoardContent({
   const [scheduleDraft, setScheduleDraft] = useState("");
   const [formError, setFormError] = useState("");
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
+  const [changeLogState, setChangeLogState] = useState({
+    filters: changeLogFilters,
+    logs: changeLogs,
+  });
+  const [changeLogError, setChangeLogError] = useState("");
+  const [pendingChangeLogPage, setPendingChangeLogPage] = useState<
+    number | null
+  >(null);
+  const [isChangeLogPending, startChangeLogTransition] = useTransition();
 
   const days = useMemo(
     () => createWorkScheduleCalendarDays(selectedMonth),
@@ -131,6 +150,100 @@ function WorkScheduleCalendarBoardContent({
   const nextMonth = shiftWorkScheduleMonth(selectedMonth, 1);
   const currentMonth = getWorkScheduleCurrentMonth();
   const monthLabel = formatWorkScheduleMonthLabel(selectedMonth);
+  const currentChangeLogFilters = changeLogState.filters;
+  const currentChangeLogs = changeLogState.logs;
+
+  const loadChangeLogPage = useCallback(
+    (
+      page: number,
+      options?: {
+        filters?: Pick<
+          WorkScheduleChangeLogFilters,
+          "actorId" | "page" | "scheduleDate"
+        >;
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadChangeLogs) {
+        return;
+      }
+
+      const nextFilters = {
+        actorId: options?.filters?.actorId ?? changeLogState.filters.actorId,
+        page,
+        scheduleDate:
+          options?.filters?.scheduleDate ?? changeLogState.filters.scheduleDate,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingChangeLogPage(page);
+      startChangeLogTransition(async () => {
+        try {
+          const result = await loadChangeLogs(nextFilters);
+
+          if (!result.ok) {
+            setChangeLogError(result.error);
+            return;
+          }
+
+          const { changeLogResult } = result.data;
+
+          setChangeLogState({
+            filters: {
+              actorId: changeLogResult.actorId,
+              page: changeLogResult.page,
+              pageSize: changeLogResult.pageSize,
+              scheduleDate: changeLogResult.scheduleDate,
+              total: changeLogResult.total,
+              totalPages: changeLogResult.totalPages,
+            },
+            logs: changeLogResult.logs,
+          });
+          setChangeLogError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { workScheduleLogPage: changeLogResult.page },
+              "",
+              createChangeLogHref({
+                actorId: changeLogResult.actorId,
+                page: changeLogResult.page,
+                scheduleDate: changeLogResult.scheduleDate,
+                selectedMonth,
+              }),
+            );
+          }
+        } finally {
+          setPendingChangeLogPage(null);
+        }
+      });
+    },
+    [
+      changeLogState.filters.actorId,
+      changeLogState.filters.scheduleDate,
+      loadChangeLogs,
+      selectedMonth,
+    ],
+  );
+
+  useEffect(() => {
+    if (!loadChangeLogs) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const filters = getWorkScheduleChangeLogFiltersFromLocation();
+
+      loadChangeLogPage(filters.page, {
+        filters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadChangeLogPage, loadChangeLogs]);
 
   function openScheduleModal(scheduleDate: string, startMinute?: number) {
     const selectedStartMinute =
@@ -416,9 +529,13 @@ function WorkScheduleCalendarBoardContent({
 
       <WorkScheduleChangeLogSection
         actors={changeLogActors}
+        error={changeLogError}
         filterControls={changeLogFilterControls}
-        filters={changeLogFilters}
-        logs={changeLogs}
+        filters={currentChangeLogFilters}
+        isPending={isChangeLogPending}
+        logs={currentChangeLogs}
+        onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+        pendingPage={pendingChangeLogPage}
         selectedMonth={selectedMonth}
       />
 
@@ -570,15 +687,23 @@ function WorkScheduleCalendarBoardContent({
 
 function WorkScheduleChangeLogSection({
   actors,
+  error,
   filterControls,
   filters,
+  isPending,
   logs,
+  onPageChange,
+  pendingPage,
   selectedMonth,
 }: {
   actors: WorkScheduleChangeLogActor[];
+  error: string;
   filterControls?: React.ReactNode;
   filters: WorkScheduleChangeLogFilters;
+  isPending: boolean;
   logs: WorkScheduleChangeLog[];
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
   selectedMonth: string;
 }) {
   return (
@@ -597,8 +722,21 @@ function WorkScheduleChangeLogSection({
         )}
       </div>
 
+      {error ? (
+        <p className="mt-3 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+          {error}
+        </p>
+      ) : null}
+
       {logs.length > 0 ? (
-        <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
+        <ol
+          className={[
+            "mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white",
+            isPending ? "opacity-60" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {logs.map((log) => {
             const detail = getChangeLogDetail(log.metadata);
 
@@ -659,7 +797,13 @@ function WorkScheduleChangeLogSection({
         </p>
       )}
 
-      <ChangeLogPagination filters={filters} selectedMonth={selectedMonth} />
+      <ChangeLogPagination
+        filters={filters}
+        isPending={isPending}
+        onPageChange={onPageChange}
+        pendingPage={pendingPage}
+        selectedMonth={selectedMonth}
+      />
     </section>
   );
 }
@@ -795,9 +939,15 @@ export function WorkScheduleChangeLogFilterControlsContent({
 
 function ChangeLogPagination({
   filters,
+  isPending,
+  onPageChange,
+  pendingPage,
   selectedMonth,
 }: {
   filters: WorkScheduleChangeLogFilters;
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
   selectedMonth: string;
 }) {
   if (filters.totalPages <= 1) {
@@ -814,24 +964,30 @@ function ChangeLogPagination({
       </p>
       <div className="flex gap-2">
         <ChangeLogPaginationLink
-          disabled={filters.page <= 1}
+          disabled={filters.page <= 1 || isPending}
           href={createChangeLogHref({
             actorId: filters.actorId,
             page: filters.page - 1,
             scheduleDate: filters.scheduleDate,
             selectedMonth,
           })}
+          onPageChange={onPageChange}
+          page={filters.page - 1}
+          pending={pendingPage === filters.page - 1}
         >
           이전
         </ChangeLogPaginationLink>
         <ChangeLogPaginationLink
-          disabled={filters.page >= filters.totalPages}
+          disabled={filters.page >= filters.totalPages || isPending}
           href={createChangeLogHref({
             actorId: filters.actorId,
             page: filters.page + 1,
             scheduleDate: filters.scheduleDate,
             selectedMonth,
           })}
+          onPageChange={onPageChange}
+          page={filters.page + 1}
+          pending={pendingPage === filters.page + 1}
         >
           다음
         </ChangeLogPaginationLink>
@@ -844,26 +1000,41 @@ function ChangeLogPaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
@@ -929,6 +1100,43 @@ function createChangeLogHref({
   }
 
   return `/work-schedule?${params.toString()}`;
+}
+
+function getWorkScheduleChangeLogFiltersFromLocation(): Pick<
+  WorkScheduleChangeLogFilters,
+  "actorId" | "page" | "scheduleDate"
+> {
+  const params = new URLSearchParams(window.location.search);
+  const actorId = String(params.get("logStaff") ?? "all").trim();
+
+  return {
+    actorId: actorId || "all",
+    page: normalizePositivePage(params.get("logPage")),
+    scheduleDate: getWorkScheduleLogDateFromLocation(params),
+  };
+}
+
+function getWorkScheduleLogDateFromLocation(params: URLSearchParams) {
+  const date = params.get("logDate");
+
+  return date && isYouthLearningScheduleDate(date) ? date : "";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function getChangeLogDetail(metadata: unknown) {

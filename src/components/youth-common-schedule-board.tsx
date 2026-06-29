@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   ChangeEvent,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent,
   PointerEvent,
 } from "react";
 import { AppModal } from "@/components/app-modal";
@@ -20,11 +21,13 @@ import type {
   YouthCommonScheduleWeekdayFilter,
   YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
+import type { YouthCommonScheduleChangeLogsResult } from "@/lib/youth-common-schedules";
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartHourFromMinute,
   getYouthLearningScheduleStartMinute,
+  isYouthCommonScheduleWeekday,
   normalizeYouthCommonScheduleWeekdays,
   youthCommonScheduleWeekdays,
   youthLearningScheduleEndHour,
@@ -45,6 +48,14 @@ type YouthCommonScheduleBoardProps = {
       weekday: YouthLearningScheduleWeekday;
       startMinute: number;
     }>
+  >;
+  loadChangeLogs?: (
+    filters: Pick<
+      YouthCommonScheduleChangeLogFilters,
+      "actorId" | "page" | "weekday"
+    >,
+  ) => Promise<
+    YouthActionResult<{ changeLogResult: YouthCommonScheduleChangeLogsResult }>
   >;
   saveSchedule: (
     weekday: number,
@@ -108,7 +119,7 @@ type ScheduleDragState = {
   startY: number;
 };
 
-const commonScheduleSlotHeight = 80;
+const commonScheduleSlotHeight = 88;
 const commonScheduleMinuteHeight = commonScheduleSlotHeight / 60;
 const commonScheduleTimelineHeight =
   (youthLearningScheduleEndHour - youthLearningScheduleStartHour) *
@@ -162,6 +173,7 @@ export function YouthCommonScheduleBoard({
   changeLogs,
   deleteSchedule,
   labels,
+  loadChangeLogs,
   saveSchedule,
   schedules,
 }: YouthCommonScheduleBoardProps) {
@@ -182,6 +194,15 @@ export function YouthCommonScheduleBoard({
   const [scheduleDragState, setScheduleDragState] =
     useState<ScheduleDragState | null>(null);
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
+  const [changeLogState, setChangeLogState] = useState({
+    filters: changeLogFilters,
+    logs: changeLogs,
+  });
+  const [changeLogError, setChangeLogError] = useState("");
+  const [pendingChangeLogPage, setPendingChangeLogPage] = useState<
+    number | null
+  >(null);
+  const [isChangeLogPending, startChangeLogTransition] = useTransition();
   const pendingBoardAction = pendingScheduleAction;
 
   const scheduleMap = useMemo(() => {
@@ -233,6 +254,99 @@ export function YouthCommonScheduleBoard({
   const selectedTimeLabel = selectedCell
     ? formatScheduleRangeLabel(startMinuteDraft, endMinuteDraft)
     : "";
+  const currentChangeLogFilters = changeLogState.filters;
+  const currentChangeLogs = changeLogState.logs;
+
+  const loadChangeLogPage = useCallback(
+    (
+      page: number,
+      options?: {
+        filters?: Pick<
+          YouthCommonScheduleChangeLogFilters,
+          "actorId" | "page" | "weekday"
+        >;
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadChangeLogs) {
+        return;
+      }
+
+      const nextFilters = {
+        actorId: options?.filters?.actorId ?? changeLogState.filters.actorId,
+        page,
+        weekday: options?.filters?.weekday ?? changeLogState.filters.weekday,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingChangeLogPage(page);
+      startChangeLogTransition(async () => {
+        try {
+          const result = await loadChangeLogs(nextFilters);
+
+          if (!result.ok) {
+            setChangeLogError(result.error);
+            return;
+          }
+
+          const { changeLogResult } = result.data;
+
+          setChangeLogState({
+            filters: {
+              actorId: changeLogResult.actorId,
+              page: changeLogResult.page,
+              pageSize: changeLogResult.pageSize,
+              total: changeLogResult.total,
+              totalPages: changeLogResult.totalPages,
+              weekday: changeLogResult.weekday,
+            },
+            logs: changeLogResult.logs,
+          });
+          setChangeLogError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { commonScheduleLogPage: changeLogResult.page },
+              "",
+              createCommonScheduleChangeLogHref({
+                actorId: changeLogResult.actorId,
+                basePath: resolvedLabels.basePath,
+                page: changeLogResult.page,
+                weekday: changeLogResult.weekday,
+              }),
+            );
+          }
+        } finally {
+          setPendingChangeLogPage(null);
+        }
+      });
+    },
+    [
+      changeLogState.filters.actorId,
+      changeLogState.filters.weekday,
+      loadChangeLogs,
+      resolvedLabels.basePath,
+    ],
+  );
+
+  useEffect(() => {
+    if (!loadChangeLogs) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const filters = getCommonScheduleChangeLogFiltersFromLocation();
+
+      loadChangeLogPage(filters.page, {
+        filters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadChangeLogPage, loadChangeLogs]);
 
   function openScheduleModal(
     weekday: YouthLearningScheduleWeekday,
@@ -622,7 +736,7 @@ export function YouthCommonScheduleBoard({
                 {commonTimeSlots.map((slot) => (
                   <div
                     key={slot.startHour}
-                    className="flex h-20 items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#394150]"
+                    className="flex h-[88px] items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#394150]"
                   >
                     <TimeSlotLabel slot={slot} />
                   </div>
@@ -648,7 +762,7 @@ export function YouthCommonScheduleBoard({
                           onClick={() =>
                             openScheduleModal(weekday.value, slot.startMinute)
                           }
-                          className="block h-20 w-full border-b border-[#eef1f5] px-3 py-3 text-left text-xs text-[#9aa4b2] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d7eceb]"
+                          className="block h-[88px] w-full border-b border-[#eef1f5] px-3 py-3 text-left text-xs text-[#9aa4b2] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d7eceb]"
                         >
                           미입력
                         </button>
@@ -707,7 +821,7 @@ export function YouthCommonScheduleBoard({
                               finishScheduleDrag(event, schedule)
                             }
                             onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 top-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                            className="absolute inset-x-0 top-0 z-20 flex h-3.5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
                           >
                             <span
                               aria-hidden="true"
@@ -733,7 +847,7 @@ export function YouthCommonScheduleBoard({
                               finishScheduleDrag(event, schedule)
                             }
                             onPointerCancel={cancelScheduleDrag}
-                            className="relative z-10 block h-full w-full cursor-move touch-none px-3 pb-6 pt-6 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                            className="relative z-10 block h-full w-full cursor-move touch-none px-3 pb-5 pt-5 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
                           >
                             <span className="block text-[11px] font-semibold text-[#196b69]">
                               {formatScheduleRangeLabel(
@@ -760,7 +874,7 @@ export function YouthCommonScheduleBoard({
                               finishScheduleDrag(event, schedule)
                             }
                             onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 bottom-0 z-20 flex h-5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                            className="absolute inset-x-0 bottom-0 z-20 flex h-3.5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
                           >
                             <span
                               aria-hidden="true"
@@ -781,25 +895,42 @@ export function YouthCommonScheduleBoard({
         </div>
       </div>
 
-      <section aria-label={resolvedLabels.changeLogAriaLabel}>
+      <section
+        aria-busy={isChangeLogPending || undefined}
+        aria-label={resolvedLabels.changeLogAriaLabel}
+      >
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-[#16181d]">
               변경내역
             </h2>
-            <CommonScheduleChangeLogListSummary filters={changeLogFilters} />
+            <CommonScheduleChangeLogListSummary
+              filters={currentChangeLogFilters}
+            />
           </div>
           {changeLogFilterControls ?? (
             <CommonScheduleChangeLogFilterControls
               actors={changeLogActors}
-              filters={changeLogFilters}
+              filters={currentChangeLogFilters}
               labels={resolvedLabels}
             />
           )}
         </div>
-        {changeLogs.length > 0 ? (
-          <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
-            {changeLogs.map((log) => {
+        {changeLogError ? (
+          <p className="mt-3 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+            {changeLogError}
+          </p>
+        ) : null}
+        {currentChangeLogs.length > 0 ? (
+          <ol
+            className={[
+              "mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white",
+              isChangeLogPending ? "opacity-60" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {currentChangeLogs.map((log) => {
               const detail = getCommonScheduleChangeLogDetail(log.metadata);
 
               return (
@@ -862,8 +993,11 @@ export function YouthCommonScheduleBoard({
           </p>
         )}
         <CommonScheduleChangeLogPagination
-          filters={changeLogFilters}
+          filters={currentChangeLogFilters}
+          isPending={isChangeLogPending}
           labels={resolvedLabels}
+          onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+          pendingPage={pendingChangeLogPage}
         />
       </section>
 
@@ -1189,10 +1323,16 @@ export function CommonScheduleChangeLogFilterControlsContent({
 
 function CommonScheduleChangeLogPagination({
   filters,
+  isPending,
   labels,
+  onPageChange,
+  pendingPage,
 }: {
   filters: YouthCommonScheduleChangeLogFilters;
+  isPending: boolean;
   labels?: Partial<CommonScheduleBoardLabels>;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
 }) {
   if (filters.totalPages <= 1) {
     return null;
@@ -1210,24 +1350,30 @@ function CommonScheduleChangeLogPagination({
       </p>
       <div className="flex gap-2">
         <CommonScheduleChangeLogPaginationLink
-          disabled={filters.page <= 1}
+          disabled={filters.page <= 1 || isPending}
           href={createCommonScheduleChangeLogHref({
             actorId: filters.actorId,
             basePath: resolvedLabels.basePath,
             page: filters.page - 1,
             weekday: filters.weekday,
           })}
+          onPageChange={onPageChange}
+          page={filters.page - 1}
+          pending={pendingPage === filters.page - 1}
         >
           이전
         </CommonScheduleChangeLogPaginationLink>
         <CommonScheduleChangeLogPaginationLink
-          disabled={filters.page >= filters.totalPages}
+          disabled={filters.page >= filters.totalPages || isPending}
           href={createCommonScheduleChangeLogHref({
             actorId: filters.actorId,
             basePath: resolvedLabels.basePath,
             page: filters.page + 1,
             weekday: filters.weekday,
           })}
+          onPageChange={onPageChange}
+          page={filters.page + 1}
+          pending={pendingPage === filters.page + 1}
         >
           다음
         </CommonScheduleChangeLogPaginationLink>
@@ -1240,26 +1386,41 @@ function CommonScheduleChangeLogPaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
@@ -1291,6 +1452,45 @@ function createCommonScheduleChangeLogHref({
   const queryString = params.toString();
 
   return queryString ? `${basePath}?${queryString}` : basePath;
+}
+
+function getCommonScheduleChangeLogFiltersFromLocation(): Pick<
+  YouthCommonScheduleChangeLogFilters,
+  "actorId" | "page" | "weekday"
+> {
+  const params = new URLSearchParams(window.location.search);
+  const actorId = String(params.get("logStaff") ?? "all").trim();
+
+  return {
+    actorId: actorId || "all",
+    page: normalizePositivePage(params.get("logPage")),
+    weekday: getCommonScheduleWeekdayFromLocation(params),
+  };
+}
+
+function getCommonScheduleWeekdayFromLocation(
+  params: URLSearchParams,
+): YouthCommonScheduleWeekdayFilter {
+  const weekday = Number(params.get("logWeekday"));
+
+  return isYouthCommonScheduleWeekday(weekday) ? weekday : "all";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function CommonScheduleChangeLogValue({
@@ -1451,7 +1651,7 @@ export function CommonTimetableSkeleton({
           {commonTimeSlots.map((slot) => (
             <div
               key={`skeleton-time-${slot.startHour}`}
-              className="flex h-20 items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#9aa4b2] dark:text-[#8b949e]"
+              className="flex h-[88px] items-start border-b border-[#eef1f5] px-3 py-3 text-xs font-semibold leading-4 text-[#9aa4b2] dark:text-[#8b949e]"
             >
               <TimeSlotLabel slot={slot} />
             </div>
@@ -1468,7 +1668,7 @@ export function CommonTimetableSkeleton({
               {commonTimeSlots.map((slot) => (
                 <div
                   key={`skeleton-cell-${weekday.value}-${slot.startHour}`}
-                  className="h-20 border-b border-[#eef1f5]"
+                  className="h-[88px] border-b border-[#eef1f5]"
                 />
               ))}
             </div>
@@ -1483,17 +1683,17 @@ export function CommonTimetableSkeleton({
               >
                 <div
                   aria-hidden="true"
-                  className="absolute inset-x-0 top-0 flex h-5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
+                  className="absolute inset-x-0 top-0 flex h-3.5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
                 >
                   <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
                 </div>
                 <div
                   aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 flex h-5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
+                  className="absolute inset-x-0 bottom-0 flex h-3.5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
                 >
                   <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
                 </div>
-                <div className="animate-pulse px-3 pb-7 pt-7">
+                <div className="animate-pulse px-3 pb-6 pt-6">
                   <span className="block h-2.5 w-20 rounded bg-[#cddfdd] dark:bg-[#30363d]" />
                   <span className="mt-3 block h-3 w-28 rounded bg-[#d7e6e4] dark:bg-[#21262d]" />
                 </div>

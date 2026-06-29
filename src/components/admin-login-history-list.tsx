@@ -1,4 +1,7 @@
-import Link from "next/link";
+"use client";
+
+import { useCallback, useEffect, useState, useTransition } from "react";
+import type { MouseEvent } from "react";
 import {
   AdminLoginHistoryFilterControls,
   type AdminLoginHistoryFilters,
@@ -35,11 +38,30 @@ type AdminLoginHistory = {
   } | null;
 };
 
+type AdminLoginHistoryPageActionResult = Promise<
+  | {
+      ok: true;
+      data: {
+        historyPage: {
+          histories: AdminLoginHistory[];
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        };
+      };
+    }
+  | { ok: false; error: string }
+>;
+
 type AdminLoginHistoryListProps = {
   histories: AdminLoginHistory[];
   users?: AdminLoginHistoryUser[];
   filters?: AdminLoginHistoryFilters;
   filterControls?: React.ReactNode;
+  loadPage?: (
+    filters: AdminLoginHistoryFilters & { page: number },
+  ) => AdminLoginHistoryPageActionResult;
   page?: number;
   pageSize?: number;
   total?: number;
@@ -59,14 +81,120 @@ export function AdminLoginHistoryList({
   users = [],
   filters = defaultFilters,
   filterControls,
+  loadPage,
   page = 1,
   pageSize = 12,
   total = histories.length,
   totalPages = 1,
 }: AdminLoginHistoryListProps) {
-  const firstItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const lastItem = Math.min(page * pageSize, total);
-  const hasActiveFilter = hasLoginHistoryFilter(filters);
+  const [pageState, setPageState] = useState({
+    filters,
+    histories,
+    page,
+    pageSize,
+    total,
+    totalPages,
+  });
+  const [pageError, setPageError] = useState("");
+  const [pendingPage, setPendingPage] = useState<number | null>(null);
+  const [isPagePending, startPageTransition] = useTransition();
+
+  const loadLoginHistoryPage = useCallback(
+    (
+      nextPage: number,
+      options?: {
+        filters?: AdminLoginHistoryFilters & { page: number };
+        updateHistory?: boolean;
+      },
+    ) => {
+      if (!loadPage) {
+        return;
+      }
+
+      const nextFilters = {
+        ...pageState.filters,
+        ...(options?.filters ?? {}),
+        page: nextPage,
+      };
+      const updateHistory = options?.updateHistory ?? true;
+
+      setPendingPage(nextPage);
+      startPageTransition(async () => {
+        try {
+          const result = await loadPage(nextFilters);
+
+          if (!result.ok) {
+            setPageError(result.error);
+            return;
+          }
+
+          const { historyPage } = result.data;
+
+          setPageState({
+            filters: {
+              dateFrom: nextFilters.dateFrom,
+              dateTo: nextFilters.dateTo,
+              query: nextFilters.query,
+              result: nextFilters.result,
+              userId: nextFilters.userId,
+            },
+            histories: historyPage.histories,
+            page: historyPage.page,
+            pageSize: historyPage.pageSize,
+            total: historyPage.total,
+            totalPages: historyPage.totalPages,
+          });
+          setPageError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { adminLoginHistoryPage: historyPage.page },
+              "",
+              getLoginHistoryHref(nextFilters, historyPage.page),
+            );
+          }
+        } finally {
+          setPendingPage(null);
+        }
+      });
+    },
+    [loadPage, pageState.filters],
+  );
+
+  useEffect(() => {
+    if (!loadPage) {
+      return;
+    }
+
+    function loadFromHistory() {
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.get("tab") !== "login-history") {
+        return;
+      }
+
+      const nextFilters = getLoginHistoryFiltersFromLocation(params);
+
+      loadLoginHistoryPage(nextFilters.page, {
+        filters: nextFilters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadFromHistory);
+
+    return () => window.removeEventListener("popstate", loadFromHistory);
+  }, [loadLoginHistoryPage, loadPage]);
+
+  const currentFilters = pageState.filters;
+  const currentHistories = pageState.histories;
+  const firstItem =
+    pageState.total === 0 ? 0 : (pageState.page - 1) * pageState.pageSize + 1;
+  const lastItem = Math.min(
+    pageState.page * pageState.pageSize,
+    pageState.total,
+  );
+  const hasActiveFilter = hasLoginHistoryFilter(currentFilters);
 
   return (
     <section className={adminListStyles.panel}>
@@ -77,20 +205,33 @@ export function AdminLoginHistoryList({
             모든 사용자의 로그인 성공/실패 기록과 접속 환경을 확인합니다.
           </p>
         </div>
-        <span className={adminListStyles.count}>총 {total}건</span>
+        <span className={adminListStyles.count}>총 {pageState.total}건</span>
       </div>
 
       {filterControls ?? (
         <AdminLoginHistoryFilterControls
-          filters={filters}
-          total={total}
+          filters={currentFilters}
+          total={pageState.total}
           users={users}
         />
       )}
 
-      {histories.length > 0 ? (
-        <ol className="divide-y divide-[#eef1f5]">
-          {histories.map((history) => (
+      {pageError ? (
+        <p className="m-5 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+          {pageError}
+        </p>
+      ) : null}
+
+      {currentHistories.length > 0 ? (
+        <ol
+          className={[
+            "divide-y divide-[#eef1f5]",
+            isPagePending ? "opacity-60" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {currentHistories.map((history) => (
             <li
               key={history.id}
               className="grid gap-3 px-5 py-4 xl:grid-cols-[12rem_8rem_minmax(12rem,0.9fr)_minmax(0,1fr)_minmax(10rem,0.8fr)]"
@@ -168,12 +309,15 @@ export function AdminLoginHistoryList({
       )}
 
       <LoginHistoryPagination
-        filters={filters}
+        filters={currentFilters}
         firstItem={firstItem}
+        isPending={isPagePending}
         lastItem={lastItem}
-        page={page}
-        total={total}
-        totalPages={totalPages}
+        onPageChange={loadPage ? loadLoginHistoryPage : undefined}
+        page={pageState.page}
+        pendingPage={pendingPage}
+        total={pageState.total}
+        totalPages={pageState.totalPages}
       />
     </section>
   );
@@ -182,15 +326,21 @@ export function AdminLoginHistoryList({
 function LoginHistoryPagination({
   filters,
   firstItem,
+  isPending,
   lastItem,
+  onPageChange,
   page,
+  pendingPage,
   total,
   totalPages,
 }: {
   filters: AdminLoginHistoryFilters;
   firstItem: number;
+  isPending: boolean;
   lastItem: number;
+  onPageChange?: (page: number) => void;
   page: number;
+  pendingPage: number | null;
   total: number;
   totalPages: number;
 }) {
@@ -211,14 +361,20 @@ function LoginHistoryPagination({
           className="flex flex-wrap items-center gap-2"
         >
           <PaginationLink
-            disabled={page <= 1}
+            disabled={page <= 1 || isPending}
             href={getLoginHistoryHref(filters, page - 1)}
+            onPageChange={onPageChange}
+            page={page - 1}
+            pending={pendingPage === page - 1}
           >
             이전
           </PaginationLink>
           <PaginationLink
-            disabled={page >= totalPages}
+            disabled={page >= totalPages || isPending}
             href={getLoginHistoryHref(filters, page + 1)}
+            onPageChange={onPageChange}
+            page={page + 1}
+            pending={pendingPage === page + 1}
           >
             다음
           </PaginationLink>
@@ -232,30 +388,45 @@ function PaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
         "h-10 px-4 text-sm",
       )}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
@@ -305,6 +476,54 @@ function getLoginHistoryHref(
   }
 
   return `/admin?${params.toString()}`;
+}
+
+function getLoginHistoryFiltersFromLocation(
+  params: URLSearchParams,
+): AdminLoginHistoryFilters & { page: number } {
+  return {
+    dateFrom: normalizeDateParam(params.get("dateFrom")),
+    dateTo: normalizeDateParam(params.get("dateTo")),
+    page: normalizePositivePage(params.get("page")),
+    query: String(params.get("q") ?? "").trim(),
+    result: normalizeLoginResult(params.get("result")),
+    userId: normalizeUserId(params.get("user")),
+  };
+}
+
+function normalizeLoginResult(
+  value: string | null | undefined,
+): AdminLoginHistoryFilters["result"] {
+  return value === "success" || value === "failure" ? value : "all";
+}
+
+function normalizeUserId(value: string | null | undefined) {
+  const userId = String(value ?? "").trim();
+
+  return userId || "all";
+}
+
+function normalizeDateParam(value: string | null | undefined) {
+  const date = String(value ?? "").trim();
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function hasLoginHistoryFilter(filters: AdminLoginHistoryFilters) {

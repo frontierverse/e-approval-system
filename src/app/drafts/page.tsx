@@ -1,16 +1,8 @@
 import Link from "next/link";
-import { cache, Suspense } from "react";
-import { DocumentList } from "@/components/document-list";
-import {
-  DocumentListControls,
-  DocumentListSummary,
-  DocumentListSummarySkeleton,
-  DocumentPagination,
-  hasDocumentListFilter,
-} from "@/components/document-list-controls";
-import { EmptyState } from "@/components/empty-state";
+import { DocumentPageSection } from "@/components/document-page-section";
+import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
-import { DocumentResultsSkeleton } from "@/components/route-loading-shell";
+import { getDraftDocumentPageAction } from "@/app/document-list-actions";
 import {
   getDraftDocumentPage,
   type DocumentPageSort,
@@ -44,33 +36,29 @@ type DraftDocumentFilters = {
   page: number;
 };
 
-const getCachedDraftDocumentPage = cache(
-  async (
-    userId: string,
-    query: string,
-    status: DraftDocumentStatusFilter,
-    sort: DocumentPageSort,
-    dateFrom: string,
-    dateTo: string,
-    page: number,
-  ) =>
-    getDraftDocumentPage(userId, {
-      query,
-      status,
-      sort,
-      dateFrom,
-      dateTo,
-      page,
-      pageSize,
-    }),
-);
-
 export default async function DraftsPage({
   searchParams,
 }: {
   searchParams: Promise<DraftsPageSearchParams>;
 }) {
   const filters = getFilters(await searchParams);
+  const user = await requireUser();
+  const draftPage = await getDraftDocumentPage(user.id, {
+    query: filters.query,
+    status: filters.status,
+    sort: filters.sort,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    page: filters.page,
+    pageSize,
+  });
+  const hasActiveFilter = hasDocumentListFilter(
+    filters.query,
+    filters.status,
+    filters.sort,
+    filters.dateFrom,
+    filters.dateTo,
+  );
 
   return (
     <>
@@ -91,108 +79,33 @@ export default async function DraftsPage({
         }
       />
 
-      <DocumentListControls
-        basePath="/drafts"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        statusOptions={statusOptions}
-        summary={
-          <Suspense fallback={<DocumentListSummarySkeleton />}>
-            <DraftDocumentSummary filters={filters} />
-          </Suspense>
-        }
-      />
-
-      <Suspense fallback={<DocumentResultsSkeleton />}>
-        <DraftDocumentContent filters={filters} />
-      </Suspense>
-    </>
-  );
-}
-
-async function DraftDocumentContent({
-  filters,
-}: {
-  filters: DraftDocumentFilters;
-}) {
-  const user = await requireUser();
-  const draftPage = await getCachedDraftDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.page,
-  );
-  const hasActiveFilter = hasDocumentListFilter(
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-  );
-
-  return (
-    <>
-      <DocumentList
-        documents={draftPage.documents}
-        empty={
-          <EmptyState
-            title={
-              hasActiveFilter
-                ? "조건에 맞는 임시저장 문서가 없습니다"
-                : "임시저장 문서가 없습니다"
-            }
-            description={
-              hasActiveFilter
-                ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
-                : "기안을 임시저장하거나 결재 요청을 회수하면 이곳에 표시됩니다."
-            }
-          />
-        }
-      />
-
-      <DocumentPagination
+      <DocumentPageSection
+        key={[
+          filters.query,
+          filters.status,
+          filters.sort,
+          filters.dateFrom,
+          filters.dateTo,
+          draftPage.page,
+        ].join(":")}
         ariaLabel="임시저장함 페이지"
         basePath="/drafts"
-        query={filters.query}
-        status={filters.status}
-        sort={filters.sort}
-        dateFrom={filters.dateFrom}
-        dateTo={filters.dateTo}
-        page={draftPage.page}
-        totalPages={draftPage.totalPages}
+        documentPage={draftPage}
+        emptyDescription={
+          hasActiveFilter
+            ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
+            : "기안을 임시저장하거나 결재 요청을 회수하면 여기에 표시됩니다."
+        }
+        emptyTitle={
+          hasActiveFilter
+            ? "조건에 맞는 임시저장 문서가 없습니다"
+            : "임시저장 문서가 없습니다"
+        }
+        filters={filters}
+        loadPage={getDraftDocumentPageAction}
+        statusOptions={statusOptions}
       />
     </>
-  );
-}
-
-async function DraftDocumentSummary({
-  filters,
-}: {
-  filters: DraftDocumentFilters;
-}) {
-  const user = await requireUser();
-  const draftPage = await getCachedDraftDocumentPage(
-    user.id,
-    filters.query,
-    filters.status,
-    filters.sort,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.page,
-  );
-
-  return (
-    <DocumentListSummary
-      total={draftPage.total}
-      page={draftPage.page}
-      pageSize={pageSize}
-    />
   );
 }
 

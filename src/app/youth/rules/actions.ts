@@ -8,11 +8,71 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  getYouthRuleChangeLogs,
+  getYouthRules,
+  type YouthRuleChangeLogsResult,
+  type YouthRulesResult,
+} from "@/lib/youth-rules";
+import {
   isYouthRuleCategory,
   youthRuleDetailMaxLength,
+  type YouthActionResult,
+  type YouthRuleCategoryFilter,
+  type YouthRuleTargetFilter,
 } from "@/lib/youth-management-core";
 
 const youthRulesPath = "/youth/rules";
+
+export async function getYouthRulesAction({
+  category,
+  page,
+  target,
+}: {
+  category: YouthRuleCategoryFilter;
+  page: number;
+  target: YouthRuleTargetFilter;
+}): Promise<YouthActionResult<{ ruleResult: YouthRulesResult }>> {
+  await requireUser();
+  const ruleResult = await getYouthRules({
+    category,
+    page,
+    target,
+  });
+
+  return {
+    ok: true,
+    data: {
+      ruleResult,
+    },
+  };
+}
+
+export async function getYouthRuleChangeLogsAction({
+  actorId,
+  category,
+  page,
+  target,
+}: {
+  actorId: string;
+  category: YouthRuleCategoryFilter;
+  page: number;
+  target: YouthRuleTargetFilter;
+}): Promise<YouthActionResult<{ changeLogResult: YouthRuleChangeLogsResult }>> {
+  await requireUser();
+  const changeLogResult = await getYouthRuleChangeLogs({
+    actorId,
+    category,
+    page,
+    target,
+  });
+
+  return {
+    ok: true,
+    data: {
+      changeLogResult,
+    },
+  };
+}
 
 export async function createYouthRuleAction(formData: FormData) {
   const user = await requireUser();

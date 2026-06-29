@@ -23,6 +23,14 @@ import {
   type CurrentCommonScheduleAlert,
   type CurrentCommonScheduleSource,
 } from "@/lib/current-common-schedule-core";
+import {
+  createRefrigeratorFoodExpirationAlert,
+  readRefrigeratorItemsFromStorage,
+  refrigeratorItemsStorageEventName,
+  refrigeratorItemsStorageKey,
+  type RefrigeratorFoodExpirationAlert,
+  type RefrigeratorFoodExpirationAlertItem,
+} from "@/lib/refrigerator-items-core";
 
 export type NavigationItem = {
   label: string;
@@ -51,6 +59,15 @@ export type NavigationTopbarAlertItem = {
   id: string;
   itemName: string;
 };
+
+export type NavigationTopbarFoodExpirationAlert =
+  RefrigeratorFoodExpirationAlert & {
+    label: string;
+    status?: "active" | "empty";
+  };
+
+export type NavigationTopbarFoodExpirationAlertItem =
+  RefrigeratorFoodExpirationAlertItem;
 
 export type NavigationTopbarBirthdayAlert = {
   ddayLabel: string;
@@ -394,6 +411,63 @@ function isTopbarDdayDue(ddayLabel: string) {
   return normalizedLabel === "d-day" || normalizedLabel === "d-0";
 }
 
+function useRefrigeratorFoodExpirationTopbarAlert() {
+  const [alert, setAlert] = useState<NavigationTopbarFoodExpirationAlert>(
+    createNavigationFoodExpirationAlert(null),
+  );
+
+  useEffect(() => {
+    function updateAlert() {
+      setAlert(
+        createNavigationFoodExpirationAlert(
+          createRefrigeratorFoodExpirationAlert(
+            readRefrigeratorItemsFromStorage(),
+          ),
+        ),
+      );
+    }
+
+    function updateFromStorage(event: StorageEvent) {
+      if (event.key === null || event.key === refrigeratorItemsStorageKey) {
+        updateAlert();
+      }
+    }
+
+    const timeoutId = window.setTimeout(updateAlert, 0);
+
+    window.addEventListener(refrigeratorItemsStorageEventName, updateAlert);
+    window.addEventListener("storage", updateFromStorage);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener(refrigeratorItemsStorageEventName, updateAlert);
+      window.removeEventListener("storage", updateFromStorage);
+    };
+  }, []);
+
+  return alert;
+}
+
+function createNavigationFoodExpirationAlert(
+  alert: RefrigeratorFoodExpirationAlert | null,
+): NavigationTopbarFoodExpirationAlert {
+  if (alert) {
+    return {
+      ...alert,
+      label: "식품 유통기한",
+      status: "active",
+    };
+  }
+
+  return {
+    ddayLabel: "",
+    itemName: "임박 없음",
+    items: [],
+    label: "식품 유통기한",
+    status: "empty",
+  };
+}
+
 export function TopbarWidgetGroup({
   birthdayAlert,
   currentScheduleAlert,
@@ -407,14 +481,19 @@ export function TopbarWidgetGroup({
   const dismissedDdayModalKeyRef = useRef<string | null>(null);
   const ddayModalTitleId = useId();
   const ddayModalDescriptionId = useId();
+  const foodExpirationAlert = useRefrigeratorFoodExpirationTopbarAlert();
   const birthdayDdayItems =
     birthdayAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
   const expirationDdayItems =
     expirationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
     [];
+  const foodExpirationDdayItems = foodExpirationAlert.items.filter((item) =>
+    isTopbarDdayDue(item.ddayLabel),
+  );
   const ddayModalKey = createTopbarDdayModalKey(
     birthdayDdayItems,
     expirationDdayItems,
+    foodExpirationDdayItems,
   );
 
   useEffect(() => {
@@ -441,7 +520,12 @@ export function TopbarWidgetGroup({
     setDdayModalOpen(false);
   }
 
-  if (!currentScheduleAlert && !birthdayAlert && !expirationAlert) {
+  if (
+    !currentScheduleAlert &&
+    !birthdayAlert &&
+    !expirationAlert &&
+    !foodExpirationAlert
+  ) {
     return null;
   }
 
@@ -461,6 +545,7 @@ export function TopbarWidgetGroup({
         {expirationAlert ? (
           <TopbarExpirationAlertButton alert={expirationAlert} />
         ) : null}
+        <TopbarFoodExpirationAlertButton alert={foodExpirationAlert} />
       </div>
       {ddayModalOpen && ddayModalKey ? (
         <AppModal
@@ -473,6 +558,7 @@ export function TopbarWidgetGroup({
             birthdayItems={birthdayDdayItems}
             descriptionId={ddayModalDescriptionId}
             expirationItems={expirationDdayItems}
+            foodExpirationItems={foodExpirationDdayItems}
             onClose={closeDdayModal}
             titleId={ddayModalTitleId}
           />
@@ -485,10 +571,14 @@ export function TopbarWidgetGroup({
 function createTopbarDdayModalKey(
   birthdayItems: NavigationTopbarBirthdayAlertItem[],
   expirationItems: NavigationTopbarAlertItem[],
+  foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[],
 ) {
   const birthdayKeys = birthdayItems.map((item) => `birthday:${item.id}`);
   const expirationKeys = expirationItems.map((item) => `expiration:${item.id}`);
-  const keys = [...birthdayKeys, ...expirationKeys];
+  const foodExpirationKeys = foodExpirationItems.map(
+    (item) => `food-expiration:${item.id}`,
+  );
+  const keys = [...birthdayKeys, ...expirationKeys, ...foodExpirationKeys];
 
   return keys.length > 0 ? keys.join("|") : null;
 }
@@ -596,6 +686,68 @@ function TopbarExpirationAlertButton({
   );
 }
 
+function TopbarFoodExpirationAlertButton({
+  alert,
+}: {
+  alert: NavigationTopbarFoodExpirationAlert;
+}) {
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
+  const hasItems = alert.items.length > 0;
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 text-xs font-semibold text-[#196b69] shadow-sm transition hover:border-[#8fc8bf] hover:bg-[#e1f3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b7d9d4] sm:px-3",
+    hasItems && isTopbarDdayDue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-food-expiration"
+      : "",
+  ].join(" ");
+  const title = hasItems
+    ? `${alert.itemName} ${alert.ddayLabel}`
+    : "냉장고 식품 유통기한 임박 항목 없음";
+  const ariaLabel = hasItems
+    ? `${alert.itemName} ${alert.ddayLabel} 냉장고 식품 유통기한 목록 열기`
+    : "냉장고 식품 유통기한 목록 열기, 임박 없음";
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
+        className={className}
+        onClick={() => setOpen(true)}
+        title={title}
+      >
+        <span className="hidden text-[#196b69] sm:inline">식품</span>
+        <span className="max-w-[8rem] truncate text-[#174f4d]">
+          {alert.itemName}
+        </span>
+        {hasItems ? (
+          <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#196b69]">
+            {alert.ddayLabel}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={descriptionId}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <TopbarFoodExpirationAlertModalContent
+            alert={alert}
+            descriptionId={descriptionId}
+            onClose={() => setOpen(false)}
+            titleId={titleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
 function TopbarBirthdayAlertButton({
   alert,
   alignEnd,
@@ -665,12 +817,14 @@ export function TopbarDdayAlertModalContent({
   birthdayItems,
   descriptionId,
   expirationItems,
+  foodExpirationItems,
   onClose,
   titleId,
 }: {
   birthdayItems: NavigationTopbarBirthdayAlertItem[];
   descriptionId: string;
   expirationItems: NavigationTopbarAlertItem[];
+  foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[];
   onClose: () => void;
   titleId: string;
 }) {
@@ -732,6 +886,37 @@ export function TopbarDdayAlertModalContent({
             </ul>
           </section>
         ) : null}
+        {foodExpirationItems.length > 0 ? (
+          <section aria-label="오늘 식품 유통기한" className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#196b69]">
+              오늘 식품 유통기한
+            </h3>
+            <ul className="divide-y divide-[#d8ebe8] rounded-md border border-[#b7d9d4] bg-[#f1faf8]">
+              {foodExpirationItems.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#e1f3ef] focus:outline-none focus:ring-2 focus:ring-[#b7d9d4]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                        {item.itemName}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#697386]">
+                        {item.locationLabel} · 유통기한{" "}
+                        {formatTopbarAlertDate(item.expirationDate)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 py-1 text-xs font-semibold text-[#196b69]">
+                      {item.ddayLabel}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         {expirationItems.length > 0 ? (
           <section aria-label="오늘 유통기한" className="space-y-2">
             <h3 className="text-sm font-semibold text-[#946200]">
@@ -763,6 +948,74 @@ export function TopbarDdayAlertModalContent({
           </section>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+export function TopbarFoodExpirationAlertModalContent({
+  alert,
+  descriptionId,
+  onClose,
+  titleId,
+}: {
+  alert: NavigationTopbarFoodExpirationAlert;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#196b69]">식품 유통기한</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            냉장고 식품 유통기한
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            냉장고 식품 중 유통기한이 31일 이하로 남은 항목입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      {alert.items.length > 0 ? (
+        <ul className="divide-y divide-[#eef1f5] px-5">
+          {alert.items.map((item) => (
+            <li key={item.id} className="py-4">
+              <Link
+                href={item.href}
+                onClick={onClose}
+                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#edf8f5] focus:outline-none focus:ring-2 focus:ring-[#b7d9d4]"
+              >
+                <span className="min-w-0">
+                  <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                    {item.itemName}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#697386]">
+                    {item.locationLabel} · 유통기한{" "}
+                    {formatTopbarAlertDate(item.expirationDate)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 py-1 text-xs font-semibold text-[#196b69]">
+                  {item.ddayLabel}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+          유통기한이 31일 이하로 남은 냉장고 식품이 없습니다.
+        </p>
+      )}
     </div>
   );
 }

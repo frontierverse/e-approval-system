@@ -5,7 +5,11 @@ import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { mapYouthCommonSchedule } from "@/lib/youth-common-schedules";
+import {
+  getYouthCommonScheduleChangeLogs,
+  mapYouthCommonSchedule,
+  type YouthCommonScheduleChangeLogsResult,
+} from "@/lib/youth-common-schedules";
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
@@ -16,10 +20,34 @@ import {
   youthCommonScheduleWeekdays,
   type YouthActionResult,
   type YouthCommonSchedule,
+  type YouthCommonScheduleChangeLogFilters,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
 const commonSchedulePath = "/youth/common-schedule";
+
+export async function getYouthCommonScheduleChangeLogsAction(
+  filters: Pick<
+    YouthCommonScheduleChangeLogFilters,
+    "actorId" | "page" | "weekday"
+  >,
+): Promise<
+  YouthActionResult<{ changeLogResult: YouthCommonScheduleChangeLogsResult }>
+> {
+  await requireUser();
+  const changeLogResult = await getYouthCommonScheduleChangeLogs({
+    actorId: filters.actorId,
+    page: filters.page,
+    weekday: filters.weekday,
+  });
+
+  return {
+    ok: true,
+    data: {
+      changeLogResult,
+    },
+  };
+}
 
 export async function saveYouthCommonScheduleAction(
   weekday: number,

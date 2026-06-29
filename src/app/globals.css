@@ -91,6 +91,58 @@ button:disabled {
   scrollbar-gutter: stable;
 }
 
+.home-feature-card {
+  --home-feature-card-border: #d9dee7;
+  --home-feature-cutout-width: calc(
+    var(--home-draft-action-width, 8rem) +
+      var(--home-draft-action-gap, 2rem)
+  );
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  .home-feature-card {
+    clip-path: polygon(
+      0 0,
+      calc(100% - var(--home-feature-cutout-width)) 0,
+      calc(100% - var(--home-feature-cutout-width))
+        var(--home-draft-action-height, 3.25rem),
+      100% var(--home-draft-action-height, 3.25rem),
+      100% 100%,
+      0 100%
+    );
+  }
+
+  .home-feature-card::before,
+  .home-feature-card::after {
+    background: var(--home-feature-card-border);
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    z-index: 3;
+  }
+
+  .home-feature-card::before {
+    height: var(--home-draft-action-height, 3.25rem);
+    right: var(--home-feature-cutout-width);
+    top: 0;
+    width: 1px;
+  }
+
+  .home-feature-card::after {
+    height: 1px;
+    right: 0;
+    top: var(--home-draft-action-height, 3.25rem);
+    width: var(--home-feature-cutout-width);
+  }
+
+  .home-feature-card-header {
+    padding-right: calc(
+      var(--home-feature-cutout-width) + var(--home-draft-action-gap, 2rem)
+    );
+  }
+}
+
 .approval-line-current {
   --approval-line-current-rest: #7bb9b6;
   --approval-line-current-active: #196b69;
@@ -129,6 +181,15 @@ button:disabled {
   --topbar-widget-due-border-soft: #f0d28a;
   --topbar-widget-due-fill-glow: rgba(255, 243, 208, 0.98);
   --topbar-widget-due-outer-glow: rgba(232, 188, 95, 0.58);
+}
+
+.topbar-widget-due-food-expiration {
+  --topbar-widget-due-bg: #edf8f5;
+  --topbar-widget-due-bg-strong: #e1f3ef;
+  --topbar-widget-due-border: #8fc8bf;
+  --topbar-widget-due-border-soft: #b7d9d4;
+  --topbar-widget-due-fill-glow: rgba(225, 243, 239, 0.98);
+  --topbar-widget-due-outer-glow: rgba(25, 107, 105, 0.5);
 }
 
 .topbar-widget-due::before {
@@ -295,6 +356,10 @@ button:disabled {
 
 .dark .bg-white\/95 {
   background-color: rgb(22 27 34 / 0.95);
+}
+
+.dark .home-feature-card {
+  --home-feature-card-border: #30363d;
 }
 
 .dark .bg-\[\#f7f9fc\] {

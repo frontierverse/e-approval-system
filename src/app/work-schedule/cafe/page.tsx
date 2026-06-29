@@ -12,7 +12,10 @@ import {
   normalizeCafeItemSort,
 } from "@/lib/cafe-items-core";
 import { getCafeItemChangeLogPage, getCafeItemPage } from "@/lib/cafe-items";
-import { getCafeItemPageAction } from "@/app/work-schedule/cafe/actions";
+import {
+  getCafeItemChangeLogPageAction,
+  getCafeItemPageAction,
+} from "@/app/work-schedule/cafe/actions";
 
 type CafeManagementSearchParams = {
   category?: string;
@@ -83,6 +86,7 @@ export default async function WorkScheduleCafePage({
         />
         <CafeItemChangeLogTable
           itemFilters={itemPage.filters}
+          loadLogPage={getCafeItemChangeLogPageAction}
           logPage={changeLogPage}
         />
       </div>

@@ -119,6 +119,7 @@ model User {
   convertedAttachments Attachment[]         @relation("AttachmentConverter")
   leaveLedgerEntries   StaffLeaveLedger[]   @relation("StaffLeaveUser")
   createdLeaveEntries  StaffLeaveLedger[]   @relation("StaffLeaveActor")
+  workFeatureUpdates   WorkFeatureUpdate[]  @relation("WorkFeatureUpdateCreator")
 
   @@index([departmentId])
   @@index([positionId])
@@ -495,6 +496,19 @@ model WorkSchedule {
   @@index([weekday, startMinute])
   @@index([startHour])
   @@index([startMinute])
+}
+
+model WorkFeatureUpdate {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+
+  createdById String?
+  createdBy   User?    @relation("WorkFeatureUpdateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([createdById])
 }
 
 model CafeItem {

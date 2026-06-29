@@ -15,6 +15,7 @@ const requiredPrismaDelegates = [
   "resourceAttachment",
   "resourcePostView",
   "workSchedule",
+  "workFeatureUpdate",
   "youth",
   "youthFamilyContact",
   "youthSpecialNote",

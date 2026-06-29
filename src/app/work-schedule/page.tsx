@@ -2,6 +2,7 @@ import { PageTitle } from "@/components/page-title";
 import { WorkScheduleCalendarBoard } from "@/components/work-schedule-calendar-board";
 import {
   deleteWorkScheduleAction,
+  getWorkScheduleChangeLogsAction,
   saveWorkScheduleAction,
 } from "@/app/work-schedule/actions";
 import { requireUser } from "@/lib/auth";
@@ -63,6 +64,7 @@ export default async function WorkSchedulePage({
         }}
         changeLogs={changeLogResult.logs}
         deleteSchedule={deleteWorkScheduleAction}
+        loadChangeLogs={getWorkScheduleChangeLogsAction}
         saveSchedule={saveWorkScheduleAction}
         schedules={schedules}
         selectedMonth={selectedMonth}

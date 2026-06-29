@@ -25,6 +25,10 @@ import {
 import { isAuditActionValue } from "@/lib/audit-log-display";
 import { requireAdmin } from "@/lib/auth";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import {
+  getAdminAuditLogPageAction,
+  getAdminLoginHistoryPageAction,
+} from "@/app/admin/actions";
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -149,9 +153,18 @@ async function getAdminPanel(
 
     return (
       <AdminLoginHistoryList
+        key={[
+          filters.query,
+          filters.result,
+          filters.userId,
+          filters.dateFrom,
+          filters.dateTo,
+          historyPage.page,
+        ].join(":")}
         histories={historyPage.histories}
         users={users}
         filters={filters}
+        loadPage={getAdminLoginHistoryPageAction}
         page={historyPage.page}
         pageSize={historyPage.pageSize}
         total={historyPage.total}
@@ -171,9 +184,18 @@ async function getAdminPanel(
 
   return (
     <AdminAuditLogList
+      key={[
+        filters.query,
+        filters.status,
+        filters.actorId,
+        filters.dateFrom,
+        filters.dateTo,
+        auditPage.page,
+      ].join(":")}
       logs={auditPage.logs}
       actors={actors}
       filters={filters}
+      loadPage={getAdminAuditLogPageAction}
       page={auditPage.page}
       pageSize={auditPage.pageSize}
       total={auditPage.total}

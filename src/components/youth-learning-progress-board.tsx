@@ -7,6 +7,7 @@ import type {
   ChangeEvent,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent,
   PointerEvent,
 } from "react";
 import { AppModal } from "@/components/app-modal";
@@ -23,6 +24,7 @@ import type {
   YouthProfile,
   YouthSpecialNote,
 } from "@/lib/youth-management-core";
+import type { YouthLearningProgressChangeLogsResult } from "@/lib/youth-learning-schedules";
 import {
   formatYouthLearningScheduleWeekdays,
   getYouthLearningScheduleEndHourFromMinute,
@@ -59,6 +61,14 @@ type YouthLearningProgressBoardProps = {
       scheduleDate: string;
       schedules: YouthLearningSchedule[];
     }>
+  >;
+  loadChangeLogs?: (
+    filters: Pick<
+      YouthLearningProgressChangeLogFilters,
+      "actorId" | "page" | "scheduleDate"
+    >,
+  ) => Promise<
+    YouthActionResult<{ changeLogResult: YouthLearningProgressChangeLogsResult }>
   >;
   saveSchedule: (
     youthId: string,
@@ -150,6 +160,7 @@ export function YouthLearningProgressBoardContent({
   changeLogFilters,
   changeLogs,
   deleteSchedule,
+  loadChangeLogs,
   loadSchedules,
   saveSchedule,
   schedules,
@@ -177,6 +188,15 @@ export function YouthLearningProgressBoardContent({
     useState<ScheduleDragState | null>(null);
   const [pendingTimetableAction, startPendingTimetableAction] = useTransition();
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
+  const [changeLogState, setChangeLogState] = useState(() => ({
+    filters: changeLogFilters,
+    logs: changeLogs,
+  }));
+  const [changeLogError, setChangeLogError] = useState("");
+  const [pendingChangeLogPage, setPendingChangeLogPage] = useState<
+    number | null
+  >(null);
+  const [isChangeLogPending, startChangeLogTransition] = useTransition();
   const pendingTimetable = pendingTimetableAction || pendingScheduleAction;
   const pendingBoardAction = pendingTimetable;
 
@@ -280,6 +300,75 @@ export function YouthLearningProgressBoardContent({
     },
     [loadSchedules, selectedScheduleDate],
   );
+  const loadChangeLogPage = useCallback(
+    (
+      page: number,
+      {
+        filters,
+        updateHistory = true,
+      }: {
+        filters?: Pick<
+          YouthLearningProgressChangeLogFilters,
+          "actorId" | "page" | "scheduleDate"
+        >;
+        updateHistory?: boolean;
+      } = {},
+    ) => {
+      if (!loadChangeLogs) {
+        return;
+      }
+
+      const nextFilters = filters ?? {
+        actorId: changeLogState.filters.actorId,
+        page,
+        scheduleDate: changeLogState.filters.scheduleDate,
+      };
+
+      setPendingChangeLogPage(page);
+
+      startChangeLogTransition(async () => {
+        try {
+          const result = await loadChangeLogs(nextFilters);
+
+          if (!result.ok) {
+            setChangeLogError(result.error);
+            return;
+          }
+
+          const { changeLogResult } = result.data;
+
+          setChangeLogState({
+            filters: {
+              actorId: changeLogResult.actorId,
+              page: changeLogResult.page,
+              pageSize: changeLogResult.pageSize,
+              scheduleDate: changeLogResult.scheduleDate,
+              total: changeLogResult.total,
+              totalPages: changeLogResult.totalPages,
+            },
+            logs: changeLogResult.logs,
+          });
+          setChangeLogError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { learningProgressLogPage: changeLogResult.page },
+              "",
+              createChangeLogHref({
+                actorId: changeLogResult.actorId,
+                page: changeLogResult.page,
+                scheduleDate: changeLogResult.scheduleDate,
+                selectedDate: selectedScheduleDate,
+              }),
+            );
+          }
+        } finally {
+          setPendingChangeLogPage(null);
+        }
+      });
+    },
+    [changeLogState.filters, loadChangeLogs, selectedScheduleDate],
+  );
 
   useEffect(() => {
     window.history.replaceState(
@@ -292,12 +381,24 @@ export function YouthLearningProgressBoardContent({
       loadScheduleDate(getLearningProgressDateFromLocation(), {
         updateHistory: false,
       });
+
+      if (loadChangeLogs) {
+        const filters = getLearningProgressChangeLogFiltersFromLocation();
+
+        loadChangeLogPage(filters.page, {
+          filters,
+          updateHistory: false,
+        });
+      }
     }
 
     window.addEventListener("popstate", loadDateFromHistory);
 
     return () => window.removeEventListener("popstate", loadDateFromHistory);
-  }, [loadScheduleDate, selectedScheduleDate]);
+  }, [loadChangeLogPage, loadChangeLogs, loadScheduleDate, selectedScheduleDate]);
+
+  const currentChangeLogFilters = changeLogState.filters;
+  const currentChangeLogs = changeLogState.logs;
 
   function openScheduleModal(youthId: string, startMinute: number) {
     const schedule = scheduleMap.get(
@@ -932,19 +1033,29 @@ export function YouthLearningProgressBoardContent({
             <h2 className="text-base font-semibold text-[#16181d]">
               최근 변경 내역
             </h2>
-            <ChangeLogListSummary filters={changeLogFilters} />
+            <ChangeLogListSummary filters={currentChangeLogFilters} />
           </div>
           {changeLogFilterControls ?? (
             <ChangeLogFilterControls
               actors={changeLogActors}
-              filters={changeLogFilters}
+              filters={currentChangeLogFilters}
               selectedDate={selectedScheduleDate}
             />
           )}
         </div>
-        {changeLogs.length > 0 ? (
-          <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
-            {changeLogs.map((log) => {
+        {changeLogError ? (
+          <p className="mt-3 rounded-md border border-[#efb4b4] bg-[#fff7f7] px-4 py-3 text-sm font-semibold text-[#a13a3a]">
+            {changeLogError}
+          </p>
+        ) : null}
+        {currentChangeLogs.length > 0 ? (
+          <ol
+            className={[
+              "mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white",
+              isChangeLogPending ? "opacity-60" : "",
+            ].join(" ")}
+          >
+            {currentChangeLogs.map((log) => {
             const detail = getChangeLogDetail(log.metadata);
 
             return (
@@ -1008,7 +1119,10 @@ export function YouthLearningProgressBoardContent({
           </p>
         )}
         <ChangeLogPagination
-          filters={changeLogFilters}
+          filters={currentChangeLogFilters}
+          isPending={isChangeLogPending}
+          onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+          pendingPage={pendingChangeLogPage}
           selectedDate={selectedScheduleDate}
         />
       </section>
@@ -1555,9 +1669,15 @@ export function YouthLearningProgressChangeLogFilterControlsContent({
 
 function ChangeLogPagination({
   filters,
+  isPending,
+  onPageChange,
+  pendingPage,
   selectedDate,
 }: {
   filters: YouthLearningProgressChangeLogFilters;
+  isPending: boolean;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
   selectedDate: string;
 }) {
   if (filters.totalPages <= 1) {
@@ -1574,24 +1694,30 @@ function ChangeLogPagination({
       </p>
       <div className="flex gap-2">
         <ChangeLogPaginationLink
-          disabled={filters.page <= 1}
+          disabled={filters.page <= 1 || isPending}
           href={createChangeLogHref({
             actorId: filters.actorId,
             page: filters.page - 1,
             scheduleDate: filters.scheduleDate,
             selectedDate,
           })}
+          onPageChange={onPageChange}
+          page={filters.page - 1}
+          pending={pendingPage === filters.page - 1}
         >
           이전
         </ChangeLogPaginationLink>
         <ChangeLogPaginationLink
-          disabled={filters.page >= filters.totalPages}
+          disabled={filters.page >= filters.totalPages || isPending}
           href={createChangeLogHref({
             actorId: filters.actorId,
             page: filters.page + 1,
             scheduleDate: filters.scheduleDate,
             selectedDate,
           })}
+          onPageChange={onPageChange}
+          page={filters.page + 1}
+          pending={pendingPage === filters.page + 1}
         >
           다음
         </ChangeLogPaginationLink>
@@ -1604,26 +1730,41 @@ function ChangeLogPaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
   children: React.ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
       <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
-        {children}
+        {pending ? "..." : children}
       </span>
     );
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
       className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
     >
-      {children}
-    </Link>
+      {pending ? "..." : children}
+    </a>
   );
 }
 
@@ -1655,6 +1796,43 @@ function createChangeLogHref({
   }
 
   return `/youth/learning-progress?${params.toString()}`;
+}
+
+function getLearningProgressChangeLogFiltersFromLocation(): Pick<
+  YouthLearningProgressChangeLogFilters,
+  "actorId" | "page" | "scheduleDate"
+> {
+  const params = new URLSearchParams(window.location.search);
+  const actorId = String(params.get("logStaff") ?? "all").trim();
+
+  return {
+    actorId: actorId || "all",
+    page: normalizePositivePage(params.get("logPage")),
+    scheduleDate: getLearningProgressLogDateFromLocation(params),
+  };
+}
+
+function getLearningProgressLogDateFromLocation(params: URLSearchParams) {
+  const date = params.get("logDate");
+
+  return date && isYouthLearningScheduleDate(date) ? date : "";
+}
+
+function normalizePositivePage(value: string | null | undefined) {
+  const page = Number(value);
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function mergeScheduleItems(

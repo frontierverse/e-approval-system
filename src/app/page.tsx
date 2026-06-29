@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ApprovalLinePreview } from "@/components/approval-line-preview";
-import { PageTitle } from "@/components/page-title";
 import { QuickStatusLinks } from "@/components/quick-status-links";
 import { UserIdentity } from "@/components/user-identity";
+import { WorkFeatureUpdateList } from "@/components/work-feature-update-list";
+import { UserRole } from "@/generated/prisma/client";
 import {
   getCompletedDocuments,
   getDraftDocuments,
@@ -16,31 +17,48 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 import { getAuditActionBadgeClass } from "@/lib/audit-log-display";
+import { getRecentWorkFeatureUpdates } from "@/lib/work-feature-updates";
 
 export default function Home() {
   return (
     <>
-      <PageTitle
-        title="업무 홈"
-        description="결재 대기 문서, 진행 중인 요청 문서, 완료 문서 현황을 확인합니다."
-        action={
+      <div className="mb-5 lg:relative lg:[--home-draft-action-gap:2rem] lg:[--home-draft-action-height:3.25rem] lg:[--home-draft-action-width:8rem]">
+        <div className="mb-3 flex justify-end lg:absolute lg:right-0 lg:top-0 lg:z-20 lg:mb-0">
           <Link
             href="/drafts/new"
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.create,
-              "h-10 px-4 text-sm",
+              "h-10 whitespace-nowrap px-4 text-sm shadow-sm lg:w-[var(--home-draft-action-width)]",
             )}
           >
             새 기안 작성
           </Link>
-        }
-      />
+        </div>
+        <Suspense fallback={<FeatureUpdateListSkeleton />}>
+          <HomeFeatureUpdates />
+        </Suspense>
+      </div>
 
       <Suspense fallback={<RouteContentSkeleton variant="home" />}>
         <HomeContent />
       </Suspense>
     </>
+  );
+}
+
+async function HomeFeatureUpdates() {
+  const [user, featureUpdates] = await Promise.all([
+    requireUser(),
+    getRecentWorkFeatureUpdates(),
+  ]);
+
+  return (
+    <WorkFeatureUpdateList
+      avoidTopRightSlot
+      canCreate={user.role === UserRole.ADMIN}
+      updates={featureUpdates}
+    />
   );
 }
 
@@ -163,5 +181,33 @@ async function HomeContent() {
         </div>
       </section>
     </>
+  );
+}
+
+function FeatureUpdateListSkeleton() {
+  return (
+    <section
+      aria-hidden="true"
+      className="home-feature-card overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm"
+    >
+      <div className="home-feature-card-header border-b border-[#eef1f5] px-5 py-4">
+        <div className="h-5 w-36 rounded-md bg-[#edf1f5]" />
+        <div className="mt-2 h-4 w-full max-w-lg rounded-md bg-[#edf1f5]" />
+      </div>
+      <div className="divide-y divide-[#eef1f5]">
+        {[0, 1, 2].map((row) => (
+          <div
+            key={row}
+            className="grid min-h-14 gap-2 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
+          >
+            <div>
+              <div className="h-4 w-48 max-w-full rounded-md bg-[#edf1f5]" />
+              <div className="mt-2 h-3 w-64 max-w-full rounded-md bg-[#edf1f5]" />
+            </div>
+            <div className="h-3 w-20 rounded-md bg-[#edf1f5] sm:ml-auto" />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

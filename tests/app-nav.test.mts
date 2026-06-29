@@ -8,6 +8,7 @@ import {
   TopbarCurrentScheduleLink,
   TopbarDdayAlertModalContent,
   TopbarExpirationAlertModalContent,
+  TopbarFoodExpirationAlertModalContent,
   TopbarWidgetGroup,
   type NavigationTopbarBirthdayAlert,
   type NavigationTopbarCurrentScheduleAlert,
@@ -133,6 +134,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /공용 자습/);
     assert.match(html, /김민지/);
     assert.match(html, /우유/);
+    assert.match(html, /식품/);
     assert.doesNotMatch(html, /topbar-widget-due/);
   });
 
@@ -200,11 +202,22 @@ describe("app navigation active paths", () => {
         itemName: "우유",
       },
     ];
+    const foodExpirationItems = [
+      {
+        ddayLabel: "D-Day",
+        expirationDate: "2026-06-29",
+        href: "/work-schedule/refrigerator",
+        id: "refrigerator-item-001",
+        itemName: "샐러드",
+        locationLabel: "바자울 1",
+      },
+    ];
     const html = renderToStaticMarkup(
       React.createElement(TopbarDdayAlertModalContent, {
         birthdayItems,
         descriptionId: "description-id",
         expirationItems,
+        foodExpirationItems,
         onClose: () => undefined,
         titleId: "title-id",
       }),
@@ -215,7 +228,39 @@ describe("app navigation active paths", () => {
     assert.match(html, /김민지/);
     assert.match(html, /오늘 유통기한/);
     assert.match(html, /우유/);
+    assert.match(html, /오늘 식품 유통기한/);
+    assert.match(html, /샐러드/);
     assert.match(html, /D-Day/);
+  });
+
+  test("renders refrigerator food expiration alert modal items", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarFoodExpirationAlertModalContent, {
+        alert: {
+          ddayLabel: "D-2",
+          itemName: "샐러드",
+          items: [
+            {
+              ddayLabel: "D-2",
+              expirationDate: "2026-07-01",
+              href: "/work-schedule/refrigerator",
+              id: "refrigerator-item-001",
+              itemName: "샐러드",
+              locationLabel: "바자울 1",
+            },
+          ],
+          label: "식품 유통기한",
+        },
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /냉장고 식품 유통기한/);
+    assert.match(html, /바자울 1/);
+    assert.match(html, /샐러드/);
+    assert.match(html, /2026\.07\.01/);
   });
 
   test("renders cafe expiration alert modal items", () => {

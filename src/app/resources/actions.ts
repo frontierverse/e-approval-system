@@ -18,7 +18,49 @@ import {
   type ResourceFormState,
   validateResourceFormValues,
 } from "@/lib/resource-form-state";
-import { canManageResourcePost } from "@/lib/resource-library";
+import { canManageResourcePost, getResourceLibraryPage } from "@/lib/resource-library";
+import {
+  getResourceLibraryPageSize,
+  normalizeResourceCategoryFilter,
+  normalizeResourceEducationLevelFilter,
+  type ResourceCategoryFilter,
+  type ResourceEducationLevelFilter,
+} from "@/lib/resource-library-core";
+
+export type ResourceLibraryPageActionFilters = {
+  category: ResourceCategoryFilter;
+  educationLevel: ResourceEducationLevelFilter;
+  page: number;
+  query: string;
+};
+
+export async function getResourceLibraryPageAction(
+  filters: ResourceLibraryPageActionFilters,
+) {
+  const user = await requireUser();
+  const category = normalizeResourceCategoryFilter(filters.category);
+  const normalizedCategory = category === "all" ? "corporation" : category;
+  const educationLevel =
+    normalizedCategory === "education"
+      ? normalizeResourceEducationLevelFilter(filters.educationLevel)
+      : "all";
+  const resourcePage = await getResourceLibraryPage({
+    category: normalizedCategory,
+    currentUserId: user.id,
+    currentUserRole: user.role,
+    educationLevel,
+    page: normalizePage(filters.page),
+    pageSize: getResourceLibraryPageSize(normalizedCategory),
+    query: filters.query.trim(),
+  });
+
+  return {
+    ok: true,
+    data: {
+      resourcePage,
+    },
+  } as const;
+}
 
 export async function createResourceAction(
   _state: ResourceFormState,
@@ -343,6 +385,10 @@ export async function deleteResourceAction(formData: FormData) {
 
 function getResourceCategoryHref(category: string) {
   return `/resources?category=${encodeURIComponent(category)}`;
+}
+
+function normalizePage(value: number) {
+  return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 async function removePreparedAttachments(

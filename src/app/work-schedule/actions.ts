@@ -6,9 +6,12 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  getWorkScheduleChangeLogs,
   mapWorkSchedule,
   workScheduleSelect,
   type WorkSchedule,
+  type WorkScheduleChangeLogFilters,
+  type WorkScheduleChangeLogsResult,
 } from "@/lib/work-schedules";
 import {
   formatWorkScheduleDateLabel,
@@ -25,6 +28,27 @@ import {
 } from "@/lib/youth-management-core";
 
 const workSchedulePath = "/work-schedule";
+
+export async function getWorkScheduleChangeLogsAction(
+  filters: Pick<
+    WorkScheduleChangeLogFilters,
+    "actorId" | "page" | "scheduleDate"
+  >,
+): Promise<YouthActionResult<{ changeLogResult: WorkScheduleChangeLogsResult }>> {
+  await requireUser();
+  const changeLogResult = await getWorkScheduleChangeLogs({
+    actorId: filters.actorId,
+    page: filters.page,
+    scheduleDate: filters.scheduleDate,
+  });
+
+  return {
+    ok: true,
+    data: {
+      changeLogResult,
+    },
+  };
+}
 
 export async function saveWorkScheduleAction(
   scheduleDate: string,

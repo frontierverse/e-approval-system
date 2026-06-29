@@ -1,32 +1,131 @@
+"use client";
+
 import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useTransition,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   cafeItemChangeLogActionFilters,
   getCafeItemChangeLogActionLabel,
+  normalizeCafeItemChangeLogAction,
+  normalizeCafeItemPage,
+  type CafeItemActionResult,
   type CafeItemChangeLogAction,
   type CafeItemChangeLogPage,
+  type CafeItemChangeLogPageFilters,
   type CafeItemPageFilters,
 } from "@/lib/cafe-items-core";
 
 type CafeItemChangeLogTableProps = {
   itemFilters: CafeItemPageFilters;
+  loadLogPage?: (
+    filters: CafeItemChangeLogPageFilters,
+  ) => Promise<CafeItemActionResult<{ logPage: CafeItemChangeLogPage }>>;
   logPage: CafeItemChangeLogPage;
 };
 
 export function CafeItemChangeLogTable({
   itemFilters,
+  loadLogPage,
   logPage,
 }: CafeItemChangeLogTableProps) {
+  const [logPageState, setLogPageState] = useState(logPage);
+  const [pageError, setPageError] = useState("");
+  const [pendingPage, setPendingPage] = useState<number | null>(null);
+  const [isPagePending, startPageTransition] = useTransition();
+  const loadPage = useCallback(
+    (
+      page: number,
+      {
+        filters,
+        updateHistory = true,
+      }: { filters?: CafeItemChangeLogPageFilters; updateHistory?: boolean } = {},
+    ) => {
+      if (!loadLogPage) {
+        return;
+      }
+
+      const nextFilters = filters ?? {
+        ...logPageState.filters,
+        page,
+      };
+
+      setPendingPage(page);
+
+      startPageTransition(async () => {
+        try {
+          const result = await loadLogPage(nextFilters);
+
+          if (!result.ok) {
+            setPageError(result.error);
+            return;
+          }
+
+          setLogPageState(result.data.logPage);
+          setPageError("");
+
+          if (updateHistory) {
+            window.history.pushState(
+              { cafeItemLogPage: result.data.logPage.page },
+              "",
+              createCafeManagementHref({
+                itemFilters,
+                logFilters: result.data.logPage.filters,
+              }),
+            );
+          }
+        } finally {
+          setPendingPage(null);
+        }
+      });
+    },
+    [itemFilters, loadLogPage, logPageState.filters],
+  );
+
+  useEffect(() => {
+    if (!loadLogPage) {
+      return;
+    }
+
+    function loadPageFromHistory() {
+      const filters = getCafeItemChangeLogFiltersFromLocation();
+
+      loadPage(filters.page, {
+        filters,
+        updateHistory: false,
+      });
+    }
+
+    window.addEventListener("popstate", loadPageFromHistory);
+
+    return () => window.removeEventListener("popstate", loadPageFromHistory);
+  }, [loadLogPage, loadPage]);
+
+  const currentLogPage = logPageState;
   const firstLog =
-    logPage.total === 0 ? 0 : (logPage.page - 1) * logPage.pageSize + 1;
-  const lastLog = Math.min(logPage.page * logPage.pageSize, logPage.total);
+    currentLogPage.total === 0
+      ? 0
+      : (currentLogPage.page - 1) * currentLogPage.pageSize + 1;
+  const lastLog = Math.min(
+    currentLogPage.page * currentLogPage.pageSize,
+    currentLogPage.total,
+  );
   const hasFilters =
-    logPage.filters.action !== "all" ||
-    logPage.filters.actorId !== "all" ||
-    logPage.filters.query !== "";
+    currentLogPage.filters.action !== "all" ||
+    currentLogPage.filters.actorId !== "all" ||
+    currentLogPage.filters.query !== "";
 
   return (
-    <section className="rounded-md border border-[#d9dee7] bg-white shadow-sm">
+    <section
+      aria-busy={isPagePending || undefined}
+      className="rounded-md border border-[#d9dee7] bg-white shadow-sm"
+    >
       <div className="border-b border-[#eef1f5] px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -34,8 +133,8 @@ export function CafeItemChangeLogTable({
               변경내역
             </h2>
             <p className="mt-1 text-sm text-[#697386]">
-              {logPage.total > 0
-                ? `${logPage.total}건 중 ${firstLog}-${lastLog}건 표시`
+              {currentLogPage.total > 0
+                ? `${currentLogPage.total}건 중 ${firstLog}-${lastLog}건 표시`
                 : "표시할 변경내역이 없습니다."}
             </p>
           </div>
@@ -50,7 +149,7 @@ export function CafeItemChangeLogTable({
             </span>
             <input
               name="logQ"
-              defaultValue={logPage.filters.query}
+              defaultValue={currentLogPage.filters.query}
               placeholder="물품명, 내용, 직원"
               className="h-10 w-56 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             />
@@ -61,7 +160,7 @@ export function CafeItemChangeLogTable({
             </span>
             <select
               name="logAction"
-              defaultValue={logPage.filters.action}
+              defaultValue={currentLogPage.filters.action}
               className="h-10 w-36 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               {cafeItemChangeLogActionFilters.map((filter) => (
@@ -77,11 +176,11 @@ export function CafeItemChangeLogTable({
             </span>
             <select
               name="logStaff"
-              defaultValue={logPage.filters.actorId}
+              defaultValue={currentLogPage.filters.actorId}
               className="h-10 w-40 min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               <option value="all">전체 직원</option>
-              {logPage.actors.map((actor) => (
+              {currentLogPage.actors.map((actor) => (
                 <option key={actor.id} value={actor.id}>
                   {actor.name}
                 </option>
@@ -121,7 +220,7 @@ export function CafeItemChangeLogTable({
         </form>
       </div>
 
-      {logPage.logs.length > 0 ? (
+      {currentLogPage.logs.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead>
@@ -134,7 +233,7 @@ export function CafeItemChangeLogTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
-              {logPage.logs.map((log) => (
+              {currentLogPage.logs.map((log) => (
                 <tr key={log.id} className="align-top">
                   <td className="px-6 py-5 leading-6 text-[#394150]">
                     {formatDateTime(log.createdAt)}
@@ -175,15 +274,36 @@ export function CafeItemChangeLogTable({
         </p>
       )}
 
-      <CafeItemChangeLogPagination itemFilters={itemFilters} logPage={logPage} />
+      {pageError ? (
+        <p className="mx-5 mb-4 rounded-md border border-[#efb4b4] bg-[#fff7f7] px-4 py-3 text-sm font-semibold text-[#a13a3a]">
+          {pageError}
+        </p>
+      ) : null}
+
+      <CafeItemChangeLogPagination
+        isPending={isPagePending}
+        itemFilters={itemFilters}
+        logPage={currentLogPage}
+        onPageChange={loadLogPage ? loadPage : undefined}
+        pendingPage={pendingPage}
+      />
     </section>
   );
 }
 
 function CafeItemChangeLogPagination({
+  isPending,
   itemFilters,
   logPage,
-}: CafeItemChangeLogTableProps) {
+  onPageChange,
+  pendingPage,
+}: {
+  isPending: boolean;
+  itemFilters: CafeItemPageFilters;
+  logPage: CafeItemChangeLogPage;
+  onPageChange?: (page: number) => void;
+  pendingPage: number | null;
+}) {
   if (logPage.totalPages <= 1) {
     return null;
   }
@@ -198,7 +318,7 @@ function CafeItemChangeLogPagination({
       </p>
       <div className="flex gap-2">
         <CafeItemChangeLogPaginationLink
-          disabled={logPage.page <= 1}
+          disabled={logPage.page <= 1 || isPending}
           href={createCafeManagementHref({
             itemFilters,
             logFilters: {
@@ -206,11 +326,14 @@ function CafeItemChangeLogPagination({
               page: logPage.page - 1,
             },
           })}
+          onPageChange={onPageChange}
+          page={logPage.page - 1}
+          pending={pendingPage === logPage.page - 1}
         >
           이전
         </CafeItemChangeLogPaginationLink>
         <CafeItemChangeLogPaginationLink
-          disabled={logPage.page >= logPage.totalPages}
+          disabled={logPage.page >= logPage.totalPages || isPending}
           href={createCafeManagementHref({
             itemFilters,
             logFilters: {
@@ -218,6 +341,9 @@ function CafeItemChangeLogPagination({
               page: logPage.page + 1,
             },
           })}
+          onPageChange={onPageChange}
+          page={logPage.page + 1}
+          pending={pendingPage === logPage.page + 1}
         >
           다음
         </CafeItemChangeLogPaginationLink>
@@ -230,10 +356,16 @@ function CafeItemChangeLogPaginationLink({
   children,
   disabled,
   href,
+  onPageChange,
+  page,
+  pending,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   disabled: boolean;
   href: string;
+  onPageChange?: (page: number) => void;
+  page: number;
+  pending: boolean;
 }) {
   if (disabled) {
     return (
@@ -244,8 +376,17 @@ function CafeItemChangeLogPaginationLink({
   }
 
   return (
-    <Link
+    <a
       href={href}
+      aria-busy={pending || undefined}
+      onClick={(event) => {
+        if (!onPageChange || shouldUseNativeNavigation(event)) {
+          return;
+        }
+
+        event.preventDefault();
+        onPageChange(page);
+      }}
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
@@ -253,7 +394,7 @@ function CafeItemChangeLogPaginationLink({
       )}
     >
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -325,6 +466,30 @@ function createCafeManagementHref({
   const queryString = params.toString();
 
   return queryString ? `/work-schedule/cafe?${queryString}` : "/work-schedule/cafe";
+}
+
+function getCafeItemChangeLogFiltersFromLocation(): CafeItemChangeLogPageFilters {
+  const params = new URLSearchParams(window.location.search);
+
+  return {
+    action: normalizeCafeItemChangeLogAction(
+      params.get("logAction") ?? undefined,
+    ),
+    actorId: String(params.get("logStaff") ?? "all").trim() || "all",
+    page: normalizeCafeItemPage(params.get("logPage") ?? undefined),
+    query: String(params.get("logQ") ?? "").trim(),
+  };
+}
+
+function shouldUseNativeNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
 }
 
 function getActionBadgeClassName(action: CafeItemChangeLogAction) {

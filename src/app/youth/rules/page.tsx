@@ -17,6 +17,8 @@ import { isYouthRuleCategory } from "@/lib/youth-management-core";
 import {
   createYouthRuleAction,
   deleteYouthRuleAction,
+  getYouthRuleChangeLogsAction,
+  getYouthRulesAction,
 } from "@/app/youth/rules/actions";
 
 type SearchParamValue = string | string[] | undefined;
@@ -80,8 +82,15 @@ async function YouthRulePanel({
 
   return (
     <YouthRulesBoard
+      key={[
+        ruleResult.category,
+        ruleResult.target,
+        ruleResult.page,
+        getRuleError(params.ruleError),
+      ].join(":")}
       createRuleAction={createYouthRuleAction}
       deleteRuleAction={deleteYouthRuleAction}
+      loadRules={getYouthRulesAction}
       page={ruleResult.page}
       pageSize={ruleResult.pageSize}
       ruleError={getRuleError(params.ruleError)}
@@ -116,6 +125,12 @@ async function YouthRuleChangeLogPanel({
 
   return (
     <YouthRuleChangeLogList
+      key={[
+        changeLogResult.actorId,
+        changeLogResult.category,
+        changeLogResult.target,
+        changeLogResult.page,
+      ].join(":")}
       actors={actors}
       filters={{
         actorId: changeLogResult.actorId,
@@ -126,6 +141,7 @@ async function YouthRuleChangeLogPanel({
         total: changeLogResult.total,
         totalPages: changeLogResult.totalPages,
       }}
+      loadChangeLogs={getYouthRuleChangeLogsAction}
       logs={changeLogResult.logs}
       targets={targets}
     />
