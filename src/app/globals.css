@@ -99,6 +99,73 @@ button:disabled {
   color: #0f5553;
 }
 
+.topbar-widget-due {
+  --topbar-widget-due-bg: #e8f5ed;
+  --topbar-widget-due-bg-strong: #dcf0e4;
+  --topbar-widget-due-border: #9dcfaf;
+  --topbar-widget-due-border-soft: #bddfc9;
+  --topbar-widget-due-fill-glow: rgba(220, 240, 228, 0.96);
+  --topbar-widget-due-outer-glow: rgba(34, 99, 58, 0.48);
+  background: var(--topbar-widget-due-bg);
+  border-color: var(--topbar-widget-due-border);
+  isolation: isolate;
+  overflow: visible;
+  position: relative;
+}
+
+.topbar-widget-due-birthday {
+  --topbar-widget-due-bg: #e8f5ed;
+  --topbar-widget-due-bg-strong: #dcf0e4;
+  --topbar-widget-due-border: #9dcfaf;
+  --topbar-widget-due-border-soft: #bddfc9;
+  --topbar-widget-due-fill-glow: rgba(220, 240, 228, 0.96);
+  --topbar-widget-due-outer-glow: rgba(34, 99, 58, 0.48);
+}
+
+.topbar-widget-due-expiration {
+  --topbar-widget-due-bg: #fff8e8;
+  --topbar-widget-due-bg-strong: #fff3d0;
+  --topbar-widget-due-border: #e8bc5f;
+  --topbar-widget-due-border-soft: #f0d28a;
+  --topbar-widget-due-fill-glow: rgba(255, 243, 208, 0.98);
+  --topbar-widget-due-outer-glow: rgba(232, 188, 95, 0.58);
+}
+
+.topbar-widget-due::before {
+  animation: topbar-widget-due-fill 2.4s ease-in-out infinite;
+  background:
+    radial-gradient(circle at 50% 45%, #ffffff 0%, var(--topbar-widget-due-fill-glow) 42%, var(--topbar-widget-due-bg-strong) 100%);
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  opacity: 0.34;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.985);
+  will-change: opacity, transform;
+  z-index: 0;
+}
+
+.topbar-widget-due::after {
+  animation: topbar-widget-due-aura 2.4s ease-in-out infinite;
+  background: var(--topbar-widget-due-outer-glow);
+  border-radius: inherit;
+  content: "";
+  filter: blur(10px);
+  inset: -6px;
+  opacity: 0.18;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.96);
+  will-change: opacity, transform;
+  z-index: 0;
+}
+
+.topbar-widget-due > * {
+  position: relative;
+  z-index: 2;
+}
+
 @keyframes approval-line-current-pulse {
   0%,
   100% {
@@ -112,9 +179,49 @@ button:disabled {
   }
 }
 
+@keyframes topbar-widget-due-fill {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scale(0.985);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+}
+
+@keyframes topbar-widget-due-aura {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .approval-line-current {
     animation: none;
+  }
+
+  .topbar-widget-due {
+    animation: none;
+    background: var(--topbar-widget-due-bg);
+    border-color: var(--topbar-widget-due-border);
+    opacity: 1;
+  }
+
+  .topbar-widget-due::before,
+  .topbar-widget-due::after {
+    animation: none;
+    opacity: 0.55;
+    transform: none;
   }
 }
 

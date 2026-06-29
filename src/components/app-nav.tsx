@@ -119,6 +119,9 @@ export function AppNav({
     initialAlert: topbarCurrentScheduleAlert,
     schedules: topbarCurrentScheduleItems,
   });
+  const hasTopbarWidgets = Boolean(
+    currentScheduleAlert || topbarBirthdayAlert || topbarAlert,
+  );
   const dragStateRef = useRef<MobileDragState>({
     pointerId: null,
     startX: 0,
@@ -242,35 +245,17 @@ export function AppNav({
           {groups.map((group, index) => (
             <Fragment key={group.label}>
               {index === firstEndAlignedGroupIndex ? (
-                <>
-                  {currentScheduleAlert ? (
-                    <TopbarCurrentScheduleLink
-                      alert={currentScheduleAlert}
-                      alignEnd
-                    />
-                  ) : null}
-                  {topbarBirthdayAlert ? (
-                    <TopbarBirthdayAlertButton
-                      alert={topbarBirthdayAlert}
-                      alignEnd={!currentScheduleAlert}
-                    />
-                  ) : null}
-                  {topbarAlert ? (
-                    <TopbarExpirationAlertButton
-                      alert={topbarAlert}
-                      alignEnd={!currentScheduleAlert && !topbarBirthdayAlert}
-                    />
-                  ) : null}
-                </>
+                <TopbarWidgetGroup
+                  birthdayAlert={topbarBirthdayAlert}
+                  currentScheduleAlert={currentScheduleAlert}
+                  expirationAlert={topbarAlert}
+                />
               ) : null}
               <CategoryLink
                 group={group}
                 active={group.label === selectedGroup?.label}
                 alignEnd={
-                  index === firstEndAlignedGroupIndex &&
-                  !currentScheduleAlert &&
-                  !topbarAlert &&
-                  !topbarBirthdayAlert
+                  index === firstEndAlignedGroupIndex && !hasTopbarWidgets
                 }
               />
             </Fragment>
@@ -403,6 +388,111 @@ function createNavigationCurrentScheduleAlert(
   };
 }
 
+function isTopbarDdayDue(ddayLabel: string) {
+  const normalizedLabel = ddayLabel.trim().toLowerCase();
+
+  return normalizedLabel === "d-day" || normalizedLabel === "d-0";
+}
+
+export function TopbarWidgetGroup({
+  birthdayAlert,
+  currentScheduleAlert,
+  expirationAlert,
+}: {
+  birthdayAlert?: NavigationTopbarBirthdayAlert | null;
+  currentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
+  expirationAlert?: NavigationTopbarAlert | null;
+}) {
+  const [ddayModalOpen, setDdayModalOpen] = useState(false);
+  const dismissedDdayModalKeyRef = useRef<string | null>(null);
+  const ddayModalTitleId = useId();
+  const ddayModalDescriptionId = useId();
+  const birthdayDdayItems =
+    birthdayAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
+  const expirationDdayItems =
+    expirationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
+    [];
+  const ddayModalKey = createTopbarDdayModalKey(
+    birthdayDdayItems,
+    expirationDdayItems,
+  );
+
+  useEffect(() => {
+    if (!ddayModalKey) {
+      dismissedDdayModalKeyRef.current = null;
+      return;
+    }
+
+    if (dismissedDdayModalKeyRef.current === ddayModalKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDdayModalOpen(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [ddayModalKey]);
+
+  function closeDdayModal() {
+    dismissedDdayModalKeyRef.current = ddayModalKey;
+    setDdayModalOpen(false);
+  }
+
+  if (!currentScheduleAlert && !birthdayAlert && !expirationAlert) {
+    return null;
+  }
+
+  return (
+    <>
+      <div
+        aria-label="상단 위젯"
+        className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2"
+        role="group"
+      >
+        {currentScheduleAlert ? (
+          <TopbarCurrentScheduleLink alert={currentScheduleAlert} />
+        ) : null}
+        {birthdayAlert ? (
+          <TopbarBirthdayAlertButton alert={birthdayAlert} />
+        ) : null}
+        {expirationAlert ? (
+          <TopbarExpirationAlertButton alert={expirationAlert} />
+        ) : null}
+      </div>
+      {ddayModalOpen && ddayModalKey ? (
+        <AppModal
+          className="max-w-xl"
+          describedBy={ddayModalDescriptionId}
+          labelledBy={ddayModalTitleId}
+          onClose={closeDdayModal}
+        >
+          <TopbarDdayAlertModalContent
+            birthdayItems={birthdayDdayItems}
+            descriptionId={ddayModalDescriptionId}
+            expirationItems={expirationDdayItems}
+            onClose={closeDdayModal}
+            titleId={ddayModalTitleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
+function createTopbarDdayModalKey(
+  birthdayItems: NavigationTopbarBirthdayAlertItem[],
+  expirationItems: NavigationTopbarAlertItem[],
+) {
+  const birthdayKeys = birthdayItems.map((item) => `birthday:${item.id}`);
+  const expirationKeys = expirationItems.map((item) => `expiration:${item.id}`);
+  const keys = [...birthdayKeys, ...expirationKeys];
+
+  return keys.length > 0 ? keys.join("|") : null;
+}
+
 export function TopbarCurrentScheduleLink({
   alert,
   alignEnd,
@@ -455,6 +545,9 @@ function TopbarExpirationAlertButton({
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
     "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
+    hasItems && isTopbarDdayDue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-expiration"
+      : "",
     alignEnd ? "ml-auto" : "",
   ].join(" ");
   const title = hasItems
@@ -516,6 +609,9 @@ function TopbarBirthdayAlertButton({
   const hasItems = alert.items.length > 0;
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2.5 text-xs font-semibold text-[#22633a] shadow-sm transition hover:border-[#9dcfaf] hover:bg-[#dcf0e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bddfc9] sm:px-3",
+    hasItems && isTopbarDdayDue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-birthday"
+      : "",
     alignEnd ? "ml-auto" : "",
   ].join(" ");
   const title = hasItems
@@ -562,6 +658,112 @@ function TopbarBirthdayAlertButton({
         </AppModal>
       ) : null}
     </>
+  );
+}
+
+export function TopbarDdayAlertModalContent({
+  birthdayItems,
+  descriptionId,
+  expirationItems,
+  onClose,
+  titleId,
+}: {
+  birthdayItems: NavigationTopbarBirthdayAlertItem[];
+  descriptionId: string;
+  expirationItems: NavigationTopbarAlertItem[];
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#196b69]">D-Day</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            오늘 확인할 알림
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            오늘 생일이거나 유통기한이 도래한 항목입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      <div className="space-y-5 px-5 py-5">
+        {birthdayItems.length > 0 ? (
+          <section aria-label="오늘 생일" className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#22633a]">오늘 생일</h3>
+            <ul className="divide-y divide-[#dceee4] rounded-md border border-[#bddfc9] bg-[#f4fbf6]">
+              {birthdayItems.map((item) => (
+                <li
+                  key={`${item.typeLabel}-${item.id}`}
+                  className="flex min-w-0 items-center justify-between gap-3 px-4 py-3"
+                >
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                        {item.name}
+                      </span>
+                      <span className="rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-2 py-0.5 text-xs font-semibold text-[#22633a]">
+                        {item.typeLabel}
+                      </span>
+                    </span>
+                    <span className="mt-1 block break-words text-xs text-[#697386] [overflow-wrap:anywhere]">
+                      {item.detailLabel}
+                    </span>
+                    <span className="mt-1 block text-xs text-[#697386]">
+                      생년월일 {formatBirthdayAlertDate(item.birthDate)} · 생일{" "}
+                      {formatBirthdayAlertDateWithWeekday(item.birthdayDate)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-md border border-[#9dcfaf] bg-[#e8f5ed] px-2.5 py-1 text-xs font-semibold text-[#22633a]">
+                    {item.ddayLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {expirationItems.length > 0 ? (
+          <section aria-label="오늘 유통기한" className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#946200]">
+              오늘 유통기한
+            </h3>
+            <ul className="divide-y divide-[#f5e5be] rounded-md border border-[#f0d28a] bg-[#fffaf0]">
+              {expirationItems.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#fff3d0] focus:outline-none focus:ring-2 focus:ring-[#f0d28a]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                        {item.itemName}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#697386]">
+                        유통기한 {formatTopbarAlertDate(item.expirationDate)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 py-1 text-xs font-semibold text-[#946200]">
+                      {item.ddayLabel}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

@@ -6,7 +6,9 @@ import {
   isActivePath,
   TopbarBirthdayAlertModalContent,
   TopbarCurrentScheduleLink,
+  TopbarDdayAlertModalContent,
   TopbarExpirationAlertModalContent,
+  TopbarWidgetGroup,
   type NavigationTopbarBirthdayAlert,
   type NavigationTopbarCurrentScheduleAlert,
   type NavigationTopbarAlert,
@@ -93,6 +95,127 @@ describe("app navigation active paths", () => {
 
     assert.match(html, /현재 일정 없음/);
     assert.doesNotMatch(html, /<span[^>]*>09:00-10:30<\/span>/);
+  });
+
+  test("groups topbar widgets under a single parent", () => {
+    const currentScheduleAlert: NavigationTopbarCurrentScheduleAlert = {
+      content: "공용 자습",
+      href: "/youth/common-schedule",
+      label: "현재 일정",
+      status: "active",
+      timeLabel: "09:00-10:30",
+      weekdayLabel: "목",
+    };
+    const birthdayAlert: NavigationTopbarBirthdayAlert = {
+      ddayLabel: "D-5",
+      items: [],
+      label: "생일",
+      personName: "김민지",
+    };
+    const expirationAlert: NavigationTopbarAlert = {
+      ddayLabel: "D-3",
+      href: "/work-schedule/cafe",
+      itemName: "우유",
+      items: [],
+      label: "유통기한",
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarWidgetGroup, {
+        birthdayAlert,
+        currentScheduleAlert,
+        expirationAlert,
+      }),
+    );
+
+    assert.match(html, /role="group"/);
+    assert.match(html, /aria-label="상단 위젯"/);
+    assert.match(html, /ml-auto/);
+    assert.match(html, /공용 자습/);
+    assert.match(html, /김민지/);
+    assert.match(html, /우유/);
+    assert.doesNotMatch(html, /topbar-widget-due/);
+  });
+
+  test("marks D-Day topbar widgets for blinking", () => {
+    const birthdayAlert: NavigationTopbarBirthdayAlert = {
+      ddayLabel: "D-Day",
+      items: [
+        {
+          birthdayDate: "2026-06-29",
+          birthDate: "1990-06-29",
+          ddayLabel: "D-Day",
+          detailLabel: "바자울 / 팀장",
+          id: "staff-001",
+          name: "김민지",
+          typeLabel: "직원",
+        },
+      ],
+      label: "생일",
+      personName: "김민지",
+    };
+    const expirationAlert: NavigationTopbarAlert = {
+      ddayLabel: "D-Day",
+      href: "/work-schedule/cafe",
+      itemName: "우유",
+      items: [
+        {
+          ddayLabel: "D-Day",
+          expirationDate: "2026-06-29",
+          href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
+          id: "cafe-item-001",
+          itemName: "우유",
+        },
+      ],
+      label: "유통기한",
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarWidgetGroup, {
+        birthdayAlert,
+        expirationAlert,
+      }),
+    );
+
+    assert.match(html, /topbar-widget-due topbar-widget-due-birthday/);
+    assert.match(html, /topbar-widget-due topbar-widget-due-expiration/);
+  });
+
+  test("renders D-Day birthday and expiration items in one modal", () => {
+    const birthdayItems: NavigationTopbarBirthdayAlert["items"] = [
+      {
+        birthdayDate: "2026-06-29",
+        birthDate: "1990-06-29",
+        ddayLabel: "D-Day",
+        detailLabel: "바자울 / 팀장",
+        id: "staff-001",
+        name: "김민지",
+        typeLabel: "직원",
+      },
+    ];
+    const expirationItems: NavigationTopbarAlert["items"] = [
+      {
+        ddayLabel: "D-Day",
+        expirationDate: "2026-06-29",
+        href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
+        id: "cafe-item-001",
+        itemName: "우유",
+      },
+    ];
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarDdayAlertModalContent, {
+        birthdayItems,
+        descriptionId: "description-id",
+        expirationItems,
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /오늘 확인할 알림/);
+    assert.match(html, /오늘 생일/);
+    assert.match(html, /김민지/);
+    assert.match(html, /오늘 유통기한/);
+    assert.match(html, /우유/);
+    assert.match(html, /D-Day/);
   });
 
   test("renders cafe expiration alert modal items", () => {
