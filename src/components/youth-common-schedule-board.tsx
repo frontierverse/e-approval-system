@@ -963,6 +963,11 @@ export function YouthCommonScheduleBoard({
                           {detail.weekdayLabel}
                           {detail.timeLabel ? ` · ${detail.timeLabel}` : ""}
                         </p>
+                        {detail.timeChangeLabel ? (
+                          <p className="mt-1 text-xs font-semibold text-[#394150]">
+                            시간 변경: {detail.timeChangeLabel}
+                          </p>
+                        ) : null}
                         {detail.previousContent !== null ||
                         detail.nextContent !== null ? (
                           <div className="mt-2 grid gap-2 text-xs text-[#697386] sm:grid-cols-2">
@@ -1519,12 +1524,14 @@ function getCommonScheduleChangeLogDetail(metadata: unknown) {
   const nextContent = getNullableStringValue(metadata, "nextContent");
   const weekday = getWeekdayValue(metadata);
   const timeLabel = getOptionalStringValue(metadata, "timeLabel");
+  const timeChangeLabel = getCommonScheduleTimeChangeLabel(metadata);
 
   if (
     previousContent === undefined &&
     nextContent === undefined &&
     weekday === null &&
-    !timeLabel
+    !timeLabel &&
+    !timeChangeLabel
   ) {
     return null;
   }
@@ -1532,6 +1539,7 @@ function getCommonScheduleChangeLogDetail(metadata: unknown) {
   return {
     nextContent: nextContent ?? null,
     previousContent: previousContent ?? null,
+    timeChangeLabel,
     timeLabel,
     weekdayLabel: weekday === null ? "요일 미확인" : formatWeekdayLabel(weekday),
   };
@@ -1558,6 +1566,58 @@ function getOptionalStringValue(value: object, key: "timeLabel") {
   const item = (value as Record<string, unknown>)[key];
 
   return typeof item === "string" ? item : "";
+}
+
+function getCommonScheduleTimeChangeLabel(value: object) {
+  const previousStartMinute = getNullableMinuteValue(
+    value,
+    "previousStartMinute",
+  );
+  const previousEndMinute = getNullableMinuteValue(value, "previousEndMinute");
+  const nextStartMinute = getNullableMinuteValue(value, "nextStartMinute");
+  const nextEndMinute = getNullableMinuteValue(value, "nextEndMinute");
+
+  if (
+    typeof previousStartMinute !== "number" ||
+    typeof previousEndMinute !== "number" ||
+    typeof nextStartMinute !== "number" ||
+    typeof nextEndMinute !== "number"
+  ) {
+    return "";
+  }
+
+  if (
+    previousStartMinute === nextStartMinute &&
+    previousEndMinute === nextEndMinute
+  ) {
+    return "";
+  }
+
+  return `${formatScheduleRangeLabel(
+    previousStartMinute,
+    previousEndMinute,
+  )}에서 ${formatScheduleRangeLabel(nextStartMinute, nextEndMinute)}로`;
+}
+
+function getNullableMinuteValue(
+  value: object,
+  key:
+    | "previousStartMinute"
+    | "previousEndMinute"
+    | "nextStartMinute"
+    | "nextEndMinute",
+) {
+  const item = (value as Record<string, unknown>)[key];
+
+  if (typeof item === "number" && Number.isInteger(item)) {
+    return item;
+  }
+
+  if (item === null) {
+    return null;
+  }
+
+  return undefined;
 }
 
 function getWeekdayValue(value: object) {

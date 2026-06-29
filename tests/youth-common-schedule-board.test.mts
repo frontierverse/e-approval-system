@@ -57,6 +57,28 @@ const changeLogs: YouthCommonScheduleChangeLog[] = [
       profileImageUpdatedAt: null,
     },
   },
+  {
+    id: "common-change-log-002",
+    message: "공통 일정표 월요일 오전 10시 일정을 변경했습니다.",
+    createdAt: "2026-06-22T02:30:00.000Z",
+    metadata: {
+      nextContent: "집단 활동",
+      nextEndMinute: 660,
+      nextStartMinute: 600,
+      previousContent: "공용 자습",
+      previousEndMinute: 600,
+      previousStartMinute: 540,
+      timeLabel: "오전 10시 - 오전 11시",
+      weekday: 1,
+    },
+    actor: {
+      id: "user-001",
+      name: "김로리",
+      email: "staff@example.com",
+      profileImageStorageKey: null,
+      profileImageUpdatedAt: null,
+    },
+  },
 ];
 
 const changeLogActors: YouthCommonScheduleChangeLogActor[] = [
@@ -214,6 +236,11 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /김로리/);
     assert.match(html, /박서준/);
     assert.match(html, /공통 일정표 월요일 오전 9시 일정을 입력했습니다/);
+    assert.match(html, /공통 일정표 월요일 오전 10시 일정을 변경했습니다/);
+    assert.match(
+      html,
+      /시간 변경: 오전 9시 - 오전 10시에서 오전 10시 - 오전 11시로/,
+    );
     assert.match(
       html,
       /href="\/youth\/common-schedule\?logStaff=user-001&amp;logWeekday=1&amp;logPage=2"/,
