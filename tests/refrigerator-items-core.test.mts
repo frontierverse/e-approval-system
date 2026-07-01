@@ -7,6 +7,7 @@ import {
   parseRefrigeratorItemsByLocation,
   parseRefrigeratorPhotosByLocation,
   removeRefrigeratorItemFromLocation,
+  removeRefrigeratorPhotoFromLocation,
   saveRefrigeratorItemToLocation,
 } from "../src/lib/refrigerator-items-core.ts";
 
@@ -160,5 +161,21 @@ describe("refrigerator items core", () => {
     );
 
     assert.equal(nextItems["bajaul-1"].length, 0);
+  });
+
+  test("removes refrigerator photos from a location", () => {
+    const photosByLocation = createEmptyRefrigeratorPhotos();
+
+    photosByLocation["bajaul-1"] = "data:image/webp;base64,abc";
+    photosByLocation["bajaul-2"] = "data:image/webp;base64,def";
+
+    const nextPhotos = removeRefrigeratorPhotoFromLocation(
+      photosByLocation,
+      "bajaul-1",
+    );
+
+    assert.equal(nextPhotos["bajaul-1"], "");
+    assert.equal(nextPhotos["bajaul-2"], "data:image/webp;base64,def");
+    assert.equal(photosByLocation["bajaul-1"], "data:image/webp;base64,abc");
   });
 });

@@ -73,6 +73,16 @@ export function removeRefrigeratorItemFromLocation(
   };
 }
 
+export function removeRefrigeratorPhotoFromLocation(
+  photosByLocation: RefrigeratorPhotosByLocation,
+  locationId: RefrigeratorLocationId,
+): RefrigeratorPhotosByLocation {
+  return {
+    ...photosByLocation,
+    [locationId]: "",
+  };
+}
+
 export function saveRefrigeratorItemToLocation({
   item,
   itemsByLocation,

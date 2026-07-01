@@ -18,6 +18,7 @@ import {
   readRefrigeratorItemsFromStorage,
   readRefrigeratorPhotosFromStorage,
   removeRefrigeratorItemFromLocation,
+  removeRefrigeratorPhotoFromLocation,
   refrigeratorLocations,
   saveRefrigeratorItemToLocation,
   writeRefrigeratorItemsToStorage,
@@ -149,6 +150,27 @@ export function RefrigeratorManagementBoard() {
     }
   }
 
+  function handlePhotoDelete(locationId: RefrigeratorLocationId) {
+    const locationTitle = getRefrigeratorLocationTitle(locationId);
+
+    if (!photosByLocation[locationId]) {
+      return;
+    }
+
+    if (!window.confirm(`${locationTitle} 냉장고 사진을 삭제할까요?`)) {
+      return;
+    }
+
+    const nextPhotos = removeRefrigeratorPhotoFromLocation(
+      readRefrigeratorPhotosFromStorage(),
+      locationId,
+    );
+
+    writeRefrigeratorPhotosToStorage(nextPhotos);
+    setPhotosByLocation(nextPhotos);
+    setPhotoError("");
+  }
+
   async function handleItemPhotoChange(file: File | null) {
     if (!file) {
       return;
@@ -169,6 +191,19 @@ export function RefrigeratorManagementBoard() {
     } finally {
       setUploadingItemPhoto(false);
     }
+  }
+
+  function handleItemPhotoDelete() {
+    if (!itemPhotoSrc) {
+      return;
+    }
+
+    if (!window.confirm("식품 사진을 삭제할까요?")) {
+      return;
+    }
+
+    setItemPhotoSrc("");
+    setItemPhotoError("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -247,6 +282,7 @@ export function RefrigeratorManagementBoard() {
             onAdd={() => openRegistrationModal(location.id)}
             onItemSelect={(item) => openItemModal(location.id, item)}
             onPhotoChange={(file) => handlePhotoChange(location.id, file)}
+            onPhotoDelete={() => handlePhotoDelete(location.id)}
             photoSrc={photosByLocation[location.id]}
             photoUploading={uploadingPhotoLocationId === location.id}
             title={location.title}
@@ -305,6 +341,7 @@ export function RefrigeratorManagementBoard() {
                     ariaLabel="식품 사진 첨부"
                     imageAlt="식품 사진"
                     onPhotoChange={handleItemPhotoChange}
+                    onPhotoDelete={handleItemPhotoDelete}
                     photoSrc={itemPhotoSrc}
                     photoUploading={uploadingItemPhoto}
                     title="식품"
@@ -459,6 +496,7 @@ function RefrigeratorColumn({
   onAdd,
   onItemSelect,
   onPhotoChange,
+  onPhotoDelete,
   photoSrc,
   photoUploading,
   title,
@@ -467,6 +505,7 @@ function RefrigeratorColumn({
   onAdd: () => void;
   onItemSelect: (item: RefrigeratorItem) => void;
   onPhotoChange: (file: File | null) => void;
+  onPhotoDelete: () => void;
   photoSrc: string;
   photoUploading: boolean;
   title: string;
@@ -520,6 +559,7 @@ function RefrigeratorColumn({
         <div className="flex min-w-0 items-start gap-3">
           <RefrigeratorPhotoSlot
             onPhotoChange={onPhotoChange}
+            onPhotoDelete={onPhotoDelete}
             photoSrc={photoSrc}
             photoUploading={photoUploading}
             title={title}
@@ -628,6 +668,7 @@ function RefrigeratorPhotoSlot({
   ariaLabel,
   imageAlt,
   onPhotoChange,
+  onPhotoDelete,
   photoSrc,
   photoUploading,
   title,
@@ -635,6 +676,7 @@ function RefrigeratorPhotoSlot({
   ariaLabel?: string;
   imageAlt?: string;
   onPhotoChange: (file: File | null) => void;
+  onPhotoDelete?: () => void;
   photoSrc: string;
   photoUploading: boolean;
   title: string;
@@ -680,31 +722,54 @@ function RefrigeratorPhotoSlot({
     });
   }
 
+  if (photoSrc) {
+    return (
+      <>
+        <button
+          type="button"
+          aria-busy={photoUploading}
+          aria-label={`${resolvedImageAlt} 삭제`}
+          className="group relative grid size-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-md border border-[#cfd6e3] bg-[#f7f9fc] text-white transition hover:border-[#b42318] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f1c7c7]"
+          disabled={photoUploading || !onPhotoDelete}
+          onClick={() => {
+            setPhotoPreview(null);
+            onPhotoDelete?.();
+          }}
+          onMouseEnter={showPhotoPreview}
+          onMouseLeave={() => setPhotoPreview(null)}
+          onMouseMove={movePhotoPreview}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={resolvedImageAlt}
+            className="h-full w-full object-cover"
+            src={photoSrc}
+          />
+          <span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/45" />
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-1 bottom-1 rounded-sm bg-black/70 px-1 py-0.5 text-center text-[11px] font-semibold leading-tight opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"
+          >
+            삭제
+          </span>
+        </button>
+        {photoPreview ? (
+          <RefrigeratorItemPhotoPreviewLayer preview={photoPreview} />
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
       <label
         aria-busy={photoUploading}
         aria-label={ariaLabel ?? `${title} 냉장고 사진 첨부`}
         className="group relative grid size-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-md border border-dashed border-[#cfd6e3] bg-[#f7f9fc] text-[#196b69] transition hover:border-[#196b69] hover:bg-[#edf8f5]"
-        onMouseEnter={photoSrc ? showPhotoPreview : undefined}
-        onMouseLeave={photoSrc ? () => setPhotoPreview(null) : undefined}
-        onMouseMove={photoSrc ? movePhotoPreview : undefined}
       >
-        {photoSrc ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              alt={resolvedImageAlt}
-              className="h-full w-full object-cover"
-              src={photoSrc}
-            />
-            <span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
-          </>
-        ) : (
-          <span aria-hidden="true" className="text-2xl font-semibold leading-none">
-            {photoUploading ? "..." : "+"}
-          </span>
-        )}
+        <span aria-hidden="true" className="text-2xl font-semibold leading-none">
+          {photoUploading ? "..." : "+"}
+        </span>
         <input
           accept="image/*"
           aria-label={ariaLabel ?? `${title} 냉장고 사진 첨부`}
