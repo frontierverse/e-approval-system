@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import type { FormEvent } from "react";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import { hasDocumentListFilter } from "@/lib/document-list-filters";
 
 export type DocumentListStatusOption = {
   value: string;
@@ -280,22 +281,6 @@ function createDocumentListFilterHref({
   const queryString = params.toString();
 
   return queryString ? `${basePath}?${queryString}` : basePath;
-}
-
-function hasDocumentListFilter(
-  query: string,
-  status: string,
-  sort: string,
-  dateFrom = "",
-  dateTo = "",
-) {
-  return (
-    Boolean(query) ||
-    status !== "all" ||
-    sort !== "latest" ||
-    Boolean(dateFrom) ||
-    Boolean(dateTo)
-  );
 }
 
 function normalizeDateFilter(value: string) {

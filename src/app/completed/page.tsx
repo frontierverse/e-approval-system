@@ -1,5 +1,4 @@
 import { DocumentPageSection } from "@/components/document-page-section";
-import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
 import { getCompletedDocumentPageAction } from "@/app/document-list-actions";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
+import { hasDocumentListFilter } from "@/lib/document-list-filters";
 
 type CompletedPageSearchParams = {
   q?: string;

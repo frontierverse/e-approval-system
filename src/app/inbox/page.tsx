@@ -1,5 +1,4 @@
 import { DocumentPageSection } from "@/components/document-page-section";
-import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
 import { getInboxDocumentPageAction } from "@/app/document-list-actions";
 import {
@@ -8,6 +7,7 @@ import {
   type InboxDocumentStatusFilter,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
+import { hasDocumentListFilter } from "@/lib/document-list-filters";
 
 type InboxPageSearchParams = {
   q?: string;

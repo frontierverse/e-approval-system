@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { DocumentPageSection } from "@/components/document-page-section";
-import { hasDocumentListFilter } from "@/components/document-list-controls";
 import { PageTitle } from "@/components/page-title";
 import { getDraftDocumentPageAction } from "@/app/document-list-actions";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import { hasDocumentListFilter } from "@/lib/document-list-filters";
 
 type DraftsPageSearchParams = {
   q?: string;
