@@ -201,6 +201,11 @@ describe("major UI rendering", () => {
       React.createElement(QuickStatusLinks, {
         items: [
           {
+            label: "전체 완료 결재",
+            value: "12",
+            note: "시스템 누적 처리",
+          },
+          {
             label: "받은 결재 대기",
             value: "3",
             note: "처리할 문서",
@@ -217,6 +222,8 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /aria-label="빠른 현황"/);
+    assert.match(html, /전체 완료 결재/);
+    assert.doesNotMatch(html, /aria-label="전체 완료 결재 바로가기"/);
     assert.match(html, /href="\/inbox"/);
     assert.match(html, /aria-label="받은 결재 대기 바로가기"/);
     assert.match(html, /href="\/completed"/);

@@ -90,8 +90,9 @@ export function RouteContentSkeleton({
 function HomeSkeleton() {
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))]">
         {[
+          "전체 완료 결재",
           "임시저장/회수",
           "받은 결재 대기",
           "진행 중 결재 요청",

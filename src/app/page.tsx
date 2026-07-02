@@ -11,6 +11,7 @@ import {
   getInboxDocuments,
   getRecentHistories,
   getSentDocuments,
+  getSystemCompletedApprovalCount,
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -66,17 +67,19 @@ async function HomeContent() {
   const user = await requireUser();
   const recentHistoryLimit = 5;
   const [
+    systemCompletedApprovalCount,
     draftDocuments,
     inboxDocuments,
     sentDocuments,
     completedDocuments,
     recentHistories,
   ] = await Promise.all([
+    getSystemCompletedApprovalCount(),
     getDraftDocuments(user.id),
     getInboxDocuments(user.id),
     getSentDocuments(user.id),
     getCompletedDocuments(user.id),
-    getRecentHistories(user.id, user.role, recentHistoryLimit),
+    getRecentHistories(user.id, recentHistoryLimit),
   ]);
   const activeSentDocuments = sentDocuments.filter(
     (document) =>
@@ -84,6 +87,11 @@ async function HomeContent() {
   );
 
   const summaries = [
+    {
+      label: "전체 완료 결재",
+      value: String(systemCompletedApprovalCount),
+      note: "시스템 누적 처리",
+    },
     {
       label: "임시저장/회수",
       value: String(draftDocuments.length),

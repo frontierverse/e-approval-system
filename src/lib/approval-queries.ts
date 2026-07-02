@@ -393,6 +393,16 @@ export async function getCompletedDocuments(userId: string) {
   return records.map(toApprovalDocument);
 }
 
+export async function getSystemCompletedApprovalCount() {
+  return prisma.approvalDocument.count({
+    where: {
+      status: {
+        in: [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
+      },
+    },
+  });
+}
+
 export async function getCompletedDocumentPage(
   userId: string,
   options: CompletedDocumentPageOptions = {},
@@ -529,22 +539,14 @@ export async function getEditableDraftDocumentById(
 
 export async function getRecentHistories(
   userId: string,
-  role: UserRole,
   limit = 5,
 ) {
   const records = await prisma.auditLog.findMany({
-    where:
-      role === UserRole.ADMIN
-        ? {
-            documentId: {
-              not: null,
-            },
-          }
-        : {
-            document: {
-              is: getReadableDocumentWhere(userId, role),
-            },
-          },
+    where: {
+      document: {
+        is: getReadableDocumentWhere(userId, UserRole.USER),
+      },
+    },
     take: limit,
     orderBy: {
       createdAt: "desc",
