@@ -92,7 +92,6 @@ function HomeSkeleton() {
     <>
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))]">
         {[
-          "전체 완료 결재",
           "임시저장/회수",
           "받은 결재 대기",
           "진행 중 결재 요청",
@@ -102,8 +101,9 @@ function HomeSkeleton() {
         ))}
       </section>
 
-      <section className="mt-6">
-        <PanelSkeleton title="최근 결재 활동" rows={5} />
+      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+        <PanelSkeleton title="나의 최근 결재 활동" rows={5} />
+        <PanelSkeleton title="모든 결재 활동" rows={5} />
       </section>
     </>
   );

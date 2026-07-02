@@ -54,6 +54,34 @@ describe("WorkFeatureUpdateList", () => {
     assert.doesNotMatch(html, />추가</);
   });
 
+  test("renders system usage as used over quota", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(WorkFeatureUpdateList, {
+        canCreate: false,
+        usageSummary: {
+          database: {
+            label: "DB",
+            limitLabel: "500 MB",
+            usedLabel: "14.8 MB",
+            usedPercent: 3,
+          },
+          storage: {
+            label: "스토리지",
+            limitLabel: "1 GB",
+            usedLabel: "590.4 MB",
+            usedPercent: 57.6,
+          },
+        },
+        updates: updates.slice(0, 1),
+      }),
+    );
+
+    assert.match(html, /DB/);
+    assert.match(html, /14\.8 MB \/ 500 MB/);
+    assert.match(html, /스토리지/);
+    assert.match(html, /590\.4 MB \/ 1 GB/);
+  });
+
   test("renders the add button for admins", () => {
     const html = renderToStaticMarkup(
       React.createElement(WorkFeatureUpdateList, {

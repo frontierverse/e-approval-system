@@ -7,6 +7,7 @@ import {
 } from "@/app/work-feature-updates/actions";
 import { AppModal } from "@/components/app-modal";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import type { SystemUsageSummary } from "@/lib/system-usage";
 import type { WorkFeatureUpdate } from "@/lib/work-feature-updates";
 
 const initialFeatureUpdateFormState: WorkFeatureUpdateFormState = {};
@@ -14,10 +15,12 @@ const initialFeatureUpdateFormState: WorkFeatureUpdateFormState = {};
 export function WorkFeatureUpdateList({
   avoidTopRightSlot = false,
   canCreate,
+  usageSummary,
   updates,
 }: {
   avoidTopRightSlot?: boolean;
   canCreate: boolean;
+  usageSummary?: SystemUsageSummary;
   updates: WorkFeatureUpdate[];
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,6 +50,9 @@ export function WorkFeatureUpdateList({
           <p className="mt-1 text-sm text-[#697386]">
             최근 업무 관리에 반영된 기능을 3개까지 보여줍니다.
           </p>
+          {usageSummary ? (
+            <SystemUsageSummaryInline usageSummary={usageSummary} />
+          ) : null}
         </div>
         {canCreate ? (
           <button
@@ -191,6 +197,36 @@ export function WorkFeatureUpdateList({
         </AppModal>
       ) : null}
     </section>
+  );
+}
+
+function SystemUsageSummaryInline({
+  usageSummary,
+}: {
+  usageSummary: SystemUsageSummary;
+}) {
+  return (
+    <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[#697386]">
+      {[usageSummary.database, usageSummary.storage].map((metric) => (
+        <div key={metric.label} className="min-w-32">
+          <div className="flex items-baseline gap-1.5">
+            <dt className="font-semibold text-[#394150]">{metric.label}</dt>
+            <dd className="font-medium">
+              {metric.usedLabel} / {metric.limitLabel}
+            </dd>
+          </div>
+          <div
+            className="mt-1 h-1 overflow-hidden rounded-full bg-[#edf1f5]"
+            aria-hidden="true"
+          >
+            <div
+              className="h-full rounded-full bg-[#196b69]"
+              style={{ width: `${metric.usedPercent}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </dl>
   );
 }
 

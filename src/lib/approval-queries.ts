@@ -299,6 +299,16 @@ const auditActionLabels: Record<AuditAction, string> = {
   DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
 };
 
+const publicApprovalActivityActions: AuditAction[] = [
+  AuditAction.SUBMIT,
+  AuditAction.APPROVE,
+  AuditAction.PROXY_APPROVE,
+  AuditAction.PROXY_REJECT,
+  AuditAction.REJECT,
+  AuditAction.RECALL,
+  AuditAction.COMPLETE,
+];
+
 export async function getInboxDocuments(userId: string) {
   const records = await prisma.approvalDocument.findMany({
     where: {
@@ -391,16 +401,6 @@ export async function getCompletedDocuments(userId: string) {
   });
 
   return records.map(toApprovalDocument);
-}
-
-export async function getSystemCompletedApprovalCount() {
-  return prisma.approvalDocument.count({
-    where: {
-      status: {
-        in: [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
-      },
-    },
-  });
 }
 
 export async function getCompletedDocumentPage(
@@ -537,22 +537,30 @@ export async function getEditableDraftDocumentById(
   };
 }
 
-export async function getRecentHistories(
-  userId: string,
-  limit = 5,
-) {
-  const records = await prisma.auditLog.findMany({
-    where: {
-      document: {
-        is: getReadableDocumentWhere(userId, UserRole.USER),
+const recentHistoryInclude = {
+  actor: {
+    select: {
+      id: true,
+      name: true,
+      profileImageStorageKey: true,
+      profileImageUpdatedAt: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          name: true,
+        },
       },
     },
-    take: limit,
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      actor: {
+  },
+  document: {
+    select: {
+      documentNo: true,
+      title: true,
+      drafter: {
         select: {
           id: true,
           name: true,
@@ -570,11 +578,9 @@ export async function getRecentHistories(
           },
         },
       },
-      document: {
-        select: {
-          documentNo: true,
-          title: true,
-          drafter: {
+      approvalSteps: {
+        include: {
+          approver: {
             select: {
               id: true,
               name: true,
@@ -592,37 +598,71 @@ export async function getRecentHistories(
               },
             },
           },
-          approvalSteps: {
-            include: {
-              approver: {
-                select: {
-                  id: true,
-                  name: true,
-                  profileImageStorageKey: true,
-                  profileImageUpdatedAt: true,
-                  department: {
-                    select: {
-                      name: true,
-                    },
-                  },
-                  position: {
-                    select: {
-                      name: true,
-                    },
-                  },
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
+        },
+        orderBy: {
+          order: "asc",
         },
       },
     },
+  },
+} satisfies Prisma.AuditLogInclude;
+
+type RecentHistoryRecord = Prisma.AuditLogGetPayload<{
+  include: typeof recentHistoryInclude;
+}>;
+
+export async function getRecentHistories(userId: string, limit = 5) {
+  const page = await getRecentHistoryPage(userId, {
+    pageSize: limit,
   });
 
-  return records.map((record) => ({
+  return page.histories;
+}
+
+export async function getRecentHistoryPage(
+  userId: string,
+  {
+    page = 1,
+    pageSize = 5,
+  }: {
+    page?: number;
+    pageSize?: number;
+  } = {},
+) {
+  const safePageSize = Math.max(1, pageSize);
+  const where = getRecentHistoryWhere(userId);
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const records = await prisma.auditLog.findMany({
+    where,
+    take: safePageSize,
+    skip: (currentPage - 1) * safePageSize,
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: recentHistoryInclude,
+  });
+
+  return {
+    histories: records.map(toRecentHistory),
+    page: currentPage,
+    pageSize: safePageSize,
+    total,
+    totalPages,
+  };
+}
+
+function getRecentHistoryWhere(userId: string): Prisma.AuditLogWhereInput {
+  return {
+    document: {
+      is: getReadableDocumentWhere(userId, UserRole.USER),
+    },
+  };
+}
+
+function toRecentHistory(record: RecentHistoryRecord) {
+  return {
     id: record.id,
     actorId: record.actorId,
     actorName: record.actor.name,
@@ -680,7 +720,85 @@ export async function getRecentHistories(
         actedAt: step.actedAt?.toISOString() ?? null,
         comment: step.comment,
       })) ?? [],
-  }));
+  };
+}
+
+export async function getRecentPublicApprovalActivityPage({
+  page = 1,
+  pageSize = 5,
+}: {
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const safePageSize = Math.max(1, pageSize);
+  const where = getPublicApprovalActivityWhere();
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const records = await prisma.auditLog.findMany({
+    where,
+    select: {
+      id: true,
+      action: true,
+      createdAt: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+          position: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+    skip: (currentPage - 1) * safePageSize,
+    take: safePageSize,
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return {
+    activities: records.map((record) => ({
+      id: record.id,
+      action: auditActionLabels[record.action],
+      actionValue: record.action,
+      actedAt: record.createdAt.toISOString(),
+      actor: {
+        id: record.actor.id,
+        name: record.actor.name,
+        departmentName: record.actor.department.name,
+        positionName: record.actor.position.name,
+        profileImageStorageKey: record.actor.profileImageStorageKey,
+        profileImageUpdatedAt:
+          record.actor.profileImageUpdatedAt?.toISOString() ?? null,
+      },
+    })),
+    page: currentPage,
+    pageSize: safePageSize,
+    total,
+    totalPages,
+  };
+}
+
+function getPublicApprovalActivityWhere(): Prisma.AuditLogWhereInput {
+  return {
+    documentId: {
+      not: null,
+    },
+    action: {
+      in: publicApprovalActivityActions,
+    },
+  };
 }
 
 export async function getActiveDocumentTemplates() {
