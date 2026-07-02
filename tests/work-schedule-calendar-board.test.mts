@@ -42,6 +42,20 @@ const schedules: WorkSchedule[] = [
     endMinute: 900,
     content: "카페 재고 확인",
   },
+  {
+    id: "approved-vacation-001",
+    scheduleDate: "2026-06-24",
+    weekday: 3,
+    startHour: 0,
+    startMinute: -1000,
+    endHour: 0,
+    endMinute: -999,
+    content: "박서연 연차",
+    detailLabel: "바자울 / 팀장",
+    readOnly: true,
+    sourceType: "approvedVacation",
+    timeLabel: "연차",
+  },
 ];
 
 const changeLogActors: WorkScheduleChangeLogActor[] = [
@@ -169,6 +183,10 @@ describe("work schedule calendar", () => {
     assert.match(html, /group-hover:opacity-100/);
     assert.match(html, />\+<\/span>/);
     assert.match(html, /월간 업무 점검/);
+    assert.match(html, /박서연 연차/);
+    assert.match(html, /바자울 \/ 팀장/);
+    assert.doesNotMatch(html, /휴가 신청/);
+    assert.match(html, /border-\[#f0d28a\] bg-\[#fff8e8\]/);
     assert.match(html, /카페 재고 확인/);
     assert.match(html, /name="logDate"/);
     assert.doesNotMatch(html, /name="logWeekday"/);

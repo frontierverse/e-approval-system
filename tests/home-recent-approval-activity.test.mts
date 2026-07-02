@@ -97,6 +97,9 @@ describe("HomeRecentApprovalActivity", () => {
     assert.match(html, /aria-label="다음 나의 최근 결재 활동"/);
     assert.match(html, /aria-label="이전 모든 결재 활동"/);
     assert.match(html, /aria-label="다음 모든 결재 활동"/);
+    assert.match(html, /dark:bg-\[#0d1117\]/);
+    assert.match(html, /dark:bg-\[#30363d\]/);
+    assert.match(html, /dark:bg-\[#21262d\]/);
     assert.match(html, /<svg/);
     assert.doesNotMatch(html, /보안상 감춤/);
     assert.doesNotMatch(html, /audit-secret-001/);

@@ -6,6 +6,7 @@ import {
   getLegacyVacationLeaveDeductionFromContent,
   getStaffLeaveAccrualEntries,
   getVacationLeaveDeduction,
+  getVacationLeaveUsage,
 } from "../src/lib/staff-leave-core.ts";
 
 describe("staff leave core", () => {
@@ -55,6 +56,32 @@ describe("staff leave core", () => {
       leaveType: "half_day",
       reason: "오후 반차 2026-06-22",
     });
+  });
+
+  test("creates non-deducting usage records for other vacation types", () => {
+    const sick = getVacationLeaveUsage({
+      vacationType: "sick",
+      startDate: "2026-07-02",
+      endDate: "2026-07-03",
+    });
+
+    assert.deepEqual(sick, {
+      amountHalfDays: 0,
+      endDate: "2026-07-03",
+      eventDate: "2026-07-02",
+      leaveType: "sick",
+      reason: "병가 2026-07-02~2026-07-03",
+      startDate: "2026-07-02",
+      vacationLabel: "병가",
+    });
+    assert.equal(
+      getVacationLeaveDeduction({
+        vacationType: "sick",
+        startDate: "2026-07-02",
+        endDate: "2026-07-03",
+      }),
+      null,
+    );
   });
 
   test("creates half-day deductions from legacy vacation request content", () => {

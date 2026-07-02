@@ -487,25 +487,25 @@ function PublicActivityItem({
             {activity.action}
           </span>
         </div>
-        <div className="mt-3 rounded-md border border-dashed border-[#cfd7e3] bg-[#f7f9fc] px-3 py-3">
+        <div className="mt-3 rounded-md border border-dashed border-[#cfd7e3] bg-[#f7f9fc] px-3 py-3 dark:border-[#30363d] dark:bg-[#0d1117]">
           <div className="flex items-center justify-between gap-3">
             <span
               aria-hidden="true"
-              className="h-3 w-32 max-w-[52%] rounded-full bg-[#cfd7e3]"
+              className="h-3 w-32 max-w-[52%] rounded-full bg-[#cfd7e3] dark:bg-[#30363d]"
             />
             <span
               aria-hidden="true"
-              className="h-3 w-16 rounded-full bg-[#dfe5ed]"
+              className="h-3 w-16 rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
             />
           </div>
           <div className="mt-3 grid gap-2">
             <span
               aria-hidden="true"
-              className="h-2.5 w-full rounded-full bg-[#dfe5ed]"
+              className="h-2.5 w-full rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
             />
             <span
               aria-hidden="true"
-              className="h-2.5 w-3/4 rounded-full bg-[#dfe5ed]"
+              className="h-2.5 w-3/4 rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
             />
           </div>
         </div>

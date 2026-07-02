@@ -87,6 +87,24 @@ export type NavigationTopbarBirthdayAlertItem = {
   typeLabel: string;
 };
 
+export type NavigationTopbarVacationAlert = {
+  ddayLabel: string;
+  items: NavigationTopbarVacationAlertItem[];
+  label: string;
+  staffName: string;
+  status?: "active" | "empty";
+};
+
+export type NavigationTopbarVacationAlertItem = {
+  date: string;
+  ddayLabel: string;
+  detailLabel: string;
+  id: string;
+  staffName: string;
+  vacationLabel: string;
+  workScheduleHref: string;
+};
+
 export type NavigationTopbarCurrentScheduleAlert = CurrentCommonScheduleAlert & {
   href: string;
   label: string;
@@ -101,6 +119,7 @@ type AppNavProps = {
   topbarBirthdayAlert?: NavigationTopbarBirthdayAlert | null;
   topbarCurrentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
   topbarCurrentScheduleItems?: NavigationTopbarCurrentScheduleItem[];
+  topbarVacationAlert?: NavigationTopbarVacationAlert | null;
   variant: "mobile" | "desktop" | "topbar";
 };
 
@@ -120,6 +139,7 @@ export function AppNav({
   topbarBirthdayAlert = null,
   topbarCurrentScheduleAlert = null,
   topbarCurrentScheduleItems = emptyCurrentScheduleItems,
+  topbarVacationAlert = null,
   variant,
 }: AppNavProps) {
   const pathname = usePathname();
@@ -137,7 +157,10 @@ export function AppNav({
     schedules: topbarCurrentScheduleItems,
   });
   const hasTopbarWidgets = Boolean(
-    currentScheduleAlert || topbarBirthdayAlert || topbarAlert,
+    currentScheduleAlert ||
+      topbarBirthdayAlert ||
+      topbarVacationAlert ||
+      topbarAlert,
   );
   const dragStateRef = useRef<MobileDragState>({
     pointerId: null,
@@ -266,6 +289,7 @@ export function AppNav({
                   birthdayAlert={topbarBirthdayAlert}
                   currentScheduleAlert={currentScheduleAlert}
                   expirationAlert={topbarAlert}
+                  vacationAlert={topbarVacationAlert}
                 />
               ) : null}
               <CategoryLink
@@ -472,10 +496,12 @@ export function TopbarWidgetGroup({
   birthdayAlert,
   currentScheduleAlert,
   expirationAlert,
+  vacationAlert,
 }: {
   birthdayAlert?: NavigationTopbarBirthdayAlert | null;
   currentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
   expirationAlert?: NavigationTopbarAlert | null;
+  vacationAlert?: NavigationTopbarVacationAlert | null;
 }) {
   const [ddayModalOpen, setDdayModalOpen] = useState(false);
   const dismissedDdayModalKeyRef = useRef<string | null>(null);
@@ -490,10 +516,13 @@ export function TopbarWidgetGroup({
   const foodExpirationDdayItems = foodExpirationAlert.items.filter((item) =>
     isTopbarDdayDue(item.ddayLabel),
   );
+  const vacationDdayItems =
+    vacationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
   const ddayModalKey = createTopbarDdayModalKey(
     birthdayDdayItems,
     expirationDdayItems,
     foodExpirationDdayItems,
+    vacationDdayItems,
   );
 
   useEffect(() => {
@@ -524,6 +553,7 @@ export function TopbarWidgetGroup({
     !currentScheduleAlert &&
     !birthdayAlert &&
     !expirationAlert &&
+    !vacationAlert &&
     !foodExpirationAlert
   ) {
     return null;
@@ -538,6 +568,9 @@ export function TopbarWidgetGroup({
       >
         {currentScheduleAlert ? (
           <TopbarCurrentScheduleLink alert={currentScheduleAlert} />
+        ) : null}
+        {vacationAlert ? (
+          <TopbarVacationAlertButton alert={vacationAlert} />
         ) : null}
         {birthdayAlert ? (
           <TopbarBirthdayAlertButton alert={birthdayAlert} />
@@ -561,6 +594,7 @@ export function TopbarWidgetGroup({
             foodExpirationItems={foodExpirationDdayItems}
             onClose={closeDdayModal}
             titleId={ddayModalTitleId}
+            vacationItems={vacationDdayItems}
           />
         </AppModal>
       ) : null}
@@ -572,13 +606,20 @@ function createTopbarDdayModalKey(
   birthdayItems: NavigationTopbarBirthdayAlertItem[],
   expirationItems: NavigationTopbarAlertItem[],
   foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[],
+  vacationItems: NavigationTopbarVacationAlertItem[],
 ) {
   const birthdayKeys = birthdayItems.map((item) => `birthday:${item.id}`);
   const expirationKeys = expirationItems.map((item) => `expiration:${item.id}`);
   const foodExpirationKeys = foodExpirationItems.map(
     (item) => `food-expiration:${item.id}`,
   );
-  const keys = [...birthdayKeys, ...expirationKeys, ...foodExpirationKeys];
+  const vacationKeys = vacationItems.map((item) => `vacation:${item.id}`);
+  const keys = [
+    ...birthdayKeys,
+    ...expirationKeys,
+    ...foodExpirationKeys,
+    ...vacationKeys,
+  ];
 
   return keys.length > 0 ? keys.join("|") : null;
 }
@@ -748,6 +789,68 @@ function TopbarFoodExpirationAlertButton({
   );
 }
 
+function TopbarVacationAlertButton({
+  alert,
+}: {
+  alert: NavigationTopbarVacationAlert;
+}) {
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
+  const hasItems = alert.items.length > 0;
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2.5 text-xs font-semibold text-[#3730a3] shadow-sm transition hover:border-[#a5b4fc] hover:bg-[#e0e7ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7d2fe] sm:px-3",
+    hasItems && isTopbarDdayDue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-vacation"
+      : "",
+  ].join(" ");
+  const title = hasItems
+    ? `${alert.staffName} ${alert.ddayLabel}`
+    : "예정된 승인 휴가 없음";
+  const ariaLabel = hasItems
+    ? `${alert.staffName} ${alert.ddayLabel} 승인 휴가 목록 열기`
+    : "승인 휴가 목록 열기, 예정 없음";
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
+        className={className}
+        onClick={() => setOpen(true)}
+        title={title}
+      >
+        <span className="hidden text-[#3730a3] sm:inline">{alert.label}</span>
+        <span className="max-w-[8rem] truncate text-[#312e81]">
+          {alert.staffName}
+        </span>
+        {hasItems ? (
+          <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#3730a3]">
+            {alert.ddayLabel}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={descriptionId}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <TopbarVacationAlertModalContent
+            alert={alert}
+            descriptionId={descriptionId}
+            onClose={() => setOpen(false)}
+            titleId={titleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
 function TopbarBirthdayAlertButton({
   alert,
   alignEnd,
@@ -820,6 +923,7 @@ export function TopbarDdayAlertModalContent({
   foodExpirationItems,
   onClose,
   titleId,
+  vacationItems = [],
 }: {
   birthdayItems: NavigationTopbarBirthdayAlertItem[];
   descriptionId: string;
@@ -827,6 +931,7 @@ export function TopbarDdayAlertModalContent({
   foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[];
   onClose: () => void;
   titleId: string;
+  vacationItems?: NavigationTopbarVacationAlertItem[];
 }) {
   return (
     <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
@@ -840,7 +945,7 @@ export function TopbarDdayAlertModalContent({
             오늘 확인할 알림
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            오늘 생일이거나 유통기한이 도래한 항목입니다.
+            오늘 생일, 휴가 또는 유통기한이 도래한 항목입니다.
           </p>
         </div>
         <button
@@ -852,6 +957,42 @@ export function TopbarDdayAlertModalContent({
         </button>
       </div>
       <div className="space-y-5 px-5 py-5">
+        {vacationItems.length > 0 ? (
+          <section aria-label="오늘 휴가" className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#3730a3]">오늘 휴가</h3>
+            <ul className="divide-y divide-[#d7ddff] rounded-md border border-[#c7d2fe] bg-[#f6f7ff]">
+              {vacationItems.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.workScheduleHref}
+                    onClick={onClose}
+                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#e8ecff] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe]"
+                  >
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                          {item.staffName}
+                        </span>
+                        <span className="rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2 py-0.5 text-xs font-semibold text-[#3730a3]">
+                          {item.vacationLabel}
+                        </span>
+                      </span>
+                      <span className="mt-1 block break-words text-xs text-[#697386] [overflow-wrap:anywhere]">
+                        {item.detailLabel}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#697386]">
+                        휴가일 {formatTopbarAlertDate(item.date)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2.5 py-1 text-xs font-semibold text-[#3730a3]">
+                      {item.ddayLabel}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         {birthdayItems.length > 0 ? (
           <section aria-label="오늘 생일" className="space-y-2">
             <h3 className="text-sm font-semibold text-[#22633a]">오늘 생일</h3>
@@ -1014,6 +1155,81 @@ export function TopbarFoodExpirationAlertModalContent({
       ) : (
         <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
           유통기한이 31일 이하로 남은 냉장고 식품이 없습니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function TopbarVacationAlertModalContent({
+  alert,
+  descriptionId,
+  onClose,
+  titleId,
+}: {
+  alert: NavigationTopbarVacationAlert;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#3730a3]">휴가</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            예정된 승인 휴가
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            승인 완료된 휴가 신청 중 31일 이내에 사용 예정인 휴가입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      {alert.items.length > 0 ? (
+        <ul className="divide-y divide-[#eef1f5] px-5">
+          {alert.items.map((item) => (
+            <li key={item.id} className="py-4">
+              <Link
+                href={item.workScheduleHref}
+                onClick={onClose}
+                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#eef2ff] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe]"
+              >
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                      {item.staffName}
+                    </span>
+                    <span className="rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2 py-0.5 text-xs font-semibold text-[#3730a3]">
+                      {item.vacationLabel}
+                    </span>
+                  </span>
+                  <span className="mt-1 block break-words text-xs text-[#697386] [overflow-wrap:anywhere]">
+                    {item.detailLabel}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#697386]">
+                    휴가일 {formatTopbarAlertDate(item.date)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2.5 py-1 text-xs font-semibold text-[#3730a3]">
+                  {item.ddayLabel}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+          31일 이내에 예정된 승인 휴가가 없습니다.
         </p>
       )}
     </div>

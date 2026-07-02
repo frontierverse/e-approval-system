@@ -9,10 +9,12 @@ import {
   TopbarDdayAlertModalContent,
   TopbarExpirationAlertModalContent,
   TopbarFoodExpirationAlertModalContent,
+  TopbarVacationAlertModalContent,
   TopbarWidgetGroup,
   type NavigationTopbarBirthdayAlert,
   type NavigationTopbarCurrentScheduleAlert,
   type NavigationTopbarAlert,
+  type NavigationTopbarVacationAlert,
 } from "../src/components/app-nav.tsx";
 
 describe("app navigation active paths", () => {
@@ -120,11 +122,18 @@ describe("app navigation active paths", () => {
       items: [],
       label: "유통기한",
     };
+    const vacationAlert: NavigationTopbarVacationAlert = {
+      ddayLabel: "D-4",
+      items: [],
+      label: "휴가",
+      staffName: "박서연",
+    };
     const html = renderToStaticMarkup(
       React.createElement(TopbarWidgetGroup, {
         birthdayAlert,
         currentScheduleAlert,
         expirationAlert,
+        vacationAlert,
       }),
     );
 
@@ -132,6 +141,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /aria-label="상단 위젯"/);
     assert.match(html, /ml-auto/);
     assert.match(html, /공용 자습/);
+    assert.match(html, /박서연/);
     assert.match(html, /김민지/);
     assert.match(html, /우유/);
     assert.match(html, /식품/);
@@ -170,18 +180,36 @@ describe("app navigation active paths", () => {
       ],
       label: "유통기한",
     };
+    const vacationAlert: NavigationTopbarVacationAlert = {
+      ddayLabel: "D-Day",
+      items: [
+        {
+          date: "2026-06-29",
+          ddayLabel: "D-Day",
+          detailLabel: "바자울 / 팀장",
+          id: "vacation-001",
+          staffName: "박서연",
+          vacationLabel: "연차",
+          workScheduleHref: "/work-schedule?month=2026-06",
+        },
+      ],
+      label: "휴가",
+      staffName: "박서연",
+    };
     const html = renderToStaticMarkup(
       React.createElement(TopbarWidgetGroup, {
         birthdayAlert,
         expirationAlert,
+        vacationAlert,
       }),
     );
 
     assert.match(html, /topbar-widget-due topbar-widget-due-birthday/);
     assert.match(html, /topbar-widget-due topbar-widget-due-expiration/);
+    assert.match(html, /topbar-widget-due topbar-widget-due-vacation/);
   });
 
-  test("renders D-Day birthday and expiration items in one modal", () => {
+  test("renders D-Day birthday, vacation and expiration items in one modal", () => {
     const birthdayItems: NavigationTopbarBirthdayAlert["items"] = [
       {
         birthdayDate: "2026-06-29",
@@ -212,6 +240,17 @@ describe("app navigation active paths", () => {
         locationLabel: "바자울 1",
       },
     ];
+    const vacationItems: NavigationTopbarVacationAlert["items"] = [
+      {
+        date: "2026-06-29",
+        ddayLabel: "D-Day",
+        detailLabel: "바자울 / 팀장",
+        id: "vacation-001",
+        staffName: "박서연",
+        vacationLabel: "연차",
+        workScheduleHref: "/work-schedule?month=2026-06",
+      },
+    ];
     const html = renderToStaticMarkup(
       React.createElement(TopbarDdayAlertModalContent, {
         birthdayItems,
@@ -220,17 +259,53 @@ describe("app navigation active paths", () => {
         foodExpirationItems,
         onClose: () => undefined,
         titleId: "title-id",
+        vacationItems,
       }),
     );
 
     assert.match(html, /오늘 확인할 알림/);
     assert.match(html, /오늘 생일/);
     assert.match(html, /김민지/);
+    assert.match(html, /오늘 휴가/);
+    assert.match(html, /박서연/);
     assert.match(html, /오늘 유통기한/);
     assert.match(html, /우유/);
     assert.match(html, /오늘 식품 유통기한/);
     assert.match(html, /샐러드/);
     assert.match(html, /D-Day/);
+  });
+
+  test("renders vacation alert modal items", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarVacationAlertModalContent, {
+        alert: {
+          ddayLabel: "D-5",
+          items: [
+            {
+              date: "2026-07-04",
+              ddayLabel: "D-5",
+              detailLabel: "바자울 / 팀장",
+              id: "vacation-001",
+              staffName: "박서연",
+              vacationLabel: "연차",
+              workScheduleHref: "/work-schedule?month=2026-07",
+            },
+          ],
+          label: "휴가",
+          staffName: "박서연",
+        },
+        descriptionId: "description-id",
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /예정된 승인 휴가/);
+    assert.match(html, /31일 이내에 사용 예정인 휴가입니다\./);
+    assert.match(html, /박서연/);
+    assert.match(html, /연차/);
+    assert.match(html, /휴가일 2026\.07\.04/);
+    assert.match(html, /href="\/work-schedule\?month=2026-07"/);
   });
 
   test("renders refrigerator food expiration alert modal items", () => {

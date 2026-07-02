@@ -22,6 +22,35 @@ export type StaffLeaveVacationDeduction = {
   reason: string;
 };
 
+export type StaffLeaveVacationType =
+  | "annual"
+  | "family_event"
+  | "half_day"
+  | "official"
+  | "other"
+  | "sick"
+  | "substitute";
+
+export type StaffLeaveVacationUsage = {
+  amountHalfDays: number;
+  endDate: string;
+  eventDate: string;
+  leaveType: StaffLeaveVacationType;
+  reason: string;
+  startDate: string;
+  vacationLabel: string;
+};
+
+const vacationTypeLabels = {
+  annual: "연차",
+  family_event: "경조휴가",
+  half_day: "반차",
+  official: "공가",
+  other: "기타 휴가",
+  sick: "병가",
+  substitute: "대체휴무",
+} satisfies Record<StaffLeaveVacationType, string>;
+
 export function getStaffLeaveAccrualEntries({
   existingSourceKeys = [],
   hireDate,
@@ -99,6 +128,26 @@ export function getAnnualLeaveGrantDays(yearsCompleted: number) {
 export function getVacationLeaveDeduction(
   values: Record<string, string>,
 ): StaffLeaveVacationDeduction | null {
+  const usage = getVacationLeaveUsage(values);
+
+  if (
+    !usage ||
+    (usage.leaveType !== "annual" && usage.leaveType !== "half_day")
+  ) {
+    return null;
+  }
+
+  return {
+    amountHalfDays: usage.amountHalfDays,
+    eventDate: usage.eventDate,
+    leaveType: usage.leaveType,
+    reason: usage.reason,
+  };
+}
+
+export function getVacationLeaveUsage(
+  values: Record<string, string>,
+): StaffLeaveVacationUsage | null {
   const vacationType = values.vacationType?.trim();
 
   if (vacationType === "annual") {
@@ -113,12 +162,15 @@ export function getVacationLeaveDeduction(
 
     return {
       amountHalfDays: -days * staffLeaveHalfDaysPerDay,
+      endDate,
       eventDate: startDate,
       leaveType: "annual",
       reason:
         startDate === endDate
           ? `연차 ${startDate}`
           : `연차 ${startDate}~${endDate}`,
+      startDate,
+      vacationLabel: vacationTypeLabels.annual,
     };
   }
 
@@ -134,9 +186,36 @@ export function getVacationLeaveDeduction(
 
     return {
       amountHalfDays: -1,
+      endDate: halfDayDate,
       eventDate: halfDayDate,
       leaveType: "half_day",
       reason: `${periodLabel} 반차 ${halfDayDate}`,
+      startDate: halfDayDate,
+      vacationLabel: `${periodLabel} 반차`,
+    };
+  }
+
+  if (isGeneralVacationType(vacationType)) {
+    const startDate = values.startDate?.trim() ?? "";
+    const endDate = values.endDate?.trim() ?? "";
+
+    if (!isDateValue(startDate) || !isDateValue(endDate) || startDate > endDate) {
+      return null;
+    }
+
+    const vacationLabel = vacationTypeLabels[vacationType];
+
+    return {
+      amountHalfDays: 0,
+      endDate,
+      eventDate: startDate,
+      leaveType: vacationType,
+      reason:
+        startDate === endDate
+          ? `${vacationLabel} ${startDate}`
+          : `${vacationLabel} ${startDate}~${endDate}`,
+      startDate,
+      vacationLabel,
     };
   }
 
@@ -146,6 +225,26 @@ export function getVacationLeaveDeduction(
 export function getLegacyVacationLeaveDeductionFromContent(
   content: string,
 ): StaffLeaveVacationDeduction | null {
+  const usage = getLegacyVacationLeaveUsageFromContent(content);
+
+  if (
+    !usage ||
+    (usage.leaveType !== "annual" && usage.leaveType !== "half_day")
+  ) {
+    return null;
+  }
+
+  return {
+    amountHalfDays: usage.amountHalfDays,
+    eventDate: usage.eventDate,
+    leaveType: usage.leaveType,
+    reason: usage.reason,
+  };
+}
+
+export function getLegacyVacationLeaveUsageFromContent(
+  content: string,
+): StaffLeaveVacationUsage | null {
   const normalizedContent = normalizeLegacyVacationContent(content);
   const dates = extractLegacyVacationDates(normalizedContent);
 
@@ -164,9 +263,12 @@ export function getLegacyVacationLeaveDeductionFromContent(
 
     return {
       amountHalfDays: -1,
+      endDate: dates[0],
       eventDate: dates[0],
       leaveType: "half_day",
       reason: `${periodLabel} 반차 ${dates[0]}`,
+      startDate: dates[0],
+      vacationLabel: `${periodLabel} 반차`,
     };
   }
 
@@ -185,12 +287,15 @@ export function getLegacyVacationLeaveDeductionFromContent(
 
   return {
     amountHalfDays: -days * staffLeaveHalfDaysPerDay,
+    endDate,
     eventDate: startDate,
     leaveType: "annual",
     reason:
       startDate === endDate
         ? `연차 ${startDate}`
         : `연차 ${startDate}~${endDate}`,
+    startDate,
+    vacationLabel: vacationTypeLabels.annual,
   };
 }
 
@@ -208,6 +313,58 @@ export function isDateValue(value: string) {
   const date = parseDateValue(value);
 
   return formatDateValue(date) === value;
+}
+
+export function getInclusiveStaffLeaveDates(startDate: string, endDate: string) {
+  if (!isDateValue(startDate) || !isDateValue(endDate) || startDate > endDate) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  let current = parseDateValue(startDate);
+  const end = parseDateValue(endDate);
+
+  while (current.getTime() <= end.getTime()) {
+    dates.push(formatDateValue(current));
+    current = addDays(current, 1);
+  }
+
+  return dates;
+}
+
+export function getStaffLeaveDateDiffInDays(from: string, to: string) {
+  return Math.round(
+    (parseDateValue(to).getTime() - parseDateValue(from).getTime()) /
+      (24 * 60 * 60 * 1000),
+  );
+}
+
+export function shiftStaffLeaveDate(value: string, days: number) {
+  return formatDateValue(addDays(parseDateValue(value), days));
+}
+
+export function formatStaffVacationDday(daysUntil: number) {
+  if (daysUntil === 0) {
+    return "D-Day";
+  }
+
+  return daysUntil > 0 ? `D-${daysUntil}` : `D+${Math.abs(daysUntil)}`;
+}
+
+export function getStaffVacationTypeLabel(type: StaffLeaveVacationType) {
+  return vacationTypeLabels[type];
+}
+
+function isGeneralVacationType(
+  value: string | undefined,
+): value is Exclude<StaffLeaveVacationType, "annual" | "half_day"> {
+  return (
+    value === "family_event" ||
+    value === "official" ||
+    value === "other" ||
+    value === "sick" ||
+    value === "substitute"
+  );
 }
 
 function countInclusiveDays(startDate: string, endDate: string) {

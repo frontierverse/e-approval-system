@@ -63,6 +63,7 @@ type WorkScheduleCalendarBoardProps = {
 
 type SelectedScheduleCell = {
   scheduleDate: string;
+  scheduleId?: string;
   startMinute: number;
 };
 
@@ -136,16 +137,31 @@ function WorkScheduleCalendarBoardContent({
     const nextMap = new Map<string, WorkSchedule>();
 
     for (const schedule of scheduleItems) {
-      nextMap.set(createScheduleKey(schedule.scheduleDate, schedule.startMinute), schedule);
+      nextMap.set(
+        createScheduleKey(schedule.scheduleDate, schedule.startMinute),
+        schedule,
+      );
+    }
+
+    return nextMap;
+  }, [scheduleItems]);
+  const scheduleIdMap = useMemo(() => {
+    const nextMap = new Map<string, WorkSchedule>();
+
+    for (const schedule of scheduleItems) {
+      nextMap.set(schedule.id, schedule);
     }
 
     return nextMap;
   }, [scheduleItems]);
   const selectedSchedule = selectedCell
-    ? scheduleMap.get(
-        createScheduleKey(selectedCell.scheduleDate, selectedCell.startMinute),
-      )
+    ? selectedCell.scheduleId
+      ? scheduleIdMap.get(selectedCell.scheduleId)
+      : scheduleMap.get(
+          createScheduleKey(selectedCell.scheduleDate, selectedCell.startMinute),
+        )
     : undefined;
+  const selectedScheduleReadOnly = Boolean(selectedSchedule?.readOnly);
   const previousMonth = shiftWorkScheduleMonth(selectedMonth, -1);
   const nextMonth = shiftWorkScheduleMonth(selectedMonth, 1);
   const currentMonth = getWorkScheduleCurrentMonth();
@@ -245,16 +261,22 @@ function WorkScheduleCalendarBoardContent({
     return () => window.removeEventListener("popstate", loadFromHistory);
   }, [loadChangeLogPage, loadChangeLogs]);
 
-  function openScheduleModal(scheduleDate: string, startMinute?: number) {
+  function openScheduleModal(
+    scheduleDate: string,
+    startMinute?: number,
+    scheduleId?: string,
+  ) {
     const selectedStartMinute =
       startMinute ?? getDefaultStartMinuteForDate(scheduleDate, scheduleItems);
-    const schedule =
-      startMinute === undefined
+    const schedule = scheduleId
+      ? scheduleIdMap.get(scheduleId)
+      : startMinute === undefined
         ? undefined
         : scheduleMap.get(createScheduleKey(scheduleDate, startMinute));
 
     setSelectedCell({
       scheduleDate,
+      scheduleId: schedule?.id,
       startMinute: schedule?.startMinute ?? selectedStartMinute,
     });
     setScheduleDateDraft(schedule?.scheduleDate ?? scheduleDate);
@@ -296,7 +318,7 @@ function WorkScheduleCalendarBoardContent({
   }
 
   function saveSelectedSchedule() {
-    if (!selectedCell || pendingScheduleAction) {
+    if (!selectedCell || pendingScheduleAction || selectedScheduleReadOnly) {
       return;
     }
 
@@ -328,7 +350,7 @@ function WorkScheduleCalendarBoardContent({
   }
 
   function removeSelectedSchedule() {
-    if (!selectedCell) {
+    if (!selectedCell || selectedScheduleReadOnly) {
       return;
     }
 
@@ -504,19 +526,31 @@ function WorkScheduleCalendarBoardContent({
                           openScheduleModal(
                             schedule.scheduleDate,
                             schedule.startMinute,
+                            schedule.id,
                           );
                         }}
-                        className="block w-full rounded-md border border-[#d6e6e4] bg-[#f5fbfa] px-2 py-1.5 text-left text-xs text-[#1f3f3d] shadow-sm transition hover:border-[#7fb5ae] hover:bg-[#eaf6f4]"
+                        className={[
+                          "block w-full rounded-md border px-2 py-1.5 text-left text-xs shadow-sm transition",
+                          schedule.readOnly
+                            ? "border-[#f0d28a] bg-[#fff8e8] text-[#72512a] hover:border-[#e8bc5f] hover:bg-[#fff3d0]"
+                            : "border-[#d6e6e4] bg-[#f5fbfa] text-[#1f3f3d] hover:border-[#7fb5ae] hover:bg-[#eaf6f4]",
+                        ].join(" ")}
                       >
                         <span className="block font-semibold">
-                          {formatScheduleRangeLabel(
-                            schedule.startMinute,
-                            schedule.endMinute,
-                          )}
+                          {schedule.timeLabel ??
+                            formatScheduleRangeLabel(
+                              schedule.startMinute,
+                              schedule.endMinute,
+                            )}
                         </span>
                         <span className="mt-0.5 line-clamp-2 break-words leading-4 [overflow-wrap:anywhere]">
                           {schedule.content}
                         </span>
+                        {schedule.detailLabel ? (
+                          <span className="mt-0.5 block line-clamp-1 text-[0.6875rem] opacity-80">
+                            {schedule.detailLabel}
+                          </span>
+                        ) : null}
                       </button>
                     ))}
                   </div>
@@ -545,23 +579,75 @@ function WorkScheduleCalendarBoardContent({
           labelledBy="work-schedule-modal-title"
           onClose={closeScheduleModal}
         >
-            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
-              <div className="px-6 pb-6 pt-6">
-                <p className="text-xs font-semibold text-[#697386]">
-                  {selectedSchedule ? "업무 일정 수정" : "업무 일정 등록"}
-                </p>
-                <h3
-                  id="work-schedule-modal-title"
-                  className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
-                >
-                  {formatWorkScheduleDateLabel(scheduleDateDraft)}
-                </h3>
-
-                {formError ? (
-                  <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-                    {formError}
+          {selectedScheduleReadOnly && selectedSchedule ? (
+            <>
+              <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+                <div className="px-6 pb-6 pt-6">
+                  <p className="text-xs font-semibold text-[#72512a]">
+                    승인된 휴가
                   </p>
-                ) : null}
+                  <h3
+                    id="work-schedule-modal-title"
+                    className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
+                  >
+                    {formatWorkScheduleDateLabel(selectedSchedule.scheduleDate)}
+                  </h3>
+                  <dl className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5] text-sm">
+                    <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
+                      <dt className="font-medium text-[#697386]">직원</dt>
+                      <dd className="font-semibold text-[#16181d]">
+                        {selectedSchedule.content}
+                      </dd>
+                    </div>
+                    {selectedSchedule.detailLabel ? (
+                      <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
+                        <dt className="font-medium text-[#697386]">상세</dt>
+                        <dd className="break-words text-[#394150] [overflow-wrap:anywhere]">
+                          {selectedSchedule.detailLabel}
+                        </dd>
+                      </div>
+                    ) : null}
+                    <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
+                      <dt className="font-medium text-[#697386]">구분</dt>
+                      <dd>
+                        <span className="inline-flex h-7 items-center rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#72512a]">
+                          {selectedSchedule.timeLabel ?? "휴가"}
+                        </span>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+
+              <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
+                <button
+                  type="button"
+                  onClick={closeScheduleModal}
+                  className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+                >
+                  닫기
+                </button>
+              </footer>
+            </>
+          ) : (
+            <>
+              <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+                <div className="px-6 pb-6 pt-6">
+                  <p className="text-xs font-semibold text-[#697386]">
+                    {selectedSchedule ? "업무 일정 수정" : "업무 일정 등록"}
+                  </p>
+                  <h3
+                    id="work-schedule-modal-title"
+                    className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
+                  >
+                    {formatWorkScheduleDateLabel(scheduleDateDraft)}
+                  </h3>
+
+                  {formError ? (
+                    <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                      {formError}
+                    </p>
+                  ) : null}
 
                 <div className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5]">
                   <label className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
@@ -679,6 +765,8 @@ function WorkScheduleCalendarBoardContent({
                 </button>
               </div>
             </footer>
+            </>
+          )}
         </AppModal>
       ) : null}
     </section>
@@ -1214,7 +1302,9 @@ function getDefaultStartMinuteForDate(
   schedules: WorkSchedule[],
 ) {
   const daySchedules = schedules
-    .filter((schedule) => schedule.scheduleDate === scheduleDate)
+    .filter(
+      (schedule) => schedule.scheduleDate === scheduleDate && !schedule.readOnly,
+    )
     .sort(sortWorkScheduleItems);
   let candidateStartMinute = defaultWorkStartMinute;
 
@@ -1242,6 +1332,10 @@ function mergeWorkScheduleItems(
     ? createScheduleKey(schedule.scheduleDate, schedule.startMinute)
     : "";
   const withoutCurrent = current.filter((item) => {
+    if (item.readOnly) {
+      return true;
+    }
+
     const key = createScheduleKey(item.scheduleDate, item.startMinute);
 
     return key !== sourceKey && key !== targetKey;
@@ -1260,7 +1354,8 @@ function sortWorkScheduleItems(first: WorkSchedule, second: WorkSchedule) {
   return (
     first.scheduleDate.localeCompare(second.scheduleDate) ||
     first.startMinute - second.startMinute ||
-    first.endMinute - second.endMinute
+    first.endMinute - second.endMinute ||
+    first.content.localeCompare(second.content, "ko-KR")
   );
 }
 

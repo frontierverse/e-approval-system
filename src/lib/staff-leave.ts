@@ -8,8 +8,8 @@ import { prisma } from "@/lib/prisma";
 import {
   formatStaffLeaveDays,
   getStaffLeaveAccrualEntries,
-  getLegacyVacationLeaveDeductionFromContent,
-  getVacationLeaveDeduction,
+  getLegacyVacationLeaveUsageFromContent,
+  getVacationLeaveUsage,
   staffLeaveEntryTypes,
 } from "@/lib/staff-leave-core";
 
@@ -136,11 +136,11 @@ export async function recordApprovedVacationLeaveDeduction(
     document.template.schema,
     document.content,
   );
-  const deduction =
-    getVacationLeaveDeduction(values) ??
-    getLegacyVacationLeaveDeductionFromContent(document.content);
+  const usage =
+    getVacationLeaveUsage(values) ??
+    getLegacyVacationLeaveUsageFromContent(document.content);
 
-  if (!deduction) {
+  if (!usage) {
     return;
   }
 
@@ -148,11 +148,11 @@ export async function recordApprovedVacationLeaveDeduction(
     data: [
       {
         actorId,
-        amountHalfDays: deduction.amountHalfDays,
+        amountHalfDays: usage.amountHalfDays,
         documentId: document.id,
         entryType: staffLeaveEntryTypes.vacationDeduction,
-        eventDate: deduction.eventDate,
-        reason: `${deduction.reason} / ${document.title}`,
+        eventDate: usage.eventDate,
+        reason: `${usage.reason} / ${document.title}`,
         sourceKey: `approval-document:${document.id}`,
         userId: document.drafterId,
       },

@@ -25,6 +25,7 @@ import { getCurrentCommonScheduleTopbarData } from "@/lib/current-common-schedul
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
+import { getStaffVacationTopbarAlert } from "@/lib/staff-vacations";
 
 const approvalNavigationItems: NavigationItem[] = [
   { label: "전자결재 홈", href: "/" },
@@ -152,7 +153,13 @@ async function ShellNavigation({
 }: {
   variant: "mobile" | "desktop" | "topbar";
 }) {
-  const [user, cafeExpirationAlert, birthdayAlert, currentScheduleData] =
+  const [
+    user,
+    cafeExpirationAlert,
+    birthdayAlert,
+    currentScheduleData,
+    vacationAlert,
+  ] =
     await Promise.all([
       getCurrentUser(),
       variant === "topbar"
@@ -161,6 +168,9 @@ async function ShellNavigation({
       variant === "topbar" ? getBirthdayTopbarAlert() : Promise.resolve(null),
       variant === "topbar"
         ? getCurrentCommonScheduleTopbarData()
+        : Promise.resolve(null),
+      variant === "topbar"
+        ? getStaffVacationTopbarAlert()
         : Promise.resolve(null),
     ]);
   const groups = getNavigationGroups(user?.role === UserRole.ADMIN);
@@ -197,6 +207,21 @@ async function ShellNavigation({
               items: [],
               label: "생일",
               personName: "예정 없음",
+              status: "empty",
+            }
+      }
+      topbarVacationAlert={
+        vacationAlert
+          ? {
+              ...vacationAlert,
+              label: "휴가",
+              status: "active",
+            }
+          : {
+              ddayLabel: "",
+              items: [],
+              label: "휴가",
+              staffName: "예정 없음",
               status: "empty",
             }
       }

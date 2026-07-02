@@ -192,6 +192,15 @@ button:disabled {
   --topbar-widget-due-outer-glow: rgba(25, 107, 105, 0.5);
 }
 
+.topbar-widget-due-vacation {
+  --topbar-widget-due-bg: #eef2ff;
+  --topbar-widget-due-bg-strong: #e0e7ff;
+  --topbar-widget-due-border: #a5b4fc;
+  --topbar-widget-due-border-soft: #c7d2fe;
+  --topbar-widget-due-fill-glow: rgba(224, 231, 255, 0.98);
+  --topbar-widget-due-outer-glow: rgba(79, 70, 229, 0.42);
+}
+
 .topbar-widget-due::before {
   animation: topbar-widget-due-fill 2.4s ease-in-out infinite;
   background:

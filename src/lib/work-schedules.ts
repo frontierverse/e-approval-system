@@ -4,8 +4,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   getWorkScheduleMonthRange,
   normalizeWorkScheduleMonth,
+  shiftWorkScheduleDate,
 } from "@/lib/work-schedule-calendar";
 import { prisma } from "@/lib/prisma";
+import { getApprovedStaffVacationDateEntries } from "@/lib/staff-vacations";
 import {
   getYouthLearningScheduleWeekday,
   isYouthLearningScheduleDate,
@@ -21,6 +23,10 @@ export type WorkSchedule = {
   endHour: number;
   endMinute: number;
   content: string;
+  detailLabel?: string;
+  readOnly?: boolean;
+  sourceType?: "approvedVacation" | "manual";
+  timeLabel?: string;
 };
 
 export type WorkScheduleDateFilter = "" | (string & {});
@@ -77,18 +83,40 @@ export async function getWorkSchedules(
   const { endDate, startDate } = getWorkScheduleMonthRange(
     normalizeWorkScheduleMonth(month),
   );
-  const schedules = await prisma.workSchedule.findMany({
-    where: {
-      scheduleDate: {
-        gte: startDate,
-        lt: endDate,
+  const [schedules, vacationEntries] = await Promise.all([
+    prisma.workSchedule.findMany({
+      where: {
+        scheduleDate: {
+          gte: startDate,
+          lt: endDate,
+        },
       },
-    },
-    orderBy: [{ scheduleDate: "asc" }, { startMinute: "asc" }],
-    select: workScheduleSelect,
-  });
+      orderBy: [{ scheduleDate: "asc" }, { startMinute: "asc" }],
+      select: workScheduleSelect,
+    }),
+    getApprovedStaffVacationDateEntries({
+      fromDate: startDate,
+      toDate: shiftWorkScheduleDate(endDate, -1),
+    }),
+  ]);
 
-  return schedules.map(mapWorkSchedule).sort(sortWorkSchedules);
+  return [
+    ...schedules.map(mapWorkSchedule),
+    ...vacationEntries.map((entry, index) => ({
+      id: `approved-vacation:${entry.id}`,
+      scheduleDate: entry.date,
+      weekday: getYouthLearningScheduleWeekday(entry.date),
+      startHour: 0,
+      startMinute: -1000 + index,
+      endHour: 0,
+      endMinute: -999 + index,
+      content: `${entry.staffName} ${entry.vacationLabel}`,
+      detailLabel: entry.detailLabel,
+      readOnly: true,
+      sourceType: "approvedVacation" as const,
+      timeLabel: entry.vacationLabel,
+    })),
+  ].sort(sortWorkSchedules);
 }
 
 export async function getWorkScheduleChangeLogs({
@@ -196,6 +224,7 @@ export const workScheduleSelect = {
 export function mapWorkSchedule(schedule: WorkScheduleRecord): WorkSchedule {
   return {
     ...schedule,
+    sourceType: "manual",
     weekday: getYouthLearningScheduleWeekday(schedule.scheduleDate),
   };
 }
