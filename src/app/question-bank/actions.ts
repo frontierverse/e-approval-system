@@ -299,7 +299,7 @@ export async function deleteQuestionBankPdfAction(pdfId: string) {
   ]).catch(() => undefined);
 
   revalidatePath(questionBankPath);
-  redirect(questionBankPath);
+  redirect(`${questionBankPath}?tab=archive`);
 }
 
 export async function createQuestionWorksheetAction(formData: FormData) {

@@ -17,6 +17,7 @@ export type QuestionBankUnitListItem = {
   gradeLevel: string | null;
   name: string;
   parentId: string | null;
+  sortOrder: number;
   pdfCount: number;
   problemCount: number;
 };
@@ -98,13 +99,13 @@ export type QuestionWorksheetPdfProblem = {
 };
 
 export async function getQuestionBankDashboard() {
-  const [units, recentPdfs] = await Promise.all([
+  const [units, pdfs] = await Promise.all([
     getQuestionBankUnits(),
-    getRecentQuestionBankPdfs(),
+    getQuestionBankPdfs(),
   ]);
 
   return {
-    recentPdfs,
+    pdfs,
     units,
   };
 }
@@ -133,6 +134,7 @@ export async function getQuestionBankUnits(): Promise<
       gradeLevel: true,
       name: true,
       parentId: true,
+      sortOrder: true,
       _count: {
         select: {
           problems: true,
@@ -148,19 +150,22 @@ export async function getQuestionBankUnits(): Promise<
     gradeLevel: unit.gradeLevel,
     name: unit.name,
     parentId: unit.parentId,
+    sortOrder: unit.sortOrder,
     pdfCount: unit._count.pdfs,
     problemCount: unit._count.problems,
   }));
 }
 
-export async function getRecentQuestionBankPdfs(): Promise<
-  QuestionBankPdfListItem[]
-> {
+export async function getQuestionBankPdfs({
+  take,
+}: {
+  take?: number;
+} = {}): Promise<QuestionBankPdfListItem[]> {
   const pdfs = await prisma.questionBankPdf.findMany({
     orderBy: {
       createdAt: "desc",
     },
-    take: 30,
+    ...(take ? { take } : {}),
     select: {
       id: true,
       title: true,
@@ -205,6 +210,12 @@ export async function getRecentQuestionBankPdfs(): Promise<
     gradeLevel: pdf.unit.gradeLevel,
     uploadedByName: pdf.uploadedBy?.name ?? null,
   }));
+}
+
+export async function getRecentQuestionBankPdfs(): Promise<
+  QuestionBankPdfListItem[]
+> {
+  return getQuestionBankPdfs({ take: 30 });
 }
 
 export async function findQuestionBankPdfFile(

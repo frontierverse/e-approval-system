@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   createWorksheetTitle,
+  inferQuestionBankGradeNumber,
+  inferQuestionBankSchoolLevel,
+  inferQuestionBankSemester,
   normalizeQuestionBankDifficulty,
   normalizeQuestionBankDifficultyFilter,
   normalizeQuestionBankProblemType,
@@ -67,5 +70,37 @@ describe("question bank core", () => {
     assert.deepEqual(first, second);
     assert.notDeepEqual(first, third);
     assert.deepEqual(items, ["a", "b", "c", "d", "e"]);
+  });
+
+  test("infers archive school, grade, and semester filters", () => {
+    assert.equal(
+      inferQuestionBankSchoolLevel({
+        subject: "중학수학",
+        gradeLevel: "1학년",
+      }),
+      "middle",
+    );
+    assert.equal(
+      inferQuestionBankSchoolLevel({
+        subject: "고등수학",
+        gradeLevel: "2학년",
+      }),
+      "high",
+    );
+    assert.equal(inferQuestionBankGradeNumber("중2"), 2);
+    assert.equal(inferQuestionBankGradeNumber("3학년"), 3);
+    assert.equal(inferQuestionBankGradeNumber("공통"), null);
+    assert.equal(
+      inferQuestionBankSemester({ name: "IV. 좌표평면", sortOrder: 40 }),
+      "1학기",
+    );
+    assert.equal(
+      inferQuestionBankSemester({ name: "V. 기본 도형", sortOrder: 50 }),
+      "2학기",
+    );
+    assert.equal(
+      inferQuestionBankSemester({ name: "2학기 기말 범위", sortOrder: 0 }),
+      "2학기",
+    );
   });
 });

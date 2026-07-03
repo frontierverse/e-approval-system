@@ -1,25 +1,33 @@
 import Link from "next/link";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageTitle } from "@/components/page-title";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { QuestionBankArchiveBoard } from "@/components/question-bank-archive-board";
 import {
+  createQuestionBankProblemAction,
   createQuestionBankUnitAction,
-  deleteQuestionBankPdfAction,
   uploadQuestionBankPdfAction,
 } from "@/app/question-bank/actions";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   getQuestionBankDashboard,
-  type QuestionBankPdfListItem,
   type QuestionBankUnitListItem,
 } from "@/lib/question-bank";
-import { formatFileSize } from "@/lib/file-display";
+import {
+  questionBankDifficultyOptions,
+  questionBankProblemTypeLabels,
+  questionBankProblemTypes,
+} from "@/lib/question-bank-core";
+
+type SearchParamValue = string | string[] | undefined;
+type QuestionBankTab = "add" | "archive";
 
 type QuestionBankPageProps = {
   searchParams: Promise<{
-    pdfError?: string | string[];
-    unitError?: string | string[];
+    pdfError?: SearchParamValue;
+    problemError?: SearchParamValue;
+    tab?: SearchParamValue;
+    unitError?: SearchParamValue;
   }>;
 };
 
@@ -28,35 +36,120 @@ export default async function QuestionBankPage({
 }: QuestionBankPageProps) {
   await requireUser();
   const params = await searchParams;
-  const { recentPdfs, units } = await getQuestionBankDashboard();
+  const activeTab = getSelectedQuestionBankTab(params.tab);
+  const { pdfs, units } = await getQuestionBankDashboard();
   const subunits = units.filter((unit) => unit.parentId);
 
   return (
     <>
       <PageTitle
         title="문제은행"
-        description="중학수학 단원 체계에 맞춰 중단원별 PDF 문제지를 업로드하고 관리합니다."
+        description="단원별 문제를 추가하고 학년·학기별 문제지를 관리합니다."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
-        <aside className="space-y-6">
-          <QuestionBankUnitForm
-            error={getSingleParam(params.unitError)}
-            units={units}
-          />
-          <QuestionBankUnitSummary units={units} />
-        </aside>
+      <QuestionBankTabs activeTab={activeTab} />
 
-        <div className="space-y-6">
-          <QuestionBankPdfUploadForm
-            error={getSingleParam(params.pdfError)}
+      <div className="mt-6">
+        {activeTab === "archive" ? (
+          <QuestionBankArchiveBoard pdfs={pdfs} units={units} />
+        ) : (
+          <QuestionBankAddPanel
+            pdfError={getSingleParam(params.pdfError)}
+            problemError={getSingleParam(params.problemError)}
             subunits={subunits}
+            unitError={getSingleParam(params.unitError)}
             units={units}
           />
-          <QuestionBankPdfList pdfs={recentPdfs} />
-        </div>
+        )}
       </div>
     </>
+  );
+}
+
+function QuestionBankAddPanel({
+  pdfError,
+  problemError,
+  subunits,
+  unitError,
+  units,
+}: {
+  pdfError?: string;
+  problemError?: string;
+  subunits: QuestionBankUnitListItem[];
+  unitError?: string;
+  units: QuestionBankUnitListItem[];
+}) {
+  return (
+    <div className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
+      <aside className="space-y-6">
+        <QuestionBankUnitForm error={unitError} units={units} />
+        <QuestionBankUnitSummary units={units} />
+      </aside>
+
+      <div className="space-y-6">
+        <QuestionBankProblemForm
+          error={problemError}
+          subunits={subunits}
+          units={units}
+        />
+        <QuestionBankPdfUploadForm
+          error={pdfError}
+          subunits={subunits}
+          units={units}
+        />
+      </div>
+    </div>
+  );
+}
+
+function QuestionBankTabs({ activeTab }: { activeTab: QuestionBankTab }) {
+  return (
+    <nav aria-label="문제은행 항목" className="border-b border-[#d9dee7]">
+      <div className="flex gap-2 overflow-x-auto">
+        <QuestionBankTabLink
+          active={activeTab === "add"}
+          href="/question-bank"
+          label="문제 추가"
+        />
+        <QuestionBankTabLink
+          active={activeTab === "archive"}
+          href="/question-bank?tab=archive"
+          label="문제지 보관함"
+        />
+      </div>
+    </nav>
+  );
+}
+
+function QuestionBankTabLink({
+  active,
+  href,
+  label,
+}: {
+  active: boolean;
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      href={href}
+      className={[
+        "relative flex h-12 min-w-32 items-center justify-center rounded-t-md border border-transparent px-4 text-sm font-semibold transition-colors",
+        active
+          ? "border-[#c9dddb] border-b-white bg-white text-[#0f5553]"
+          : "text-[#394150] hover:border-[#c7dfdc] hover:bg-[#e7f5f3] hover:text-[#12343b]",
+      ].join(" ")}
+    >
+      {label}
+      <span
+        aria-hidden="true"
+        className={[
+          "absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-[#196b69] transition-opacity",
+          active ? "opacity-100" : "opacity-0",
+        ].join(" ")}
+      />
+    </Link>
   );
 }
 
@@ -140,6 +233,151 @@ function QuestionBankUnitForm({
   );
 }
 
+function QuestionBankProblemForm({
+  error,
+  subunits,
+  units,
+}: {
+  error?: string;
+  subunits: QuestionBankUnitListItem[];
+  units: QuestionBankUnitListItem[];
+}) {
+  const hasSubunits = subunits.length > 0;
+
+  return (
+    <form
+      action={createQuestionBankProblemAction}
+      className="rounded-md border border-[#d9dee7] bg-white p-5"
+    >
+      <div>
+        <h2 className="text-base font-semibold text-[#16181d]">문제 추가</h2>
+        <p className="mt-1 text-sm leading-6 text-[#697386]">
+          단원별로 객관식, 단답형, 서술형 문제를 저장합니다.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4">
+        <label>
+          <span className="text-sm font-semibold text-[#394150]">중단원</span>
+          <select
+            name="unitId"
+            defaultValue={subunits[0]?.id ?? ""}
+            disabled={!hasSubunits}
+            className={inputClassName}
+          >
+            {subunits.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {formatSubunitLabel(unit, units)} · 문제 {unit.problemCount}개
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label>
+            <span className="text-sm font-semibold text-[#394150]">
+              문제 유형
+            </span>
+            <select
+              name="problemType"
+              defaultValue="multiple-choice"
+              className={inputClassName}
+            >
+              {questionBankProblemTypes.map((type) => (
+                <option key={type} value={type}>
+                  {questionBankProblemTypeLabels[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span className="text-sm font-semibold text-[#394150]">난이도</span>
+            <select name="difficulty" defaultValue="2" className={inputClassName}>
+              {questionBankDifficultyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <label>
+          <span className="text-sm font-semibold text-[#394150]">
+            문제 내용
+          </span>
+          <textarea
+            name="body"
+            placeholder="예: 다음 방정식 2x + 3 = 7을 풀어라."
+            maxLength={2000}
+            rows={5}
+            className={textareaClassName}
+          />
+        </label>
+
+        <label>
+          <span className="text-sm font-semibold text-[#394150]">보기</span>
+          <textarea
+            name="choices"
+            placeholder={"객관식 보기만 줄바꿈으로 입력\n예: x = 1\nx = 2"}
+            maxLength={1000}
+            rows={4}
+            className={textareaClassName}
+          />
+        </label>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label>
+            <span className="text-sm font-semibold text-[#394150]">정답</span>
+            <input
+              name="answer"
+              placeholder="예: x = 2"
+              maxLength={200}
+              className={inputClassName}
+            />
+          </label>
+
+          <label>
+            <span className="text-sm font-semibold text-[#394150]">
+              해설 요약
+            </span>
+            <input
+              name="explanation"
+              placeholder="예: 양변에서 3을 빼고 2로 나눈다."
+              maxLength={2000}
+              className={inputClassName}
+            />
+          </label>
+        </div>
+
+        <FormError error={error} />
+
+        {!hasSubunits ? (
+          <p className="rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-3 py-3 text-sm text-[#697386]">
+            문제 추가 전에 중단원을 먼저 등록하세요.
+          </p>
+        ) : null}
+
+        <div>
+          <PendingSubmitButton
+            type="submit"
+            disabled={!hasSubunits}
+            pendingLabel="문제 저장 중"
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.create,
+              "h-10 px-4 text-sm",
+            )}
+          >
+            문제 저장
+          </PendingSubmitButton>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 function QuestionBankPdfUploadForm({
   error,
   subunits,
@@ -158,7 +396,7 @@ function QuestionBankPdfUploadForm({
     >
       <div>
         <h2 className="text-base font-semibold text-[#16181d]">
-          PDF 문제지 업로드
+          PDF 문제지 추가
         </h2>
         <p className="mt-1 text-sm leading-6 text-[#697386]">
           PDF 파일은 반드시 중단원에 연결됩니다. 한 번에 여러 개를 올릴 수 있습니다.
@@ -301,100 +539,6 @@ function QuestionBankUnitSummary({
   );
 }
 
-function QuestionBankPdfList({ pdfs }: { pdfs: QuestionBankPdfListItem[] }) {
-  return (
-    <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
-      <header className="border-b border-[#eef1f5] px-5 py-4">
-        <h2 className="text-base font-semibold text-[#16181d]">
-          업로드된 PDF 문제지
-        </h2>
-        <p className="mt-1 text-sm text-[#697386]">
-          최근 업로드된 PDF {pdfs.length}개를 표시합니다.
-        </p>
-      </header>
-
-      {pdfs.length > 0 ? (
-        <ul className="divide-y divide-[#eef1f5]">
-          {pdfs.map((pdf) => (
-            <li
-              key={pdf.id}
-              className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
-            >
-              <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className={badgeClassName}>
-                    {pdf.parentUnitName ?? pdf.subject}
-                  </span>
-                  <span className={subtleBadgeClassName}>{pdf.unitName}</span>
-                  <span className="text-xs font-medium text-[#697386]">
-                    {formatFileSize(pdf.size)}
-                  </span>
-                </div>
-                <p className="mt-2 break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                  {pdf.title}
-                </p>
-                <p className="mt-1 text-xs text-[#697386]">
-                  {pdf.subject}
-                  {pdf.gradeLevel ? ` · ${pdf.gradeLevel}` : ""} ·{" "}
-                  {pdf.uploadedByName ?? "업로더 정보 없음"} ·{" "}
-                  {formatDateTime(pdf.createdAt)}
-                </p>
-                {pdf.description ? (
-                  <p className="mt-2 break-words text-sm leading-6 text-[#394150] [overflow-wrap:anywhere]">
-                    {pdf.description}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Link
-                  href={`/question-bank/pdfs/${pdf.id}/preview`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.neutral,
-                    "h-9 px-3 text-sm",
-                  )}
-                >
-                  열기
-                </Link>
-                <Link
-                  href={`/question-bank/pdfs/${pdf.id}`}
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.neutral,
-                    "h-9 px-3 text-sm",
-                  )}
-                >
-                  다운로드
-                </Link>
-                <form action={deleteQuestionBankPdfAction.bind(null, pdf.id)}>
-                  <ConfirmSubmitButton
-                    type="submit"
-                    message="이 PDF 문제지를 삭제할까요?"
-                    className={buttonClass(
-                      buttonStyles.base,
-                      buttonStyles.dangerOutline,
-                      "h-9 px-3 text-sm",
-                    )}
-                  >
-                    삭제
-                  </ConfirmSubmitButton>
-                </form>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="m-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
-          업로드된 PDF 문제지가 없습니다.
-        </p>
-      )}
-    </section>
-  );
-}
-
 function FormError({ error }: { error?: string }) {
   return error ? (
     <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
@@ -416,14 +560,8 @@ function formatSubunitLabel(
   return parent ? `${parent.name} · ${unit.name}` : formatUnitLabel(unit);
 }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(value));
+function getSelectedQuestionBankTab(value: SearchParamValue): QuestionBankTab {
+  return getSingleParam(value) === "archive" ? "archive" : "add";
 }
 
 function getSingleParam(value: string | string[] | undefined) {
@@ -432,7 +570,5 @@ function getSingleParam(value: string | string[] | undefined) {
 
 const inputClassName =
   "mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:bg-[#f7f9fc] disabled:text-[#8a95a6]";
-const badgeClassName =
-  "inline-flex h-7 items-center rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2.5 text-xs font-semibold text-[#196b69]";
-const subtleBadgeClassName =
-  "inline-flex h-7 items-center rounded-full border border-[#d9dee7] bg-[#f7f9fc] px-2.5 text-xs font-semibold text-[#394150]";
+const textareaClassName =
+  "mt-2 w-full rounded-md border border-[#cfd6e3] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:bg-[#f7f9fc] disabled:text-[#8a95a6]";
