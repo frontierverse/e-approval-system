@@ -27,6 +27,7 @@ const youths: YouthProfile[] = [
     birthDate: "2009-06-10",
     age: 17,
     phone: "010-1111-2222",
+    decisionDocuments: [],
     familyContacts: [],
     notes: [
       {
@@ -59,6 +60,7 @@ const youths: YouthProfile[] = [
     birthDate: null,
     age: null,
     phone: null,
+    decisionDocuments: [],
     familyContacts: [],
     notes: [],
   },

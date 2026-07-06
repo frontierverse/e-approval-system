@@ -26,8 +26,264 @@ import {
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
+import {
+  getYouthStudySubjectLabel,
+  getYouthStudySubunitLabel,
+  isYouthStudySubject,
+  isYouthStudySubunitId,
+  normalizeYouthStudyConceptContent,
+  validateYouthStudyConceptContent,
+  type YouthStudyConceptFormState,
+} from "@/lib/youth-subject-progress-core";
+
 const learningProgressPath = "/youth/learning-progress";
 const weeklyRepeatOccurrenceWeeks = 52;
+const studyConceptSelect = {
+  id: true,
+  subject: true,
+  subunitId: true,
+  content: true,
+} as const;
+
+export async function createYouthStudyConceptAction(
+  subject: string,
+  subunitId: string,
+  _previousState: YouthStudyConceptFormState,
+  formData: FormData,
+): Promise<YouthStudyConceptFormState> {
+  const user = await requireUser();
+
+  const content = normalizeYouthStudyConceptContent(formData.get("content"));
+  const validationError = validateYouthStudyConceptContent(content);
+
+  if (validationError) {
+    return {
+      error: validationError,
+      values: {
+        content,
+      },
+    };
+  }
+
+  if (
+    !isYouthStudySubject(subject) ||
+    !isYouthStudySubunitId(subject, subunitId)
+  ) {
+    return {
+      error: "단원을 다시 선택하세요.",
+      values: {
+        content,
+      },
+    };
+  }
+
+  const subjectLabel = getYouthStudySubjectLabel(subject);
+  const subunitLabel = getYouthStudySubunitLabel(subject, subunitId);
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    const concept = await tx.studyConcept.create({
+      data: {
+        subject,
+        subunitId,
+        content,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "StudyConcept",
+        targetId: concept.id,
+        message: `${subjectLabel} ${subunitLabel} 단원에 개념을 추가했습니다.`,
+        metadata: {
+          changeType: "studyConcept.create",
+          content,
+          source: "learning-progress",
+          subject,
+          subjectLabel,
+          subunitId,
+          subunitLabel,
+        },
+      },
+    });
+  });
+
+  revalidatePath(learningProgressPath);
+
+  return {
+    resetKey: `${Date.now()}:${Math.random()}`,
+    success: "개념을 추가했습니다.",
+  };
+}
+
+export async function toggleYouthStudyConceptCheckAction(
+  conceptId: string,
+  youthId: string,
+  isChecked: boolean,
+): Promise<
+  YouthActionResult<{ conceptId: string; youthId: string; isChecked: boolean }>
+> {
+  const user = await requireUser();
+
+  const concept = await prisma.studyConcept.findUnique({
+    where: {
+      id: conceptId,
+    },
+    select: studyConceptSelect,
+  });
+
+  if (!concept) {
+    return {
+      ok: false,
+      error: "개념을 찾을 수 없습니다.",
+    };
+  }
+
+  const youth = await prisma.youth.findUnique({
+    where: {
+      id: youthId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!youth) {
+    return {
+      ok: false,
+      error: "학생을 찾을 수 없습니다.",
+    };
+  }
+
+  const nextChecked = Boolean(isChecked);
+  const subjectLabel = getYouthStudySubjectLabel(concept.subject);
+  const subunitLabel = isYouthStudySubject(concept.subject)
+    ? getYouthStudySubunitLabel(concept.subject, concept.subunitId)
+    : concept.subunitId;
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    if (nextChecked) {
+      await tx.studyConceptCheck.upsert({
+        where: {
+          conceptId_youthId: {
+            conceptId: concept.id,
+            youthId: youth.id,
+          },
+        },
+        update: {
+          checkedAt: new Date(),
+        },
+        create: {
+          conceptId: concept.id,
+          youthId: youth.id,
+        },
+      });
+    } else {
+      await tx.studyConceptCheck.deleteMany({
+        where: {
+          conceptId: concept.id,
+          youthId: youth.id,
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "StudyConceptCheck",
+        targetId: concept.id,
+        message: `${youth.name} ${subjectLabel} ${subunitLabel} 개념을 ${
+          nextChecked ? "숙지 완료" : "미숙지"
+        }로 표시했습니다.`,
+        metadata: {
+          changeType: "studyConcept.toggle",
+          content: concept.content,
+          nextChecked,
+          source: "learning-progress",
+          subject: concept.subject,
+          subjectLabel,
+          subunitId: concept.subunitId,
+          subunitLabel,
+          youthId: youth.id,
+          youthName: youth.name,
+        },
+      },
+    });
+  });
+
+  revalidatePath(learningProgressPath);
+
+  return {
+    ok: true,
+    data: {
+      conceptId: concept.id,
+      youthId: youth.id,
+      isChecked: nextChecked,
+    },
+  };
+}
+
+export async function deleteYouthStudyConceptAction(conceptId: string) {
+  const user = await requireUser();
+
+  const concept = await prisma.studyConcept.findUnique({
+    where: {
+      id: conceptId,
+    },
+    select: studyConceptSelect,
+  });
+
+  if (!concept) {
+    revalidatePath(learningProgressPath);
+    return;
+  }
+
+  const subjectLabel = getYouthStudySubjectLabel(concept.subject);
+  const subunitLabel = isYouthStudySubject(concept.subject)
+    ? getYouthStudySubunitLabel(concept.subject, concept.subunitId)
+    : concept.subunitId;
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.studyConcept.delete({
+      where: {
+        id: concept.id,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "StudyConcept",
+        targetId: concept.id,
+        message: `${subjectLabel} ${subunitLabel} 단원의 개념을 삭제했습니다.`,
+        metadata: {
+          changeType: "studyConcept.delete",
+          content: concept.content,
+          source: "learning-progress",
+          subject: concept.subject,
+          subjectLabel,
+          subunitId: concept.subunitId,
+          subunitLabel,
+        },
+      },
+    });
+  });
+
+  revalidatePath(learningProgressPath);
+}
 
 export async function getYouthLearningSchedulesAction(
   scheduleDate: string,

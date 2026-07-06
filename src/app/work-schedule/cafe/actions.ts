@@ -25,6 +25,11 @@ import {
   type CafeItemPageFilters,
   type CafeItemFormState,
 } from "@/lib/cafe-items-core";
+import {
+  normalizeCafeComplianceNoteContent,
+  validateCafeComplianceNoteContent,
+  type CafeComplianceNoteFormState,
+} from "@/lib/cafe-compliance-notes-core";
 import { prisma } from "@/lib/prisma";
 
 const cafeManagementPath = "/work-schedule/cafe";
@@ -257,6 +262,51 @@ export async function deleteCafeItemAction(itemId: string) {
         }),
       },
     });
+  });
+
+  revalidatePath(cafeManagementPath);
+}
+
+export async function createCafeComplianceNoteAction(
+  _previousState: CafeComplianceNoteFormState,
+  formData: FormData,
+): Promise<CafeComplianceNoteFormState> {
+  const user = await requireUser();
+
+  const content = normalizeCafeComplianceNoteContent(formData.get("content"));
+  const validationError = validateCafeComplianceNoteContent(content);
+
+  if (validationError) {
+    return {
+      error: validationError,
+      values: {
+        content,
+      },
+    };
+  }
+
+  await prisma.cafeComplianceNote.create({
+    data: {
+      content,
+      createdById: user.id,
+    },
+  });
+
+  revalidatePath(cafeManagementPath);
+
+  return {
+    resetKey: `${Date.now()}:${Math.random()}`,
+    success: "준수사항을 등록했습니다.",
+  };
+}
+
+export async function deleteCafeComplianceNoteAction(noteId: string) {
+  await requireUser();
+
+  await prisma.cafeComplianceNote.deleteMany({
+    where: {
+      id: noteId,
+    },
   });
 
   revalidatePath(cafeManagementPath);

@@ -14,6 +14,7 @@ const youths: YouthProfile[] = [
     birthDate: "2009-06-10",
     age: 17,
     phone: "010-1111-2222",
+    decisionDocuments: [],
     familyContacts: [
       {
         id: "family-contact-test-001",
@@ -47,6 +48,7 @@ const youths: YouthProfile[] = [
     birthDate: null,
     age: null,
     phone: null,
+    decisionDocuments: [],
     familyContacts: [],
     notes: [],
   },
@@ -72,6 +74,7 @@ describe("YouthManagementBoard", () => {
                 relationship: contact.relationship || null,
                 phone: contact.phone || null,
               })),
+              decisionDocuments: [],
               notes: [],
             },
           },
@@ -97,6 +100,7 @@ describe("YouthManagementBoard", () => {
                 relationship: contact.relationship || null,
                 phone: contact.phone || null,
               })),
+              decisionDocuments: [],
               notes: [],
             },
           },

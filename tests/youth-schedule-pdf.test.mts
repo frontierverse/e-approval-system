@@ -46,6 +46,7 @@ const youths: YouthProfile[] = Array.from({ length: 5 }, (_, index) => ({
   birthDate: null,
   age: null,
   phone: null,
+  decisionDocuments: [],
   familyContacts: [],
   notes: [],
 }));

@@ -87,6 +87,15 @@ export type YouthFamilyContact = {
   phone: string | null;
 };
 
+export const youthDecisionDocumentFormFieldName = "decisionDocuments";
+
+export type YouthDecisionDocumentItem = {
+  id: string;
+  originalName: string;
+  size: number;
+  createdAt: string;
+};
+
 export type YouthProfile = {
   id: string;
   name: string;
@@ -96,6 +105,7 @@ export type YouthProfile = {
   age: number | null;
   phone: string | null;
   familyContacts: YouthFamilyContact[];
+  decisionDocuments: YouthDecisionDocumentItem[];
   notes: YouthSpecialNote[];
 };
 

@@ -122,6 +122,8 @@ model User {
   workFeatureUpdates   WorkFeatureUpdate[]  @relation("WorkFeatureUpdateCreator")
   worksheetGenerations WorksheetGeneration[] @relation("WorksheetGenerationCreator")
   questionBankPdfs     QuestionBankPdf[]     @relation("QuestionBankPdfUploader")
+  youthDecisionDocuments YouthDecisionDocument[] @relation("YouthDecisionDocumentUploader")
+  cafeComplianceNotes  CafeComplianceNote[]  @relation("CafeComplianceNoteCreator")
 
   @@index([departmentId])
   @@index([positionId])
@@ -378,6 +380,8 @@ model Youth {
   notes          YouthSpecialNote[]
   learningSchedules YouthLearningSchedule[]
   rules          YouthRule[]
+  studyConceptChecks StudyConceptCheck[]
+  decisionDocuments YouthDecisionDocument[]
 
   @@index([name])
   @@index([birthDate])
@@ -413,6 +417,27 @@ model YouthFamilyContact {
 
   @@index([youthId])
   @@index([relationship])
+}
+
+model YouthDecisionDocument {
+  id              String   @id @default(cuid())
+  originalName    String
+  storageProvider String   @default("local")
+  storageKey      String
+  mimeType        String
+  size            Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  youthId      String
+  uploadedById String?
+
+  youth      Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation("YouthDecisionDocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([youthId])
+  @@index([uploadedById])
+  @@index([createdAt])
 }
 
 model YouthSpecialNote {
@@ -462,6 +487,34 @@ model YouthLearningSchedule {
   @@index([recurrenceWeekdays])
   @@index([startHour])
   @@index([startMinute])
+}
+
+model StudyConcept {
+  id        String   @id @default(cuid())
+  subject   String
+  subunitId String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checks StudyConceptCheck[]
+
+  @@index([subject, subunitId])
+  @@index([createdAt])
+}
+
+model StudyConceptCheck {
+  id        String   @id @default(cuid())
+  checkedAt DateTime @default(now())
+
+  conceptId String
+  youthId   String
+
+  concept StudyConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  youth   Youth        @relation(fields: [youthId], references: [id], onDelete: Cascade)
+
+  @@unique([conceptId, youthId])
+  @@index([youthId])
 }
 
 model YouthCommonSchedule {
@@ -636,6 +689,19 @@ model CafeItem {
   @@index([purchasedAt])
   @@index([expirationDate])
   @@index([createdAt])
+}
+
+model CafeComplianceNote {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("CafeComplianceNoteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([createdById])
 }
 
 model AuditLog {

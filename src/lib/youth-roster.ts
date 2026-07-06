@@ -2,10 +2,12 @@ import "server-only";
 
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { mapYouthDecisionDocument } from "@/lib/youth-management";
 import {
   calculateYouthKoreanAge,
   getYouthDisplayAge,
   getYouthLearningScheduleToday,
+  type YouthDecisionDocumentItem,
 } from "@/lib/youth-management-core";
 
 export type YouthRosterData = {
@@ -21,6 +23,7 @@ export type YouthRosterItem = {
   age: number | null;
   koreanAge: number | null;
   dischargeDate: string | null;
+  decisionDocuments: YouthDecisionDocumentItem[];
   familyContacts: YouthRosterFamilyContact[];
   name: string;
   phone: string | null;
@@ -155,6 +158,15 @@ async function getYouthRosterRows() {
       admissionDate: true,
       age: true,
       birthDate: true,
+      decisionDocuments: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          originalName: true,
+          size: true,
+          createdAt: true,
+        },
+      },
       dischargeDate: true,
       familyContact: true,
       familyContacts: {
@@ -192,6 +204,7 @@ function mapYouthRosterItem(
     ),
     koreanAge: calculateYouthKoreanAge(birthDate, referenceDate),
     dischargeDate: normalizeBlank(record.dischargeDate),
+    decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
     familyContacts: getFamilyContacts(record),
     name: record.name,
     phone: normalizeBlank(record.phone),

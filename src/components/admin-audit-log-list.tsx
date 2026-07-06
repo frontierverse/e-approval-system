@@ -258,7 +258,7 @@ export function AdminAuditLogList({
               </div>
 
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#16181d]">
+                <p className="whitespace-pre-line text-sm font-semibold text-[#16181d]">
                   {log.message || getFallbackAuditMessage(log)}
                 </p>
                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-[#697386]">

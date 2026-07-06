@@ -4,6 +4,15 @@ import { revalidatePath } from "next/cache";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
+import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
+import {
+  type AttachmentPolicyConfig,
+  defaultMaxAttachmentFileSizeMb,
+  type PreparedAttachmentFile,
+  prepareAttachmentFiles,
+  persistAttachmentFiles,
+  removeStoredAttachmentFiles,
+} from "@/lib/attachment-storage";
 import { prisma } from "@/lib/prisma";
 import {
   isYouthLearningScheduleDate,
@@ -11,6 +20,7 @@ import {
   isYouthNotePriority,
   type YouthActionResult,
   type YouthCreateInput,
+  youthDecisionDocumentFormFieldName,
   type YouthFamilyContactInput,
   type YouthNoteInput,
   type YouthProfile,
@@ -40,8 +50,69 @@ export async function getYouthRosterChangeLogsAction(
   };
 }
 
+const youthDecisionDocumentPolicy: AttachmentPolicyConfig = {
+  maxFileCount: 5,
+  maxFileSizeMb: defaultMaxAttachmentFileSizeMb,
+  allowedExtensions: defaultAllowedAttachmentExtensions,
+};
+const youthDecisionDocumentStorageKeyPrefix = "youth-decision-documents/";
+
+async function prepareYouthDecisionDocuments(
+  documentsFormData: FormData | undefined,
+) {
+  return prepareAttachmentFiles(
+    documentsFormData?.getAll(youthDecisionDocumentFormFieldName) ?? [],
+    youthDecisionDocumentPolicy,
+    {
+      storageKeyPrefix: youthDecisionDocumentStorageKeyPrefix,
+    },
+  );
+}
+
+async function createYouthDecisionDocuments(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  youthId: string,
+  uploadedById: string,
+  files: PreparedAttachmentFile[],
+) {
+  if (files.length > 0) {
+    await tx.youthDecisionDocument.createMany({
+      data: files.map((file) => ({
+        originalName: file.originalName,
+        storageProvider: file.storageProvider,
+        storageKey: file.storageKey,
+        mimeType: file.mimeType,
+        size: file.size,
+        youthId,
+        uploadedById,
+      })),
+    });
+  }
+
+  return tx.youthDecisionDocument.findMany({
+    where: {
+      youthId,
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+}
+
+async function cleanupYouthDecisionDocuments(files: PreparedAttachmentFile[]) {
+  if (files.length === 0) {
+    return;
+  }
+
+  await removeStoredAttachmentFiles(
+    files.map((file) => ({
+      storageProvider: file.storageProvider,
+      storageKey: file.storageKey,
+    })),
+  ).catch(() => undefined);
+}
+
 export async function createYouthAction(
   values: YouthCreateInput,
+  documentsFormData?: FormData,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
   const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
@@ -104,78 +175,106 @@ export async function createYouthAction(
     };
   }
 
+  const preparedDocuments =
+    await prepareYouthDecisionDocuments(documentsFormData);
+
+  if (preparedDocuments.error) {
+    return {
+      ok: false,
+      error: preparedDocuments.error,
+    };
+  }
+
   const firstFamilyContact = normalizedFamilyContacts.value[0];
 
-  const youth = await prisma.$transaction(async (tx) => {
-    const createdYouth = await tx.youth.create({
-      data: {
-        name: normalizedName,
-        admissionDate: normalizedAdmissionDate.value,
-        birthDate: normalizedBirthDate.value,
-        dischargeDate: normalizedDischargeDate.value,
-        age: null,
-        phone: normalizedPhone.value,
-        familyRelationship: firstFamilyContact?.relationship ?? null,
-        familyPhone: firstFamilyContact?.phone ?? null,
-        familyContact: firstFamilyContact?.phone ?? null,
-      },
-      include: {
-        notes: {
-          orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+  await persistAttachmentFiles(preparedDocuments.files);
+
+  let youth;
+
+  try {
+    youth = await prisma.$transaction(async (tx) => {
+      const createdYouth = await tx.youth.create({
+        data: {
+          name: normalizedName,
+          admissionDate: normalizedAdmissionDate.value,
+          birthDate: normalizedBirthDate.value,
+          dischargeDate: normalizedDischargeDate.value,
+          age: null,
+          phone: normalizedPhone.value,
+          familyRelationship: firstFamilyContact?.relationship ?? null,
+          familyPhone: firstFamilyContact?.phone ?? null,
+          familyContact: firstFamilyContact?.phone ?? null,
         },
-      },
-    });
-
-    const familyContacts = normalizedFamilyContacts.value.map(
-      (contact, index) => ({
-        id: `family-contact-${createdYouth.id}-${index + 1}`,
-        youthId: createdYouth.id,
-        relationship: contact.relationship,
-        phone: contact.phone,
-      }),
-    );
-
-    for (const contact of familyContacts) {
-      await tx.$executeRaw`
-        INSERT INTO "YouthFamilyContact" (
-          "id",
-          "relationship",
-          "phone",
-          "createdAt",
-          "updatedAt",
-          "youthId"
-        )
-        VALUES (
-          ${contact.id},
-          ${contact.relationship},
-          ${contact.phone},
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP,
-          ${contact.youthId}
-        )
-      `;
-    }
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.CREATE_YOUTH,
-        targetType: "Youth",
-        targetId: createdYouth.id,
-        message: `${normalizedName} 청소년을 등록했습니다.`,
-        metadata: {
-          familyContactCount: familyContacts.length,
-          hasPhone: Boolean(normalizedPhone.value),
+        include: {
+          notes: {
+            orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+          },
         },
-      },
-    });
+      });
 
-    return {
-      ...createdYouth,
-      familyContacts,
-    };
-  });
+      const familyContacts = normalizedFamilyContacts.value.map(
+        (contact, index) => ({
+          id: `family-contact-${createdYouth.id}-${index + 1}`,
+          youthId: createdYouth.id,
+          relationship: contact.relationship,
+          phone: contact.phone,
+        }),
+      );
+
+      for (const contact of familyContacts) {
+        await tx.$executeRaw`
+          INSERT INTO "YouthFamilyContact" (
+            "id",
+            "relationship",
+            "phone",
+            "createdAt",
+            "updatedAt",
+            "youthId"
+          )
+          VALUES (
+            ${contact.id},
+            ${contact.relationship},
+            ${contact.phone},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            ${contact.youthId}
+          )
+        `;
+      }
+
+      const decisionDocuments = await createYouthDecisionDocuments(
+        tx,
+        createdYouth.id,
+        user.id,
+        preparedDocuments.files,
+      );
+
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.CREATE_YOUTH,
+          targetType: "Youth",
+          targetId: createdYouth.id,
+          message: `${normalizedName} 청소년을 등록했습니다.`,
+          metadata: {
+            familyContactCount: familyContacts.length,
+            hasPhone: Boolean(normalizedPhone.value),
+            decisionDocumentCount: preparedDocuments.files.length,
+          },
+        },
+      });
+
+      return {
+        ...createdYouth,
+        familyContacts,
+        decisionDocuments,
+      };
+    });
+  } catch (error) {
+    await cleanupYouthDecisionDocuments(preparedDocuments.files);
+    throw error;
+  }
 
   revalidateYouthPaths();
 
@@ -190,6 +289,7 @@ export async function createYouthAction(
 export async function updateYouthAction(
   youthId: string,
   values: YouthUpdateInput,
+  documentsFormData?: FormData,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
   const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
@@ -209,6 +309,18 @@ export async function updateYouthAction(
     },
     select: {
       id: true,
+      name: true,
+      admissionDate: true,
+      birthDate: true,
+      dischargeDate: true,
+      phone: true,
+      familyContacts: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          relationship: true,
+          phone: true,
+        },
+      },
     },
   });
 
@@ -268,86 +380,142 @@ export async function updateYouthAction(
     };
   }
 
+  const preparedDocuments =
+    await prepareYouthDecisionDocuments(documentsFormData);
+
+  if (preparedDocuments.error) {
+    return {
+      ok: false,
+      error: preparedDocuments.error,
+    };
+  }
+
   const firstFamilyContact = normalizedFamilyContacts.value[0];
 
-  const youth = await prisma.$transaction(async (tx) => {
-    const updatedYouth = await tx.youth.update({
-      where: {
-        id: youthId,
-      },
-      data: {
-        name: normalizedName,
-        admissionDate: normalizedAdmissionDate.value,
-        birthDate: normalizedBirthDate.value,
-        dischargeDate: normalizedDischargeDate.value,
-        age: null,
-        phone: normalizedPhone.value,
-        familyRelationship: firstFamilyContact?.relationship ?? null,
-        familyPhone: firstFamilyContact?.phone ?? null,
-        familyContact: firstFamilyContact?.phone ?? null,
-      },
-      include: {
-        notes: {
-          orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+  await persistAttachmentFiles(preparedDocuments.files);
+
+  let youth;
+
+  try {
+    youth = await prisma.$transaction(async (tx) => {
+      const updatedYouth = await tx.youth.update({
+        where: {
+          id: youthId,
         },
-      },
-    });
+        data: {
+          name: normalizedName,
+          admissionDate: normalizedAdmissionDate.value,
+          birthDate: normalizedBirthDate.value,
+          dischargeDate: normalizedDischargeDate.value,
+          age: null,
+          phone: normalizedPhone.value,
+          familyRelationship: firstFamilyContact?.relationship ?? null,
+          familyPhone: firstFamilyContact?.phone ?? null,
+          familyContact: firstFamilyContact?.phone ?? null,
+        },
+        include: {
+          notes: {
+            orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+          },
+        },
+      });
 
-    await tx.$executeRaw`
-      DELETE FROM "YouthFamilyContact"
-      WHERE "youthId" = ${youthId}
-    `;
-
-    const familyContacts = normalizedFamilyContacts.value.map(
-      (contact, index) => ({
-        id: `family-contact-${youthId}-${index + 1}`,
-        youthId,
-        relationship: contact.relationship,
-        phone: contact.phone,
-      }),
-    );
-
-    for (const contact of familyContacts) {
       await tx.$executeRaw`
-        INSERT INTO "YouthFamilyContact" (
-          "id",
-          "relationship",
-          "phone",
-          "createdAt",
-          "updatedAt",
-          "youthId"
-        )
-        VALUES (
-          ${contact.id},
-          ${contact.relationship},
-          ${contact.phone},
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP,
-          ${contact.youthId}
-        )
+        DELETE FROM "YouthFamilyContact"
+        WHERE "youthId" = ${youthId}
       `;
-    }
 
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "Youth",
-        targetId: updatedYouth.id,
-        message: `${normalizedName} 청소년 기본 정보를 수정했습니다.`,
-        metadata: {
-          familyContactCount: familyContacts.length,
-          hasPhone: Boolean(normalizedPhone.value),
+      const familyContacts = normalizedFamilyContacts.value.map(
+        (contact, index) => ({
+          id: `family-contact-${youthId}-${index + 1}`,
+          youthId,
+          relationship: contact.relationship,
+          phone: contact.phone,
+        }),
+      );
+
+      for (const contact of familyContacts) {
+        await tx.$executeRaw`
+          INSERT INTO "YouthFamilyContact" (
+            "id",
+            "relationship",
+            "phone",
+            "createdAt",
+            "updatedAt",
+            "youthId"
+          )
+          VALUES (
+            ${contact.id},
+            ${contact.relationship},
+            ${contact.phone},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            ${contact.youthId}
+          )
+        `;
+      }
+
+      const decisionDocuments = await createYouthDecisionDocuments(
+        tx,
+        youthId,
+        user.id,
+        preparedDocuments.files,
+      );
+
+      const fieldChanges = getYouthFieldChanges(
+        {
+          name: existingYouth.name,
+          admissionDate: existingYouth.admissionDate,
+          birthDate: existingYouth.birthDate,
+          dischargeDate: existingYouth.dischargeDate,
+          phone: existingYouth.phone,
+          familyContacts: existingYouth.familyContacts,
         },
-      },
-    });
+        {
+          name: normalizedName,
+          admissionDate: normalizedAdmissionDate.value,
+          birthDate: normalizedBirthDate.value,
+          dischargeDate: normalizedDischargeDate.value,
+          phone: normalizedPhone.value,
+          familyContacts: normalizedFamilyContacts.value,
+        },
+      );
+      const addedDocumentNames = preparedDocuments.files.map(
+        (file) => file.originalName,
+      );
 
-    return {
-      ...updatedYouth,
-      familyContacts,
-    };
-  });
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.UPDATE_YOUTH,
+          targetType: "Youth",
+          targetId: updatedYouth.id,
+          message: buildYouthUpdateMessage(
+            normalizedName,
+            fieldChanges,
+            addedDocumentNames,
+          ),
+          metadata: {
+            changes: fieldChanges,
+            addedDocumentNames,
+            familyContactCount: familyContacts.length,
+            hasPhone: Boolean(normalizedPhone.value),
+            decisionDocumentCount: preparedDocuments.files.length,
+          },
+        },
+      });
+
+      return {
+        ...updatedYouth,
+        familyContacts,
+        decisionDocuments,
+      };
+    });
+  } catch (error) {
+    await cleanupYouthDecisionDocuments(preparedDocuments.files);
+    throw error;
+  }
 
   revalidateYouthPaths();
 
@@ -372,6 +540,12 @@ export async function deleteYouthAction(
     select: {
       id: true,
       name: true,
+      decisionDocuments: {
+        select: {
+          storageProvider: true,
+          storageKey: true,
+        },
+      },
     },
   });
 
@@ -405,12 +579,88 @@ export async function deleteYouthAction(
     });
   });
 
+  await removeStoredAttachmentFiles(existingYouth.decisionDocuments).catch(
+    () => undefined,
+  );
+
   revalidateYouthPaths();
 
   return {
     ok: true,
     data: {
       youthId: existingYouth.id,
+    },
+  };
+}
+
+export async function deleteYouthDecisionDocumentAction(
+  documentId: string,
+): Promise<YouthActionResult<{ documentId: string; youthId: string }>> {
+  const user = await requireUser();
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  const document = await prisma.youthDecisionDocument.findUnique({
+    where: {
+      id: documentId,
+    },
+    select: {
+      id: true,
+      originalName: true,
+      storageProvider: true,
+      storageKey: true,
+      youthId: true,
+      youth: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!document) {
+    return {
+      ok: false,
+      error: "삭제할 결정문 파일을 찾을 수 없습니다.",
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_YOUTH,
+        targetType: "Youth",
+        targetId: document.youthId,
+        message: `${document.youth.name} 청소년의 "${document.originalName}" 결정문 파일을 삭제했습니다.`,
+        metadata: {
+          changeType: "youth.decision-document.delete",
+          documentId: document.id,
+        },
+      },
+    });
+
+    await tx.youthDecisionDocument.delete({
+      where: {
+        id: document.id,
+      },
+    });
+  });
+
+  await removeStoredAttachmentFiles([
+    {
+      storageProvider: document.storageProvider,
+      storageKey: document.storageKey,
+    },
+  ]).catch(() => undefined);
+
+  revalidateYouthPaths();
+
+  return {
+    ok: true,
+    data: {
+      documentId: document.id,
+      youthId: document.youthId,
     },
   };
 }
@@ -665,6 +915,125 @@ function normalizeFamilyContacts(values: YouthFamilyContactInput[]): {
   return {
     value: contacts,
   };
+}
+
+type YouthFieldSnapshot = {
+  name: string;
+  admissionDate: string | null;
+  birthDate: string | null;
+  dischargeDate: string | null;
+  phone: string | null;
+  familyContacts: Array<{ relationship: string | null; phone: string | null }>;
+};
+
+type YouthFieldChange = {
+  field: string;
+  label: string;
+  from: string;
+  to: string;
+};
+
+function getYouthFieldChanges(
+  before: YouthFieldSnapshot,
+  after: YouthFieldSnapshot,
+): YouthFieldChange[] {
+  const changes: YouthFieldChange[] = [];
+
+  pushYouthFieldChange(changes, "name", "이름", before.name, after.name);
+  pushYouthFieldChange(
+    changes,
+    "admissionDate",
+    "입소 날짜",
+    formatYouthDateForLog(before.admissionDate),
+    formatYouthDateForLog(after.admissionDate),
+  );
+  pushYouthFieldChange(
+    changes,
+    "birthDate",
+    "생년월일",
+    formatYouthDateForLog(before.birthDate),
+    formatYouthDateForLog(after.birthDate),
+  );
+  pushYouthFieldChange(
+    changes,
+    "dischargeDate",
+    "퇴소 예정일",
+    formatYouthDateForLog(before.dischargeDate),
+    formatYouthDateForLog(after.dischargeDate),
+  );
+  pushYouthFieldChange(
+    changes,
+    "phone",
+    "핸드폰 번호",
+    before.phone ?? "미등록",
+    after.phone ?? "미등록",
+  );
+  pushYouthFieldChange(
+    changes,
+    "familyContacts",
+    "가족 연락처",
+    formatYouthFamilyContactsForLog(before.familyContacts),
+    formatYouthFamilyContactsForLog(after.familyContacts),
+  );
+
+  return changes;
+}
+
+function pushYouthFieldChange(
+  changes: YouthFieldChange[],
+  field: string,
+  label: string,
+  from: string,
+  to: string,
+) {
+  if (from === to) {
+    return;
+  }
+
+  changes.push({ field, label, from, to });
+}
+
+function formatYouthDateForLog(value: string | null) {
+  return value ?? "미등록";
+}
+
+function formatYouthFamilyContactsForLog(
+  contacts: Array<{ relationship: string | null; phone: string | null }>,
+) {
+  if (contacts.length === 0) {
+    return "미등록";
+  }
+
+  return contacts
+    .map((contact) => {
+      const relationship = contact.relationship?.trim() || "관계 미등록";
+      const phone = contact.phone?.trim() || "연락처 미등록";
+
+      return `${relationship}(${phone})`;
+    })
+    .join(", ");
+}
+
+function buildYouthUpdateMessage(
+  name: string,
+  changes: YouthFieldChange[],
+  addedDocumentNames: string[],
+) {
+  const lines = [`${name} 청소년 기본 정보를 수정했습니다.`];
+
+  for (const change of changes) {
+    lines.push(`- ${change.label}: ${change.from} → ${change.to}`);
+  }
+
+  if (addedDocumentNames.length > 0) {
+    lines.push(`- 결정문 파일 추가: ${addedDocumentNames.join(", ")}`);
+  }
+
+  if (changes.length === 0 && addedDocumentNames.length === 0) {
+    lines.push("- 변경된 항목이 없습니다.");
+  }
+
+  return lines.join("\n");
 }
 
 function revalidateYouthPaths() {

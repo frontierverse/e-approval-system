@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthDisplayAge,
+  type YouthDecisionDocumentItem,
   type YouthFamilyContact,
   normalizeYouthNoteCategory,
   normalizeYouthNotePriority,
@@ -12,6 +13,9 @@ import {
 } from "@/lib/youth-management-core";
 
 const youthInclude = {
+  decisionDocuments: {
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  },
   notes: {
     orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
   },
@@ -85,7 +89,22 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
     }),
     phone: record.phone,
     familyContacts: mapYouthFamilyContacts(record),
+    decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
     notes: record.notes.map(mapYouthSpecialNote),
+  };
+}
+
+export function mapYouthDecisionDocument(record: {
+  id: string;
+  originalName: string;
+  size: number;
+  createdAt: Date;
+}): YouthDecisionDocumentItem {
+  return {
+    id: record.id,
+    originalName: record.originalName,
+    size: record.size,
+    createdAt: record.createdAt.toISOString(),
   };
 }
 

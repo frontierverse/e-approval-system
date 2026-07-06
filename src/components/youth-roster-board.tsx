@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
   useTransition,
+  type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -16,16 +17,20 @@ import { AppModal } from "@/components/app-modal";
 import { EmptyState } from "@/components/empty-state";
 import { SplitDateInput } from "@/components/split-date-input";
 import { UserIdentity } from "@/components/user-identity";
+import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
 import {
   getAuditActionBadgeClass,
   getAuditActionLabel,
 } from "@/lib/audit-log-display";
+import { formatFileSize, mergeAttachmentSelections } from "@/lib/file-display";
 import {
   calculateYouthKoreanAge,
   formatYouthSchoolGradeLabel,
   getYouthDisplayAge,
   type YouthActionResult,
   type YouthCreateInput,
+  youthDecisionDocumentFormFieldName,
+  type YouthDecisionDocumentItem,
   type YouthFamilyContactInput,
   type YouthProfile,
   type YouthUpdateInput,
@@ -42,17 +47,22 @@ type YouthRosterBoardProps = {
   changeLogs?: YouthRosterChangeLog[];
   createYouth: (
     values: YouthCreateInput,
+    documents?: FormData,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   data: YouthRosterData;
   deleteYouth: (
     youthId: string,
   ) => Promise<YouthActionResult<{ youthId: string }>>;
+  deleteDecisionDocument: (
+    documentId: string,
+  ) => Promise<YouthActionResult<{ documentId: string; youthId: string }>>;
   loadChangeLogs?: (
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
   updateYouth: (
     youthId: string,
     values: YouthUpdateInput,
+    documents?: FormData,
   ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
 };
 
@@ -69,6 +79,7 @@ type YouthRosterModalState =
 type YouthFormDraft = {
   admissionDate: string;
   birthDate: string;
+  decisionFiles: File[];
   dischargeDate: string;
   familyContacts: FamilyContactDraft[];
   name: string;
@@ -88,6 +99,7 @@ type YouthRosterSortState = {
 
 const youthUpdateConfirmMessage =
   "정보 변경시 변경 기록이 남습니다.\n정말로 수정하시겠습니까?";
+const decisionDocumentAcceptTypes = defaultAllowedAttachmentExtensions.join(",");
 
 export function YouthRosterBoard({
   changeLogFilters,
@@ -95,6 +107,7 @@ export function YouthRosterBoard({
   createYouth,
   data,
   deleteYouth,
+  deleteDecisionDocument,
   loadChangeLogs,
   updateYouth,
 }: YouthRosterBoardProps) {
@@ -268,6 +281,7 @@ export function YouthRosterBoard({
         <YouthRosterFormModal
           createYouth={createYouth}
           deleteYouth={deleteYouth}
+          deleteDecisionDocument={deleteDecisionDocument}
           modal={modal}
           onClose={() => setModal(null)}
           onDeleted={removeYouthFromRoster}
@@ -402,7 +416,7 @@ function YouthRosterChangeLogSection({
                     {getYouthRosterChangeLogTargetLabel(log)}
                   </span>
                 </div>
-                <p className="break-words text-sm font-semibold leading-6 text-[#16181d] [overflow-wrap:anywhere]">
+                <p className="whitespace-pre-line break-words text-sm font-semibold leading-6 text-[#16181d] [overflow-wrap:anywhere]">
                   {log.message ?? "청소년 명단 변경기록을 기록했습니다."}
                 </p>
               </div>
@@ -811,6 +825,7 @@ function handleEditableRosterRowKeyDown(
 export function YouthRosterFormModal({
   createYouth,
   deleteYouth,
+  deleteDecisionDocument,
   modal,
   onClose,
   onDeleted,
@@ -819,6 +834,7 @@ export function YouthRosterFormModal({
 }: {
   createYouth: YouthRosterBoardProps["createYouth"];
   deleteYouth: YouthRosterBoardProps["deleteYouth"];
+  deleteDecisionDocument: YouthRosterBoardProps["deleteDecisionDocument"];
   modal: YouthRosterModalState;
   onClose: () => void;
   onDeleted: (youthId: string) => void;
@@ -829,9 +845,12 @@ export function YouthRosterFormModal({
   const [draft, setDraft] = useState(() =>
     createYouthFormDraft(modal.mode === "edit" ? modal.youth : null),
   );
+  const [savedDocuments, setSavedDocuments] = useState<
+    YouthDecisionDocumentItem[]
+  >(() => (modal.mode === "edit" ? modal.youth.decisionDocuments : []));
   const [error, setError] = useState("");
   const [pendingIntent, setPendingIntent] = useState<
-    "delete" | "save" | null
+    "delete" | "deleteDocument" | "save" | null
   >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
@@ -879,11 +898,79 @@ export function YouthRosterFormModal({
     setError("");
   }
 
+  function addDecisionFiles(event: ChangeEvent<HTMLInputElement>) {
+    const addedFiles = Array.from(event.target.files ?? []);
+
+    event.target.value = "";
+
+    if (addedFiles.length === 0) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      decisionFiles: mergeAttachmentSelections(
+        current.decisionFiles,
+        addedFiles,
+      ),
+    }));
+    setError("");
+  }
+
+  function removeDecisionFile(file: File) {
+    setDraft((current) => ({
+      ...current,
+      decisionFiles: current.decisionFiles.filter((item) => item !== file),
+    }));
+    setError("");
+  }
+
+  function deleteSavedDocument(document: YouthDecisionDocumentItem) {
+    if (modal.mode !== "edit") {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `"${document.originalName}" 결정문 파일을 삭제할까요?\n삭제한 파일은 복구할 수 없습니다.`,
+      )
+    ) {
+      return;
+    }
+
+    setError("");
+    setPendingIntent("deleteDocument");
+
+    startTransition(async () => {
+      try {
+        const result = await deleteDecisionDocument(document.id);
+
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+
+        const nextDocuments = savedDocuments.filter(
+          (item) => item.id !== result.data.documentId,
+        );
+
+        setSavedDocuments(nextDocuments);
+        onSaved({
+          ...modal.youth,
+          decisionDocuments: nextDocuments,
+        });
+      } finally {
+        setPendingIntent(null);
+      }
+    });
+  }
+
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     const values = getYouthInputFromDraft(draft);
+    const documentsFormData = getDecisionDocumentsFormData(draft.decisionFiles);
 
     if (modal.mode === "edit" && !window.confirm(youthUpdateConfirmMessage)) {
       return;
@@ -895,8 +982,8 @@ export function YouthRosterFormModal({
       try {
         const result =
           modal.mode === "create"
-            ? await createYouth(values)
-            : await updateYouth(modal.youth.id, values);
+            ? await createYouth(values, documentsFormData)
+            : await updateYouth(modal.youth.id, values, documentsFormData);
 
         if (!result.ok) {
           setError(result.error);
@@ -1081,6 +1168,103 @@ export function YouthRosterFormModal({
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+
+            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
+                <h3 className="text-sm font-semibold text-[#394150]">
+                  결정문 파일
+                </h3>
+                <label className="inline-flex h-9 cursor-pointer items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus-within:ring-2 focus-within:ring-[#d7eceb]">
+                  파일 선택
+                  <input
+                    type="file"
+                    multiple
+                    accept={decisionDocumentAcceptTypes}
+                    onChange={addDecisionFiles}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 p-4">
+                {modal.mode === "edit" ? (
+                  savedDocuments.length > 0 ? (
+                    <ul className="grid gap-2" aria-label="등록된 결정문 파일">
+                      {savedDocuments.map((document) => (
+                        <li
+                          key={document.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#eef1f5] bg-white px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                              {document.originalName}
+                            </p>
+                            <p className="mt-1 text-xs text-[#697386]">
+                              {formatFileSize(document.size)} ·{" "}
+                              {formatDateTime(document.createdAt)} 등록
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <a
+                              href={`/youth/decision-documents/${document.id}`}
+                              className="inline-flex h-9 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
+                            >
+                              다운로드
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => deleteSavedDocument(document)}
+                              disabled={pending}
+                              className="h-9 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {pending && pendingIntent === "deleteDocument"
+                                ? "삭제 중"
+                                : "삭제"}
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-[#cfd6e3] bg-white px-3 py-3 text-sm text-[#697386]">
+                      등록된 결정문 파일이 없습니다.
+                    </p>
+                  )
+                ) : null}
+
+                {draft.decisionFiles.length > 0 ? (
+                  <ul className="grid gap-2" aria-label="업로드할 결정문 파일">
+                    {draft.decisionFiles.map((file) => (
+                      <li
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#d7eceb] bg-[#f4faf9] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                            {file.name}
+                          </p>
+                          <p className="mt-1 text-xs text-[#697386]">
+                            {formatFileSize(file.size)} · 저장 시 업로드
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeDecisionFile(file)}
+                          disabled={pending}
+                          className="h-9 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          제외
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                <p className="text-xs text-[#697386]">
+                  선택한 파일은 저장 버튼을 누르면 함께 업로드됩니다. 파일당
+                  최대 30MB, 한 번에 5개까지 등록할 수 있습니다.
+                </p>
               </div>
             </section>
 
@@ -1269,6 +1453,7 @@ function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
   return {
     admissionDate: youth?.admissionDate ?? "",
     birthDate: youth?.birthDate ?? "",
+    decisionFiles: [],
     dischargeDate: youth?.dischargeDate ?? "",
     familyContacts:
       youth && youth.familyContacts.length > 0
@@ -1289,6 +1474,20 @@ function createFamilyContactDraft(index: number): FamilyContactDraft {
     phone: "",
     relationship: "",
   };
+}
+
+function getDecisionDocumentsFormData(files: File[]) {
+  if (files.length === 0) {
+    return undefined;
+  }
+
+  const formData = new FormData();
+
+  for (const file of files) {
+    formData.append(youthDecisionDocumentFormFieldName, file);
+  }
+
+  return formData;
 }
 
 function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
@@ -1318,6 +1517,7 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
     }),
     koreanAge: calculateYouthKoreanAge(birthDate),
     dischargeDate: youth.dischargeDate,
+    decisionDocuments: youth.decisionDocuments,
     familyContacts: youth.familyContacts.map((contact) => ({
       id: contact.id,
       phone: contact.phone,

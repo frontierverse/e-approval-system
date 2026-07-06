@@ -24,8 +24,8 @@ describe("route loading skeletons", () => {
     assert.doesNotMatch(workScheduleHtml, /자료 목록/);
     assert.match(commonScheduleHtml, /공통 일정표/);
     assert.match(commonScheduleHtml, /min-w-\[820px\]/);
-    assert.match(learningProgressHtml, /학습지도 시간표/);
-    assert.match(learningProgressHtml, /min-w-\[680px\]/);
+    assert.match(learningProgressHtml, /학습진도 체크리스트 로딩/);
+    assert.match(learningProgressHtml, /animate-pulse/);
   });
 
   test("renders cafe registration and list loading states for cafe management", () => {

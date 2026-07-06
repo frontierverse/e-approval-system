@@ -8,6 +8,7 @@ import {
 import {
   createYouthAction,
   deleteYouthAction,
+  deleteYouthDecisionDocumentAction,
   getYouthRosterChangeLogsAction,
   updateYouthAction,
 } from "@/app/youth/actions";
@@ -50,6 +51,7 @@ export default async function YouthRosterPage({
         createYouth={createYouthAction}
         data={roster}
         deleteYouth={deleteYouthAction}
+        deleteDecisionDocument={deleteYouthDecisionDocumentAction}
         loadChangeLogs={getYouthRosterChangeLogsAction}
         updateYouth={updateYouthAction}
       />

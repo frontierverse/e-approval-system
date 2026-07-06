@@ -29,6 +29,14 @@ const roster = {
       age: 17,
       koreanAge: 18,
       phone: "010-1111-2222",
+      decisionDocuments: [
+        {
+          id: "decision-document-001",
+          originalName: "김하늘_결정문.pdf",
+          size: 204800,
+          createdAt: "2026-05-01T09:00:00.000Z",
+        },
+      ],
       familyContacts: [
         {
           id: "family-contact-001",
@@ -48,6 +56,7 @@ const roster = {
       age: 18,
       koreanAge: 19,
       phone: null,
+      decisionDocuments: [],
       familyContacts: [],
     },
   ],
@@ -96,6 +105,7 @@ const rosterActions = {
           relationship: contact.relationship || null,
           phone: contact.phone || null,
         })),
+        decisionDocuments: [],
         notes: [],
       },
     },
@@ -116,6 +126,7 @@ const rosterActions = {
           relationship: contact.relationship || null,
           phone: contact.phone || null,
         })),
+        decisionDocuments: [],
         notes: [],
       },
     },
@@ -124,6 +135,13 @@ const rosterActions = {
     ok: true,
     data: {
       youthId,
+    },
+  }),
+  deleteDecisionDocument: async (documentId: string) => ({
+    ok: true,
+    data: {
+      documentId,
+      youthId: "youth-admitted-001",
     },
   }),
 };
@@ -227,6 +245,15 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /value="2009"/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);
+    assert.match(html, /결정문 파일/);
+    assert.match(html, /김하늘_결정문\.pdf/);
+    assert.match(html, /200\.0 KB/);
+    assert.match(
+      html,
+      /href="\/youth\/decision-documents\/decision-document-001"/,
+    );
+    assert.match(html, />다운로드</);
+    assert.match(html, /type="file"/);
   });
 
   test("does not render the youth delete action in discharged edit modals", () => {
