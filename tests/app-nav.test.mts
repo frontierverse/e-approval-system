@@ -268,6 +268,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /김민지/);
     assert.match(html, /오늘 휴가/);
     assert.match(html, /박서연/);
+    assert.match(html, /휴가일 2026\.06\.29 \(월\)/);
     assert.match(html, /오늘 유통기한/);
     assert.match(html, /우유/);
     assert.match(html, /오늘 식품 유통기한/);
@@ -304,7 +305,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /31일 이내에 사용 예정인 휴가입니다\./);
     assert.match(html, /박서연/);
     assert.match(html, /연차/);
-    assert.match(html, /휴가일 2026\.07\.04/);
+    assert.match(html, /휴가일 2026\.07\.04 \(토\)/);
     assert.match(html, /href="\/work-schedule\?month=2026-07"/);
   });
 

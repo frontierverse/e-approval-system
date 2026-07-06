@@ -981,7 +981,7 @@ export function TopbarDdayAlertModalContent({
                         {item.detailLabel}
                       </span>
                       <span className="mt-1 block text-xs text-[#697386]">
-                        휴가일 {formatTopbarAlertDate(item.date)}
+                        휴가일 {formatTopbarVacationDate(item.date)}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2.5 py-1 text-xs font-semibold text-[#3730a3]">
@@ -1217,7 +1217,7 @@ export function TopbarVacationAlertModalContent({
                     {item.detailLabel}
                   </span>
                   <span className="mt-1 block text-xs text-[#697386]">
-                    휴가일 {formatTopbarAlertDate(item.date)}
+                    휴가일 {formatTopbarVacationDate(item.date)}
                   </span>
                 </span>
                 <span className="shrink-0 rounded-md border border-[#c7d2fe] bg-[#eef2ff] px-2.5 py-1 text-xs font-semibold text-[#3730a3]">
@@ -1485,6 +1485,35 @@ function NavPendingDot({
 
 function formatTopbarAlertDate(value: string) {
   return value.replaceAll("-", ".");
+}
+
+function formatTopbarVacationDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return formatTopbarAlertDate(value);
+  }
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return formatTopbarAlertDate(value);
+  }
+
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(date);
+
+  return `${formatTopbarAlertDate(value)} (${weekday})`;
 }
 
 function getActiveGroup(
