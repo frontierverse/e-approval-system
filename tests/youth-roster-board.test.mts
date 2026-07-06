@@ -182,6 +182,17 @@ describe("YouthRosterBoard", () => {
     assert.equal((html.match(/aria-haspopup="dialog"/g) ?? []).length, 3);
     assert.doesNotMatch(html, /name="name"/);
     assert.doesNotMatch(html, />저장</);
+    assert.match(html, /결정문/);
+    assert.match(
+      html,
+      /href="\/youth\/decision-documents\/decision-document-001"/,
+    );
+    assert.match(
+      html,
+      /aria-label="김하늘 결정문 김하늘_결정문\.pdf 다운로드"/,
+    );
+    assert.match(html, />PDF<\/text>/);
+    assert.match(html, /fill="#d92d20"/);
   });
 
   test("renders empty roster states", () => {

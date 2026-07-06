@@ -680,6 +680,9 @@ function YouthRosterSection({
                 <th scope="col" className="px-4 py-3">
                   가족 연락처
                 </th>
+                <th scope="col" className="px-4 py-3">
+                  결정문
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
@@ -748,6 +751,12 @@ function YouthRosterSection({
                   <TableCell>{youth.phone ?? "미등록"}</TableCell>
                   <TableCell>
                     <FamilyContactList youth={youth} />
+                  </TableCell>
+                  <TableCell>
+                    <DecisionDocumentLinks
+                      documents={youth.decisionDocuments}
+                      youthName={youth.name}
+                    />
                   </TableCell>
                 </tr>
               ))}
@@ -1325,6 +1334,77 @@ function RosterFormField({
       <span className="text-sm font-semibold text-[#394150]">{label}</span>
       {children}
     </label>
+  );
+}
+
+function DecisionDocumentLinks({
+  documents,
+  youthName,
+}: {
+  documents: YouthDecisionDocumentItem[];
+  youthName: string;
+}) {
+  if (documents.length === 0) {
+    return "미등록";
+  }
+
+  return (
+    <div
+      className="flex flex-wrap gap-1.5"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {documents.map((document) => (
+        <a
+          key={document.id}
+          href={`/youth/decision-documents/${document.id}`}
+          title={document.originalName}
+          aria-label={`${youthName} 결정문 ${document.originalName} 다운로드`}
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#f0c6c6] bg-[#fff1f1] text-[#b42318] transition hover:border-[#d92d20] hover:bg-[#ffe7e5] hover:text-[#8a1f1f] focus:outline-none focus:ring-2 focus:ring-[#ffd0cc]"
+        >
+          <DecisionDocumentIcon />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function DecisionDocumentIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="size-5"
+    >
+      <path
+        d="M6 2.5h5.5L15 6v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3.5A1 1 0 0 1 6 2.5Z"
+        fill="#fff7f7"
+        stroke="#d92d20"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11 2.5V6a1 1 0 0 0 1 1h3"
+        fill="#ffd6d3"
+        stroke="#d92d20"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <rect x="4.5" y="11.5" width="11" height="5.2" rx="1.1" fill="#d92d20" />
+      <text
+        x="10"
+        y="15.1"
+        fill="white"
+        fontFamily="Arial, sans-serif"
+        fontSize="3.4"
+        fontWeight="800"
+        letterSpacing="0"
+        textAnchor="middle"
+      >
+        PDF
+      </text>
+    </svg>
   );
 }
 
