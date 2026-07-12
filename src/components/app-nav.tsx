@@ -457,6 +457,10 @@ function isTopbarDdayDue(ddayLabel: string) {
   return normalizedLabel === "d-day" || normalizedLabel === "d-0";
 }
 
+function isTopbarOverdue(ddayLabel: string) {
+  return /^d\+\d+$/.test(ddayLabel.trim().toLowerCase());
+}
+
 function useRefrigeratorFoodExpirationTopbarAlert() {
   const [alert, setAlert] = useState<NavigationTopbarFoodExpirationAlert>(
     createNavigationFoodExpirationAlert(null),
@@ -712,17 +716,19 @@ function TopbarExpirationAlertButton({
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
     "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
-    hasItems && isTopbarDdayDue(alert.ddayLabel)
-      ? "topbar-widget-due topbar-widget-due-expiration"
-      : "",
+    hasItems && isTopbarOverdue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-overdue"
+      : hasItems && isTopbarDdayDue(alert.ddayLabel)
+        ? "topbar-widget-due topbar-widget-due-expiration"
+        : "",
     alignEnd ? "ml-auto" : "",
   ].join(" ");
   const title = hasItems
     ? `${alert.itemName} ${alert.ddayLabel}`
-    : "유통기한 임박 물품 없음";
+    : "유통기한 조치 필요 물품 없음";
   const ariaLabel = hasItems
-    ? `${alert.itemName} ${alert.ddayLabel} 유통기한 임박 물품 목록 열기`
-    : "유통기한 임박 물품 목록 열기, 임박 없음";
+    ? `${alert.itemName} ${alert.ddayLabel} 유통기한 조치 필요 물품 목록 열기`
+    : "유통기한 조치 필요 물품 목록 열기, 대상 없음";
 
   return (
     <>
@@ -774,16 +780,18 @@ function TopbarFoodExpirationAlertButton({
   const hasItems = alert.items.length > 0;
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 text-xs font-semibold text-[#196b69] shadow-sm transition hover:border-[#8fc8bf] hover:bg-[#e1f3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b7d9d4] sm:px-3",
-    hasItems && isTopbarDdayDue(alert.ddayLabel)
-      ? "topbar-widget-due topbar-widget-due-food-expiration"
-      : "",
+    hasItems && isTopbarOverdue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-overdue"
+      : hasItems && isTopbarDdayDue(alert.ddayLabel)
+        ? "topbar-widget-due topbar-widget-due-food-expiration"
+        : "",
   ].join(" ");
   const title = hasItems
     ? `${alert.itemName} ${alert.ddayLabel}`
-    : "냉장고 식품 유통기한 임박 항목 없음";
+    : "냉장고 식품 유통기한 조치 필요 항목 없음";
   const ariaLabel = hasItems
-    ? `${alert.itemName} ${alert.ddayLabel} 냉장고 식품 유통기한 목록 열기`
-    : "냉장고 식품 유통기한 목록 열기, 임박 없음";
+    ? `${alert.itemName} ${alert.ddayLabel} 냉장고 식품 유통기한 조치 필요 목록 열기`
+    : "냉장고 식품 유통기한 조치 필요 목록 열기, 대상 없음";
 
   return (
     <>
@@ -1244,7 +1252,7 @@ export function TopbarFoodExpirationAlertModalContent({
             냉장고 식품 유통기한
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            냉장고 식품 중 유통기한이 31일 이하로 남은 항목입니다.
+            유통기한이 지난 항목과 31일 이내에 도래하는 냉장고 식품입니다.
           </p>
         </div>
         <button
@@ -1262,7 +1270,12 @@ export function TopbarFoodExpirationAlertModalContent({
               <Link
                 href={item.href}
                 onClick={onClose}
-                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#edf8f5] focus:outline-none focus:ring-2 focus:ring-[#b7d9d4]"
+                className={[
+                  "-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition focus:outline-none focus:ring-2",
+                  isTopbarOverdue(item.ddayLabel)
+                    ? "hover:bg-[#fff5f2] focus:ring-[#f0c6c6]"
+                    : "hover:bg-[#edf8f5] focus:ring-[#b7d9d4]",
+                ].join(" ")}
               >
                 <span className="min-w-0">
                   <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
@@ -1273,7 +1286,14 @@ export function TopbarFoodExpirationAlertModalContent({
                     {formatTopbarAlertDate(item.expirationDate)}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 py-1 text-xs font-semibold text-[#196b69]">
+                <span
+                  className={[
+                    "shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold",
+                    isTopbarOverdue(item.ddayLabel)
+                      ? "border-[#f0c6c6] bg-[#fff1f1] text-[#9d3328]"
+                      : "border-[#b7d9d4] bg-[#edf8f5] text-[#196b69]",
+                  ].join(" ")}
+                >
                   {item.ddayLabel}
                 </span>
               </Link>
@@ -1282,7 +1302,7 @@ export function TopbarFoodExpirationAlertModalContent({
         </ul>
       ) : (
         <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
-          유통기한이 31일 이하로 남은 냉장고 식품이 없습니다.
+          유통기한이 지난 항목 또는 31일 이내에 도래하는 냉장고 식품이 없습니다.
         </p>
       )}
     </div>
@@ -1541,10 +1561,10 @@ export function TopbarExpirationAlertModalContent({
             id={titleId}
             className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
           >
-            임박 물품 목록
+            유통기한 조치 필요 물품
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            유통기한이 31일 이하로 남은 식품 목록입니다.
+            유통기한이 지난 항목과 31일 이내에 도래하는 식품 목록입니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -1572,7 +1592,12 @@ export function TopbarExpirationAlertModalContent({
               <Link
                 href={item.href}
                 onClick={onClose}
-                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#fff8e8] focus:outline-none focus:ring-2 focus:ring-[#f0d28a]"
+                className={[
+                  "-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition focus:outline-none focus:ring-2",
+                  isTopbarOverdue(item.ddayLabel)
+                    ? "hover:bg-[#fff5f2] focus:ring-[#f0c6c6]"
+                    : "hover:bg-[#fff8e8] focus:ring-[#f0d28a]",
+                ].join(" ")}
               >
                 <span className="min-w-0">
                   <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
@@ -1582,7 +1607,14 @@ export function TopbarExpirationAlertModalContent({
                     유통기한 {formatTopbarAlertDate(item.expirationDate)}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 py-1 text-xs font-semibold text-[#a13a3a]">
+                <span
+                  className={[
+                    "shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold",
+                    isTopbarOverdue(item.ddayLabel)
+                      ? "border-[#f0c6c6] bg-[#fff1f1] text-[#9d3328]"
+                      : "border-[#f0d28a] bg-[#fff8e8] text-[#a13a3a]",
+                  ].join(" ")}
+                >
                   {item.ddayLabel}
                 </span>
               </Link>
@@ -1591,7 +1623,7 @@ export function TopbarExpirationAlertModalContent({
         </ul>
       ) : (
         <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
-          유통기한이 31일 이하로 남은 물품이 없습니다.
+          유통기한이 지난 항목 또는 31일 이내에 도래하는 물품이 없습니다.
         </p>
       )}
     </div>

@@ -210,6 +210,15 @@ button:disabled {
   --topbar-widget-due-outer-glow: rgba(157, 51, 40, 0.42);
 }
 
+.topbar-widget-due-overdue {
+  --topbar-widget-due-bg: #fff1f1;
+  --topbar-widget-due-bg-strong: #ffe4e1;
+  --topbar-widget-due-border: #e59b93;
+  --topbar-widget-due-border-soft: #f0c6c6;
+  --topbar-widget-due-fill-glow: rgba(255, 228, 225, 0.98);
+  --topbar-widget-due-outer-glow: rgba(157, 51, 40, 0.42);
+}
+
 .topbar-widget-due::before {
   animation: topbar-widget-due-fill 2.4s ease-in-out infinite;
   background:

@@ -132,7 +132,7 @@ export function createRefrigeratorFoodExpirationAlert(
 
         const daysUntil = getDateDiffInDays(today, item.expirationDate);
 
-        if (daysUntil < 0 || daysUntil > expirationAlertWindowDays) {
+        if (daysUntil > expirationAlertWindowDays) {
           return [];
         }
 
@@ -324,7 +324,7 @@ function formatTargetDday(daysUntil: number) {
     return "D-Day";
   }
 
-  return `D-${daysUntil}`;
+  return daysUntil > 0 ? `D-${daysUntil}` : `D+${Math.abs(daysUntil)}`;
 }
 
 function getDateDiffInDays(from: string, to: string) {

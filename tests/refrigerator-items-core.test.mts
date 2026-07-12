@@ -43,6 +43,29 @@ describe("refrigerator items core", () => {
     assert.equal(alert?.items[0]?.locationLabel, "바자울 1");
   });
 
+  test("keeps expired food in the alert until it is removed", () => {
+    const itemsByLocation = createEmptyRefrigeratorItems();
+
+    itemsByLocation["bajaul-1"] = [
+      {
+        category: "식품",
+        expirationDate: "2026-06-27",
+        id: "refrigerator-item-expired",
+        name: "요거트",
+        purchasedAt: "2026-06-20",
+      },
+    ];
+
+    const alert = createRefrigeratorFoodExpirationAlert(
+      itemsByLocation,
+      "2026-06-29",
+    );
+
+    assert.equal(alert?.itemName, "요거트");
+    assert.equal(alert?.ddayLabel, "D+2");
+    assert.equal(alert?.items.length, 1);
+  });
+
   test("parses saved refrigerator items defensively", () => {
     const itemsByLocation = parseRefrigeratorItemsByLocation(
       JSON.stringify({

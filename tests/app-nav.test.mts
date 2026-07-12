@@ -371,8 +371,8 @@ describe("app navigation active paths", () => {
       }),
     );
 
-    assert.match(html, /임박 물품 목록/);
-    assert.match(html, /유통기한이 31일 이하로 남은 식품 목록입니다\./);
+    assert.match(html, /유통기한 조치 필요 물품/);
+    assert.match(html, /유통기한이 지난 항목과 31일 이내에 도래하는 식품 목록입니다\./);
     assert.match(html, /PDF 출력 · 15일 이내/);
     assert.match(
       html,
@@ -406,7 +406,10 @@ describe("app navigation active paths", () => {
       }),
     );
 
-    assert.match(html, /유통기한이 31일 이하로 남은 물품이 없습니다\./);
+    assert.match(
+      html,
+      /유통기한이 지난 항목 또는 31일 이내에 도래하는 물품이 없습니다\./,
+    );
   });
 
   test("renders birthday alert modal items", () => {

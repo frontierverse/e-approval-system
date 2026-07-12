@@ -104,6 +104,17 @@ describe("cafe items", () => {
     );
   });
 
+  test("marks expired food with elapsed d-day", () => {
+    assert.deepEqual(
+      getCafeItemUsageDday(cafeItems[0], "2026-07-26"),
+      {
+        basisLabel: "유통기한 기준",
+        label: "D+2",
+        status: "expired",
+      },
+    );
+  });
+
   test("formats non-food usage d-day from the purchase date", () => {
     assert.deepEqual(
       getCafeItemUsageDday(cafeItems[1], "2026-06-24"),

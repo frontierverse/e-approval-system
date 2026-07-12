@@ -52,7 +52,6 @@ export async function getCafeItemExpirationAlert(
     where: {
       category: "food",
       expirationDate: {
-        gte: formatCafeItemDateTimeFilterValue(today),
         lte: formatCafeItemDateTimeFilterValue(shiftCafeItemDate(today, 31)),
       },
     },
