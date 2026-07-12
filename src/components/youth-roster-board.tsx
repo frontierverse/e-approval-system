@@ -29,7 +29,10 @@ import {
   getYouthDisplayAge,
   type YouthActionResult,
   type YouthCreateInput,
+  type YouthDischargeExtension,
+  type YouthDischargeExtensionInput,
   youthDecisionDocumentFormFieldName,
+  youthDischargeExtensionReasonMaxLength,
   type YouthDecisionDocumentItem,
   type YouthFamilyContactInput,
   type YouthProfile,
@@ -56,6 +59,17 @@ type YouthRosterBoardProps = {
   deleteDecisionDocument: (
     documentId: string,
   ) => Promise<YouthActionResult<{ documentId: string; youthId: string }>>;
+  extendYouthDischarge?: (
+    youthId: string,
+    values: YouthDischargeExtensionInput,
+  ) => Promise<
+    YouthActionResult<{
+      dischargeDate: string;
+      extension: YouthDischargeExtension;
+      initialDischargeDate: string;
+      youthId: string;
+    }>
+  >;
   loadChangeLogs?: (
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
@@ -119,6 +133,7 @@ export function YouthRosterBoard({
   data,
   deleteYouth,
   deleteDecisionDocument,
+  extendYouthDischarge,
   loadChangeLogs,
   updateYouth,
 }: YouthRosterBoardProps) {
@@ -301,6 +316,7 @@ export function YouthRosterBoard({
           createYouth={createYouth}
           deleteYouth={deleteYouth}
           deleteDecisionDocument={deleteDecisionDocument}
+          extendYouthDischarge={extendYouthDischarge}
           modal={modal}
           onClose={() => setModal(null)}
           onDecisionDocumentDownload={(youthName, document) =>
@@ -870,6 +886,7 @@ export function YouthRosterFormModal({
   createYouth,
   deleteYouth,
   deleteDecisionDocument,
+  extendYouthDischarge,
   modal,
   onClose,
   onDecisionDocumentDownload,
@@ -880,6 +897,7 @@ export function YouthRosterFormModal({
   createYouth: YouthRosterBoardProps["createYouth"];
   deleteYouth: YouthRosterBoardProps["deleteYouth"];
   deleteDecisionDocument: YouthRosterBoardProps["deleteDecisionDocument"];
+  extendYouthDischarge?: YouthRosterBoardProps["extendYouthDischarge"];
   modal: YouthRosterModalState;
   onClose: () => void;
   onDecisionDocumentDownload: (
@@ -897,6 +915,17 @@ export function YouthRosterFormModal({
   const [savedDocuments, setSavedDocuments] = useState<
     YouthDecisionDocumentItem[]
   >(() => (modal.mode === "edit" ? modal.youth.decisionDocuments : []));
+  const [dischargeExtensionOpen, setDischargeExtensionOpen] = useState(false);
+  const [dischargeState, setDischargeState] = useState(() =>
+    modal.mode === "edit"
+      ? {
+          currentDischargeDate: modal.youth.dischargeDate,
+          extensions: modal.youth.dischargeExtensions ?? [],
+          initialDischargeDate:
+            modal.youth.initialDischargeDate ?? modal.youth.dischargeDate,
+        }
+      : null,
+  );
   const [error, setError] = useState("");
   const [pendingIntent, setPendingIntent] = useState<
     "delete" | "deleteDocument" | "save" | null
@@ -1077,7 +1106,8 @@ export function YouthRosterFormModal({
   }
 
   return (
-    <AppModal
+    <>
+      <AppModal
       className="max-w-2xl"
       labelledBy={titleId}
       onClose={onClose}
@@ -1134,13 +1164,26 @@ export function YouthRosterFormModal({
                   onChange={(value) => updateDraft({ admissionDate: value })}
                 />
               </RosterFormField>
-              <RosterFormField label="퇴소 예정">
-                <SplitDateInput
-                  ariaLabel="퇴소 예정"
-                  value={draft.dischargeDate}
-                  onChange={(value) => updateDraft({ dischargeDate: value })}
+              {modal.mode === "create" ? (
+                <RosterFormField label="퇴소 예정">
+                  <SplitDateInput
+                    ariaLabel="퇴소 예정"
+                    value={draft.dischargeDate}
+                    onChange={(value) => updateDraft({ dischargeDate: value })}
+                  />
+                </RosterFormField>
+              ) : (
+                <DischargeDateSummary
+                  currentDischargeDate={dischargeState?.currentDischargeDate ?? null}
+                  extensionCount={dischargeState?.extensions.length ?? 0}
+                  initialDischargeDate={dischargeState?.initialDischargeDate ?? null}
+                  onExtend={
+                    extendYouthDischarge
+                      ? () => setDischargeExtensionOpen(true)
+                      : undefined
+                  }
                 />
-              </RosterFormField>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1364,7 +1407,38 @@ export function YouthRosterFormModal({
           </footer>
         </div>
       </form>
-    </AppModal>
+      </AppModal>
+    {modal.mode === "edit" &&
+    dischargeState &&
+    dischargeExtensionOpen &&
+    extendYouthDischarge ? (
+        <YouthDischargeExtensionModal
+        currentDischargeDate={dischargeState.currentDischargeDate}
+        extendYouthDischarge={extendYouthDischarge}
+        extensions={dischargeState.extensions}
+        initialDischargeDate={dischargeState.initialDischargeDate}
+        onClose={() => setDischargeExtensionOpen(false)}
+        onExtended={(result) => {
+          const nextExtensions = [...dischargeState.extensions, result.extension];
+
+          setDischargeState({
+            currentDischargeDate: result.dischargeDate,
+            extensions: nextExtensions,
+            initialDischargeDate: result.initialDischargeDate,
+          });
+          onSaved({
+            ...modal.youth,
+            dischargeDate: result.dischargeDate,
+            dischargeExtensions: nextExtensions,
+            initialDischargeDate: result.initialDischargeDate,
+          });
+          setDischargeExtensionOpen(false);
+        }}
+        youthId={modal.youth.id}
+        youthName={modal.youth.name}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -1380,6 +1454,227 @@ function RosterFormField({
       <span className="text-sm font-semibold text-[#394150]">{label}</span>
       {children}
     </label>
+  );
+}
+
+function DischargeDateSummary({
+  currentDischargeDate,
+  extensionCount,
+  initialDischargeDate,
+  onExtend,
+}: {
+  currentDischargeDate: string | null;
+  extensionCount: number;
+  initialDischargeDate: string | null;
+  onExtend?: () => void;
+}) {
+  const canExtend =
+    Boolean(initialDischargeDate && currentDischargeDate && onExtend) &&
+    extensionCount < 2;
+
+  return (
+    <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[#394150]">퇴소 예정</p>
+          <p className="mt-1 text-sm text-[#16181d]">
+            현재 적용: {currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}
+          </p>
+          <p className="mt-1 text-xs text-[#697386]">
+            기본 예정일: {initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onExtend}
+          disabled={!canExtend}
+          className="h-9 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {extensionCount >= 2 ? "연장 한도 도달" : "퇴소 연장"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function YouthDischargeExtensionModal({
+  currentDischargeDate,
+  extendYouthDischarge,
+  extensions,
+  initialDischargeDate,
+  onClose,
+  onExtended,
+  youthId,
+  youthName,
+}: {
+  currentDischargeDate: string | null;
+  extendYouthDischarge: NonNullable<
+    YouthRosterBoardProps["extendYouthDischarge"]
+  >;
+  extensions: YouthDischargeExtension[];
+  initialDischargeDate: string | null;
+  onClose: () => void;
+  onExtended: (result: {
+    dischargeDate: string;
+    extension: YouthDischargeExtension;
+    initialDischargeDate: string;
+    youthId: string;
+  }) => void;
+  youthId: string;
+  youthName: string;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const [extendedDischargeDate, setExtendedDischargeDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+  const canExtend = Boolean(currentDischargeDate && initialDischargeDate) && extensions.length < 2;
+
+  function submitExtension(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    startTransition(async () => {
+      const result = await extendYouthDischarge(youthId, {
+        extendedDischargeDate,
+        reason,
+      });
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      onExtended(result.data);
+    });
+  }
+
+  return (
+    <AppModal
+      className="max-w-lg"
+      describedBy={descriptionId}
+      labelledBy={titleId}
+      onClose={onClose}
+    >
+      <form onSubmit={submitExtension}>
+        <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+          <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-6 py-5">
+            <div>
+              <p className="text-xs font-semibold text-[#9d3328]">퇴소 연장</p>
+              <h2
+                id={titleId}
+                className="mt-1 text-xl font-semibold text-[#16181d]"
+              >
+                {youthName} 퇴소 예정 연장
+              </h2>
+              <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+                연장은 최대 2회까지 등록할 수 있으며, 처리일과 처리자는 자동으로 기록됩니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              className="h-9 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              닫기
+            </button>
+          </header>
+
+          <div className="grid gap-4 px-6 py-5">
+            <div className="grid gap-2 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3 text-sm">
+              <p className="text-[#394150]">
+                기본 퇴소 예정일: <strong>{initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"}</strong>
+              </p>
+              <p className="text-[#394150]">
+                현재 적용 퇴소일: <strong>{currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}</strong>
+              </p>
+              <p className="text-xs text-[#697386]">등록된 연장: {extensions.length}/2회</p>
+            </div>
+
+            {extensions.length > 0 ? (
+              <section className="rounded-md border border-[#eef1f5] bg-white px-3 py-3">
+                <h3 className="text-sm font-semibold text-[#394150]">연장 이력</h3>
+                <ol className="mt-2 grid gap-2">
+                  {extensions.map((extension) => (
+                    <li
+                      key={extension.id}
+                      className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 text-sm"
+                    >
+                      <p className="font-semibold text-[#16181d]">
+                        {extension.extensionOrder}차 · {formatDate(extension.previousDischargeDate)} → {formatDate(extension.extendedDischargeDate)}
+                      </p>
+                      <p className="mt-1 text-xs text-[#697386]">{extension.reason}</p>
+                      <p className="mt-1 text-xs text-[#697386]">
+                        {extension.processedBy.name} · {formatDateTime(extension.processedAt)} 처리
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+
+            {canExtend ? (
+              <>
+                <RosterFormField label="연장 퇴소일">
+                  <SplitDateInput
+                    ariaLabel="연장 퇴소일"
+                    value={extendedDischargeDate}
+                    onChange={setExtendedDischargeDate}
+                  />
+                </RosterFormField>
+                <label className="block">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
+                    연장 사유
+                    <span className="rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2 py-0.5 text-[11px] font-semibold text-[#196b69]">
+                      필수
+                    </span>
+                  </span>
+                  <textarea
+                    required
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    maxLength={youthDischargeExtensionReasonMaxLength}
+                    rows={4}
+                    placeholder="퇴소 연장이 필요한 사유를 입력하세요."
+                    className="mt-2 w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-2 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  />
+                </label>
+              </>
+            ) : (
+              <p className="rounded-md border border-[#f0c6c6] bg-[#fff5f2] px-3 py-3 text-sm text-[#7a271a]">
+                기본 퇴소 예정일이 없거나 연장 횟수 2회를 모두 사용했습니다.
+              </p>
+            )}
+
+            {error ? (
+              <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                {error}
+              </p>
+            ) : null}
+          </div>
+
+          <footer className="flex flex-col-reverse gap-2 border-t border-[#eef1f5] px-6 py-4 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={!canExtend || pending}
+              className="h-10 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {pending ? "연장 등록 중" : "퇴소 연장 등록"}
+            </button>
+          </footer>
+        </div>
+      </form>
+    </AppModal>
   );
 }
 
@@ -1705,7 +2000,7 @@ function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
     admissionDate: youth?.admissionDate ?? "",
     birthDate: youth?.birthDate ?? "",
     decisionFiles: [],
-    dischargeDate: youth?.dischargeDate ?? "",
+    dischargeDate: youth?.initialDischargeDate ?? youth?.dischargeDate ?? "",
     familyContacts:
       youth && youth.familyContacts.length > 0
         ? youth.familyContacts.map((contact, index) => ({
@@ -1767,8 +2062,10 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
       birthDate,
     }),
     koreanAge: calculateYouthKoreanAge(birthDate),
+    initialDischargeDate: youth.initialDischargeDate,
     dischargeDate: youth.dischargeDate,
     decisionDocuments: youth.decisionDocuments,
+    dischargeExtensions: youth.dischargeExtensions ?? [],
     familyContacts: youth.familyContacts.map((contact) => ({
       id: contact.id,
       phone: contact.phone,

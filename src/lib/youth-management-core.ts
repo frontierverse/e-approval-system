@@ -88,6 +88,7 @@ export type YouthFamilyContact = {
 };
 
 export const youthDecisionDocumentFormFieldName = "decisionDocuments";
+export const youthDischargeExtensionReasonMaxLength = 500;
 
 export type YouthDecisionDocumentItem = {
   id: string;
@@ -96,16 +97,31 @@ export type YouthDecisionDocumentItem = {
   createdAt: string;
 };
 
+export type YouthDischargeExtension = {
+  id: string;
+  extensionOrder: number;
+  previousDischargeDate: string;
+  extendedDischargeDate: string;
+  reason: string;
+  processedAt: string;
+  processedBy: {
+    id: string;
+    name: string;
+  };
+};
+
 export type YouthProfile = {
   id: string;
   name: string;
   admissionDate: string | null;
   birthDate: string | null;
+  initialDischargeDate?: string | null;
   dischargeDate: string | null;
   age: number | null;
   phone: string | null;
   familyContacts: YouthFamilyContact[];
   decisionDocuments: YouthDecisionDocumentItem[];
+  dischargeExtensions?: YouthDischargeExtension[];
   notes: YouthSpecialNote[];
 };
 
@@ -243,6 +259,11 @@ export type YouthCreateInput = {
 };
 
 export type YouthUpdateInput = YouthCreateInput;
+
+export type YouthDischargeExtensionInput = {
+  extendedDischargeDate: string;
+  reason: string;
+};
 
 export type YouthNoteInput = Omit<YouthSpecialNote, "id">;
 

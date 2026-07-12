@@ -63,6 +63,7 @@ enum AuditAction {
   UPDATE_CAFE_ITEM
   CREATE_YOUTH
   UPDATE_YOUTH
+  EXTEND_YOUTH_DISCHARGE
   UPDATE_YOUTH_NOTE
   DELETE_YOUTH_NOTE
   DOWNLOAD_YOUTH_DECISION_DOCUMENT
@@ -124,6 +125,7 @@ model User {
   worksheetGenerations WorksheetGeneration[] @relation("WorksheetGenerationCreator")
   questionBankPdfs     QuestionBankPdf[]     @relation("QuestionBankPdfUploader")
   youthDecisionDocuments YouthDecisionDocument[] @relation("YouthDecisionDocumentUploader")
+  youthDischargeExtensions YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
   cafeComplianceNotes  CafeComplianceNote[]  @relation("CafeComplianceNoteCreator")
 
   @@index([departmentId])
@@ -367,6 +369,7 @@ model Youth {
   id            String   @id @default(cuid())
   name          String   @unique
   admissionDate String?
+  initialDischargeDate String?
   dischargeDate String?
   birthDate     String?
   age           Int?
@@ -383,10 +386,33 @@ model Youth {
   rules          YouthRule[]
   studyConceptChecks StudyConceptCheck[]
   decisionDocuments YouthDecisionDocument[]
+  dischargeExtensions YouthDischargeExtension[]
 
   @@index([name])
   @@index([birthDate])
   @@index([dischargeDate])
+  @@index([initialDischargeDate])
+}
+
+model YouthDischargeExtension {
+  id                    String   @id @default(cuid())
+  extensionOrder        Int
+  previousDischargeDate String
+  extendedDischargeDate String
+  reason                String
+  processedAt           DateTime @default(now())
+
+  youthId       String
+  processedById String
+
+  youth       Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+  processedBy User  @relation("YouthDischargeExtensionProcessor", fields: [processedById], references: [id])
+
+  @@unique([youthId, extensionOrder])
+  @@index([youthId])
+  @@index([processedById])
+  @@index([extendedDischargeDate])
+  @@index([processedAt])
 }
 
 model YouthRule {

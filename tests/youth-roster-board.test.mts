@@ -25,7 +25,9 @@ const roster = {
       name: "김하늘",
       admissionDate: "2026-05-01",
       birthDate: "2009-06-10",
-      dischargeDate: null,
+      initialDischargeDate: "2026-07-15",
+      dischargeDate: "2026-07-15",
+      dischargeExtensions: [],
       age: 17,
       koreanAge: 18,
       phone: "010-1111-2222",
@@ -52,7 +54,9 @@ const roster = {
       name: "이도현",
       admissionDate: "2025-01-10",
       birthDate: "2008-04-20",
+      initialDischargeDate: "2026-04-30",
       dischargeDate: "2026-04-30",
+      dischargeExtensions: [],
       age: 18,
       koreanAge: 19,
       phone: null,
@@ -183,10 +187,7 @@ describe("YouthRosterBoard", () => {
     assert.doesNotMatch(html, /name="name"/);
     assert.doesNotMatch(html, />저장</);
     assert.match(html, /결정문/);
-    assert.match(
-      html,
-      /href="\/youth\/decision-documents\/decision-document-001"/,
-    );
+    assert.doesNotMatch(html, /href="\/youth\/decision-documents\/decision-document-001"/);
     assert.match(
       html,
       /aria-label="김하늘 결정문 김하늘_결정문\.pdf 다운로드"/,
@@ -249,7 +250,9 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /aria-label="입소 날짜 년"/);
     assert.match(html, /aria-label="입소 날짜 월"/);
     assert.match(html, /aria-label="입소 날짜 일"/);
-    assert.match(html, /aria-label="퇴소 예정 년"/);
+    assert.match(html, /현재 적용: 2026\. 07\. 15\./);
+    assert.match(html, /기본 예정일: 2026\. 07\. 15\. · 연장 0\/2회/);
+    assert.match(html, />퇴소 연장</);
     assert.match(html, /aria-label="생년월일 년"/);
     assert.match(html, /value="2026"/);
     assert.match(html, /value="5"/);
@@ -259,10 +262,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /결정문 파일/);
     assert.match(html, /김하늘_결정문\.pdf/);
     assert.match(html, /200\.0 KB/);
-    assert.match(
-      html,
-      /href="\/youth\/decision-documents\/decision-document-001"/,
-    );
+    assert.doesNotMatch(html, /href="\/youth\/decision-documents\/decision-document-001"/);
     assert.match(html, />다운로드</);
     assert.match(html, /type="file"/);
   });

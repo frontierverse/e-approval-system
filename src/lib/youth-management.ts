@@ -16,6 +16,17 @@ const youthInclude = {
   decisionDocuments: {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   },
+  dischargeExtensions: {
+    orderBy: [{ extensionOrder: "asc" }],
+    include: {
+      processedBy: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
   notes: {
     orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
   },
@@ -82,6 +93,7 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
     name: record.name,
     admissionDate: record.admissionDate,
     birthDate: record.birthDate,
+    initialDischargeDate: record.initialDischargeDate,
     dischargeDate: record.dischargeDate,
     age: getYouthDisplayAge({
       age: record.age,
@@ -90,6 +102,15 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
     phone: record.phone,
     familyContacts: mapYouthFamilyContacts(record),
     decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
+    dischargeExtensions: record.dischargeExtensions.map((extension) => ({
+      id: extension.id,
+      extensionOrder: extension.extensionOrder,
+      previousDischargeDate: extension.previousDischargeDate,
+      extendedDischargeDate: extension.extendedDischargeDate,
+      reason: extension.reason,
+      processedAt: extension.processedAt.toISOString(),
+      processedBy: extension.processedBy,
+    })),
     notes: record.notes.map(mapYouthSpecialNote),
   };
 }

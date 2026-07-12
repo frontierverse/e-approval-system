@@ -20,7 +20,10 @@ import {
   isYouthNotePriority,
   type YouthActionResult,
   type YouthCreateInput,
+  type YouthDischargeExtension,
+  type YouthDischargeExtensionInput,
   youthDecisionDocumentFormFieldName,
+  youthDischargeExtensionReasonMaxLength,
   type YouthFamilyContactInput,
   type YouthNoteInput,
   type YouthProfile,
@@ -198,6 +201,7 @@ export async function createYouthAction(
           name: normalizedName,
           admissionDate: normalizedAdmissionDate.value,
           birthDate: normalizedBirthDate.value,
+          initialDischargeDate: normalizedDischargeDate.value,
           dischargeDate: normalizedDischargeDate.value,
           age: null,
           phone: normalizedPhone.value,
@@ -206,6 +210,17 @@ export async function createYouthAction(
           familyContact: firstFamilyContact?.phone ?? null,
         },
         include: {
+          dischargeExtensions: {
+            orderBy: [{ extensionOrder: "asc" }],
+            include: {
+              processedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           notes: {
             orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
           },
@@ -312,6 +327,7 @@ export async function updateYouthAction(
       name: true,
       admissionDate: true,
       birthDate: true,
+      initialDischargeDate: true,
       dischargeDate: true,
       phone: true,
       familyContacts: {
@@ -380,6 +396,16 @@ export async function updateYouthAction(
     };
   }
 
+  const originalDischargeDate =
+    existingYouth.initialDischargeDate ?? existingYouth.dischargeDate;
+
+  if (normalizedDischargeDate.value !== originalDischargeDate) {
+    return {
+      ok: false,
+      error: "기본 퇴소 예정일은 퇴소 연장 기능으로만 변경할 수 있습니다.",
+    };
+  }
+
   const preparedDocuments =
     await prepareYouthDecisionDocuments(documentsFormData);
 
@@ -406,7 +432,6 @@ export async function updateYouthAction(
           name: normalizedName,
           admissionDate: normalizedAdmissionDate.value,
           birthDate: normalizedBirthDate.value,
-          dischargeDate: normalizedDischargeDate.value,
           age: null,
           phone: normalizedPhone.value,
           familyRelationship: firstFamilyContact?.relationship ?? null,
@@ -414,6 +439,17 @@ export async function updateYouthAction(
           familyContact: firstFamilyContact?.phone ?? null,
         },
         include: {
+          dischargeExtensions: {
+            orderBy: [{ extensionOrder: "asc" }],
+            include: {
+              processedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           notes: {
             orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
           },
@@ -475,7 +511,7 @@ export async function updateYouthAction(
           name: normalizedName,
           admissionDate: normalizedAdmissionDate.value,
           birthDate: normalizedBirthDate.value,
-          dischargeDate: normalizedDischargeDate.value,
+          dischargeDate: existingYouth.dischargeDate,
           phone: normalizedPhone.value,
           familyContacts: normalizedFamilyContacts.value,
         },
@@ -524,6 +560,172 @@ export async function updateYouthAction(
     data: {
       youth: mapYouthProfile(youth),
     },
+  };
+}
+
+export async function extendYouthDischargeAction(
+  youthId: string,
+  values: YouthDischargeExtensionInput,
+): Promise<
+  YouthActionResult<{
+    dischargeDate: string;
+    extension: YouthDischargeExtension;
+    initialDischargeDate: string;
+    youthId: string;
+  }>
+> {
+  const user = await requireUser();
+  const auditRequestData = await getCurrentAuditLogRequestData();
+  const normalizedDischargeDate = normalizeOptionalDate(
+    values.extendedDischargeDate,
+  );
+  const reason = values.reason.trim();
+
+  if (normalizedDischargeDate.error || !normalizedDischargeDate.value) {
+    return {
+      ok: false,
+      error: "연장 퇴소일은 YYYY-MM-DD 형식으로 입력하세요.",
+    };
+  }
+
+  if (!reason) {
+    return {
+      ok: false,
+      error: "퇴소 연장 사유를 입력하세요.",
+    };
+  }
+
+  if (reason.length > youthDischargeExtensionReasonMaxLength) {
+    return {
+      ok: false,
+      error: `퇴소 연장 사유는 ${youthDischargeExtensionReasonMaxLength}자 이내로 입력하세요.`,
+    };
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const youth = await tx.youth.findUnique({
+      where: {
+        id: youthId,
+      },
+      select: {
+        id: true,
+        name: true,
+        initialDischargeDate: true,
+        dischargeDate: true,
+        dischargeExtensions: {
+          orderBy: [{ extensionOrder: "asc" }],
+          select: {
+            extensionOrder: true,
+          },
+        },
+      },
+    });
+
+    if (!youth) {
+      return {
+        error: "수정할 청소년을 찾을 수 없습니다.",
+      } as const;
+    }
+
+    const currentDischargeDate = youth.dischargeDate;
+    const initialDischargeDate =
+      youth.initialDischargeDate ?? currentDischargeDate;
+
+    if (!currentDischargeDate || !initialDischargeDate) {
+      return {
+        error: "기본 퇴소 예정일이 등록된 청소년만 퇴소 연장할 수 있습니다.",
+      } as const;
+    }
+
+    if (youth.dischargeExtensions.length >= 2) {
+      return {
+        error: "퇴소 연장은 최대 2회까지만 등록할 수 있습니다.",
+      } as const;
+    }
+
+    if (normalizedDischargeDate.value <= currentDischargeDate) {
+      return {
+        error: "연장 퇴소일은 현재 적용 퇴소 예정일보다 뒤여야 합니다.",
+      } as const;
+    }
+
+    const extensionOrder = youth.dischargeExtensions.length + 1;
+    const extension = await tx.youthDischargeExtension.create({
+      data: {
+        youthId,
+        processedById: user.id,
+        extensionOrder,
+        previousDischargeDate: currentDischargeDate,
+        extendedDischargeDate: normalizedDischargeDate.value,
+        reason,
+      },
+      include: {
+        processedBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    await tx.youth.update({
+      where: {
+        id: youthId,
+      },
+      data: {
+        initialDischargeDate,
+        dischargeDate: normalizedDischargeDate.value,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.EXTEND_YOUTH_DISCHARGE,
+        targetType: "Youth",
+        targetId: youthId,
+        message: `${youth.name} 청소년의 퇴소 예정일을 ${extensionOrder}차 연장했습니다.`,
+        metadata: {
+          extensionOrder,
+          previousDischargeDate: currentDischargeDate,
+          extendedDischargeDate: normalizedDischargeDate.value,
+          reason,
+          processedAt: extension.processedAt.toISOString(),
+          processedBy: extension.processedBy.name,
+        },
+      },
+    });
+
+    return {
+      dischargeDate: normalizedDischargeDate.value,
+      extension: {
+        id: extension.id,
+        extensionOrder: extension.extensionOrder,
+        previousDischargeDate: extension.previousDischargeDate,
+        extendedDischargeDate: extension.extendedDischargeDate,
+        reason: extension.reason,
+        processedAt: extension.processedAt.toISOString(),
+        processedBy: extension.processedBy,
+      },
+      initialDischargeDate,
+      youthId,
+    };
+  });
+
+  if ("error" in result && result.error) {
+    return {
+      ok: false,
+      error: result.error,
+    };
+  }
+
+  revalidateYouthPaths();
+
+  return {
+    ok: true,
+    data: result,
   };
 }
 

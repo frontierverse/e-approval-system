@@ -7,6 +7,7 @@ import {
   calculateYouthKoreanAge,
   getYouthDisplayAge,
   getYouthLearningScheduleToday,
+  type YouthDischargeExtension,
   type YouthDecisionDocumentItem,
 } from "@/lib/youth-management-core";
 
@@ -22,7 +23,9 @@ export type YouthRosterItem = {
   birthDate: string | null;
   age: number | null;
   koreanAge: number | null;
+  initialDischargeDate?: string | null;
   dischargeDate: string | null;
+  dischargeExtensions?: YouthDischargeExtension[];
   decisionDocuments: YouthDecisionDocumentItem[];
   familyContacts: YouthRosterFamilyContact[];
   name: string;
@@ -69,6 +72,7 @@ const youthRosterChangeLogPageSize = 5;
 const youthRosterAuditActions = [
   AuditAction.CREATE_YOUTH,
   AuditAction.UPDATE_YOUTH,
+  AuditAction.EXTEND_YOUTH_DISCHARGE,
   AuditAction.UPDATE_YOUTH_NOTE,
   AuditAction.DELETE_YOUTH_NOTE,
 ];
@@ -168,6 +172,24 @@ async function getYouthRosterRows() {
         },
       },
       dischargeDate: true,
+      initialDischargeDate: true,
+      dischargeExtensions: {
+        orderBy: [{ extensionOrder: "asc" }],
+        select: {
+          id: true,
+          extensionOrder: true,
+          previousDischargeDate: true,
+          extendedDischargeDate: true,
+          reason: true,
+          processedAt: true,
+          processedBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
       familyContact: true,
       familyContacts: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -203,7 +225,18 @@ function mapYouthRosterItem(
       referenceDate,
     ),
     koreanAge: calculateYouthKoreanAge(birthDate, referenceDate),
+    initialDischargeDate:
+      normalizeBlank(record.initialDischargeDate) ?? normalizeBlank(record.dischargeDate),
     dischargeDate: normalizeBlank(record.dischargeDate),
+    dischargeExtensions: record.dischargeExtensions.map((extension) => ({
+      id: extension.id,
+      extensionOrder: extension.extensionOrder,
+      previousDischargeDate: extension.previousDischargeDate,
+      extendedDischargeDate: extension.extendedDischargeDate,
+      reason: extension.reason,
+      processedAt: extension.processedAt.toISOString(),
+      processedBy: extension.processedBy,
+    })),
     decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
     familyContacts: getFamilyContacts(record),
     name: record.name,

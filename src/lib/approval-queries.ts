@@ -295,6 +295,7 @@ const auditActionLabels: Record<AuditAction, string> = {
   UPDATE_CAFE_ITEM: "카페 물품 변경",
   CREATE_YOUTH: "청소년 등록",
   UPDATE_YOUTH: "청소년 정보 수정",
+  EXTEND_YOUTH_DISCHARGE: "청소년 퇴소 연장",
   UPDATE_YOUTH_NOTE: "청소년 특이사항 수정",
   DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
   DOWNLOAD_YOUTH_DECISION_DOCUMENT: "결정문 다운로드",
