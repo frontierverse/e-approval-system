@@ -1,6 +1,6 @@
 import "server-only";
 
-import { UserRole, UserStatus } from "@/generated/prisma/client";
+import { UserRole } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
 import { prisma } from "@/lib/prisma";
@@ -83,7 +83,7 @@ export async function getCompanyInfo(): Promise<CompanyInfoData> {
     representative,
     businessInfoRows,
   ] = await Promise.all([
-      getActiveStaffMembers(referenceDate),
+      getEmployedStaffMembers(referenceDate),
       getAdmittedYouths(referenceDate),
       prisma.department.count({
         where: {
@@ -188,10 +188,12 @@ export function getCompanyBusinessName(businessId: CompanyBusinessId) {
   );
 }
 
-async function getActiveStaffMembers(referenceDate: string) {
+async function getEmployedStaffMembers(referenceDate: string) {
   const users = await prisma.user.findMany({
     where: {
-      status: UserStatus.ACTIVE,
+      // Employment status only — a login-disabled (INACTIVE) staff member is
+      // still employed and should appear in the directory. Only those who have
+      // actually resigned are excluded.
       OR: [
         {
           resignationDate: null,
