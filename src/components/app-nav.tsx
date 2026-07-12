@@ -1477,7 +1477,7 @@ export function TopbarDischargeAlertModalContent({
         <Link
           href="/youth/roster"
           onClick={onClose}
-          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0c6c6] sm:w-auto"
+          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#245d8f] px-4 text-sm font-semibold text-white transition hover:bg-[#1b4a73] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bdd7f0] sm:w-auto"
         >
           청소년 명단으로 이동
         </Link>
