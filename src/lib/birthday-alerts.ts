@@ -1,6 +1,5 @@
 import "server-only";
 
-import { UserStatus } from "@/generated/prisma/client";
 import {
   createBirthdayTopbarAlert,
   type BirthdayAlertPerson,
@@ -25,7 +24,9 @@ async function getBirthdayAlertStaff(
 ): Promise<BirthdayAlertPerson[]> {
   const users = await prisma.user.findMany({
     where: {
-      status: UserStatus.ACTIVE,
+      // Employment status only — a login-disabled but still-employed staff
+      // member should still get a birthday alert. Only resigned staff are
+      // excluded (via resignationDate below).
       birthDate: {
         not: null,
       },
