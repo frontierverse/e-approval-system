@@ -8,6 +8,8 @@ import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core
 import {
   decryptAttachmentBuffer,
   encryptAttachmentBuffer,
+  isAttachmentEncryptionEnabled,
+  isEncryptedAttachmentBuffer,
 } from "@/lib/attachment-encryption-core";
 import {
   type AttachmentStorageProvider,
@@ -404,31 +406,48 @@ async function persistAttachmentFile(file: PreparedAttachmentFile) {
   // Encrypt at rest before it leaves the app (no-op when no key is configured).
   // The original mimeType is still recorded as storage metadata so reads report
   // the correct content type for the decrypted file.
-  const storedBuffer = encryptAttachmentBuffer(file.buffer);
+  await writeRawStoredAttachment(
+    {
+      storageKey: file.storageKey,
+      storageProvider: file.storageProvider,
+    },
+    encryptAttachmentBuffer(file.buffer),
+    file.mimeType,
+    { upsert: false },
+  );
+}
 
-  if (file.storageProvider === vercelBlobAttachmentStorageProvider) {
-    await put(file.storageKey, storedBuffer, {
+// Writes already-prepared bytes (encrypted or not) to the storage provider
+// under the given key. Shared by uploads and the in-place re-encryption path.
+async function writeRawStoredAttachment(
+  ref: Required<StoredAttachmentRef>,
+  buffer: Buffer,
+  mimeType: string,
+  options: { upsert: boolean },
+) {
+  if (ref.storageProvider === vercelBlobAttachmentStorageProvider) {
+    await put(ref.storageKey, buffer, {
       access: "private",
       addRandomSuffix: false,
-      contentType: file.mimeType,
+      contentType: mimeType,
       token: getVercelBlobToken(),
     });
 
     return;
   }
 
-  if (file.storageProvider === supabaseStorageAttachmentStorageProvider) {
+  if (ref.storageProvider === supabaseStorageAttachmentStorageProvider) {
     const response = await fetch(
-      getSupabaseStorageObjectUrl("upload", file.storageKey),
+      getSupabaseStorageObjectUrl("upload", ref.storageKey),
       {
         method: "POST",
         headers: {
           ...getSupabaseStorageHeaders(),
-          "Content-Type": file.mimeType,
-          "x-upsert": "false",
+          "Content-Type": mimeType,
+          "x-upsert": options.upsert ? "true" : "false",
         },
-        body: new Blob([new Uint8Array(storedBuffer)], {
-          type: file.mimeType,
+        body: new Blob([new Uint8Array(buffer)], {
+          type: mimeType,
         }),
       },
     );
@@ -440,10 +459,43 @@ async function persistAttachmentFile(file: PreparedAttachmentFile) {
     return;
   }
 
-  const filePath = resolveAttachmentPath(file.storageKey);
+  const filePath = resolveAttachmentPath(ref.storageKey);
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, storedBuffer);
+  await writeFile(filePath, buffer);
+}
+
+export type EncryptStoredAttachmentResult =
+  | "encrypted"
+  | "already-encrypted"
+  | "disabled";
+
+// Encrypts an existing stored file in place if it is still plaintext. Safe to
+// re-run: already-encrypted files are detected via their magic header and left
+// untouched. Used to migrate files uploaded before encryption was enabled.
+export async function encryptStoredAttachmentInPlace(
+  attachment: string | StoredAttachmentRef,
+  mimeType: string,
+): Promise<EncryptStoredAttachmentResult> {
+  if (!isAttachmentEncryptionEnabled()) {
+    return "disabled";
+  }
+
+  const ref = toStoredAttachmentRef(attachment);
+  const raw = await readRawStoredAttachment(ref);
+
+  if (isEncryptedAttachmentBuffer(raw.buffer)) {
+    return "already-encrypted";
+  }
+
+  await writeRawStoredAttachment(
+    ref,
+    encryptAttachmentBuffer(raw.buffer),
+    mimeType || raw.mimeType || "application/octet-stream",
+    { upsert: true },
+  );
+
+  return "encrypted";
 }
 
 function createStorageKey(
