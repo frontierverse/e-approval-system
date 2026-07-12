@@ -19,7 +19,7 @@ export type YouthDischargeTopbarAlert = {
   youthName: string;
 };
 
-export const youthDischargeAlertWindowDays = 14;
+export const youthDischargeAlertWindowDays = 31;
 const dayInMs = 24 * 60 * 60 * 1000;
 
 export function createYouthDischargeTopbarAlert(

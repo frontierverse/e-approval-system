@@ -914,7 +914,7 @@ function TopbarDischargeAlertButton({
   ].join(" ");
   const title = hasItems
     ? `${alert.youthName} ${alert.ddayLabel}`
-    : "14일 이내 퇴소 예정 청소년 없음";
+    : "31일 이내 퇴소 예정 청소년 없음";
   const ariaLabel = hasItems
     ? `${alert.youthName} ${alert.ddayLabel} 퇴소 예정 목록 열기`
     : "퇴소 예정 목록 열기, 예정 없음";
@@ -1433,7 +1433,7 @@ export function TopbarDischargeAlertModalContent({
             퇴소 예정 청소년
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            오늘부터 14일 이내에 퇴소 예정일이 있는 청소년입니다.
+            오늘부터 31일 이내에 퇴소 예정일이 있는 청소년입니다.
           </p>
         </div>
         <button
@@ -1470,7 +1470,7 @@ export function TopbarDischargeAlertModalContent({
         </ul>
       ) : (
         <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
-          14일 이내에 퇴소 예정인 청소년이 없습니다.
+          31일 이내에 퇴소 예정인 청소년이 없습니다.
         </p>
       )}
       <div className="border-t border-[#eef1f5] px-5 py-4">
