@@ -1,8 +1,17 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { LoginForm } from "@/components/login-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth";
 import { appName, organizationName } from "@/lib/branding";
+
+export const metadata: Metadata = {
+  title: "로그인",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function LoginPage() {
   const user = await getCurrentUser();

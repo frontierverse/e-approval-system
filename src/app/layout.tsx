@@ -16,8 +16,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: appName,
+  metadataBase: new URL("https://bajaul.com"),
+  title: {
+    default: appName,
+    template: `%s | ${appName}`,
+  },
   description: appDescription,
+  robots: {
+    index: false,
+    follow: false,
+  },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: appName,
+    title: appName,
+    description: appDescription,
+  },
 };
 
 const themeScript = `
