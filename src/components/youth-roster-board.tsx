@@ -1473,27 +1473,27 @@ function DischargeDateSummary({
     extensionCount < 2;
 
   return (
-    <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[#394150]">퇴소 예정</p>
-          <p className="mt-1 text-sm text-[#16181d]">
-            현재 적용: {currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}
-          </p>
-          <p className="mt-1 text-xs text-[#697386]">
-            기본 예정일: {initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onExtend}
-          disabled={!canExtend}
-          className="h-9 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {extensionCount >= 2 ? "연장 한도 도달" : "퇴소 연장"}
-        </button>
+    <div className="block">
+      <span className="text-sm font-semibold text-[#394150]">퇴소 예정</span>
+      <div className="mt-2 flex h-11 items-center justify-between gap-2 rounded-md border border-[#cfd6e3] px-3">
+        <span className="min-w-0 truncate text-sm text-[#16181d]">
+          {currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}
+        </span>
+        {onExtend ? (
+          <button
+            type="button"
+            onClick={onExtend}
+            disabled={!canExtend}
+            className="h-8 shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {extensionCount >= 2 ? "연장 한도" : "퇴소 연장"}
+          </button>
+        ) : null}
       </div>
-    </section>
+      <p className="mt-1 text-xs text-[#697386]">
+        기본 예정일 {initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회
+      </p>
+    </div>
   );
 }
 
