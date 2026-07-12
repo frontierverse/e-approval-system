@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { AuditAction } from "@/generated/prisma/client";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -49,11 +51,25 @@ export async function createWorkFeatureUpdateAction(
     };
   }
 
-  await prisma.workFeatureUpdate.create({
+  const update = await prisma.workFeatureUpdate.create({
     data: {
       createdById: admin.id,
       description: description || null,
       title,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: admin.id,
+      ...(await getCurrentAuditLogRequestData()),
+      action: AuditAction.CREATE_WORK_FEATURE_UPDATE,
+      targetType: "WorkFeatureUpdate",
+      targetId: update.id,
+      message: `업무 기능 안내 "${title}"을(를) 등록했습니다.`,
     },
   });
 

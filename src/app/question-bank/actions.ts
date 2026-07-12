@@ -3,12 +3,13 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { UserRole } from "@/generated/prisma/client";
+import { AuditAction, UserRole } from "@/generated/prisma/client";
 import {
   persistAttachmentFiles,
   prepareAttachmentFiles,
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
+import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -36,7 +37,7 @@ const questionBankPdfUploadPolicy = {
 };
 
 export async function createQuestionBankUnitAction(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
 
   const subject = normalizeQuestionBankText(formData.get("subject"));
   const gradeLevel = nullableText(formData.get("gradeLevel"));
@@ -89,12 +90,32 @@ export async function createQuestionBankUnitAction(formData: FormData) {
     redirectWithQuestionBankError("unitError", "이미 등록된 단원입니다.");
   }
 
-  await prisma.problemUnit.create({
+  const unit = await prisma.problemUnit.create({
     data: {
       subject,
       gradeLevel,
       name,
       parentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...(await getCurrentAuditLogRequestData()),
+      action: AuditAction.CREATE_QUESTION_BANK_UNIT,
+      targetType: "ProblemUnit",
+      targetId: unit.id,
+      message: `문제은행 단원 "${subject} · ${name}"을(를) 추가했습니다.`,
+      metadata: {
+        subject,
+        gradeLevel,
+        name,
+        parentId,
+      },
     },
   });
 
@@ -103,7 +124,7 @@ export async function createQuestionBankUnitAction(formData: FormData) {
 }
 
 export async function createQuestionBankProblemAction(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
 
   const unitId = normalizeQuestionBankText(formData.get("unitId"));
   const body = normalizeQuestionBankText(formData.get("body"));
@@ -168,7 +189,7 @@ export async function createQuestionBankProblemAction(formData: FormData) {
     );
   }
 
-  await prisma.questionBankProblem.create({
+  const problem = await prisma.questionBankProblem.create({
     data: {
       subject: unit.subject,
       gradeLevel: unit.gradeLevel,
@@ -179,6 +200,25 @@ export async function createQuestionBankProblemAction(formData: FormData) {
       explanation: explanation || null,
       difficulty,
       problemType,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...(await getCurrentAuditLogRequestData()),
+      action: AuditAction.CREATE_QUESTION_BANK_PROBLEM,
+      targetType: "QuestionBankProblem",
+      targetId: problem.id,
+      message: `문제은행에 ${unit.subject} 문제를 추가했습니다.`,
+      metadata: {
+        unitId: unit.id,
+        problemType,
+        difficulty,
+      },
     },
   });
 
@@ -198,6 +238,7 @@ export async function uploadQuestionBankPdfAction(formData: FormData) {
         },
         select: {
           id: true,
+          name: true,
           parentId: true,
         },
       })
@@ -260,6 +301,22 @@ export async function uploadQuestionBankPdfAction(formData: FormData) {
     );
   }
 
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...(await getCurrentAuditLogRequestData()),
+      action: AuditAction.UPLOAD_QUESTION_BANK_PDF,
+      targetType: "ProblemUnit",
+      targetId: unit.id,
+      message: `"${unit.name}" 단원에 PDF 문제지 ${attachmentResult.files.length}개를 업로드했습니다.`,
+      metadata: {
+        unitId: unit.id,
+        count: attachmentResult.files.length,
+        originalNames: attachmentResult.files.map((file) => file.originalName),
+      },
+    },
+  });
+
   revalidatePath(questionBankPath);
   redirect(questionBankPath);
 }
@@ -272,6 +329,8 @@ export async function deleteQuestionBankPdfAction(pdfId: string) {
     },
     select: {
       id: true,
+      title: true,
+      unitId: true,
       storageProvider: true,
       storageKey: true,
       uploadedById: true,
@@ -291,6 +350,21 @@ export async function deleteQuestionBankPdfAction(pdfId: string) {
       id: pdf.id,
     },
   });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...(await getCurrentAuditLogRequestData()),
+      action: AuditAction.DELETE_QUESTION_BANK_PDF,
+      targetType: "QuestionBankPdf",
+      targetId: pdf.id,
+      message: `문제은행 PDF 문제지 "${pdf.title}"을(를) 삭제했습니다.`,
+      metadata: {
+        unitId: pdf.unitId,
+      },
+    },
+  });
+
   await removeStoredAttachmentFiles([
     {
       storageProvider: pdf.storageProvider,
