@@ -26,6 +26,7 @@ import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
 import { getStaffVacationTopbarAlert } from "@/lib/staff-vacations";
+import { getYouthDischargeTopbarAlert } from "@/lib/youth-discharge-alerts";
 
 const approvalNavigationItems: NavigationItem[] = [
   { label: "전자결재 홈", href: "/" },
@@ -159,6 +160,7 @@ async function ShellNavigation({
     cafeExpirationAlert,
     birthdayAlert,
     currentScheduleData,
+    dischargeAlert,
     vacationAlert,
   ] =
     await Promise.all([
@@ -169,6 +171,9 @@ async function ShellNavigation({
       variant === "topbar" ? getBirthdayTopbarAlert() : Promise.resolve(null),
       variant === "topbar"
         ? getCurrentCommonScheduleTopbarData()
+        : Promise.resolve(null),
+      variant === "topbar"
+        ? getYouthDischargeTopbarAlert()
         : Promise.resolve(null),
       variant === "topbar"
         ? getStaffVacationTopbarAlert()
@@ -209,6 +214,21 @@ async function ShellNavigation({
               label: "생일",
               personName: "예정 없음",
               status: "empty",
+            }
+      }
+      topbarDischargeAlert={
+        dischargeAlert
+          ? {
+              ...dischargeAlert,
+              label: "퇴소",
+              status: "active",
+            }
+          : {
+              ddayLabel: "",
+              items: [],
+              label: "퇴소",
+              status: "empty",
+              youthName: "예정 없음",
             }
       }
       topbarVacationAlert={

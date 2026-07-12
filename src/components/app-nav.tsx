@@ -17,6 +17,7 @@ import {
   formatBirthdayAlertDate,
   formatBirthdayAlertDateWithWeekday,
 } from "@/lib/birthday-alerts-core";
+import { formatYouthDischargeAlertDate } from "@/lib/youth-discharge-alerts-core";
 import { createCafeItemExpiringFoodPrintHref } from "@/lib/cafe-items-core";
 import {
   createCurrentCommonScheduleAlert,
@@ -105,6 +106,23 @@ export type NavigationTopbarVacationAlertItem = {
   workScheduleHref: string;
 };
 
+export type NavigationTopbarDischargeAlert = {
+  ddayLabel: string;
+  items: NavigationTopbarDischargeAlertItem[];
+  label: string;
+  status?: "active" | "empty";
+  youthName: string;
+};
+
+export type NavigationTopbarDischargeAlertItem = {
+  daysUntil: number;
+  ddayLabel: string;
+  dischargeDate: string;
+  id: string;
+  name: string;
+  rosterHref: string;
+};
+
 export type NavigationTopbarCurrentScheduleAlert = CurrentCommonScheduleAlert & {
   href: string;
   label: string;
@@ -119,6 +137,7 @@ type AppNavProps = {
   topbarBirthdayAlert?: NavigationTopbarBirthdayAlert | null;
   topbarCurrentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
   topbarCurrentScheduleItems?: NavigationTopbarCurrentScheduleItem[];
+  topbarDischargeAlert?: NavigationTopbarDischargeAlert | null;
   topbarVacationAlert?: NavigationTopbarVacationAlert | null;
   variant: "mobile" | "desktop" | "topbar";
 };
@@ -139,6 +158,7 @@ export function AppNav({
   topbarBirthdayAlert = null,
   topbarCurrentScheduleAlert = null,
   topbarCurrentScheduleItems = emptyCurrentScheduleItems,
+  topbarDischargeAlert = null,
   topbarVacationAlert = null,
   variant,
 }: AppNavProps) {
@@ -159,6 +179,7 @@ export function AppNav({
   const hasTopbarWidgets = Boolean(
     currentScheduleAlert ||
       topbarBirthdayAlert ||
+      topbarDischargeAlert ||
       topbarVacationAlert ||
       topbarAlert,
   );
@@ -288,6 +309,7 @@ export function AppNav({
                 <TopbarWidgetGroup
                   birthdayAlert={topbarBirthdayAlert}
                   currentScheduleAlert={currentScheduleAlert}
+                  dischargeAlert={topbarDischargeAlert}
                   expirationAlert={topbarAlert}
                   vacationAlert={topbarVacationAlert}
                 />
@@ -495,11 +517,13 @@ function createNavigationFoodExpirationAlert(
 export function TopbarWidgetGroup({
   birthdayAlert,
   currentScheduleAlert,
+  dischargeAlert,
   expirationAlert,
   vacationAlert,
 }: {
   birthdayAlert?: NavigationTopbarBirthdayAlert | null;
   currentScheduleAlert?: NavigationTopbarCurrentScheduleAlert | null;
+  dischargeAlert?: NavigationTopbarDischargeAlert | null;
   expirationAlert?: NavigationTopbarAlert | null;
   vacationAlert?: NavigationTopbarVacationAlert | null;
 }) {
@@ -510,6 +534,9 @@ export function TopbarWidgetGroup({
   const foodExpirationAlert = useRefrigeratorFoodExpirationTopbarAlert();
   const birthdayDdayItems =
     birthdayAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
+  const dischargeDdayItems =
+    dischargeAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
+    [];
   const expirationDdayItems =
     expirationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
     [];
@@ -520,6 +547,7 @@ export function TopbarWidgetGroup({
     vacationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
   const ddayModalKey = createTopbarDdayModalKey(
     birthdayDdayItems,
+    dischargeDdayItems,
     expirationDdayItems,
     foodExpirationDdayItems,
     vacationDdayItems,
@@ -552,6 +580,7 @@ export function TopbarWidgetGroup({
   if (
     !currentScheduleAlert &&
     !birthdayAlert &&
+    !dischargeAlert &&
     !expirationAlert &&
     !vacationAlert &&
     !foodExpirationAlert
@@ -572,6 +601,9 @@ export function TopbarWidgetGroup({
         {vacationAlert ? (
           <TopbarVacationAlertButton alert={vacationAlert} />
         ) : null}
+        {dischargeAlert ? (
+          <TopbarDischargeAlertButton alert={dischargeAlert} />
+        ) : null}
         {birthdayAlert ? (
           <TopbarBirthdayAlertButton alert={birthdayAlert} />
         ) : null}
@@ -590,6 +622,7 @@ export function TopbarWidgetGroup({
           <TopbarDdayAlertModalContent
             birthdayItems={birthdayDdayItems}
             descriptionId={ddayModalDescriptionId}
+            dischargeItems={dischargeDdayItems}
             expirationItems={expirationDdayItems}
             foodExpirationItems={foodExpirationDdayItems}
             onClose={closeDdayModal}
@@ -604,11 +637,13 @@ export function TopbarWidgetGroup({
 
 function createTopbarDdayModalKey(
   birthdayItems: NavigationTopbarBirthdayAlertItem[],
+  dischargeItems: NavigationTopbarDischargeAlertItem[],
   expirationItems: NavigationTopbarAlertItem[],
   foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[],
   vacationItems: NavigationTopbarVacationAlertItem[],
 ) {
   const birthdayKeys = birthdayItems.map((item) => `birthday:${item.id}`);
+  const dischargeKeys = dischargeItems.map((item) => `discharge:${item.id}`);
   const expirationKeys = expirationItems.map((item) => `expiration:${item.id}`);
   const foodExpirationKeys = foodExpirationItems.map(
     (item) => `food-expiration:${item.id}`,
@@ -616,6 +651,7 @@ function createTopbarDdayModalKey(
   const vacationKeys = vacationItems.map((item) => `vacation:${item.id}`);
   const keys = [
     ...birthdayKeys,
+    ...dischargeKeys,
     ...expirationKeys,
     ...foodExpirationKeys,
     ...vacationKeys,
@@ -851,6 +887,68 @@ function TopbarVacationAlertButton({
   );
 }
 
+function TopbarDischargeAlertButton({
+  alert,
+}: {
+  alert: NavigationTopbarDischargeAlert;
+}) {
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
+  const hasItems = alert.items.length > 0;
+  const className = [
+    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] shadow-sm transition hover:border-[#e59b93] hover:bg-[#ffe7e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0c6c6] sm:px-3",
+    hasItems && isTopbarDdayDue(alert.ddayLabel)
+      ? "topbar-widget-due topbar-widget-due-discharge"
+      : "",
+  ].join(" ");
+  const title = hasItems
+    ? `${alert.youthName} ${alert.ddayLabel}`
+    : "14일 이내 퇴소 예정 청소년 없음";
+  const ariaLabel = hasItems
+    ? `${alert.youthName} ${alert.ddayLabel} 퇴소 예정 목록 열기`
+    : "퇴소 예정 목록 열기, 예정 없음";
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={ariaLabel}
+        className={className}
+        onClick={() => setOpen(true)}
+        title={title}
+      >
+        <span className="hidden text-[#9d3328] sm:inline">{alert.label}</span>
+        <span className="max-w-[8rem] truncate text-[#7a271a]">
+          {alert.youthName}
+        </span>
+        {hasItems ? (
+          <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#9d3328]">
+            {alert.ddayLabel}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={descriptionId}
+          labelledBy={titleId}
+          onClose={() => setOpen(false)}
+        >
+          <TopbarDischargeAlertModalContent
+            alert={alert}
+            descriptionId={descriptionId}
+            onClose={() => setOpen(false)}
+            titleId={titleId}
+          />
+        </AppModal>
+      ) : null}
+    </>
+  );
+}
+
 function TopbarBirthdayAlertButton({
   alert,
   alignEnd,
@@ -919,6 +1017,7 @@ function TopbarBirthdayAlertButton({
 export function TopbarDdayAlertModalContent({
   birthdayItems,
   descriptionId,
+  dischargeItems = [],
   expirationItems,
   foodExpirationItems,
   onClose,
@@ -927,6 +1026,7 @@ export function TopbarDdayAlertModalContent({
 }: {
   birthdayItems: NavigationTopbarBirthdayAlertItem[];
   descriptionId: string;
+  dischargeItems?: NavigationTopbarDischargeAlertItem[];
   expirationItems: NavigationTopbarAlertItem[];
   foodExpirationItems: NavigationTopbarFoodExpirationAlertItem[];
   onClose: () => void;
@@ -945,7 +1045,7 @@ export function TopbarDdayAlertModalContent({
             오늘 확인할 알림
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            오늘 생일, 휴가 또는 유통기한이 도래한 항목입니다.
+            오늘 생일, 휴가, 퇴소 또는 유통기한이 도래한 항목입니다.
           </p>
         </div>
         <button
@@ -957,6 +1057,34 @@ export function TopbarDdayAlertModalContent({
         </button>
       </div>
       <div className="space-y-5 px-5 py-5">
+        {dischargeItems.length > 0 ? (
+          <section aria-label="오늘 퇴소" className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#9d3328]">오늘 퇴소</h3>
+            <ul className="divide-y divide-[#f4d7d4] rounded-md border border-[#f0c6c6] bg-[#fff6f5]">
+              {dischargeItems.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.rosterHref}
+                    onClick={onClose}
+                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#ffe9e6] focus:outline-none focus:ring-2 focus:ring-[#f0c6c6]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                        {item.name}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#697386]">
+                        퇴소 예정일 {formatYouthDischargeAlertDate(item.dischargeDate)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 py-1 text-xs font-semibold text-[#9d3328]">
+                      {item.ddayLabel}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         {vacationItems.length > 0 ? (
           <section aria-label="오늘 휴가" className="space-y-2">
             <h3 className="text-sm font-semibold text-[#3730a3]">오늘 휴가</h3>
@@ -1232,6 +1360,82 @@ export function TopbarVacationAlertModalContent({
           31일 이내에 예정된 승인 휴가가 없습니다.
         </p>
       )}
+    </div>
+  );
+}
+
+export function TopbarDischargeAlertModalContent({
+  alert,
+  descriptionId,
+  onClose,
+  titleId,
+}: {
+  alert: NavigationTopbarDischargeAlert;
+  descriptionId: string;
+  onClose: () => void;
+  titleId: string;
+}) {
+  return (
+    <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold text-[#9d3328]">퇴소</p>
+          <h2
+            id={titleId}
+            className="mt-1 break-words text-xl font-semibold leading-tight text-[#16181d]"
+          >
+            퇴소 예정 청소년
+          </h2>
+          <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
+            오늘부터 14일 이내에 퇴소 예정일이 있는 청소년입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        >
+          닫기
+        </button>
+      </div>
+      {alert.items.length > 0 ? (
+        <ul className="divide-y divide-[#eef1f5] px-5">
+          {alert.items.map((item) => (
+            <li key={item.id} className="py-4">
+              <Link
+                href={item.rosterHref}
+                onClick={onClose}
+                className="-mx-2 flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 transition hover:bg-[#fff5f2] focus:outline-none focus:ring-2 focus:ring-[#f0c6c6]"
+              >
+                <span className="min-w-0">
+                  <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                    {item.name}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#697386]">
+                    퇴소 예정일 {formatYouthDischargeAlertDate(item.dischargeDate)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 py-1 text-xs font-semibold text-[#9d3328]">
+                  {item.ddayLabel}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+          14일 이내에 퇴소 예정인 청소년이 없습니다.
+        </p>
+      )}
+      <div className="border-t border-[#eef1f5] px-5 py-4">
+        <Link
+          href="/youth/roster"
+          onClick={onClose}
+          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0c6c6] sm:w-auto"
+        >
+          청소년 명단으로 이동
+        </Link>
+      </div>
     </div>
   );
 }
