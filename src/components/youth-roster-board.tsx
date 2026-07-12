@@ -76,6 +76,11 @@ type YouthRosterModalState =
       youth: YouthRosterItem;
     };
 
+type DecisionDocumentDownloadModalState = {
+  document: YouthDecisionDocumentItem;
+  youthName: string;
+};
+
 type YouthFormDraft = {
   admissionDate: string;
   birthDate: string;
@@ -100,6 +105,12 @@ type YouthRosterSortState = {
 const youthUpdateConfirmMessage =
   "정보 변경시 변경 기록이 남습니다.\n정말로 수정하시겠습니까?";
 const decisionDocumentAcceptTypes = defaultAllowedAttachmentExtensions.join(",");
+const decisionDocumentDownloadReasonOptions = [
+  { value: "CASE_SUPPORT", label: "사건 지원 업무" },
+  { value: "EXTERNAL_SUBMISSION", label: "법원·보호관찰소 등 외부기관 제출" },
+  { value: "INTERNAL_REVIEW", label: "기관 내부 검토" },
+  { value: "OTHER", label: "기타" },
+] as const;
 
 export function YouthRosterBoard({
   changeLogFilters,
@@ -120,6 +131,8 @@ export function YouthRosterBoard({
     field: "admissionDate",
   });
   const [modal, setModal] = useState<YouthRosterModalState | null>(null);
+  const [decisionDocumentDownload, setDecisionDocumentDownload] =
+    useState<DecisionDocumentDownloadModalState | null>(null);
   const rosterData = useMemo(
     () => ({
       referenceDate: data.referenceDate,
@@ -253,6 +266,9 @@ export function YouthRosterBoard({
         emptyDescription="입소 상태의 청소년이 등록되면 이곳에 표시됩니다."
         emptyTitle="입소중인 청소년이 없습니다."
         onEdit={(youth) => setModal({ mode: "edit", canDelete: true, youth })}
+        onDecisionDocumentDownload={(youthName, document) =>
+          setDecisionDocumentDownload({ document, youthName })
+        }
         onSort={sortAdmittedYouths}
         referenceDate={rosterData.referenceDate}
         sortState={admittedSort}
@@ -264,6 +280,9 @@ export function YouthRosterBoard({
         emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
         emptyTitle="퇴소 청소년이 없습니다."
         onEdit={(youth) => setModal({ mode: "edit", canDelete: false, youth })}
+        onDecisionDocumentDownload={(youthName, document) =>
+          setDecisionDocumentDownload({ document, youthName })
+        }
         referenceDate={rosterData.referenceDate}
         title="퇴소 청소년 목록"
         youths={rosterData.dischargedYouths}
@@ -284,9 +303,19 @@ export function YouthRosterBoard({
           deleteDecisionDocument={deleteDecisionDocument}
           modal={modal}
           onClose={() => setModal(null)}
+          onDecisionDocumentDownload={(youthName, document) =>
+            setDecisionDocumentDownload({ document, youthName })
+          }
           onDeleted={removeYouthFromRoster}
           onSaved={saveYouthInRoster}
           updateYouth={updateYouth}
+        />
+      ) : null}
+      {decisionDocumentDownload ? (
+        <DecisionDocumentDownloadModal
+          document={decisionDocumentDownload.document}
+          onClose={() => setDecisionDocumentDownload(null)}
+          youthName={decisionDocumentDownload.youthName}
         />
       ) : null}
     </section>
@@ -596,6 +625,7 @@ function YouthRosterSection({
   emptyDescription,
   emptyTitle,
   onEdit,
+  onDecisionDocumentDownload,
   onSort,
   referenceDate,
   sortState,
@@ -606,6 +636,10 @@ function YouthRosterSection({
   emptyDescription: string;
   emptyTitle: string;
   onEdit: (youth: YouthRosterItem) => void;
+  onDecisionDocumentDownload: (
+    youthName: string,
+    document: YouthDecisionDocumentItem,
+  ) => void;
   onSort?: (field: YouthRosterSortField) => void;
   referenceDate: string;
   sortState?: YouthRosterSortState;
@@ -755,6 +789,7 @@ function YouthRosterSection({
                   <TableCell>
                     <DecisionDocumentLinks
                       documents={youth.decisionDocuments}
+                      onDownload={onDecisionDocumentDownload}
                       youthName={youth.name}
                     />
                   </TableCell>
@@ -837,6 +872,7 @@ export function YouthRosterFormModal({
   deleteDecisionDocument,
   modal,
   onClose,
+  onDecisionDocumentDownload,
   onDeleted,
   onSaved,
   updateYouth,
@@ -846,6 +882,10 @@ export function YouthRosterFormModal({
   deleteDecisionDocument: YouthRosterBoardProps["deleteDecisionDocument"];
   modal: YouthRosterModalState;
   onClose: () => void;
+  onDecisionDocumentDownload: (
+    youthName: string,
+    document: YouthDecisionDocumentItem,
+  ) => void;
   onDeleted: (youthId: string) => void;
   onSaved: (youth: YouthRosterItem) => void;
   updateYouth: YouthRosterBoardProps["updateYouth"];
@@ -1215,12 +1255,18 @@ export function YouthRosterFormModal({
                             </p>
                           </div>
                           <div className="flex shrink-0 gap-2">
-                            <a
-                              href={`/youth/decision-documents/${document.id}`}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onDecisionDocumentDownload(
+                                  modal.youth.name,
+                                  document,
+                                )
+                              }
                               className="inline-flex h-9 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
                             >
                               다운로드
-                            </a>
+                            </button>
                             <button
                               type="button"
                               onClick={() => deleteSavedDocument(document)}
@@ -1337,11 +1383,135 @@ function RosterFormField({
   );
 }
 
+function DecisionDocumentDownloadModal({
+  document,
+  onClose,
+  youthName,
+}: {
+  document: YouthDecisionDocumentItem;
+  onClose: () => void;
+  youthName: string;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const [reason, setReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isOtherReason = reason === "OTHER";
+
+  return (
+    <AppModal
+      className="max-w-lg"
+      describedBy={descriptionId}
+      labelledBy={titleId}
+      onClose={onClose}
+    >
+      <form
+        action={`/youth/decision-documents/${document.id}`}
+        method="post"
+        onSubmit={() => setIsSubmitting(true)}
+      >
+        <div className="border-b border-[#eef1f5] px-6 py-5">
+          <p className="text-xs font-semibold text-[#9d3328]">민감정보</p>
+          <h2
+            id={titleId}
+            className="mt-2 text-xl font-semibold text-[#16181d]"
+          >
+            결정문 다운로드 확인
+          </h2>
+          <p
+            id={descriptionId}
+            className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff5f2] px-3 py-3 text-sm leading-6 text-[#7a271a]"
+          >
+            결정문 요청은 시스템 감사기록에 남습니다. 그래도 요청하시겠습니까?
+          </p>
+        </div>
+
+        <div className="grid gap-4 px-6 py-5">
+          <div className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3">
+            <p className="text-sm font-semibold text-[#394150]">대상 파일</p>
+            <p className="mt-1 break-words text-sm text-[#16181d] [overflow-wrap:anywhere]">
+              {youthName} · {document.originalName}
+            </p>
+          </div>
+
+          <label className="block">
+            <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
+              다운로드 사유
+              <span className="rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2 py-0.5 text-[11px] font-semibold text-[#196b69]">
+                필수
+              </span>
+            </span>
+            <select
+              required
+              name="reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm text-[#16181d] outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+            >
+              <option value="" disabled>
+                다운로드 사유를 선택하세요
+              </option>
+              {decisionDocumentDownloadReasonOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {isOtherReason ? (
+            <label className="block">
+              <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
+                기타 사유
+                <span className="rounded-full border border-[#b8d9d7] bg-[#eef7f6] px-2 py-0.5 text-[11px] font-semibold text-[#196b69]">
+                  필수
+                </span>
+              </span>
+              <textarea
+                required
+                name="reasonDetail"
+                maxLength={200}
+                rows={3}
+                placeholder="다운로드가 필요한 업무상 사유를 입력하세요."
+                className="mt-2 w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-2 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              />
+            </label>
+          ) : null}
+
+          <p className="text-xs leading-5 text-[#697386]">
+            선택한 사유와 요청 시각, 계정 및 접속 정보가 감사기록에 저장됩니다.
+          </p>
+        </div>
+
+        <footer className="flex flex-col-reverse gap-2 border-t border-[#eef1f5] px-6 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="h-10 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSubmitting ? "다운로드 요청 중" : "사유 기록 후 다운로드"}
+          </button>
+        </footer>
+      </form>
+    </AppModal>
+  );
+}
+
 function DecisionDocumentLinks({
   documents,
+  onDownload,
   youthName,
 }: {
   documents: YouthDecisionDocumentItem[];
+  onDownload: (youthName: string, document: YouthDecisionDocumentItem) => void;
   youthName: string;
 }) {
   if (documents.length === 0) {
@@ -1354,15 +1524,16 @@ function DecisionDocumentLinks({
       onClick={(event) => event.stopPropagation()}
     >
       {documents.map((document) => (
-        <a
+        <button
+          type="button"
           key={document.id}
-          href={`/youth/decision-documents/${document.id}`}
+          onClick={() => onDownload(youthName, document)}
           title={document.originalName}
           aria-label={`${youthName} 결정문 ${document.originalName} 다운로드`}
           className="grid size-8 shrink-0 place-items-center rounded-md border border-[#f0c6c6] bg-[#fff1f1] text-[#b42318] transition hover:border-[#d92d20] hover:bg-[#ffe7e5] hover:text-[#8a1f1f] focus:outline-none focus:ring-2 focus:ring-[#ffd0cc]"
         >
           <DecisionDocumentIcon />
-        </a>
+        </button>
       ))}
     </div>
   );

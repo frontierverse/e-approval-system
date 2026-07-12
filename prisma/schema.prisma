@@ -65,6 +65,7 @@ enum AuditAction {
   UPDATE_YOUTH
   UPDATE_YOUTH_NOTE
   DELETE_YOUTH_NOTE
+  DOWNLOAD_YOUTH_DECISION_DOCUMENT
 }
 
 enum NotificationType {

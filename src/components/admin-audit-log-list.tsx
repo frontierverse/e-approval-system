@@ -28,6 +28,11 @@ type AdminAuditLog = {
   targetId: string;
   message: string | null;
   metadata?: unknown;
+  ipAddress?: string | null;
+  device?: string | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
   createdAt: Date;
   actor: {
     id: string;
@@ -289,8 +294,13 @@ export function AdminAuditLogList({
                             {getTargetLabel(log.targetType)} {log.targetId}
                           </span>
                         </>
-                      )}
+                    )}
                 </div>
+                {getAuditRequestSummary(log) ? (
+                  <p className="mt-1 text-xs text-[#697386]">
+                    {getAuditRequestSummary(log)}
+                  </p>
+                ) : null}
                 <AdminAuditChangeList log={log} />
               </div>
             </li>
@@ -675,6 +685,35 @@ function getFallbackAuditMessage(log: AdminAuditLog) {
   return `${getAuditActionLabel(log.action)} 작업을 수행했습니다.`;
 }
 
+function getAuditRequestSummary(log: AdminAuditLog) {
+  if (log.action !== "DOWNLOAD_YOUTH_DECISION_DOCUMENT") {
+    return null;
+  }
+
+  const metadata = isPlainObject(log.metadata) ? log.metadata : null;
+  const reasonLabel =
+    metadata && typeof metadata.reasonLabel === "string"
+      ? `사유: ${metadata.reasonLabel}`
+      : null;
+  const reasonDetail =
+    metadata && typeof metadata.reasonDetail === "string"
+      ? `상세: ${metadata.reasonDetail}`
+      : null;
+
+  const location = [log.city, log.region, log.country]
+    .filter((value): value is string => Boolean(value))
+    .join(", ");
+  const details = [
+    reasonLabel,
+    reasonDetail,
+    log.ipAddress ? `IP ${log.ipAddress}` : null,
+    location || null,
+    log.device || null,
+  ].filter(Boolean);
+
+  return details.length > 0 ? details.join(" · ") : "접속 정보 없음";
+}
+
 function AdminAuditChangeList({ log }: { log: AdminAuditLog }) {
   const changes = getAdminAuditChangeItems(log);
 
@@ -781,6 +820,7 @@ function getTargetLabel(targetType: string) {
     ApprovalDocument: "문서",
     AttachmentPolicy: "첨부 정책",
     CompanyBusinessInfo: "회사 정보",
+    YouthDecisionDocument: "결정문",
   };
 
   return labels[targetType] ?? targetType;

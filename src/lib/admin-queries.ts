@@ -472,6 +472,11 @@ const adminAuditLogSelect = {
   targetId: true,
   message: true,
   metadata: true,
+  ipAddress: true,
+  device: true,
+  country: true,
+  region: true,
+  city: true,
   createdAt: true,
   actor: {
     select: {
