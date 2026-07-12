@@ -17,7 +17,7 @@ import {
   formatBirthdayAlertDate,
   formatBirthdayAlertDateWithWeekday,
 } from "@/lib/birthday-alerts-core";
-import { formatYouthDischargeAlertDate } from "@/lib/youth-discharge-alerts-core";
+import { formatYouthDischargeAlertDateWithWeekday } from "@/lib/youth-discharge-alerts-core";
 import { createCafeItemExpiringFoodPrintHref } from "@/lib/cafe-items-core";
 import {
   createCurrentCommonScheduleAlert,
@@ -1083,7 +1083,10 @@ export function TopbarDdayAlertModalContent({
                         {item.name}
                       </span>
                       <span className="mt-1 block text-xs text-[#697386]">
-                        퇴소 예정일 {formatYouthDischargeAlertDate(item.dischargeDate)}
+                        퇴소 예정일{" "}
+                        {formatYouthDischargeAlertDateWithWeekday(
+                          item.dischargeDate,
+                        )}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 py-1 text-xs font-semibold text-[#9d3328]">
@@ -1458,7 +1461,10 @@ export function TopbarDischargeAlertModalContent({
                     {item.name}
                   </span>
                   <span className="mt-1 block text-xs text-[#697386]">
-                    퇴소 예정일 {formatYouthDischargeAlertDate(item.dischargeDate)}
+                    퇴소 예정일{" "}
+                    {formatYouthDischargeAlertDateWithWeekday(
+                      item.dischargeDate,
+                    )}
                   </span>
                 </span>
                 <span className="shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 py-1 text-xs font-semibold text-[#9d3328]">

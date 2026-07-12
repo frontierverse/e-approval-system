@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   createYouthDischargeAlertItems,
   createYouthDischargeTopbarAlert,
+  formatYouthDischargeAlertDateWithWeekday,
   getUpcomingYouthDischarge,
   type YouthDischargeAlertPerson,
 } from "../src/lib/youth-discharge-alerts-core.ts";
@@ -41,5 +42,12 @@ describe("youth discharge alerts", () => {
       null,
     );
     assert.equal(getUpcomingYouthDischarge("not-a-date", "2026-07-12"), null);
+  });
+
+  test("formats a discharge date with its weekday", () => {
+    assert.equal(
+      formatYouthDischargeAlertDateWithWeekday("2026-07-12"),
+      "2026.07.12 (일)",
+    );
   });
 });
