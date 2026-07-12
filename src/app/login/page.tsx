@@ -3,13 +3,17 @@ import type { Metadata } from "next";
 import { LoginForm } from "@/components/login-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth";
-import { appName, organizationName } from "@/lib/branding";
+import { appDescription, appName, organizationName } from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "로그인",
+  title: "사내 시스템 로그인",
+  description: appDescription,
+  alternates: {
+    canonical: "/login",
+  },
   robots: {
-    index: false,
-    follow: false,
+    index: true,
+    follow: true,
   },
 };
 

@@ -21,58 +21,8 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 import { getSystemUsageSummary } from "@/lib/system-usage";
 import { getRecentWorkFeatureUpdates } from "@/lib/work-feature-updates";
-import { getCurrentUser } from "@/lib/auth";
-import { appDescription, appName, organizationName } from "@/lib/branding";
-import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "전자결재·사내 업무 시스템",
-  description: appDescription,
-  alternates: {
-    canonical: "/",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
-
-export default async function Home() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return <PublicLanding />;
-  }
-
-  return <AuthenticatedHome />;
-}
-
-function PublicLanding() {
-  return (
-    <main className="grid min-h-screen place-items-center bg-[#f6f7f9] px-4 py-10 text-[#16181d]">
-      <section className="w-full max-w-xl rounded-md border border-[#d9dee7] bg-white p-8 shadow-sm sm:p-10">
-        <p className="text-sm font-semibold tracking-[0.16em] text-[#2563eb]">
-          BAJAUL
-        </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight">{appName}</h1>
-        <p className="mt-4 text-lg leading-8 text-[#4b5563]">{appDescription}</p>
-        <p className="mt-3 text-sm leading-6 text-[#697386]">{organizationName}</p>
-        <Link
-          href="/login"
-          className={buttonClass(
-            buttonStyles.base,
-            buttonStyles.create,
-            "mt-8 inline-flex h-11 px-5 text-sm shadow-sm",
-          )}
-        >
-          시스템 로그인
-        </Link>
-      </section>
-    </main>
-  );
-}
-
-function AuthenticatedHome() {
+export default function Home() {
   return (
     <>
       <div className="mb-5 lg:relative lg:[--home-draft-action-gap:2rem] lg:[--home-draft-action-height:3.25rem] lg:[--home-draft-action-width:8rem]">
