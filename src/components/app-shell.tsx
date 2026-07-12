@@ -42,7 +42,6 @@ const resourceNavigationItems: NavigationItem[] = [
   { label: "카페", href: "/resources?category=cafe" },
   { label: "바자울", href: "/resources?category=bajaul" },
   { label: "교육", href: "/resources?category=education" },
-  { label: "문제은행", href: "/question-bank" },
 ];
 
 const youthNavigationItems: NavigationItem[] = [

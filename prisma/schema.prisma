@@ -128,8 +128,6 @@ model User {
   leaveLedgerEntries   StaffLeaveLedger[]   @relation("StaffLeaveUser")
   createdLeaveEntries  StaffLeaveLedger[]   @relation("StaffLeaveActor")
   workFeatureUpdates   WorkFeatureUpdate[]  @relation("WorkFeatureUpdateCreator")
-  worksheetGenerations WorksheetGeneration[] @relation("WorksheetGenerationCreator")
-  questionBankPdfs     QuestionBankPdf[]     @relation("QuestionBankPdfUploader")
   youthDecisionDocuments YouthDecisionDocument[] @relation("YouthDecisionDocumentUploader")
   youthDischargeExtensions YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
   cafeComplianceNotes  CafeComplianceNote[]  @relation("CafeComplianceNoteCreator")
@@ -597,114 +595,6 @@ model WorkFeatureUpdate {
 
   @@index([createdAt])
   @@index([createdById])
-}
-
-model ProblemUnit {
-  id         String   @id @default(cuid())
-  subject    String
-  gradeLevel String?
-  name       String
-  parentId   String?
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  parent   ProblemUnit?  @relation("ProblemUnitChildren", fields: [parentId], references: [id], onDelete: SetNull)
-  children ProblemUnit[] @relation("ProblemUnitChildren")
-  problems QuestionBankProblem[]
-  worksheetGenerations WorksheetGeneration[]
-  pdfs QuestionBankPdf[]
-
-  @@index([subject, gradeLevel])
-  @@index([parentId])
-  @@index([sortOrder])
-  @@index([createdAt])
-}
-
-model QuestionBankProblem {
-  id          String   @id @default(cuid())
-  subject     String
-  gradeLevel  String?
-  body        String
-  choices     String?
-  answer      String
-  explanation String?
-  difficulty  Int      @default(2)
-  problemType String   @default("multiple-choice")
-  points      Int      @default(1)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  unitId String
-  unit   ProblemUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
-
-  worksheetItems WorksheetProblem[]
-
-  @@index([unitId])
-  @@index([subject, gradeLevel])
-  @@index([difficulty])
-  @@index([problemType])
-  @@index([isActive, createdAt])
-}
-
-model WorksheetGeneration {
-  id             String   @id @default(cuid())
-  title          String
-  subject        String
-  gradeLevel     String?
-  questionCount  Int
-  seed           String
-  includeAnswers Boolean  @default(true)
-  createdAt      DateTime @default(now())
-
-  unitId      String
-  createdById String?
-
-  unit      ProblemUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
-  createdBy User?       @relation("WorksheetGenerationCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  items     WorksheetProblem[]
-
-  @@index([unitId])
-  @@index([createdById])
-  @@index([createdAt])
-}
-
-model WorksheetProblem {
-  id          String @id @default(cuid())
-  order       Int
-  worksheetId String
-  problemId   String
-
-  worksheet WorksheetGeneration @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
-  problem   QuestionBankProblem @relation(fields: [problemId], references: [id], onDelete: Restrict)
-
-  @@unique([worksheetId, order])
-  @@unique([worksheetId, problemId])
-  @@index([problemId])
-}
-
-model QuestionBankPdf {
-  id              String   @id @default(cuid())
-  title           String
-  description     String?
-  originalName    String
-  storageProvider String   @default("local")
-  storageKey      String
-  mimeType        String
-  size            Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  unitId       String
-  uploadedById String?
-
-  unit       ProblemUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  uploadedBy User?       @relation("QuestionBankPdfUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-
-  @@index([unitId])
-  @@index([uploadedById])
-  @@index([createdAt])
 }
 
 model CafeItem {

@@ -46,11 +46,6 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.attachment.deleteMany();
   await prisma.attachmentPolicy.deleteMany();
-  await prisma.worksheetProblem.deleteMany();
-  await prisma.worksheetGeneration.deleteMany();
-  await prisma.questionBankPdf.deleteMany();
-  await prisma.questionBankProblem.deleteMany();
-  await prisma.problemUnit.deleteMany();
   await prisma.approvalComment.deleteMany();
   await prisma.approvalStep.deleteMany();
   await prisma.approvalDocument.deleteMany();

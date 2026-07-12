@@ -27,11 +27,6 @@ const requiredPrismaDelegates = [
   "youthRule",
   "staffLeaveLedger",
   "loginHistory",
-  "problemUnit",
-  "questionBankProblem",
-  "questionBankPdf",
-  "worksheetGeneration",
-  "worksheetProblem",
 ] as const;
 
 const requiredYouthLearningScheduleFields = [
