@@ -30,6 +30,8 @@ export const auditActionLabels = {
   UPDATE_YOUTH_NOTE: "청소년 특이사항 수정",
   DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
   DOWNLOAD_YOUTH_DECISION_DOCUMENT: "결정문 다운로드",
+  VIEW_YOUTH_DETAIL: "청소년 상세정보 열람",
+  VIEW_YOUTH_CONTACT: "청소년 연락처 열람",
 } as const;
 
 export type AuditActionValue = keyof typeof auditActionLabels;
@@ -78,6 +80,8 @@ export const auditActionBadgeClasses: Record<AuditActionValue, string> = {
   UPDATE_YOUTH_NOTE: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
   DELETE_YOUTH_NOTE: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
   DOWNLOAD_YOUTH_DECISION_DOCUMENT: "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]",
+  VIEW_YOUTH_DETAIL: "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150]",
+  VIEW_YOUTH_CONTACT: "border-[#ead8a8] bg-[#fff8df] text-[#82620d]",
 };
 
 export const auditActionTextClasses: Record<AuditActionValue, string> = {
@@ -112,6 +116,8 @@ export const auditActionTextClasses: Record<AuditActionValue, string> = {
   UPDATE_YOUTH_NOTE: "text-[#82620d]",
   DELETE_YOUTH_NOTE: "text-[#8a1f1f]",
   DOWNLOAD_YOUTH_DECISION_DOCUMENT: "text-[#245d8f]",
+  VIEW_YOUTH_DETAIL: "text-[#394150]",
+  VIEW_YOUTH_CONTACT: "text-[#82620d]",
 };
 
 export function getAuditActionLabel(action: string) {

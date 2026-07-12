@@ -34,6 +34,7 @@ import {
   youthDecisionDocumentFormFieldName,
   youthDischargeExtensionReasonMaxLength,
   type YouthDecisionDocumentItem,
+  type YouthFamilyContact,
   type YouthFamilyContactInput,
   type YouthProfile,
   type YouthUpdateInput,
@@ -73,6 +74,14 @@ type YouthRosterBoardProps = {
   loadChangeLogs?: (
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
+  recordYouthContactView?: (
+    youthId: string,
+  ) => Promise<
+    YouthActionResult<{
+      familyContacts: YouthFamilyContact[];
+      phone: string | null;
+    }>
+  >;
   recordYouthDetailView?: (youthId: string) => Promise<void>;
   updateYouth: (
     youthId: string,
@@ -136,6 +145,7 @@ export function YouthRosterBoard({
   deleteDecisionDocument,
   extendYouthDischarge,
   loadChangeLogs,
+  recordYouthContactView,
   recordYouthDetailView,
   updateYouth,
 }: YouthRosterBoardProps) {
@@ -326,6 +336,7 @@ export function YouthRosterBoard({
           }
           onDeleted={removeYouthFromRoster}
           onSaved={saveYouthInRoster}
+          recordYouthContactView={recordYouthContactView}
           recordYouthDetailView={recordYouthDetailView}
           updateYouth={updateYouth}
         />
@@ -801,7 +812,7 @@ function YouthRosterSection({
                         ? "입소중"
                         : "미등록"}
                   </TableCell>
-                  <TableCell>{youth.phone ?? "미등록"}</TableCell>
+                  <TableCell>{formatMaskedPhone(youth.phone)}</TableCell>
                   <TableCell>
                     <FamilyContactList youth={youth} />
                   </TableCell>
@@ -895,6 +906,7 @@ export function YouthRosterFormModal({
   onDecisionDocumentDownload,
   onDeleted,
   onSaved,
+  recordYouthContactView,
   recordYouthDetailView,
   updateYouth,
 }: {
@@ -910,6 +922,7 @@ export function YouthRosterFormModal({
   ) => void;
   onDeleted: (youthId: string) => void;
   onSaved: (youth: YouthRosterItem) => void;
+  recordYouthContactView?: YouthRosterBoardProps["recordYouthContactView"];
   recordYouthDetailView?: YouthRosterBoardProps["recordYouthDetailView"];
   updateYouth: YouthRosterBoardProps["updateYouth"];
 }) {
@@ -931,9 +944,12 @@ export function YouthRosterFormModal({
         }
       : null,
   );
+  const [contactVisible, setContactVisible] = useState(
+    () => modal.mode === "create",
+  );
   const [error, setError] = useState("");
   const [pendingIntent, setPendingIntent] = useState<
-    "delete" | "deleteDocument" | "save" | null
+    "delete" | "deleteDocument" | "save" | "viewContact" | null
   >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
@@ -992,6 +1008,47 @@ export function YouthRosterFormModal({
       ),
     }));
     setError("");
+  }
+
+  function revealContacts() {
+    if (modal.mode !== "edit") {
+      return;
+    }
+
+    setError("");
+    setPendingIntent("viewContact");
+
+    startTransition(async () => {
+      try {
+        if (!recordYouthContactView) {
+          setContactVisible(true);
+          return;
+        }
+
+        const result = await recordYouthContactView(modal.youth.id);
+
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+
+        setDraft((current) => ({
+          ...current,
+          familyContacts:
+            result.data.familyContacts.length > 0
+              ? result.data.familyContacts.map((contact, index) => ({
+                  key: contact.id || `family-contact-${index}`,
+                  phone: contact.phone ?? "",
+                  relationship: contact.relationship ?? "",
+                }))
+              : [createFamilyContactDraft(0)],
+          phone: result.data.phone ?? "",
+        }));
+        setContactVisible(true);
+      } finally {
+        setPendingIntent(null);
+      }
+    });
   }
 
   function addDecisionFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -1212,74 +1269,84 @@ export function YouthRosterFormModal({
                   onChange={(value) => updateDraft({ birthDate: value })}
                 />
               </RosterFormField>
-              <RosterFormField label="핸드폰 번호">
-                <input
-                  value={draft.phone}
-                  onChange={(event) =>
-                    updateDraft({ phone: normalizePhoneText(event.target.value) })
-                  }
-                  placeholder="010-0000-0000"
-                  className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              {contactVisible ? (
+                <RosterFormField label="핸드폰 번호">
+                  <input
+                    value={draft.phone}
+                    onChange={(event) =>
+                      updateDraft({ phone: normalizePhoneText(event.target.value) })
+                    }
+                    placeholder="010-0000-0000"
+                    className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                  />
+                </RosterFormField>
+              ) : (
+                <ContactRevealPanel
+                  disabled={pending}
+                  isPending={pending && pendingIntent === "viewContact"}
+                  onReveal={revealContacts}
                 />
-              </RosterFormField>
+              )}
             </div>
 
-            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
-              <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
-                <h3 className="text-sm font-semibold text-[#394150]">
-                  가족 연락처
-                </h3>
-                <button
-                  type="button"
-                  onClick={addFamilyContact}
-                  className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-                >
-                  추가
-                </button>
-              </div>
-              <div className="grid gap-3 p-4">
-                {draft.familyContacts.map((contact, index) => (
-                  <div
-                    key={contact.key}
-                    className="grid gap-3 rounded-md border border-[#eef1f5] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+            {contactVisible ? (
+              <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
+                <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
+                  <h3 className="text-sm font-semibold text-[#394150]">
+                    가족 연락처
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addFamilyContact}
+                    className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
                   >
-                    <RosterFormField label={`관계 ${index + 1}`}>
-                      <input
-                        value={contact.relationship}
-                        onChange={(event) =>
-                          updateFamilyContact(contact.key, {
-                            relationship: event.target.value,
-                          })
-                        }
-                        className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                      />
-                    </RosterFormField>
-                    <RosterFormField label="연락처">
-                      <input
-                        value={contact.phone}
-                        onChange={(event) =>
-                          updateFamilyContact(contact.key, {
-                            phone: normalizePhoneText(event.target.value),
-                          })
-                        }
-                        placeholder="010-0000-0000"
-                        className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-                      />
-                    </RosterFormField>
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={() => removeFamilyContact(contact.key)}
-                        disabled={draft.familyContacts.length <= 1}
-                        className="h-10 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        삭제
-                      </button>
+                    추가
+                  </button>
+                </div>
+                <div className="grid gap-3 p-4">
+                  {draft.familyContacts.map((contact, index) => (
+                    <div
+                      key={contact.key}
+                      className="grid gap-3 rounded-md border border-[#eef1f5] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+                    >
+                      <RosterFormField label={`관계 ${index + 1}`}>
+                        <input
+                          value={contact.relationship}
+                          onChange={(event) =>
+                            updateFamilyContact(contact.key, {
+                              relationship: event.target.value,
+                            })
+                          }
+                          className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        />
+                      </RosterFormField>
+                      <RosterFormField label="연락처">
+                        <input
+                          value={contact.phone}
+                          onChange={(event) =>
+                            updateFamilyContact(contact.key, {
+                              phone: normalizePhoneText(event.target.value),
+                            })
+                          }
+                          placeholder="010-0000-0000"
+                          className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                        />
+                      </RosterFormField>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => removeFamilyContact(contact.key)}
+                          disabled={draft.familyContacts.length <= 1}
+                          className="h-10 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
               <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
@@ -1472,6 +1539,39 @@ function RosterFormField({
       <span className="text-sm font-semibold text-[#394150]">{label}</span>
       {children}
     </label>
+  );
+}
+
+function ContactRevealPanel({
+  disabled,
+  isPending,
+  onReveal,
+}: {
+  disabled: boolean;
+  isPending: boolean;
+  onReveal: () => void;
+}) {
+  return (
+    <div className="block">
+      <span className="text-sm font-semibold text-[#394150]">연락처</span>
+      <div className="mt-2 rounded-md border border-[#ead8a8] bg-[#fffaf0] px-3 py-3">
+        <p className="font-mono text-sm font-semibold text-[#394150]">
+          ************
+        </p>
+        <p className="mt-2 text-xs leading-5 text-[#697386]">
+          연락처 열람은 감사기록에 남습니다. 등록된 연락처가 없으면 확인 후
+          빈 입력칸으로 표시됩니다.
+        </p>
+        <button
+          type="button"
+          onClick={onReveal}
+          disabled={disabled}
+          className="mt-3 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPending ? "확인 중" : "연락처 확인"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1906,7 +2006,7 @@ function FamilyContactList({ youth }: { youth: YouthRosterItem }) {
             {contact.relationship ?? "관계 미등록"}
           </span>
           <span className="text-[#8a95a6]"> · </span>
-          <span>{contact.phone ?? "연락처 미등록"}</span>
+          <span>{formatMaskedPhone(contact.phone)}</span>
         </li>
       ))}
     </ul>
@@ -1981,6 +2081,10 @@ function createDefaultChangeLogFilters(
 
 function formatOptionalDate(value: string | null) {
   return value ? formatDate(value) : "미등록";
+}
+
+function formatMaskedPhone(value: string | null) {
+  return value ? "************" : "미등록";
 }
 
 function formatDate(value: string) {

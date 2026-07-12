@@ -300,6 +300,7 @@ const auditActionLabels: Record<AuditAction, string> = {
   DELETE_YOUTH_NOTE: "청소년 특이사항 삭제",
   DOWNLOAD_YOUTH_DECISION_DOCUMENT: "결정문 다운로드",
   VIEW_YOUTH_DETAIL: "청소년 상세정보 열람",
+  VIEW_YOUTH_CONTACT: "청소년 연락처 열람",
   CREATE_QUESTION_BANK_UNIT: "문제은행 단원 생성",
   CREATE_QUESTION_BANK_PROBLEM: "문제은행 문제 생성",
   UPLOAD_QUESTION_BANK_PDF: "문제은행 PDF 업로드",

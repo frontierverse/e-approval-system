@@ -172,9 +172,10 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /만 17세\(18세\)/);
     assert.match(html, /고2/);
     assert.match(html, /입소중/);
-    assert.match(html, /010-1111-2222/);
+    assert.doesNotMatch(html, /010-1111-2222/);
     assert.match(html, /어머니/);
-    assert.match(html, /010-3333-4444/);
+    assert.doesNotMatch(html, /010-3333-4444/);
+    assert.match(html, /\*\*\*\*\*\*\*\*\*\*\*\*/);
     assert.match(html, /이도현/);
     assert.match(html, /이도현 정보 수정/);
     assert.match(html, /2026\. 04\. 30\./);
@@ -258,6 +259,10 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /value="2026"/);
     assert.match(html, /value="5"/);
     assert.match(html, /value="2009"/);
+    assert.match(html, /연락처 확인/);
+    assert.match(html, /연락처 열람은 감사기록에 남습니다/);
+    assert.doesNotMatch(html, /010-1111-2222/);
+    assert.doesNotMatch(html, /010-3333-4444/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);
     assert.match(html, /결정문 파일/);

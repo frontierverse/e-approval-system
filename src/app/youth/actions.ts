@@ -22,6 +22,7 @@ import {
   type YouthCreateInput,
   type YouthDischargeExtension,
   type YouthDischargeExtensionInput,
+  type YouthFamilyContact,
   youthDecisionDocumentFormFieldName,
   youthDischargeExtensionReasonMaxLength,
   type YouthFamilyContactInput,
@@ -114,6 +115,74 @@ export async function recordYouthDetailViewAction(
       },
     },
   });
+}
+
+export async function recordYouthContactViewAction(
+  youthId: string,
+): Promise<
+  YouthActionResult<{
+    familyContacts: YouthFamilyContact[];
+    phone: string | null;
+  }>
+> {
+  const user = await requireUser();
+
+  const youth = await prisma.youth.findUnique({
+    where: {
+      id: youthId,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      familyContact: true,
+      familyContacts: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          phone: true,
+          relationship: true,
+        },
+      },
+      familyPhone: true,
+      familyRelationship: true,
+    },
+  });
+
+  if (!youth) {
+    return {
+      ok: false,
+      error: "연락처를 확인할 청소년을 찾을 수 없습니다.",
+    };
+  }
+
+  const phone = normalizeBlank(youth.phone);
+  const familyContacts = getYouthFamilyContactPayload(youth);
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...auditRequestData,
+      action: AuditAction.VIEW_YOUTH_CONTACT,
+      targetType: "Youth",
+      targetId: youth.id,
+      message: `${youth.name} 청소년의 연락처를 열람했습니다.`,
+      metadata: {
+        youthId: youth.id,
+        hasPhone: Boolean(phone),
+        familyContactCount: familyContacts.length,
+      },
+    },
+  });
+
+  return {
+    ok: true,
+    data: {
+      familyContacts,
+      phone,
+    },
+  };
 }
 
 const youthDecisionDocumentPolicy: AttachmentPolicyConfig = {
@@ -1105,6 +1174,48 @@ function validateYouthNoteInput(values: YouthNoteInput) {
   }
 
   return "";
+}
+
+function getYouthFamilyContactPayload(record: {
+  familyContact: string | null;
+  familyContacts: Array<{
+    id: string;
+    phone: string | null;
+    relationship: string | null;
+  }>;
+  familyPhone: string | null;
+  familyRelationship: string | null;
+  id: string;
+}) {
+  if (record.familyContacts.length > 0) {
+    return record.familyContacts.map((contact) => ({
+      id: contact.id,
+      phone: normalizeBlank(contact.phone),
+      relationship: normalizeBlank(contact.relationship),
+    }));
+  }
+
+  const legacyPhone =
+    normalizeBlank(record.familyPhone) ?? normalizeBlank(record.familyContact);
+  const legacyRelationship = normalizeBlank(record.familyRelationship);
+
+  if (!legacyPhone && !legacyRelationship) {
+    return [];
+  }
+
+  return [
+    {
+      id: `legacy-family-${record.id}`,
+      phone: legacyPhone,
+      relationship: legacyRelationship,
+    },
+  ];
+}
+
+function normalizeBlank(value: string | null) {
+  const normalized = value?.trim();
+
+  return normalized ? normalized : null;
 }
 
 function normalizeOptionalDate(value: string) {
