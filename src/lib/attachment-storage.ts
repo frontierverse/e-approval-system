@@ -6,6 +6,10 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
 import {
+  decryptAttachmentBuffer,
+  encryptAttachmentBuffer,
+} from "@/lib/attachment-encryption-core";
+import {
   type AttachmentStorageProvider,
   getAttachmentStorageDiagnostics,
   getAttachmentStorageConfig,
@@ -288,7 +292,23 @@ export async function readStoredAttachmentFile(
   attachment: string | StoredAttachmentRef,
 ): Promise<StoredAttachmentFile> {
   const ref = toStoredAttachmentRef(attachment);
+  const raw = await readRawStoredAttachment(ref);
 
+  // Transparently decrypt if the stored bytes are encrypted; legacy plaintext
+  // files pass through unchanged. Report the decrypted size so callers set a
+  // correct Content-Length.
+  const data = decryptAttachmentBuffer(raw.buffer);
+
+  return {
+    body: bufferToReadableStream(data),
+    size: data.byteLength,
+    mimeType: raw.mimeType,
+  };
+}
+
+async function readRawStoredAttachment(
+  ref: Required<StoredAttachmentRef>,
+): Promise<{ buffer: Buffer; mimeType?: string }> {
   if (ref.storageProvider === vercelBlobAttachmentStorageProvider) {
     const blob = await get(ref.storageKey, {
       access: "private",
@@ -300,8 +320,7 @@ export async function readStoredAttachmentFile(
     }
 
     return {
-      body: blob.stream,
-      size: blob.blob.size,
+      buffer: Buffer.from(await new Response(blob.stream).arrayBuffer()),
       mimeType: blob.blob.contentType,
     };
   }
@@ -319,17 +338,13 @@ export async function readStoredAttachmentFile(
     }
 
     return {
-      body: response.body,
-      size: Number(response.headers.get("content-length")) || undefined,
+      buffer: Buffer.from(await response.arrayBuffer()),
       mimeType: response.headers.get("content-type") ?? undefined,
     };
   }
 
-  const fileBuffer = await readFile(resolveAttachmentPath(ref.storageKey));
-
   return {
-    body: bufferToReadableStream(fileBuffer),
-    size: fileBuffer.byteLength,
+    buffer: await readFile(resolveAttachmentPath(ref.storageKey)),
   };
 }
 
@@ -386,8 +401,13 @@ function sanitizeOriginalName(name: string) {
 }
 
 async function persistAttachmentFile(file: PreparedAttachmentFile) {
+  // Encrypt at rest before it leaves the app (no-op when no key is configured).
+  // The original mimeType is still recorded as storage metadata so reads report
+  // the correct content type for the decrypted file.
+  const storedBuffer = encryptAttachmentBuffer(file.buffer);
+
   if (file.storageProvider === vercelBlobAttachmentStorageProvider) {
-    await put(file.storageKey, file.buffer, {
+    await put(file.storageKey, storedBuffer, {
       access: "private",
       addRandomSuffix: false,
       contentType: file.mimeType,
@@ -407,7 +427,7 @@ async function persistAttachmentFile(file: PreparedAttachmentFile) {
           "Content-Type": file.mimeType,
           "x-upsert": "false",
         },
-        body: new Blob([new Uint8Array(file.buffer)], {
+        body: new Blob([new Uint8Array(storedBuffer)], {
           type: file.mimeType,
         }),
       },
@@ -423,7 +443,7 @@ async function persistAttachmentFile(file: PreparedAttachmentFile) {
   const filePath = resolveAttachmentPath(file.storageKey);
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, file.buffer);
+  await writeFile(filePath, storedBuffer);
 }
 
 function createStorageKey(
