@@ -269,11 +269,46 @@ describe("app navigation active paths", () => {
     assert.match(html, /오늘 휴가/);
     assert.match(html, /박서연/);
     assert.match(html, /휴가일 2026\.06\.29 \(월\)/);
-    assert.match(html, /오늘 유통기한/);
+    assert.match(html, /유통기한 도래·경과/);
     assert.match(html, /우유/);
-    assert.match(html, /오늘 식품 유통기한/);
+    assert.match(html, /식품 유통기한 도래·경과/);
     assert.match(html, /샐러드/);
     assert.match(html, /D-Day/);
+  });
+
+  test("renders expired food in the login confirmation modal", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TopbarDdayAlertModalContent, {
+        birthdayItems: [],
+        descriptionId: "description-id",
+        expirationItems: [
+          {
+            ddayLabel: "D+2",
+            expirationDate: "2026-06-27",
+            href: "/work-schedule/cafe",
+            id: "cafe-item-expired",
+            itemName: "우유",
+          },
+        ],
+        foodExpirationItems: [
+          {
+            ddayLabel: "D+1",
+            expirationDate: "2026-06-28",
+            href: "/work-schedule/refrigerator",
+            id: "refrigerator-item-expired",
+            itemName: "샐러드",
+            locationLabel: "바자울 1",
+          },
+        ],
+        onClose: () => undefined,
+        titleId: "title-id",
+      }),
+    );
+
+    assert.match(html, /아직 조치되지 않은 유통기한 경과 항목/);
+    assert.match(html, /D[+]2/);
+    assert.match(html, /D[+]1/);
+    assert.ok(html.includes("bg-[#fff1f1]"));
   });
 
   test("renders vacation alert modal items", () => {

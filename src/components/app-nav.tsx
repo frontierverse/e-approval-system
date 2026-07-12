@@ -542,10 +542,12 @@ export function TopbarWidgetGroup({
     dischargeAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
     [];
   const expirationDdayItems =
-    expirationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ??
-    [];
+    expirationAlert?.items.filter(
+      (item) =>
+        isTopbarDdayDue(item.ddayLabel) || isTopbarOverdue(item.ddayLabel),
+    ) ?? [];
   const foodExpirationDdayItems = foodExpirationAlert.items.filter((item) =>
-    isTopbarDdayDue(item.ddayLabel),
+    isTopbarDdayDue(item.ddayLabel) || isTopbarOverdue(item.ddayLabel),
   );
   const vacationDdayItems =
     vacationAlert?.items.filter((item) => isTopbarDdayDue(item.ddayLabel)) ?? [];
@@ -1053,7 +1055,7 @@ export function TopbarDdayAlertModalContent({
             오늘 확인할 알림
           </h2>
           <p id={descriptionId} className="mt-2 text-sm text-[#697386]">
-            오늘 생일, 휴가, 퇴소 또는 유통기한이 도래한 항목입니다.
+            오늘 도래한 일정과 아직 조치되지 않은 유통기한 경과 항목입니다.
           </p>
         </div>
         <button
@@ -1164,9 +1166,9 @@ export function TopbarDdayAlertModalContent({
           </section>
         ) : null}
         {foodExpirationItems.length > 0 ? (
-          <section aria-label="오늘 식품 유통기한" className="space-y-2">
+          <section aria-label="식품 유통기한 도래·경과" className="space-y-2">
             <h3 className="text-sm font-semibold text-[#196b69]">
-              오늘 식품 유통기한
+              식품 유통기한 도래·경과
             </h3>
             <ul className="divide-y divide-[#d8ebe8] rounded-md border border-[#b7d9d4] bg-[#f1faf8]">
               {foodExpirationItems.map((item) => (
@@ -1174,7 +1176,12 @@ export function TopbarDdayAlertModalContent({
                   <Link
                     href={item.href}
                     onClick={onClose}
-                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#e1f3ef] focus:outline-none focus:ring-2 focus:ring-[#b7d9d4]"
+                    className={[
+                      "flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition focus:outline-none focus:ring-2",
+                      isTopbarOverdue(item.ddayLabel)
+                        ? "hover:bg-[#fff5f2] focus:ring-[#f0c6c6]"
+                        : "hover:bg-[#e1f3ef] focus:ring-[#b7d9d4]",
+                    ].join(" ")}
                   >
                     <span className="min-w-0">
                       <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
@@ -1185,7 +1192,14 @@ export function TopbarDdayAlertModalContent({
                         {formatTopbarAlertDate(item.expirationDate)}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-md border border-[#b7d9d4] bg-[#edf8f5] px-2.5 py-1 text-xs font-semibold text-[#196b69]">
+                    <span
+                      className={[
+                        "shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold",
+                        isTopbarOverdue(item.ddayLabel)
+                          ? "border-[#f0c6c6] bg-[#fff1f1] text-[#9d3328]"
+                          : "border-[#b7d9d4] bg-[#edf8f5] text-[#196b69]",
+                      ].join(" ")}
+                    >
                       {item.ddayLabel}
                     </span>
                   </Link>
@@ -1195,9 +1209,9 @@ export function TopbarDdayAlertModalContent({
           </section>
         ) : null}
         {expirationItems.length > 0 ? (
-          <section aria-label="오늘 유통기한" className="space-y-2">
+          <section aria-label="유통기한 도래·경과" className="space-y-2">
             <h3 className="text-sm font-semibold text-[#946200]">
-              오늘 유통기한
+              유통기한 도래·경과
             </h3>
             <ul className="divide-y divide-[#f5e5be] rounded-md border border-[#f0d28a] bg-[#fffaf0]">
               {expirationItems.map((item) => (
@@ -1205,7 +1219,12 @@ export function TopbarDdayAlertModalContent({
                   <Link
                     href={item.href}
                     onClick={onClose}
-                    className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition hover:bg-[#fff3d0] focus:outline-none focus:ring-2 focus:ring-[#f0d28a]"
+                    className={[
+                      "flex min-w-0 items-center justify-between gap-3 px-4 py-3 transition focus:outline-none focus:ring-2",
+                      isTopbarOverdue(item.ddayLabel)
+                        ? "hover:bg-[#fff5f2] focus:ring-[#f0c6c6]"
+                        : "hover:bg-[#fff3d0] focus:ring-[#f0d28a]",
+                    ].join(" ")}
                   >
                     <span className="min-w-0">
                       <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
@@ -1215,7 +1234,14 @@ export function TopbarDdayAlertModalContent({
                         유통기한 {formatTopbarAlertDate(item.expirationDate)}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 py-1 text-xs font-semibold text-[#946200]">
+                    <span
+                      className={[
+                        "shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold",
+                        isTopbarOverdue(item.ddayLabel)
+                          ? "border-[#f0c6c6] bg-[#fff1f1] text-[#9d3328]"
+                          : "border-[#f0d28a] bg-[#fff8e8] text-[#946200]",
+                      ].join(" ")}
+                    >
                       {item.ddayLabel}
                     </span>
                   </Link>
