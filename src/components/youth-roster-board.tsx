@@ -73,6 +73,7 @@ type YouthRosterBoardProps = {
   loadChangeLogs?: (
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
+  recordYouthDetailView?: (youthId: string) => Promise<void>;
   updateYouth: (
     youthId: string,
     values: YouthUpdateInput,
@@ -135,6 +136,7 @@ export function YouthRosterBoard({
   deleteDecisionDocument,
   extendYouthDischarge,
   loadChangeLogs,
+  recordYouthDetailView,
   updateYouth,
 }: YouthRosterBoardProps) {
   const [youths, setYouths] = useState(() => [
@@ -324,6 +326,7 @@ export function YouthRosterBoard({
           }
           onDeleted={removeYouthFromRoster}
           onSaved={saveYouthInRoster}
+          recordYouthDetailView={recordYouthDetailView}
           updateYouth={updateYouth}
         />
       ) : null}
@@ -892,6 +895,7 @@ export function YouthRosterFormModal({
   onDecisionDocumentDownload,
   onDeleted,
   onSaved,
+  recordYouthDetailView,
   updateYouth,
 }: {
   createYouth: YouthRosterBoardProps["createYouth"];
@@ -906,6 +910,7 @@ export function YouthRosterFormModal({
   ) => void;
   onDeleted: (youthId: string) => void;
   onSaved: (youth: YouthRosterItem) => void;
+  recordYouthDetailView?: YouthRosterBoardProps["recordYouthDetailView"];
   updateYouth: YouthRosterBoardProps["updateYouth"];
 }) {
   const titleId = useId();
@@ -932,6 +937,19 @@ export function YouthRosterFormModal({
   >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
+
+  // Record that this youth's detail (contacts, family, decision documents) was
+  // opened. Best-effort: audit failures must never block viewing. Server-side
+  // deduplication keeps repeated opens from flooding the log.
+  const viewedYouthId = modal.mode === "edit" ? modal.youth.id : null;
+
+  useEffect(() => {
+    if (!viewedYouthId || !recordYouthDetailView) {
+      return;
+    }
+
+    void recordYouthDetailView(viewedYouthId).catch(() => {});
+  }, [viewedYouthId, recordYouthDetailView]);
 
   function updateDraft(values: Partial<Omit<YouthFormDraft, "familyContacts">>) {
     setDraft((current) => ({
@@ -1479,16 +1497,14 @@ function DischargeDateSummary({
         <span className="min-w-0 truncate text-sm text-[#16181d]">
           {currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}
         </span>
-        {onExtend ? (
-          <button
-            type="button"
-            onClick={onExtend}
-            disabled={!canExtend}
-            className="h-8 shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {extensionCount >= 2 ? "연장 한도" : "퇴소 연장"}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onExtend}
+          disabled={!canExtend}
+          className="h-8 shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {extensionCount >= 2 ? "연장 한도" : "퇴소 연장"}
+        </button>
       </div>
       <p className="mt-1 text-xs text-[#697386]">
         기본 예정일 {initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회

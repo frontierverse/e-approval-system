@@ -250,8 +250,9 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /aria-label="입소 날짜 년"/);
     assert.match(html, /aria-label="입소 날짜 월"/);
     assert.match(html, /aria-label="입소 날짜 일"/);
-    assert.match(html, /현재 적용: 2026\. 07\. 15\./);
-    assert.match(html, /기본 예정일: 2026\. 07\. 15\. · 연장 0\/2회/);
+    assert.match(html, /퇴소 예정/);
+    assert.match(html, /2026\. 07\. 15\./);
+    assert.match(html, /기본 예정일 2026\. 07\. 15\. · 연장 0\/2회/);
     assert.match(html, />퇴소 연장</);
     assert.match(html, /aria-label="생년월일 년"/);
     assert.match(html, /value="2026"/);

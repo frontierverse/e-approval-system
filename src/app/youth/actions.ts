@@ -53,6 +53,69 @@ export async function getYouthRosterChangeLogsAction(
   };
 }
 
+// Views of a youth's detail (contacts, family, decision documents) leave no
+// trace on their own since all staff can open them, so record who looked. To
+// keep volume sane, repeated views of the same youth by the same person within
+// this window collapse into a single log entry. These entries stay out of the
+// roster change-log feed (not in youthRosterAuditActions) and live only in the
+// audit log for accountability.
+const youthDetailViewDedupWindowMs = 30 * 60 * 1000;
+
+export async function recordYouthDetailViewAction(
+  youthId: string,
+): Promise<void> {
+  const user = await requireUser();
+
+  const youth = await prisma.youth.findUnique({
+    where: {
+      id: youthId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!youth) {
+    return;
+  }
+
+  const recentView = await prisma.auditLog.findFirst({
+    where: {
+      actorId: user.id,
+      action: AuditAction.VIEW_YOUTH_DETAIL,
+      targetType: "Youth",
+      targetId: youth.id,
+      createdAt: {
+        gte: new Date(Date.now() - youthDetailViewDedupWindowMs),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (recentView) {
+    return;
+  }
+
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      ...auditRequestData,
+      action: AuditAction.VIEW_YOUTH_DETAIL,
+      targetType: "Youth",
+      targetId: youth.id,
+      message: `${youth.name} 청소년의 상세정보를 열람했습니다.`,
+      metadata: {
+        youthId: youth.id,
+      },
+    },
+  });
+}
+
 const youthDecisionDocumentPolicy: AttachmentPolicyConfig = {
   maxFileCount: 5,
   maxFileSizeMb: defaultMaxAttachmentFileSizeMb,
