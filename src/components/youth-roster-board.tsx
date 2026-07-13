@@ -945,7 +945,8 @@ export function YouthRosterFormModal({
       : null,
   );
   const [contactVisible, setContactVisible] = useState(
-    () => modal.mode === "create",
+    () =>
+      modal.mode === "create" || !hasRegisteredYouthContact(modal.youth),
   );
   const [error, setError] = useState("");
   const [pendingIntent, setPendingIntent] = useState<
@@ -1559,8 +1560,7 @@ function ContactRevealPanel({
           ************
         </p>
         <p className="mt-2 text-xs leading-5 text-[#697386]">
-          연락처 열람은 감사기록에 남습니다. 등록된 연락처가 없으면 확인 후
-          빈 입력칸으로 표시됩니다.
+          연락처 열람은 감사기록에 남습니다.
         </p>
         <button
           type="button"
@@ -2132,6 +2132,18 @@ function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
     name: youth?.name ?? "",
     phone: youth?.phone ?? "",
   };
+}
+
+function hasRegisteredYouthContact(
+  youth: Pick<YouthRosterItem, "familyContacts" | "phone">,
+) {
+  if (youth.phone?.trim()) {
+    return true;
+  }
+
+  return youth.familyContacts.some((contact) =>
+    Boolean(contact.phone?.trim() || contact.relationship?.trim()),
+  );
 }
 
 function createFamilyContactDraft(index: number): FamilyContactDraft {

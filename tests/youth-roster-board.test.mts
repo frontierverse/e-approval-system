@@ -290,6 +290,14 @@ describe("YouthRosterBoard", () => {
 
     assert.match(html, /청소년 정보 수정/);
     assert.doesNotMatch(html, /aria-label="이도현 청소년 삭제"/);
+    assert.match(html, /핸드폰 번호/);
+    assert.match(html, /가족 연락처/);
+    assert.equal(
+      (html.match(/placeholder="010-0000-0000"[^>]*value=""/g) ?? [])
+        .length,
+      2,
+    );
+    assert.doesNotMatch(html, /연락처 확인/);
   });
 
   test("renders loading skeleton panels", () => {
