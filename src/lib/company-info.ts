@@ -55,7 +55,6 @@ export type CompanyInfoAdmittedYouth = {
   birthDate: string | null;
   dischargeDate: string | null;
   age: number | null;
-  phone: string | null;
 };
 
 const representativeLookupName = "안윤숙";
@@ -281,7 +280,6 @@ async function getAdmittedYouths(referenceDate: string) {
       dischargeDate: true,
       age: true,
       birthDate: true,
-      phone: true,
     },
     orderBy: [
       {
@@ -306,6 +304,5 @@ async function getAdmittedYouths(referenceDate: string) {
       },
       referenceDate,
     ),
-    phone: youth.phone,
   }));
 }

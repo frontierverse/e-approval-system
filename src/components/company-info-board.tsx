@@ -229,9 +229,6 @@ function AdmittedYouthSection({
                 <th scope="col" className="px-4 py-3">
                   퇴소 예정
                 </th>
-                <th scope="col" className="px-4 py-3">
-                  연락처
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef1f5]">
@@ -256,7 +253,6 @@ function AdmittedYouthSection({
                       ? formatDate(youth.dischargeDate)
                       : "입소중"}
                   </TableCell>
-                  <TableCell>{youth.phone ?? "미등록"}</TableCell>
                 </tr>
               ))}
             </tbody>

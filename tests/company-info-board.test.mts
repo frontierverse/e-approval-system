@@ -71,7 +71,6 @@ const companyInfo = {
       birthDate: "2009-06-10",
       dischargeDate: null,
       age: 17,
-      phone: "010-1111-2222",
     },
   ],
 } satisfies CompanyInfoData;
@@ -108,7 +107,8 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /최하늘/);
     assert.match(html, /만 17세\(18세\)/);
     assert.match(html, /고2/);
-    assert.match(html, /010-1111-2222/);
+    assert.doesNotMatch(html, /연락처/);
+    assert.doesNotMatch(html, /010-1111-2222/);
     assert.equal(
       (html.match(/transition-colors hover:bg-\[#f7fbfb\]/g) ?? []).length,
       3,
