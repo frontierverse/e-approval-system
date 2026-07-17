@@ -264,14 +264,23 @@ export function getLunchBoxMonthRange(month: string) {
   };
 }
 
+export function getLunchBoxCalendarRange(month: string) {
+  const normalizedMonth = normalizeLunchBoxMonth(month);
+  const firstDate = `${normalizedMonth}-01`;
+  const firstWeekday = parseLunchBoxDateValue(firstDate).getUTCDay();
+  const startDate = shiftLunchBoxDate(firstDate, -firstWeekday);
+
+  return {
+    endDate: shiftLunchBoxDate(startDate, 42),
+    startDate,
+  };
+}
+
 export function createLunchBoxCalendarDays(month: string) {
   const normalizedMonth = normalizeLunchBoxMonth(month);
-  const firstDate = parseLunchBoxDateValue(`${normalizedMonth}-01`);
-  const firstWeekday = firstDate.getUTCDay();
-  const gridStart = new Date(firstDate);
+  const { startDate } = getLunchBoxCalendarRange(normalizedMonth);
+  const gridStart = parseLunchBoxDateValue(startDate);
   const today = getLunchBoxCountToday();
-
-  gridStart.setUTCDate(firstDate.getUTCDate() - firstWeekday);
 
   return Array.from({ length: 42 }, (_, index): LunchBoxCalendarDay => {
     const date = new Date(gridStart);

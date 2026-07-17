@@ -8,6 +8,7 @@ import {
   createLunchBoxCalendarDays,
   formatLunchBoxDateLabel,
   formatLunchBoxMonthLabel,
+  getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
   getLunchBoxCurrentMonth,
   getLunchBoxMonthRange,
@@ -201,6 +202,17 @@ describe("lunch box calendar", () => {
     });
   });
 
+  test("computes the full 42-day range shown by the calendar", () => {
+    assert.deepEqual(getLunchBoxCalendarRange("2026-07"), {
+      endDate: "2026-08-09",
+      startDate: "2026-06-28",
+    });
+    assert.deepEqual(getLunchBoxCalendarRange("2026-08"), {
+      endDate: "2026-09-06",
+      startDate: "2026-07-26",
+    });
+  });
+
   test("creates a 42-day calendar grid starting on Sunday", () => {
     const days = createLunchBoxCalendarDays("2026-07");
 
@@ -262,6 +274,40 @@ describe("lunch box calendar", () => {
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-06"/);
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-08"/);
     assert.match(html, /2026년 7월 29일 도시락 개수 입력|2026\.07\.29\.\(수\) 도시락 개수 입력/);
+  });
+
+  test("renders next-month counts inside the current calendar grid", () => {
+    const monthData: LunchBoxCountMonth = {
+      month: "2026-07",
+      days: {
+        "2026-08-03": {
+          date: "2026-08-03",
+          totalCount: 37,
+          schools: [
+            {
+              schoolId: "school-august",
+              schoolName: "팔월초",
+              schoolType: "elementary",
+              total: 37,
+            },
+          ],
+        },
+      },
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxCountCalendarBoard, {
+        loadGrid,
+        monthData,
+        saveCounts,
+        selectedMonth: "2026-07",
+        today: "2026-07-29",
+      }),
+    );
+
+    assert.match(html, /팔월초/);
+    assert.match(html, /37개/);
+    assert.match(html, /2026\.08\.03\.\(월\) 도시락 개수 입력/);
+    assert.match(html, /월 총계 0개/);
   });
 
   test("renders empty calendar cells without count badges", () => {

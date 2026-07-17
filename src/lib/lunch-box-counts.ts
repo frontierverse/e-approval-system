@@ -3,8 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import {
   formatLunchBoxDateValue,
+  getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
-  getLunchBoxMonthRange,
   normalizeLunchBoxMonth,
   normalizeLunchBoxSchoolType,
   parseLunchBoxDateValue,
@@ -94,7 +94,7 @@ export async function getLunchBoxCountMonth({
   month: string;
 }): Promise<LunchBoxCountMonth> {
   const normalizedMonth = normalizeLunchBoxMonth(month);
-  const { endDate, startDate } = getLunchBoxMonthRange(normalizedMonth);
+  const { endDate, startDate } = getLunchBoxCalendarRange(normalizedMonth);
   const counts = await prisma.lunchBoxCount.findMany({
     where: {
       date: {
