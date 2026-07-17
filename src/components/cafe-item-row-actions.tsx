@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useId, useState } from "react";
 import {
   deleteCafeItemAction,
+  holdCafeItemExpirationAction,
   updateCafeItemAction,
 } from "@/app/work-schedule/cafe/actions";
 import { AppModal } from "@/components/app-modal";
@@ -11,12 +12,15 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   cafeItemCategories,
+  getCafeItemUsageDday,
   isCafeItemCategory,
   type CafeItem,
+  type CafeItemExpirationHoldFormState,
   type CafeItemFormState,
 } from "@/lib/cafe-items-core";
 
 const initialState: CafeItemFormState = {};
+const initialExpirationHoldState: CafeItemExpirationHoldFormState = {};
 const inputClassName =
   "h-10 w-full min-w-0 rounded-md border border-transparent bg-[#f5f8f7] px-3 text-sm text-[#16181d] outline-none transition placeholder:text-[#9aa4b2] focus:bg-[#f5f8f7]";
 const dateInputClassName = `${inputClassName} text-center`;
@@ -60,29 +64,37 @@ export function CafeItemRowActions({ item }: { item: CafeItem }) {
 export function CafeItemEditModal({
   item,
   onClose,
+  today,
 }: {
   item: CafeItem;
   onClose: () => void;
+  today?: string;
 }) {
   const updateItem = updateCafeItemAction.bind(null, item.id);
   const deleteItem = deleteCafeItemAction.bind(null, item.id);
+  const holdItem = holdCafeItemExpirationAction.bind(null, item.id);
   const editFormId = useId();
+  const expirationHoldFormId = useId();
   const [state, formAction, pending] = useActionState(
     updateItem,
     initialState,
   );
+  const [expirationHoldState, expirationHoldFormAction, expirationHoldPending] =
+    useActionState(holdItem, initialExpirationHoldState);
   const defaultCategory =
     state.values && isCafeItemCategory(state.values.category)
       ? state.values.category
       : item.category;
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
   const isFood = selectedCategory === "food";
+  const isExpiredFood =
+    getCafeItemUsageDday(item, today).status === "expired";
 
   useEffect(() => {
-    if (state.success) {
+    if (state.success || expirationHoldState.success) {
       onClose();
     }
-  }, [onClose, state.success]);
+  }, [expirationHoldState.success, onClose, state.success]);
 
   return (
     <AppModal
@@ -217,6 +229,54 @@ export function CafeItemEditModal({
             </div>
           </div>
         </form>
+
+        {isExpiredFood ? (
+          <form
+            id={expirationHoldFormId}
+            action={expirationHoldFormAction}
+            className="border-t border-[#eef1f5] bg-[#fffaf1] px-6 py-5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-[#7a5200]">
+                  유통기한 경과 보류
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#697386]">
+                  폐기하지 않고 카페 안에 보관해야 한다면 사유를 기록하세요.
+                </p>
+              </div>
+              {item.expirationHoldReason ? (
+                <span className="rounded-md border border-[#e6cf91] bg-[#fff4d8] px-2.5 py-1 text-xs font-semibold text-[#7a5200]">
+                  보류 중
+                </span>
+              ) : null}
+            </div>
+
+            {expirationHoldState.error ? (
+              <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                {expirationHoldState.error}
+              </p>
+            ) : null}
+
+            <label className="mt-4 block min-w-0">
+              <span className={fieldLabelClassName}>보류 사유</span>
+              <textarea
+                name="reason"
+                required
+                maxLength={500}
+                defaultValue={
+                  expirationHoldState.values?.reason ??
+                  item.expirationHoldReason ??
+                  ""
+                }
+                disabled={expirationHoldPending}
+                placeholder="예: 폐기 전 수량 및 재고 확인을 위해 임시 보관"
+                rows={3}
+                className="mt-2 min-h-24 w-full resize-y rounded-md border border-[#e6cf91] bg-white px-3 py-2 text-sm leading-6 text-[#16181d] outline-none transition placeholder:text-[#9aa4b2] focus:border-[#b78521] focus:ring-2 focus:ring-[#f8e5b5]"
+              />
+            </label>
+          </form>
+        ) : null}
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
@@ -236,9 +296,27 @@ export function CafeItemEditModal({
         </form>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {isExpiredFood ? (
+            <button
+              type="submit"
+              form={expirationHoldFormId}
+              disabled={pending || expirationHoldPending}
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.neutral,
+                "h-10 border-[#b78521] bg-[#fff4d8] px-4 text-sm text-[#7a5200] hover:bg-[#ffedbf]",
+              )}
+            >
+              {expirationHoldPending
+                ? "보류 처리 중"
+                : item.expirationHoldReason
+                  ? "보류 사유 수정"
+                  : "보류 처리"}
+            </button>
+          ) : null}
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || expirationHoldPending}
             onClick={onClose}
             className={buttonClass(
               buttonStyles.base,
@@ -251,7 +329,7 @@ export function CafeItemEditModal({
           <button
             type="submit"
             form={editFormId}
-            disabled={pending}
+            disabled={pending || expirationHoldPending}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.save,

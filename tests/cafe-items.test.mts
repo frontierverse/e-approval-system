@@ -27,6 +27,7 @@ const cafeItems: CafeItem[] = [
     priceWon: 3200,
     purchaseReason: "라떼 재고 보충",
     expirationDate: "2026-07-24",
+    expirationHoldReason: null,
     createdAt: "2026-06-24T00:00:00.000Z",
   },
   {
@@ -37,6 +38,7 @@ const cafeItems: CafeItem[] = [
     priceWon: null,
     purchaseReason: null,
     expirationDate: null,
+    expirationHoldReason: null,
     createdAt: "2026-06-23T00:00:00.000Z",
   },
 ];
@@ -254,6 +256,30 @@ describe("cafe items", () => {
       html,
       /href="\/work-schedule\/cafe\?q=%EC%9A%B0%EC%9C%A0&amp;category=food&amp;deadline=dueSoon&amp;sort=expirationAsc&amp;page=2"/,
     );
+  });
+
+  test("renders the hold status and reason for an expired food item", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemList, {
+        itemPage: {
+          ...itemPage,
+          items: [
+            {
+              ...cafeItems[0],
+              expirationDate: "2026-06-20",
+              expirationHoldReason: "폐기 전 수량 확인을 위해 임시 보관",
+            },
+          ],
+          total: 1,
+          totalPages: 1,
+        },
+        today: "2026-06-24",
+      }),
+    );
+
+    assert.match(html, /보류 사유/);
+    assert.match(html, />보류</);
+    assert.match(html, /폐기 전 수량 확인을 위해 임시 보관/);
   });
 
   test("renders cafe item change log filters and pagination", () => {

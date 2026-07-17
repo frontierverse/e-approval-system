@@ -74,6 +74,7 @@ enum AuditAction {
   UPLOAD_QUESTION_BANK_PDF
   DELETE_QUESTION_BANK_PDF
   CREATE_WORK_FEATURE_UPDATE
+  UPDATE_LUNCH_BOX_COUNT
 }
 
 enum NotificationType {
@@ -599,15 +600,16 @@ model WorkFeatureUpdate {
 }
 
 model CafeItem {
-  id             String   @id @default(cuid())
-  name           String
-  category       String
-  purchasedAt    DateTime @db.Date
-  priceWon       Int?
-  purchaseReason String?
-  expirationDate DateTime? @db.Date
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  name                 String
+  category             String
+  purchasedAt          DateTime @db.Date
+  priceWon             Int?
+  purchaseReason       String?
+  expirationDate       DateTime? @db.Date
+  expirationHoldReason String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([category])
   @@index([purchasedAt])
@@ -626,6 +628,38 @@ model CafeComplianceNote {
 
   @@index([createdAt])
   @@index([createdById])
+}
+
+model LunchBoxSchool {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  counts LunchBoxCount[]
+
+  @@unique([name])
+  @@index([type])
+}
+
+model LunchBoxCount {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  class1Count Int      @default(0)
+  class2Count Int      @default(0)
+  class3Count Int      @default(0)
+  class4Count Int      @default(0)
+  linkedCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([schoolId, date])
+  @@index([date])
 }
 
 model AuditLog {

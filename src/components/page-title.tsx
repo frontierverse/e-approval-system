@@ -1,6 +1,6 @@
 type PageTitleProps = {
   title: React.ReactNode;
-  description: React.ReactNode;
+  description?: React.ReactNode;
   titleAccessory?: React.ReactNode;
   descriptionAccessory?: React.ReactNode;
   action?: React.ReactNode;
@@ -13,8 +13,13 @@ export function PageTitle({
   descriptionAccessory,
   action,
 }: PageTitleProps) {
+  const hasDescription =
+    description !== undefined || descriptionAccessory !== undefined;
+
   return (
-    <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div
+      className={`${hasDescription ? "mb-6" : "mb-4"} flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}
+    >
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {titleAccessory}
@@ -22,16 +27,18 @@ export function PageTitle({
             {title}
           </h1>
         </div>
-        {descriptionAccessory ? (
-          <p className="mt-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm leading-6 text-[#697386]">
-            {descriptionAccessory}
-            <span>{description}</span>
-          </p>
-        ) : (
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#697386]">
-            {description}
-          </p>
-        )}
+        {hasDescription
+          ? descriptionAccessory ? (
+              <p className="mt-2 flex max-w-3xl flex-wrap items-center gap-2 text-sm leading-6 text-[#697386]">
+                {descriptionAccessory}
+                <span>{description}</span>
+              </p>
+            ) : (
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#697386]">
+                {description}
+              </p>
+            )
+          : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

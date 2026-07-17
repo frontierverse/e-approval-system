@@ -33,6 +33,7 @@ type CafeItemRecord = {
   priceWon: number | null;
   purchaseReason: string | null;
   expirationDate: Date | string | null;
+  expirationHoldReason: string | null;
   createdAt: Date;
 };
 
@@ -134,6 +135,7 @@ export async function getCafeItemPage({
         priceWon: true,
         purchaseReason: true,
         expirationDate: true,
+        expirationHoldReason: true,
         createdAt: true,
       },
     }),
@@ -198,6 +200,7 @@ export async function getCafeItemsExpiringWithin({
       priceWon: true,
       purchaseReason: true,
       expirationDate: true,
+      expirationHoldReason: true,
       createdAt: true,
     },
   });

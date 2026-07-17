@@ -168,7 +168,7 @@ export function CafeItemList({
 
       {currentItemPage.items.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-max min-w-[1152px] max-w-none border-collapse text-left text-sm">
+          <table className="w-max min-w-[1296px] max-w-none border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
                 <th className="w-[12rem] px-6 py-3.5">물품</th>
@@ -178,6 +178,7 @@ export function CafeItemList({
                 <SortableExpirationHeader filters={currentItemPage.filters} />
                 <th className="w-[8rem] px-6 py-3.5">가격</th>
                 <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
+                <th className="w-[12rem] px-6 py-3.5">보류 사유</th>
                 <th className="w-[10rem] px-6 py-3.5">관리</th>
               </tr>
             </thead>

@@ -148,6 +148,19 @@ describe("major UI rendering", () => {
     assert.match(html, /새 기안/);
   });
 
+  test("renders a compact page title when no description is provided", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(PageTitle, {
+        title: "도시락 현황",
+      }),
+    );
+
+    assert.match(html, /도시락 현황/);
+    assert.doesNotMatch(html, /학교별 반 도시락/);
+    assert.doesNotMatch(html, /<p/);
+    assert.match(html, /mb-4/);
+  });
+
   test("renders an empty state", () => {
     const html = renderToStaticMarkup(
       React.createElement(EmptyState, {

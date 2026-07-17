@@ -1,0 +1,309 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState, useTransition, type KeyboardEvent } from "react";
+import { AppModal } from "@/components/app-modal";
+import { LunchBoxCountGrid } from "@/components/lunch-box-count-grid";
+import {
+  createLunchBoxCalendarDays,
+  formatLunchBoxDateLabel,
+  formatLunchBoxMonthLabel,
+  getLunchBoxCountTotal,
+  getLunchBoxCurrentMonth,
+  lunchBoxCalendarWeekdays,
+  shiftLunchBoxMonth,
+  type LunchBoxActionResult,
+  type LunchBoxCountGrid as LunchBoxCountGridData,
+  type LunchBoxCountMonth,
+  type LunchBoxCountMonthDay,
+  type LunchBoxCountRowInput,
+} from "@/lib/lunch-box-counts-core";
+
+type LunchBoxCountCalendarBoardProps = {
+  loadGrid: (
+    date: string,
+  ) => Promise<LunchBoxActionResult<{ grid: LunchBoxCountGridData }>>;
+  monthData: LunchBoxCountMonth;
+  saveCounts: (
+    date: string,
+    rows: LunchBoxCountRowInput[],
+  ) => Promise<LunchBoxActionResult<{ grid: LunchBoxCountGridData }>>;
+  selectedMonth: string;
+  today: string;
+};
+
+const monthNavLinkClassName =
+  "inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]";
+const calendarSchoolPreviewLimit = 2;
+
+export function LunchBoxCountCalendarBoard(
+  props: LunchBoxCountCalendarBoardProps,
+) {
+  return (
+    <LunchBoxCountCalendarBoardContent
+      key={props.selectedMonth}
+      {...props}
+    />
+  );
+}
+
+function LunchBoxCountCalendarBoardContent({
+  loadGrid,
+  monthData,
+  saveCounts,
+  selectedMonth,
+  today,
+}: LunchBoxCountCalendarBoardProps) {
+  const [days, setDays] = useState(monthData.days);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedGrid, setSelectedGrid] =
+    useState<LunchBoxCountGridData | null>(null);
+  const [modalError, setModalError] = useState("");
+  const [isGridLoading, startGridTransition] = useTransition();
+
+  const calendarDays = useMemo(
+    () => createLunchBoxCalendarDays(selectedMonth),
+    [selectedMonth],
+  );
+  const monthLabel = formatLunchBoxMonthLabel(selectedMonth);
+  const monthTotal = useMemo(
+    () =>
+      calendarDays.reduce(
+        (sum, day) =>
+          day.isCurrentMonth ? sum + (days[day.date]?.totalCount ?? 0) : sum,
+        0,
+      ),
+    [calendarDays, days],
+  );
+  const previousMonth = shiftLunchBoxMonth(selectedMonth, -1);
+  const nextMonth = shiftLunchBoxMonth(selectedMonth, 1);
+  const currentMonth = getLunchBoxCurrentMonth();
+
+  function openDayModal(date: string) {
+    setSelectedDate(date);
+    setSelectedGrid(null);
+    setModalError("");
+
+    startGridTransition(async () => {
+      const result = await loadGrid(date);
+
+      if (!result.ok) {
+        setModalError(result.error);
+        return;
+      }
+
+      setSelectedGrid(result.data.grid);
+    });
+  }
+
+  function openDayModalWithKeyboard(
+    event: KeyboardEvent<HTMLDivElement>,
+    date: string,
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    openDayModal(date);
+  }
+
+  function closeDayModal() {
+    setSelectedDate(null);
+    setSelectedGrid(null);
+    setModalError("");
+  }
+
+  function applySavedGrid(grid: LunchBoxCountGridData) {
+    setDays((currentDays) => {
+      const schools = grid.rows.flatMap((row) => {
+        const total = getLunchBoxCountTotal(row);
+
+        if (total === 0) {
+          return [];
+        }
+
+        return [
+          {
+            schoolId: row.schoolId,
+            schoolName: row.schoolName,
+            schoolType: row.schoolType,
+            total,
+          },
+        ];
+      });
+      const nextDays = { ...currentDays };
+
+      if (schools.length === 0) {
+        delete nextDays[grid.date];
+        return nextDays;
+      }
+
+      const day: LunchBoxCountMonthDay = {
+        date: grid.date,
+        totalCount: schools.reduce((sum, school) => sum + school.total, 0),
+        schools,
+      };
+
+      nextDays[grid.date] = day;
+      return nextDays;
+    });
+  }
+
+  return (
+    <section aria-label={`${monthLabel} 도시락 현황`}>
+      <div className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm">
+        <div className="flex min-w-0 flex-col gap-4 border-b border-[#eef1f5] px-4 py-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-[#16181d]">
+              {monthLabel}
+            </h2>
+            <p className="mt-1 text-sm text-[#697386]">
+              월 총계 {monthTotal.toLocaleString("ko-KR")}개 · 날짜를 누르면
+              학교별 개수를 입력할 수 있습니다.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+            <Link
+              href={createLunchBoxMonthHref(previousMonth)}
+              className={monthNavLinkClassName}
+            >
+              이전 달
+            </Link>
+            <Link
+              href={createLunchBoxMonthHref(nextMonth)}
+              className={monthNavLinkClassName}
+            >
+              다음 달
+            </Link>
+            <Link
+              href={createLunchBoxMonthHref(currentMonth)}
+              className={monthNavLinkClassName}
+            >
+              이번 달
+            </Link>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[980px] grid-cols-7 text-sm">
+            {lunchBoxCalendarWeekdays.map((weekday) => (
+              <div
+                key={weekday.value}
+                className="border-b border-r border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-center text-xs font-semibold text-[#394150]"
+              >
+                {weekday.label}
+              </div>
+            ))}
+
+            {calendarDays.map((day) => {
+              const dayData = days[day.date];
+              const visibleSchools =
+                dayData?.schools.slice(0, calendarSchoolPreviewLimit) ?? [];
+              const hiddenSchoolCount = Math.max(
+                0,
+                (dayData?.schools.length ?? 0) - visibleSchools.length,
+              );
+
+              return (
+                <div
+                  key={day.date}
+                  aria-label={`${formatLunchBoxDateLabel(day.date)} 도시락 개수 입력`}
+                  className={[
+                    "group h-36 cursor-pointer overflow-hidden border-b border-r border-[#eef1f5] px-2.5 py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]",
+                    day.isCurrentMonth
+                      ? "bg-white hover:bg-[#f0f8f7]"
+                      : "bg-[#f7f9fc] hover:bg-[#eef4f3]",
+                  ].join(" ")}
+                  onClick={() => openDayModal(day.date)}
+                  onKeyDown={(event) =>
+                    openDayModalWithKeyboard(event, day.date)
+                  }
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span
+                      className={[
+                        "inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition",
+                        day.isToday
+                          ? "bg-[#196b69] text-white"
+                          : day.isCurrentMonth
+                            ? "text-[#16181d]"
+                            : "text-[#8a95a6]",
+                      ].join(" ")}
+                    >
+                      {day.day}
+                    </span>
+                    {dayData ? (
+                      <span className="mt-1 inline-flex shrink-0 items-center rounded-full bg-[#eef7f6] px-2 py-0.5 text-xs font-semibold text-[#196b69]">
+                        {dayData.totalCount.toLocaleString("ko-KR")}개
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {dayData ? (
+                    <ul className="mt-2 space-y-1">
+                      {visibleSchools.map((school) => (
+                        <li
+                          key={school.schoolId}
+                          className="flex items-center justify-between gap-2 rounded-md border border-[#d6e6e4] bg-[#f5fbfa] px-2 py-1 text-xs text-[#1f3f3d]"
+                        >
+                          <span className="truncate">{school.schoolName}</span>
+                          <span className="shrink-0 font-semibold">
+                            {school.total}
+                          </span>
+                        </li>
+                      ))}
+                      {hiddenSchoolCount > 0 ? (
+                        <li className="rounded-md bg-[#eef1f5] px-2 py-1 text-center text-xs font-semibold text-[#566174]">
+                          외 {hiddenSchoolCount.toLocaleString("ko-KR")}곳
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {selectedDate ? (
+        <AppModal
+          className="max-w-4xl"
+          label={`${formatLunchBoxDateLabel(selectedDate)} 도시락 개수 입력`}
+          onClose={closeDayModal}
+        >
+          <div className="flex h-[min(52rem,calc(100dvh-3rem))] min-h-0 flex-col p-4">
+            {modalError ? (
+              <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                {modalError}
+              </p>
+            ) : isGridLoading || !selectedGrid ? (
+              <div
+                aria-label="도시락 개수 불러오는 중"
+                className="flex min-h-48 flex-1 items-center justify-center text-sm text-[#697386]"
+              >
+                {formatLunchBoxDateLabel(selectedDate)} 개수를 불러오는 중...
+              </div>
+            ) : (
+              <LunchBoxCountGrid
+                initialGrid={selectedGrid}
+                loadGrid={loadGrid}
+                onGridSaved={applySavedGrid}
+                saveCounts={saveCounts}
+                today={today}
+              />
+            )}
+          </div>
+        </AppModal>
+      ) : null}
+    </section>
+  );
+}
+
+function createLunchBoxMonthHref(month: string) {
+  return `/work-schedule/lunch-boxes?month=${month}`;
+}

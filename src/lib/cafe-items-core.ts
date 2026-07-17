@@ -19,6 +19,7 @@ export const cafeItemChangeLogActionFilters = [
   { value: "all", label: "전체 작업" },
   { value: "create", label: "등록" },
   { value: "update", label: "수정" },
+  { value: "hold", label: "보류" },
   { value: "delete", label: "삭제" },
 ] as const;
 
@@ -46,6 +47,7 @@ export type CafeItem = {
   priceWon: number | null;
   purchaseReason: string | null;
   expirationDate: string | null;
+  expirationHoldReason: string | null;
   createdAt: string;
 };
 
@@ -114,6 +116,14 @@ export type CafeItemFormState = {
   resetKey?: string;
   success?: string;
   values?: CafeItemFormValues;
+};
+
+export type CafeItemExpirationHoldFormState = {
+  error?: string;
+  success?: string;
+  values?: {
+    reason: string;
+  };
 };
 
 export type CafeItemActionResult<T> =

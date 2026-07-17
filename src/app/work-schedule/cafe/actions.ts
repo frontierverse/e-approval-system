@@ -10,6 +10,7 @@ import {
   formatCafeItemDateValue,
   getCafeItemCategoryLabel,
   getCafeItemToday,
+  getCafeItemUsageDday,
   isCafeItemCategory,
   isCafeItemDate,
   normalizeCafeItemCategory,
@@ -21,6 +22,7 @@ import {
   type CafeItemActionResult,
   type CafeItemChangeLogPage,
   type CafeItemChangeLogPageFilters,
+  type CafeItemExpirationHoldFormState,
   type CafeItemPage,
   type CafeItemPageFilters,
   type CafeItemFormState,
@@ -37,11 +39,13 @@ const cafeItemPageSize = 7;
 const cafeItemChangeLogPageSize = 5;
 const maxCafeItemNameLength = 100;
 const maxCafeItemPurchaseReasonLength = 500;
+const maxCafeItemExpirationHoldReasonLength = 500;
 const maxCafeItemPriceWon = 999_999_999;
 const cafeItemAuditSelect = {
   id: true,
   category: true,
   expirationDate: true,
+  expirationHoldReason: true,
   name: true,
   priceWon: true,
   purchaseReason: true,
@@ -52,6 +56,7 @@ type CafeItemAuditRecord = {
   id: string;
   category: string;
   expirationDate: Date | string | null;
+  expirationHoldReason: string | null;
   name: string;
   priceWon: number | null;
   purchaseReason: string | null;
@@ -192,7 +197,15 @@ export async function updateCafeItemAction(
       where: {
         id: itemId,
       },
-      data: createCafeItemMutationData(values),
+      data: {
+        ...createCafeItemMutationData(values),
+        expirationHoldReason: shouldKeepCafeItemExpirationHold(
+          values,
+          existingItem.expirationHoldReason,
+        )
+          ? existingItem.expirationHoldReason
+          : null,
+      },
       select: cafeItemAuditSelect,
     });
 
@@ -265,6 +278,92 @@ export async function deleteCafeItemAction(itemId: string) {
   });
 
   revalidatePath(cafeManagementPath);
+}
+
+export async function holdCafeItemExpirationAction(
+  itemId: string,
+  _previousState: CafeItemExpirationHoldFormState,
+  formData: FormData,
+): Promise<CafeItemExpirationHoldFormState> {
+  const user = await requireUser();
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!reason) {
+    return {
+      error: "보류 사유를 입력하세요.",
+      values: { reason },
+    };
+  }
+
+  if (reason.length > maxCafeItemExpirationHoldReasonLength) {
+    return {
+      error: `보류 사유는 ${maxCafeItemExpirationHoldReasonLength}자 이하로 입력하세요.`,
+      values: { reason },
+    };
+  }
+
+  const existingItem = await prisma.cafeItem.findUnique({
+    where: {
+      id: itemId,
+    },
+    select: cafeItemAuditSelect,
+  });
+
+  if (!existingItem) {
+    return {
+      error: "보류 처리할 물품을 찾을 수 없습니다.",
+      values: { reason },
+    };
+  }
+
+  if (!isExpiredCafeFoodItem(existingItem, getCafeItemToday())) {
+    return {
+      error: "유통기한이 지난 식품만 보류 처리할 수 있습니다.",
+      values: { reason },
+    };
+  }
+
+  const auditRequestData = await getCurrentAuditLogRequestData();
+  const isAlreadyHeld = Boolean(existingItem.expirationHoldReason);
+
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.cafeItem.update({
+      where: {
+        id: itemId,
+      },
+      data: {
+        expirationHoldReason: reason,
+      },
+      select: cafeItemAuditSelect,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_CAFE_ITEM,
+        targetType: "CafeItem",
+        targetId: item.id,
+        message: isAlreadyHeld
+          ? `${item.name} 물품의 보류 사유를 수정했습니다. 사유: ${reason}`
+          : `${item.name} 유통기한 경과 물품을 보류했습니다. 사유: ${reason}`,
+        metadata: createCafeItemAuditMetadata({
+          changeType: "hold",
+          item,
+          next: createCafeItemSnapshotFromRecord(item),
+          previous: createCafeItemSnapshotFromRecord(existingItem),
+        }),
+      },
+    });
+  });
+
+  revalidatePath(cafeManagementPath);
+
+  return {
+    success: isAlreadyHeld
+      ? "보류 사유를 수정했습니다."
+      : "유통기한 경과 물품을 보류했습니다.",
+  };
 }
 
 export async function createCafeComplianceNoteAction(
@@ -370,13 +469,46 @@ function createCafeItemMutationData(
   };
 }
 
+function shouldKeepCafeItemExpirationHold(
+  values: ReturnType<typeof normalizeCafeItemFormValues>,
+  holdReason: string | null,
+) {
+  if (!holdReason || values.category !== "food" || !values.expirationDate) {
+    return false;
+  }
+
+  return getCafeItemUsageDday(
+    {
+      category: "food",
+      expirationDate: values.expirationDate,
+      purchasedAt: values.purchasedAt,
+    },
+    getCafeItemToday(),
+  ).status === "expired";
+}
+
+function isExpiredCafeFoodItem(item: CafeItemAuditRecord, today: string) {
+  if (item.category !== "food" || !item.expirationDate) {
+    return false;
+  }
+
+  return getCafeItemUsageDday(
+    {
+      category: "food",
+      expirationDate: formatCafeItemDateValue(item.expirationDate),
+      purchasedAt: formatCafeItemDateValue(item.purchasedAt),
+    },
+    today,
+  ).status === "expired";
+}
+
 function createCafeItemAuditMetadata({
   changeType,
   item,
   next,
   previous,
 }: {
-  changeType: "create" | "delete" | "update";
+  changeType: "create" | "delete" | "hold" | "update";
   item: CafeItemAuditRecord;
   next: ReturnType<typeof createCafeItemSnapshotFromRecord> | null;
   previous: ReturnType<typeof createCafeItemSnapshotFromRecord> | null;
@@ -400,6 +532,7 @@ function createCafeItemSnapshotFromRecord(item: CafeItemAuditRecord) {
     expirationDate: item.expirationDate
       ? formatCafeItemDateValue(item.expirationDate)
       : null,
+    expirationHoldReason: item.expirationHoldReason,
     name: item.name,
     priceWon: item.priceWon,
     purchaseReason: item.purchaseReason,

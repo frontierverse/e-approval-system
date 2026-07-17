@@ -306,6 +306,7 @@ const auditActionLabels: Record<AuditAction, string> = {
   UPLOAD_QUESTION_BANK_PDF: "문제은행 PDF 업로드",
   DELETE_QUESTION_BANK_PDF: "문제은행 PDF 삭제",
   CREATE_WORK_FEATURE_UPDATE: "업무 기능 안내 등록",
+  UPDATE_LUNCH_BOX_COUNT: "도시락 개수 변경",
 };
 
 const publicApprovalActivityActions: AuditAction[] = [

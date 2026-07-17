@@ -12,6 +12,8 @@ import {
 
 export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) {
   const usageDday = getCafeItemUsageDday(item, today);
+  const isExpirationHeld =
+    usageDday.status === "expired" && Boolean(item.expirationHoldReason);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
 
@@ -70,14 +72,21 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
         {getCafeItemCategoryLabel(item.category)}
       </td>
       <td className="px-6 py-5">
-        <span
-          className={[
-            "inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold",
-            getUsageDdayClassName(usageDday.status),
-          ].join(" ")}
-        >
-          {usageDday.label}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={[
+              "inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold",
+              getUsageDdayClassName(usageDday.status),
+            ].join(" ")}
+          >
+            {usageDday.label}
+          </span>
+          {isExpirationHeld ? (
+            <span className="inline-flex h-8 items-center rounded-md border border-[#e6cf91] bg-[#fff4d8] px-2.5 text-xs font-semibold text-[#7a5200]">
+              보류
+            </span>
+          ) : null}
+        </div>
         {usageDday.basisLabel === "유통기한 기준" ? null : (
           <p className="mt-2 text-xs leading-5 text-[#697386]">
             {usageDday.basisLabel}
@@ -95,6 +104,11 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
       <td className="w-[6rem] max-w-[6rem] px-6 py-5">
         <p className="whitespace-pre-line break-words leading-6 text-[#394150] [overflow-wrap:anywhere]">
           {item.purchaseReason || "미입력"}
+        </p>
+      </td>
+      <td className="w-[12rem] max-w-[12rem] px-6 py-5">
+        <p className="whitespace-pre-line break-words leading-6 text-[#394150] [overflow-wrap:anywhere]">
+          {isExpirationHeld ? item.expirationHoldReason : "-"}
         </p>
       </td>
       <td className="w-[10rem] px-6 py-5">
@@ -118,6 +132,7 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
             key={modalKey}
             item={item}
             onClose={closeEditModal}
+            today={today}
           />
         ) : null}
       </td>
