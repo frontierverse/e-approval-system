@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminUserManagement } from "@/components/admin-user-management";
 import { PageTitle } from "@/components/page-title";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 import { getAdminReferenceData, getAdminUsers } from "@/lib/admin-queries";
 import { requireAdmin } from "@/lib/auth";
+
+export const metadata: Metadata = {
+  title: "직원 정보",
+};
 
 export default function AdminStaffPage() {
   return (

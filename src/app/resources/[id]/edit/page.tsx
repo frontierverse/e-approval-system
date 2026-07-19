@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ResourceForm } from "@/components/resource-form";
 import { PageTitle } from "@/components/page-title";
@@ -9,6 +10,10 @@ import {
   normalizeResourceEducationLevel,
 } from "@/lib/resource-library-core";
 import { updateResourceAction } from "../../actions";
+
+export const metadata: Metadata = {
+  title: "자료 수정",
+};
 
 export default async function EditResourcePage({
   params,

@@ -51,6 +51,7 @@ const youths: YouthProfile[] = [
         priority: "보통",
       },
     ],
+    updatedAt: "2026-06-21T12:45:00.000Z",
   },
   {
     id: "youth-learning-002",
@@ -63,6 +64,7 @@ const youths: YouthProfile[] = [
     decisionDocuments: [],
     familyContacts: [],
     notes: [],
+    updatedAt: "2026-06-20T09:00:00.000Z",
   },
 ];
 

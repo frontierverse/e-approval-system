@@ -703,6 +703,7 @@ export async function extendYouthDischargeAction(
     dischargeDate: string;
     extension: YouthDischargeExtension;
     initialDischargeDate: string;
+    updatedAt: string;
     youthId: string;
   }>
 > {
@@ -801,13 +802,16 @@ export async function extendYouthDischargeAction(
       },
     });
 
-    await tx.youth.update({
+    const updatedYouth = await tx.youth.update({
       where: {
         id: youthId,
       },
       data: {
         initialDischargeDate,
         dischargeDate: normalizedDischargeDate.value,
+      },
+      select: {
+        updatedAt: true,
       },
     });
 
@@ -842,6 +846,7 @@ export async function extendYouthDischargeAction(
         processedBy: extension.processedBy,
       },
       initialDischargeDate,
+      updatedAt: updatedYouth.updatedAt.toISOString(),
       youthId,
     };
   });
@@ -929,7 +934,13 @@ export async function deleteYouthAction(
 
 export async function deleteYouthDecisionDocumentAction(
   documentId: string,
-): Promise<YouthActionResult<{ documentId: string; youthId: string }>> {
+): Promise<
+  YouthActionResult<{
+    documentId: string;
+    updatedAt: string;
+    youthId: string;
+  }>
+> {
   const user = await requireUser();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
@@ -958,7 +969,7 @@ export async function deleteYouthDecisionDocumentAction(
     };
   }
 
-  await prisma.$transaction(async (tx) => {
+  const updatedYouth = await prisma.$transaction(async (tx) => {
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -979,6 +990,18 @@ export async function deleteYouthDecisionDocumentAction(
         id: document.id,
       },
     });
+
+    return tx.youth.update({
+      where: {
+        id: document.youthId,
+      },
+      data: {
+        updatedAt: new Date(),
+      },
+      select: {
+        updatedAt: true,
+      },
+    });
   });
 
   await removeStoredAttachmentFiles([
@@ -994,6 +1017,7 @@ export async function deleteYouthDecisionDocumentAction(
     ok: true,
     data: {
       documentId: document.id,
+      updatedAt: updatedYouth.updatedAt.toISOString(),
       youthId: document.youthId,
     },
   };

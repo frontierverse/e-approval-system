@@ -1,17 +1,15 @@
-"use client";
-
 import Link from "next/link";
-import {
-  useCallback,
-  useState,
-  useTransition,
-  type ReactNode,
-} from "react";
-import { ApprovalLinePreview } from "@/components/approval-line-preview";
-import { UserIdentity } from "@/components/user-identity";
 import { getAuditActionBadgeClass } from "@/lib/audit-log-display";
-import { formatDateTime } from "@/lib/mock-data";
 import type { ApprovalStep, UserSummary } from "@/lib/mock-data";
+
+const compactDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Seoul",
+});
 
 export type HomeRecentApprovalHistory = {
   id: string;
@@ -26,22 +24,6 @@ export type HomeRecentApprovalHistory = {
   title: string;
 };
 
-export type HomePublicApprovalActivity = {
-  action: string;
-  actionValue: string;
-  actedAt: string;
-  actor: UserSummary;
-  id: string;
-};
-
-export type HomePublicApprovalActivityPage = {
-  activities: HomePublicApprovalActivity[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
-
 export type HomePersonalApprovalHistoryPage = {
   histories: HomeRecentApprovalHistory[];
   page: number;
@@ -50,356 +32,45 @@ export type HomePersonalApprovalHistoryPage = {
   totalPages: number;
 };
 
-type HomePersonalHistoryPageActionResult = Promise<
-  | {
-      ok: true;
-      data: {
-        personalHistoryPage: HomePersonalApprovalHistoryPage;
-      };
-    }
-  | {
-      ok: false;
-      error: string;
-    }
->;
-
-type HomePublicActivityPageActionResult = Promise<
-  | {
-      ok: true;
-      data: {
-        publicActivityPage: HomePublicApprovalActivityPage;
-      };
-    }
-  | {
-      ok: false;
-      error: string;
-    }
->;
-
-type HomeRecentApprovalActivityProps = {
-  loadPersonalHistoryPage?: (
-    page: number,
-  ) => HomePersonalHistoryPageActionResult;
-  loadPublicActivityPage?: (
-    page: number,
-  ) => HomePublicActivityPageActionResult;
-  personalHistoryPage: HomePersonalApprovalHistoryPage;
-  publicActivityPage: HomePublicApprovalActivityPage;
-};
-
 export function HomeRecentApprovalActivity({
-  loadPersonalHistoryPage,
-  loadPublicActivityPage,
   personalHistoryPage,
-  publicActivityPage,
-}: HomeRecentApprovalActivityProps) {
-  const [personalPageState, setPersonalPageState] =
-    useState(personalHistoryPage);
-  const [publicPageState, setPublicPageState] = useState(publicActivityPage);
-  const [personalPageError, setPersonalPageError] = useState("");
-  const [publicPageError, setPublicPageError] = useState("");
-  const [pendingPersonalPage, setPendingPersonalPage] = useState<number | null>(
-    null,
-  );
-  const [pendingPublicPage, setPendingPublicPage] = useState<number | null>(
-    null,
-  );
-  const [isPersonalPagePending, startPersonalPageTransition] = useTransition();
-  const [isPublicPagePending, startPublicPageTransition] = useTransition();
-
-  const loadPersonalPage = useCallback(
-    (nextPage: number) => {
-      if (!loadPersonalHistoryPage || isPersonalPagePending) {
-        return;
-      }
-
-      if (nextPage < 1 || nextPage > personalPageState.totalPages) {
-        return;
-      }
-
-      setPendingPersonalPage(nextPage);
-      startPersonalPageTransition(async () => {
-        try {
-          const result = await loadPersonalHistoryPage(nextPage);
-
-          if (!result.ok) {
-            setPersonalPageError(result.error);
-            return;
-          }
-
-          setPersonalPageState(result.data.personalHistoryPage);
-          setPersonalPageError("");
-        } finally {
-          setPendingPersonalPage(null);
-        }
-      });
-    },
-    [
-      isPersonalPagePending,
-      loadPersonalHistoryPage,
-      personalPageState.totalPages,
-    ],
-  );
-
-  const loadPublicPage = useCallback(
-    (nextPage: number) => {
-      if (!loadPublicActivityPage || isPublicPagePending) {
-        return;
-      }
-
-      if (nextPage < 1 || nextPage > publicPageState.totalPages) {
-        return;
-      }
-
-      setPendingPublicPage(nextPage);
-      startPublicPageTransition(async () => {
-        try {
-          const result = await loadPublicActivityPage(nextPage);
-
-          if (!result.ok) {
-            setPublicPageError(result.error);
-            return;
-          }
-
-          setPublicPageState(result.data.publicActivityPage);
-          setPublicPageError("");
-        } finally {
-          setPendingPublicPage(null);
-        }
-      });
-    },
-    [
-      isPublicPagePending,
-      loadPublicActivityPage,
-      publicPageState.totalPages,
-    ],
-  );
-
-  return (
-    <section className="mt-6 grid gap-4 lg:grid-cols-2">
-      <RecentActivityPanel
-        countLabel={`${personalPageState.page} / ${personalPageState.totalPages}`}
-        headerAction={
-          <ActivityPagination
-            canLoad={Boolean(loadPersonalHistoryPage)}
-            isPending={isPersonalPagePending}
-            label="나의 최근 결재 활동"
-            onPageChange={loadPersonalPage}
-            page={personalPageState.page}
-            pendingPage={pendingPersonalPage}
-            totalPages={personalPageState.totalPages}
-          />
-        }
-        title="나의 최근 결재 활동"
-      >
-        {personalPageState.histories.length > 0 ? (
-          <ol
-            aria-busy={isPersonalPagePending}
-            className={[
-              "mt-5 divide-y divide-[#eef1f5] transition-opacity",
-              isPersonalPagePending ? "opacity-60" : "opacity-100",
-            ].join(" ")}
-          >
-            {personalPageState.histories.map((history) => (
-              <PersonalActivityItem key={history.id} history={history} />
-            ))}
-          </ol>
-        ) : (
-          <p className="mt-5 rounded-md bg-[#f7f9fc] px-3 py-4 text-sm text-[#697386]">
-            표시할 결재 활동이 없습니다.
-          </p>
-        )}
-        {personalPageError ? (
-          <p className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-            {personalPageError}
-          </p>
-        ) : null}
-      </RecentActivityPanel>
-
-      <RecentActivityPanel
-        countLabel={`${publicPageState.page} / ${publicPageState.totalPages}`}
-        headerAction={
-          <ActivityPagination
-            canLoad={Boolean(loadPublicActivityPage)}
-            isPending={isPublicPagePending}
-            label="모든 결재 활동"
-            onPageChange={loadPublicPage}
-            page={publicPageState.page}
-            pendingPage={pendingPublicPage}
-            totalPages={publicPageState.totalPages}
-          />
-        }
-        title="모든 결재 활동"
-      >
-        {publicPageState.activities.length > 0 ? (
-          <ol
-            aria-busy={isPublicPagePending}
-            className={[
-              "mt-5 divide-y divide-[#eef1f5] transition-opacity",
-              isPublicPagePending ? "opacity-60" : "opacity-100",
-            ].join(" ")}
-          >
-            {publicPageState.activities.map((activity) => (
-              <PublicActivityItem
-                activity={activity}
-                key={activity.id}
-              />
-            ))}
-          </ol>
-        ) : (
-          <p className="mt-5 rounded-md bg-[#f7f9fc] px-3 py-4 text-sm text-[#697386]">
-            표시할 결재 활동이 없습니다.
-          </p>
-        )}
-        {publicPageError ? (
-          <p className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-            {publicPageError}
-          </p>
-        ) : null}
-      </RecentActivityPanel>
-    </section>
-  );
-}
-
-function RecentActivityPanel({
-  children,
-  countLabel,
-  headerAction,
-  title,
 }: {
-  children: ReactNode;
-  countLabel: string;
-  headerAction?: ReactNode;
-  title: string;
+  personalHistoryPage: HomePersonalApprovalHistoryPage;
 }) {
   return (
-    <div className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{title}</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[#697386]">
-            {countLabel}
-          </span>
-          {headerAction}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ActivityPagination({
-  canLoad,
-  isPending,
-  label,
-  onPageChange,
-  page,
-  pendingPage,
-  totalPages,
-}: {
-  canLoad: boolean;
-  isPending: boolean;
-  label: string;
-  onPageChange: (page: number) => void;
-  page: number;
-  pendingPage: number | null;
-  totalPages: number;
-}) {
-  const previousPage = page - 1;
-  const nextPage = page + 1;
-
-  return (
-    <div className="flex items-center gap-1">
-      <IconPageButton
-        ariaLabel={`이전 ${label}`}
-        disabled={!canLoad || isPending || page <= 1}
-        isPending={pendingPage === previousPage}
-        onClick={() => onPageChange(previousPage)}
-      >
-        <ChevronLeftIcon />
-      </IconPageButton>
-      <IconPageButton
-        ariaLabel={`다음 ${label}`}
-        disabled={!canLoad || isPending || page >= totalPages}
-        isPending={pendingPage === nextPage}
-        onClick={() => onPageChange(nextPage)}
-      >
-        <ChevronRightIcon />
-      </IconPageButton>
-    </div>
-  );
-}
-
-function IconPageButton({
-  ariaLabel,
-  children,
-  disabled,
-  isPending,
-  onClick,
-}: {
-  ariaLabel: string;
-  children: ReactNode;
-  disabled: boolean;
-  isPending: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-label={ariaLabel}
-      className={[
-        "flex size-8 items-center justify-center rounded-md border border-[#cfd6e3] bg-white text-[#394150] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#196b69]",
-        disabled
-          ? "cursor-not-allowed opacity-45"
-          : "hover:border-[#196b69] hover:bg-[#f7fbfb] hover:text-[#0f5553]",
-      ].join(" ")}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
+    <section
+      aria-labelledby="home-related-activity-title"
+      className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]"
     >
-      {isPending ? (
-        <span className="size-3 animate-pulse rounded-full bg-[#697386]" />
+      <header className="flex min-h-12 items-center justify-between gap-2 border-b border-[var(--border)] px-3.5 sm:px-4">
+        <h2
+          id="home-related-activity-title"
+          className="truncate text-sm font-semibold text-[var(--foreground)] sm:text-base"
+        >
+          내 관련 문서의 최근 변경
+        </h2>
+        <span className="shrink-0 rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-semibold tabular-nums text-[var(--text-muted)]">
+          총 {personalHistoryPage.total.toLocaleString("ko-KR")}건
+        </span>
+      </header>
+
+      {personalHistoryPage.histories.length > 0 ? (
+        <ol className="divide-y divide-[var(--border)]">
+          {personalHistoryPage.histories.slice(0, 2).map((history) => (
+            <PersonalActivityItem key={history.id} history={history} />
+          ))}
+        </ol>
       ) : (
-        children
+        <div className="px-4 py-5 text-center">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            최근 문서 변경이 없습니다
+          </p>
+          <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+            결재 요청이나 처리 결과가 발생하면 이곳에 표시됩니다.
+          </p>
+        </div>
       )}
-    </button>
-  );
-}
-
-function ChevronLeftIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M15 18 9 12l6-6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="m9 18 6-6-6-6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
+    </section>
   );
 }
 
@@ -413,103 +84,68 @@ function PersonalActivityItem({
   const badgeClass = isPdfCreation
     ? "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]"
     : getAuditActionBadgeClass(history.actionValue ?? "");
+  const progressLabel = getApprovalProgressLabel(history.approvalSteps);
 
   return (
-    <li className="py-1 first:pt-0 last:pb-0">
+    <li>
       <Link
         href={`/documents/${history.documentId}`}
-        className="group block rounded-md px-3 py-3 transition hover:bg-[#f7fbfb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
+        className="group block px-3.5 py-2 transition hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)] sm:px-4"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={[
-                "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
-                badgeClass,
-              ].join(" ")}
-            >
-              {badgeLabel}
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={`inline-flex min-h-6 shrink-0 items-center rounded-md border px-2 text-[0.6875rem] font-semibold ${badgeClass}`}
+          >
+            {badgeLabel}
+          </span>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)] group-hover:text-[var(--brand)]">
+            {history.title}
+          </h3>
+        </div>
+
+        <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+          <p className="min-w-0 truncate">
+            <span className="hidden tabular-nums sm:inline">
+              {history.documentNo || "문서번호 미발급"} ·{" "}
             </span>
-            <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
-              {history.title}
-            </p>
-          </div>
-          <time className="text-xs text-[#697386]">
-            {formatDateTime(history.createdAt)}
-          </time>
+            {progressLabel}
+          </p>
+          <p className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <span>
+              <span className="sr-only">요청자 </span>
+              {history.requester.name}
+            </span>
+            <time dateTime={history.createdAt} className="tabular-nums">
+              {compactDateTimeFormatter.format(new Date(history.createdAt))}
+            </time>
+          </p>
         </div>
-        <p className="mt-2 text-sm text-[#394150]">{history.description}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-[#697386]">
-          <span>{history.documentNo}</span>
-          <span aria-hidden="true">·</span>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0">결재요청자:</span>
-            <UserIdentity
-              user={history.requester}
-              size="xs"
-              nameClassName="text-[#697386]"
-            />
-          </div>
-        </div>
-        <ApprovalLinePreview steps={history.approvalSteps} className="mt-3" />
       </Link>
     </li>
   );
 }
 
-function PublicActivityItem({
-  activity,
-}: {
-  activity: HomePublicApprovalActivity;
-}) {
-  const badgeClass = getAuditActionBadgeClass(activity.actionValue);
+function getApprovalProgressLabel(steps: ApprovalStep[]) {
+  if (steps.length === 0) {
+    return "결재선 없음";
+  }
 
-  return (
-    <li className="py-1 first:pt-0 last:pb-0">
-      <article className="rounded-md px-3 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <UserIdentity
-            user={activity.actor}
-            meta={`${activity.actor.departmentName} · ${activity.actor.positionName}`}
-            size="xs"
-          />
-          <time className="text-xs text-[#697386]">
-            {formatDateTime(activity.actedAt)}
-          </time>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span
-            className={[
-              "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
-              badgeClass,
-            ].join(" ")}
-          >
-            {activity.action}
-          </span>
-        </div>
-        <div className="mt-3 rounded-md border border-dashed border-[#cfd7e3] bg-[#f7f9fc] px-3 py-3 dark:border-[#30363d] dark:bg-[#0d1117]">
-          <div className="flex items-center justify-between gap-3">
-            <span
-              aria-hidden="true"
-              className="h-3 w-32 max-w-[52%] rounded-full bg-[#cfd7e3] dark:bg-[#30363d]"
-            />
-            <span
-              aria-hidden="true"
-              className="h-3 w-16 rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
-            />
-          </div>
-          <div className="mt-3 grid gap-2">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-full rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
-            />
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-3/4 rounded-full bg-[#dfe5ed] dark:bg-[#21262d]"
-            />
-          </div>
-        </div>
-      </article>
-    </li>
-  );
+  const approvedCount = steps.filter((step) => step.status === "approved").length;
+  const rejectedStep = steps.find((step) => step.status === "rejected");
+
+  if (rejectedStep) {
+    return `${rejectedStep.order}단계 반려 · ${rejectedStep.approver.name}`;
+  }
+
+  const pendingStep = steps.find((step) => step.status === "pending");
+
+  if (pendingStep) {
+    return `${approvedCount}/${steps.length}단계 완료 · ${pendingStep.approver.name} 결재 대기`;
+  }
+
+  if (approvedCount === steps.length) {
+    return `결재 완료 · ${approvedCount}/${steps.length}단계`;
+  }
+
+  return `${approvedCount}/${steps.length}단계 완료`;
 }

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { DocumentPageSection } from "@/components/document-page-section";
 import { PageTitle } from "@/components/page-title";
@@ -10,6 +11,10 @@ import {
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { hasDocumentListFilter } from "@/lib/document-list-filters";
+
+export const metadata: Metadata = {
+  title: "임시저장함",
+};
 
 type DraftsPageSearchParams = {
   q?: string;

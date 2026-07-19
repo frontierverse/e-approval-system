@@ -24,20 +24,31 @@ export function DocumentList({ documents, empty }: DocumentListProps) {
   }
 
   return (
-    <section className="overflow-hidden rounded-md border border-[#d9dee7] bg-white">
+    <section
+      aria-label="결재 문서 목록"
+      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white"
+    >
       <div className="hidden overflow-x-auto lg:block">
-        <div className="min-w-[52rem] text-left text-sm">
-          <div
-            className={`${documentListGridClass} border-b border-[#d9dee7] bg-[#fbfcfd] text-xs font-semibold text-[#697386]`}
-          >
-            <div className="px-5 py-3">제목</div>
-            <div className="px-5 py-3">작성자</div>
-            <div className="px-5 py-3">현재 결재자</div>
-            <div className="px-5 py-3">진행</div>
-            <div className="px-5 py-3">상태</div>
-            <div className="px-5 py-3 whitespace-nowrap">일자</div>
+        <div
+          aria-label="결재 문서 표"
+          aria-rowcount={documents.length + 1}
+          className="min-w-[52rem] text-left text-sm"
+          role="table"
+        >
+          <div role="rowgroup">
+            <div
+              className={`${documentListGridClass} border-b border-[#d9dee7] bg-[#fbfcfd] text-xs font-semibold text-[#697386]`}
+              role="row"
+            >
+              <div className="px-5 py-3" role="columnheader">제목</div>
+              <div className="px-5 py-3" role="columnheader">작성자</div>
+              <div className="px-5 py-3" role="columnheader">현재 결재자</div>
+              <div className="px-5 py-3" role="columnheader">진행</div>
+              <div className="px-5 py-3" role="columnheader">상태</div>
+              <div className="whitespace-nowrap px-5 py-3" role="columnheader">일자</div>
+            </div>
           </div>
-          <div className="divide-y divide-[#eef1f5]">
+          <div className="divide-y divide-[#eef1f5]" role="rowgroup">
             {documents.map((document) => (
               <DocumentTableRow key={document.id} document={document} />
             ))}
@@ -63,15 +74,16 @@ function DocumentTableRow({ document }: { document: ApprovalDocument }) {
   return (
     <div
       className={`${documentListGridClass} group relative items-start transition hover:bg-[#f7fbfb]`}
+      role="row"
     >
-      <Link
-        href={`/documents/${document.id}`}
-        aria-label={`${document.title} 문서 보기`}
-        className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
-      >
-        <span className="sr-only">{document.title} 문서 보기</span>
-      </Link>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4" role="cell">
+        <Link
+          href={`/documents/${document.id}`}
+          aria-label={`${document.title} 문서 보기`}
+          className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
+        >
+          <span className="sr-only">{document.title} 문서 보기</span>
+        </Link>
         <p className="font-semibold text-[#16181d] group-hover:text-[#0f5553]">
           {document.title}
         </p>
@@ -80,23 +92,26 @@ function DocumentTableRow({ document }: { document: ApprovalDocument }) {
         </p>
         <ArchiveHint info={archiveInfo} />
       </div>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4" role="cell">
         <PersonText person={document.drafter} />
       </div>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4" role="cell">
         {currentApprover ? (
           <PersonText person={currentApprover} />
         ) : (
           <span className="text-[#697386]">-</span>
         )}
       </div>
-      <div className="px-5 py-4 text-[#394150]">
+      <div className="px-5 py-4 text-[#394150]" role="cell">
         {progress.approved}/{progress.total}
       </div>
-      <div className="px-5 py-4">
+      <div className="px-5 py-4" role="cell">
         <StatusBadge type="document" status={document.status} />
       </div>
-      <div className="whitespace-nowrap px-5 py-4 tabular-nums text-[#394150]">
+      <div
+        className="whitespace-nowrap px-5 py-4 tabular-nums text-[#394150]"
+        role="cell"
+      >
         {formatDate(getDocumentActivityDate(document))}
       </div>
     </div>

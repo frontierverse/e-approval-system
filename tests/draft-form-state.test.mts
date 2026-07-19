@@ -37,4 +37,42 @@ describe("draft form state", () => {
 
     assert.equal("category" in errors, false);
   });
+
+  test("allows incomplete content and approval lines for temporary drafts", () => {
+    const errors = validateDraftFormValues(
+      {
+        title: "",
+        category: "",
+        templateId: "template-general-draft",
+        content: "",
+        approverIds: [],
+      },
+      {
+        currentUserId: "user-002",
+        intent: "draft",
+      },
+    );
+
+    assert.deepEqual(errors, {});
+  });
+
+  test("requires complete content and an approver for approval requests", () => {
+    const errors = validateDraftFormValues(
+      {
+        title: "",
+        category: "",
+        templateId: "template-general-draft",
+        content: "",
+        approverIds: [],
+      },
+      {
+        currentUserId: "user-002",
+        intent: "submit",
+      },
+    );
+
+    assert.equal(errors.title, "제목은 2자 이상 입력하세요.");
+    assert.equal(errors.content, "기안 내용은 10자 이상 입력하세요.");
+    assert.equal(errors.approvers, "결재자를 1명 이상 지정하세요.");
+  });
 });

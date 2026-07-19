@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { PageTitle } from "@/components/page-title";
 import { RefrigeratorManagementBoard } from "@/components/refrigerator-management-board";
 import { requireUser } from "@/lib/auth";
+
+export const metadata: Metadata = {
+  title: "냉장고 관리",
+};
 
 export default async function WorkScheduleRefrigeratorPage() {
   await requireUser();

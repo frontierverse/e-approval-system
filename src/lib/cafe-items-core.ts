@@ -62,6 +62,7 @@ export type CafeItemPageFilters = {
 export type CafeItemPage = {
   expiredFoodCount: number;
   filters: CafeItemPageFilters;
+  heldItems: CafeItem[];
   items: CafeItem[];
   page: number;
   pageSize: number;
@@ -154,7 +155,15 @@ export type CafeItemExpirationAlertItem = {
   expirationDate: string;
   href: string;
   id: string;
+  isHeld: boolean;
   itemName: string;
+};
+
+export type CafeItemExpirationAlertSource = {
+  expirationDate: Date | string | null;
+  expirationHoldReason: string | null;
+  id: string;
+  name: string;
 };
 
 const dayInMs = 24 * 60 * 60 * 1000;
@@ -330,6 +339,56 @@ export function createCafeItemExpirationSearchHref(itemName: string) {
   }
 
   return `/work-schedule/cafe?${params.toString()}`;
+}
+
+export function createCafeItemExpirationAlert(
+  items: readonly CafeItemExpirationAlertSource[],
+  today = getCafeItemToday(),
+): CafeItemExpirationAlert | null {
+  const prioritizedItems = [
+    ...items.filter((item) => item.expirationHoldReason === null),
+    ...items.filter((item) => item.expirationHoldReason !== null),
+  ];
+  const alertItems = prioritizedItems.flatMap(
+    (item): CafeItemExpirationAlertItem[] => {
+      if (!item.expirationDate) {
+        return [];
+      }
+
+      const expirationDate = formatCafeItemDateValue(item.expirationDate);
+      const usageDday = getCafeItemUsageDday(
+        {
+          category: "food",
+          expirationDate,
+          purchasedAt: today,
+        },
+        today,
+      );
+
+      return [
+        {
+          ddayLabel: usageDday.label,
+          expirationDate,
+          href: createCafeItemExpirationSearchHref(item.name),
+          id: item.id,
+          isHeld: item.expirationHoldReason !== null,
+          itemName: item.name,
+        },
+      ];
+    },
+  );
+  const firstItem = alertItems[0];
+
+  if (!firstItem) {
+    return null;
+  }
+
+  return {
+    ddayLabel: firstItem.ddayLabel,
+    href: firstItem.href,
+    itemName: firstItem.itemName,
+    items: alertItems,
+  };
 }
 
 export function createCafeItemExpiredHref() {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DraftForm } from "@/components/draft-form";
 import { PageTitle } from "@/components/page-title";
@@ -9,6 +10,11 @@ import {
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
 import { updateDraftAction } from "./actions";
+import { APPROVAL_AUTHORITY_POSITION_NAME } from "@/lib/approval-authority";
+
+export const metadata: Metadata = {
+  title: "임시저장 수정",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -33,13 +39,11 @@ export default async function EditDraftPage({
 
   return (
     <>
-      <PageTitle
-        title="임시저장 수정"
-        description="작성 중이거나 회수한 문서를 수정합니다."
-      />
+      <PageTitle title="임시저장 수정" compact />
 
       <DraftForm
         action={updateDraftAction.bind(null, document.id)}
+        allowedApproverPositionName={APPROVAL_AUTHORITY_POSITION_NAME}
         cancelHref={`/documents/${document.id}`}
         mode="edit"
         templates={templates.map((template) => ({

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CafeItemChangeLogTable } from "@/components/cafe-item-change-log-table";
 import { CafeItemList } from "@/components/cafe-item-list";
@@ -23,6 +24,10 @@ import {
   getCafeItemChangeLogPageAction,
   getCafeItemPageAction,
 } from "@/app/work-schedule/cafe/actions";
+
+export const metadata: Metadata = {
+  title: "카페 관리",
+};
 
 type CafeManagementTab = "items" | "compliance";
 
@@ -96,14 +101,11 @@ async function CafeItemPanel({
     pageSize: cafeItemPageSize,
     today,
   });
-  const cafeItemListKey = [
-    filters.category,
-    filters.deadline,
-    filters.page,
-    filters.query,
-    filters.sort,
+  const cafeItemListKey = JSON.stringify({
+    filters,
+    itemPage,
     today,
-  ].join(":");
+  });
   const changeLogPage = await getCafeItemChangeLogPage({
     action: normalizeCafeItemChangeLogAction(params.logAction),
     actorId: String(params.logStaff ?? "all"),

@@ -30,6 +30,7 @@ import {
   getGeneratedApprovalPdfStorageError,
 } from "@/lib/generated-approval-pdf";
 import { prisma } from "@/lib/prisma";
+import { getApprovalAuthorityLineError } from "@/lib/approval-authority";
 
 export async function createDraftAction(
   _state: DraftFormState,
@@ -102,6 +103,7 @@ export async function createDraftAction(
     intent === "submit" ? getGeneratedApprovalPdfStorageError() : null;
   const errors = validateDraftFormValues(contentValues, {
     currentUserId: user.id,
+    intent,
     submittedApproverIds,
     attachmentError:
       attachmentResult.error ?? generatedPdfStorageError ?? undefined,
@@ -109,7 +111,7 @@ export async function createDraftAction(
 
   if (!template) {
     errors.templateId = "사용 가능한 문서 양식이 아닙니다.";
-  } else {
+  } else if (intent === "submit") {
     const templateErrors = validateDocumentTemplateContentValues(
       template.schema,
       values.templateFieldValues,
@@ -186,8 +188,16 @@ export async function createDraftAction(
       positionLevel: approver.position.level,
     })),
   );
+  const approvalAuthorityError =
+    intent === "submit"
+      ? getApprovalAuthorityLineError(
+          orderedApprovers.map((approver) => ({
+            positionName: approver.position.name,
+          })),
+        )
+      : null;
 
-  if (approvalLineError) {
+  if (approvalLineError || approvalAuthorityError) {
     if (isClientUploaded) {
       await removeUploadedAttachmentFiles(attachmentResult.files);
     }
@@ -195,7 +205,7 @@ export async function createDraftAction(
     return {
       values,
       errors: {
-        approvers: approvalLineError,
+        approvers: approvalAuthorityError ?? approvalLineError ?? undefined,
       },
     };
   }
@@ -207,6 +217,10 @@ export async function createDraftAction(
     mimeType: file.mimeType,
     size: file.size,
   }));
+  const documentTitle =
+    intent === "draft" && !contentValues.title
+      ? "제목 없는 기안"
+      : contentValues.title;
   let createdDocumentId = "";
 
   try {
@@ -216,7 +230,7 @@ export async function createDraftAction(
 
     const document = await createApprovalDocument({
       drafterId: user.id,
-      title: contentValues.title,
+      title: documentTitle,
       category: template.name,
       content: contentValues.content,
       templateId: contentValues.templateId,

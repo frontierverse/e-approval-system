@@ -1,11 +1,17 @@
-export function ThemeToggle() {
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   return (
     <button
       type="button"
       data-theme-toggle
+      data-theme-toggle-compact={compact ? true : undefined}
       aria-label="테마 변경"
       title="테마 변경"
-      className="relative inline-grid h-9 w-[4.75rem] shrink-0 grid-cols-2 items-center overflow-hidden rounded-full border border-[#cfd6e3] bg-white p-1 text-sm font-semibold transition hover:bg-[#f7f9fc]"
+      className={[
+        "relative shrink-0 items-center overflow-hidden rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-sm font-semibold transition hover:bg-[var(--surface-muted)]",
+        compact
+          ? "grid size-10 place-items-center"
+          : "inline-grid h-9 w-[4.75rem] grid-cols-2 p-1",
+      ].join(" ")}
     >
       <span
         data-theme-toggle-thumb
@@ -14,7 +20,10 @@ export function ThemeToggle() {
       />
       <span
         data-theme-toggle-sun
-        className="relative grid size-7 place-items-center transition-colors"
+        className={[
+          "relative size-7 place-items-center transition-colors",
+          compact ? "absolute inset-1.5" : "grid",
+        ].join(" ")}
         aria-hidden="true"
       >
         <svg
@@ -39,7 +48,10 @@ export function ThemeToggle() {
       </span>
       <span
         data-theme-toggle-moon
-        className="relative grid size-7 place-items-center transition-colors"
+        className={[
+          "relative size-7 place-items-center transition-colors",
+          compact ? "absolute inset-1.5" : "grid",
+        ].join(" ")}
         aria-hidden="true"
       >
         <svg

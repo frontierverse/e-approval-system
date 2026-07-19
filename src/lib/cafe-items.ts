@@ -3,11 +3,10 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  createCafeItemExpirationSearchHref,
+  createCafeItemExpirationAlert,
   formatCafeItemDateValue,
   getCafeItemChangeLogActionLabel,
   getCafeItemToday,
-  getCafeItemUsageDday,
   isCafeItemCategory,
   isCafeItemChangeLogActionFilter,
   shiftCafeItemDate,
@@ -20,7 +19,6 @@ import {
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
   type CafeItemExpirationAlert,
-  type CafeItemExpirationAlertItem,
   type CafeItemPage,
   type CafeItemSort,
 } from "@/lib/cafe-items-core";
@@ -58,48 +56,14 @@ export async function getCafeItemExpirationAlert(
     },
     orderBy: [{ expirationDate: "asc" }, { createdAt: "desc" }],
     select: {
+      expirationHoldReason: true,
       id: true,
       expirationDate: true,
       name: true,
     },
   });
-  const alertItems = items.flatMap((item): CafeItemExpirationAlertItem[] => {
-    if (!item.expirationDate) {
-      return [];
-    }
 
-    const expirationDate = formatCafeItemDateValue(item.expirationDate);
-    const usageDday = getCafeItemUsageDday(
-      {
-        category: "food",
-        expirationDate,
-        purchasedAt: today,
-      },
-      today,
-    );
-
-    return [
-      {
-        ddayLabel: usageDday.label,
-        expirationDate,
-        href: createCafeItemExpirationSearchHref(item.name),
-        id: item.id,
-        itemName: item.name,
-      },
-    ];
-  });
-  const firstItem = alertItems[0];
-
-  if (!firstItem) {
-    return null;
-  }
-
-  return {
-    ddayLabel: firstItem.ddayLabel,
-    href: firstItem.href,
-    itemName: firstItem.itemName,
-    items: alertItems,
-  };
+  return createCafeItemExpirationAlert(items, today);
 }
 
 export async function getCafeItemPage({
@@ -121,7 +85,7 @@ export async function getCafeItemPage({
 }): Promise<CafeItemPage> {
   const where = createCafeItemWhere({ category, deadline, query, today });
   const normalizedPageSize = Math.max(1, pageSize);
-  const [items, total, expiredFoodCount] = await Promise.all([
+  const [items, total, expiredFoodCount, heldItems] = await Promise.all([
     prisma.cafeItem.findMany({
       where,
       orderBy: createCafeItemOrderBy({ deadline, sort }),
@@ -142,6 +106,25 @@ export async function getCafeItemPage({
     prisma.cafeItem.count({ where }),
     prisma.cafeItem.count({
       where: createExpiredFoodWhere(today),
+    }),
+    prisma.cafeItem.findMany({
+      where: {
+        expirationHoldReason: {
+          not: null,
+        },
+      },
+      orderBy: [{ expirationDate: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        purchasedAt: true,
+        priceWon: true,
+        purchaseReason: true,
+        expirationDate: true,
+        expirationHoldReason: true,
+        createdAt: true,
+      },
     }),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
@@ -168,6 +151,7 @@ export async function getCafeItemPage({
       query,
       sort,
     },
+    heldItems: heldItems.map(mapCafeItem),
     items: items.map(mapCafeItem),
     page: normalizedPage,
     pageSize: normalizedPageSize,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   getLunchBoxCountGridAction,
@@ -5,12 +6,17 @@ import {
 } from "@/app/work-schedule/lunch-boxes/actions";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
 import { LunchBoxSchoolList } from "@/components/lunch-box-school-list";
+import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import { getLunchBoxCountMonth, getLunchBoxSchools } from "@/lib/lunch-box-counts";
 import {
   getLunchBoxCountToday,
   normalizeLunchBoxMonth,
 } from "@/lib/lunch-box-counts-core";
+
+export const metadata: Metadata = {
+  title: "도시락 현황",
+};
 
 type LunchBoxManagementTab = "counts" | "schools";
 
@@ -31,6 +37,10 @@ export default async function WorkScheduleLunchBoxesPage({
 
   return (
     <>
+      <PageTitle
+        title="도시락 현황"
+        description="날짜별 도시락 수량과 학교 정보를 한곳에서 관리합니다."
+      />
       <LunchBoxManagementTabs activeTab={activeTab} />
 
       <div className="mt-6">

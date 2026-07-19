@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DocumentPageSection } from "@/components/document-page-section";
 import { PageTitle } from "@/components/page-title";
 import { getCompletedDocumentPageAction } from "@/app/document-list-actions";
@@ -10,6 +11,10 @@ import {
 import { requireUser } from "@/lib/auth";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { hasDocumentListFilter } from "@/lib/document-list-filters";
+
+export const metadata: Metadata = {
+  title: "완료문서함",
+};
 
 type CompletedPageSearchParams = {
   q?: string;

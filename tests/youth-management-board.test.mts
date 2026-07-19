@@ -39,6 +39,7 @@ const youths: YouthProfile[] = [
         priority: "보통",
       },
     ],
+    updatedAt: "2026-06-21T12:45:00.000Z",
   },
   {
     id: "youth-test-002",
@@ -51,6 +52,7 @@ const youths: YouthProfile[] = [
     decisionDocuments: [],
     familyContacts: [],
     notes: [],
+    updatedAt: "2026-06-20T09:00:00.000Z",
   },
 ];
 
@@ -76,6 +78,7 @@ describe("YouthManagementBoard", () => {
               })),
               decisionDocuments: [],
               notes: [],
+              updatedAt: "2026-06-22T01:00:00.000Z",
             },
           },
         }),
@@ -102,6 +105,7 @@ describe("YouthManagementBoard", () => {
               })),
               decisionDocuments: [],
               notes: [],
+              updatedAt: "2026-06-22T02:00:00.000Z",
             },
           },
         }),

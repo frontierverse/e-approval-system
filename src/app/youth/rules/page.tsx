@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTitle } from "@/components/page-title";
 import {
@@ -20,6 +21,10 @@ import {
   getYouthRuleChangeLogsAction,
   getYouthRulesAction,
 } from "@/app/youth/rules/actions";
+
+export const metadata: Metadata = {
+  title: "규칙",
+};
 
 type SearchParamValue = string | string[] | undefined;
 type YouthRulesTab = "rules" | "history";

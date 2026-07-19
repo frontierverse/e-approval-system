@@ -1,67 +1,78 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import {
-  getHomePersonalApprovalHistoryPageAction,
-  getHomePublicApprovalActivityPageAction,
-} from "@/app/home-actions";
 import { HomeRecentApprovalActivity } from "@/components/home-recent-approval-activity";
-import { QuickStatusLinks } from "@/components/quick-status-links";
+import { HomeWorkDashboard } from "@/components/home-work-dashboard";
+import { PageTitle } from "@/components/page-title";
 import { WorkFeatureUpdateList } from "@/components/work-feature-update-list";
 import { UserRole } from "@/generated/prisma/client";
-import {
-  getCompletedDocuments,
-  getDraftDocuments,
-  getInboxDocuments,
-  getRecentHistoryPage,
-  getRecentPublicApprovalActivityPage,
-  getSentDocuments,
-} from "@/lib/approval-queries";
+import { getRecentHistoryPage } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
-import { getSystemUsageSummary } from "@/lib/system-usage";
+import { getHomeDashboardData } from "@/lib/home-dashboard";
+import { canViewHomeApprovalQueue } from "@/lib/home-dashboard-visibility";
 import { getRecentWorkFeatureUpdates } from "@/lib/work-feature-updates";
 
+export const metadata: Metadata = {
+  title: "오늘의 업무",
+};
+
 export default function Home() {
+  const todayLabel = new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "Asia/Seoul",
+  }).format(new Date());
+
   return (
     <>
-      <div className="mb-5 lg:relative lg:[--home-draft-action-gap:2rem] lg:[--home-draft-action-height:3.25rem] lg:[--home-draft-action-width:8rem]">
-        <div className="mb-3 flex justify-end lg:absolute lg:right-0 lg:top-0 lg:z-20 lg:mb-0">
+      <PageTitle
+        title="오늘의 업무"
+        description={todayLabel}
+        compact
+        action={
           <Link
             href="/drafts/new"
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.create,
-              "h-10 whitespace-nowrap px-4 text-sm shadow-sm lg:w-[var(--home-draft-action-width)]",
+              "h-10 whitespace-nowrap px-4 text-sm shadow-sm",
             )}
           >
             새 기안 작성
           </Link>
-        </div>
-        <Suspense fallback={<FeatureUpdateListSkeleton />}>
-          <HomeFeatureUpdates />
-        </Suspense>
-      </div>
+        }
+      />
 
       <Suspense fallback={<RouteContentSkeleton variant="home" />}>
         <HomeContent />
       </Suspense>
+
+      <div className="mt-4">
+        <Suspense fallback={<FeatureUpdateListSkeleton />}>
+          <HomeFeatureUpdates />
+        </Suspense>
+      </div>
     </>
   );
 }
 
 async function HomeFeatureUpdates() {
-  const [user, featureUpdates, usageSummary] = await Promise.all([
+  const [user, featureUpdates] = await Promise.all([
     requireUser(),
     getRecentWorkFeatureUpdates(),
-    getSystemUsageSummary(),
   ]);
+
+  if (featureUpdates.length === 0 && user.role !== UserRole.ADMIN) {
+    return null;
+  }
 
   return (
     <WorkFeatureUpdateList
-      avoidTopRightSlot
       canCreate={user.role === UserRole.ADMIN}
-      usageSummary={usageSummary}
       updates={featureUpdates}
     />
   );
@@ -69,69 +80,28 @@ async function HomeFeatureUpdates() {
 
 async function HomeContent() {
   const user = await requireUser();
-  const recentHistoryLimit = 5;
-  const [
-    draftDocuments,
-    inboxDocuments,
-    sentDocuments,
-    completedDocuments,
-    recentPersonalHistoryPage,
-    recentPublicActivityPage,
-  ] = await Promise.all([
-    getDraftDocuments(user.id),
-    getInboxDocuments(user.id),
-    getSentDocuments(user.id),
-    getCompletedDocuments(user.id),
+  const showApprovalQueue = canViewHomeApprovalQueue(user.position.name);
+  const recentHistoryLimit = 2;
+  const [dashboard, recentPersonalHistoryPage] = await Promise.all([
+    getHomeDashboardData(user.id, {
+      includeApprovalQueue: showApprovalQueue,
+      sentLimit: 2,
+    }),
     getRecentHistoryPage(user.id, {
       pageSize: recentHistoryLimit,
     }),
-    getRecentPublicApprovalActivityPage({
-      pageSize: recentHistoryLimit,
-    }),
   ]);
-  const activeSentDocuments = sentDocuments.filter(
-    (document) =>
-      document.status === "submitted" || document.status === "in_progress",
-  );
-
-  const summaries = [
-    {
-      label: "임시저장/회수",
-      value: String(draftDocuments.length),
-      note: "이어 작성할 문서",
-      href: "/drafts",
-    },
-    {
-      label: "받은 결재 대기",
-      value: String(inboxDocuments.length),
-      note: "처리할 문서",
-      href: "/inbox",
-    },
-    {
-      label: "진행 중 결재 요청",
-      value: String(activeSentDocuments.length),
-      note: "내가 올린 문서",
-      href: "/sent",
-    },
-    {
-      label: "완료 문서",
-      value: String(completedDocuments.length),
-      note: "승인 또는 반려",
-      href: "/completed",
-    },
-  ];
 
   return (
-    <>
-      <QuickStatusLinks items={summaries} />
-
-      <HomeRecentApprovalActivity
-        loadPersonalHistoryPage={getHomePersonalApprovalHistoryPageAction}
-        loadPublicActivityPage={getHomePublicApprovalActivityPageAction}
-        personalHistoryPage={recentPersonalHistoryPage}
-        publicActivityPage={recentPublicActivityPage}
-      />
-    </>
+    <HomeWorkDashboard
+      dashboard={dashboard}
+      showApprovalQueue={showApprovalQueue}
+      relatedActivity={
+        <HomeRecentApprovalActivity
+          personalHistoryPage={recentPersonalHistoryPage}
+        />
+      }
+    />
   );
 }
 
@@ -139,9 +109,9 @@ function FeatureUpdateListSkeleton() {
   return (
     <section
       aria-hidden="true"
-      className="home-feature-card overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm"
+      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm"
     >
-      <div className="home-feature-card-header border-b border-[#eef1f5] px-5 py-4">
+      <div className="border-b border-[#eef1f5] px-5 py-4">
         <div className="h-5 w-36 rounded-md bg-[#edf1f5]" />
         <div className="mt-2 h-4 w-full max-w-lg rounded-md bg-[#edf1f5]" />
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">

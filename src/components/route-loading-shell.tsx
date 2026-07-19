@@ -90,20 +90,15 @@ export function RouteContentSkeleton({
 function HomeSkeleton() {
   return (
     <>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))]">
-        {[
-          "임시저장/회수",
-          "받은 결재 대기",
-          "진행 중 결재 요청",
-          "완료 문서",
-        ].map((label) => (
+      <section className="grid grid-cols-2 gap-2">
+        {["회수 후 보완", "진행 중인 내 기안"].map((label) => (
           <SummaryCardSkeleton key={label} label={label} />
         ))}
       </section>
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
-        <PanelSkeleton title="나의 최근 결재 활동" rows={5} />
-        <PanelSkeleton title="모든 결재 활동" rows={5} />
+      <section className="mt-3 grid gap-3 xl:grid-cols-2 xl:items-start">
+        <HomePanelSkeleton title="내 기안 진행" rows={2} />
+        <HomePanelSkeleton title="내 관련 문서의 최근 변경" rows={2} />
       </section>
     </>
   );
@@ -185,7 +180,7 @@ export function DocumentResultsSkeleton() {
 
 function DocumentDetailSkeleton() {
   return (
-    <section className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
       <div className="space-y-6">
         <article className="rounded-md border border-[#d9dee7] bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#eef1f5] pb-4">
@@ -232,7 +227,7 @@ function DocumentDetailSkeleton() {
         <PanelSkeleton title="감사 이력" rows={3} />
       </div>
 
-      <aside className="space-y-6">
+      <aside className="scrollbar-stable self-start space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-10.25rem)] xl:overflow-y-auto">
         <article className="rounded-md border border-[#d9dee7] bg-white p-5">
           <p className="text-base font-semibold text-[#16181d]">결재 처리</p>
           <SkeletonBlock className="mt-4 h-20 w-full" />
@@ -251,50 +246,68 @@ function DocumentDetailSkeleton() {
 
 function DraftSkeleton() {
   return (
-    <form className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <div>
+    <form className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 xl:col-start-1 xl:row-start-1">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_15rem]">
           <FieldSkeleton label="제목" />
-        </div>
-
-        <div className="mt-5">
           <FieldSkeleton label="문서 양식" />
         </div>
 
-        <div className="mt-5">
-          <p className="text-sm font-semibold text-[#394150]">기안 내용</p>
-          <SkeletonBlock className="mt-2 h-72 w-full" />
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            기안 내용
+          </p>
+          <SkeletonBlock className="mt-2 h-56 w-full" />
         </div>
 
-        <div className="mt-5">
-          <p className="text-sm font-semibold text-[#394150]">첨부파일</p>
-          <SkeletonBlock className="mt-2 h-11 w-full" />
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            첨부파일
+          </p>
+          <SkeletonBlock className="mt-2 h-14 w-full" />
           <SkeletonBlock className="mt-2 h-3 w-64 max-w-full" />
-        </div>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <SkeletonBlock className="h-10 w-24" />
-          <SkeletonBlock className="h-10 w-24" />
         </div>
       </section>
 
-      <aside className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <p className="text-base font-semibold text-[#16181d]">결재선</p>
-        <div className="mt-4 grid gap-3">
-          <FieldSkeleton label="부서" />
-          <FieldSkeleton label="결재자 검색" />
+      <aside className="scrollbar-stable self-start rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 xl:sticky xl:top-0 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-h-[calc(100vh-10.25rem)] xl:overflow-y-auto">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-base font-semibold text-[var(--foreground)]">
+              결재선
+            </p>
+            <SkeletonBlock className="mt-1 h-3 w-24" />
+          </div>
+          <SkeletonBlock className="h-6 w-10" />
         </div>
-        <div className="mt-5 space-y-3">
-          {[0, 1, 2, 3].map((row) => (
-            <div
-              key={row}
-              className="rounded-md border border-[#eef1f5] p-3"
-            >
+
+        <div className="mt-3">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            지정된 결재자
+          </p>
+          <div className="mt-2 flex min-h-16 items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1.5">
+            <SkeletonBlock className="size-7 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1">
               <PersonSkeleton />
             </div>
-          ))}
+            <SkeletonBlock className="h-6 w-14 shrink-0" />
+          </div>
         </div>
       </aside>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-4 xl:col-start-1 xl:row-start-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#16181d]">
+              저장 및 결재 요청
+            </p>
+            <SkeletonBlock className="mt-2 h-3 w-64 max-w-full" />
+          </div>
+          <div className="flex justify-end gap-2 sm:shrink-0">
+            <SkeletonBlock className="h-11 w-24" />
+            <SkeletonBlock className="h-11 w-24" />
+          </div>
+        </div>
+      </section>
     </form>
   );
 }
@@ -416,19 +429,44 @@ function ResourcesSkeleton() {
 
 function SummaryCardSkeleton({ label }: { label: string }) {
   return (
-    <article className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-sm font-medium text-[#697386]">{label}</p>
-      <SkeletonBlock className="mt-4 h-9 w-16" />
-      <SkeletonBlock className="mt-3 h-3 w-24" />
+    <article className="flex min-h-16 items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 sm:min-h-[4.25rem] sm:px-3.5">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-[var(--foreground)] sm:text-sm">
+          {label}
+        </p>
+        <SkeletonBlock className="mt-1 hidden h-3 w-16 sm:block" />
+      </div>
+      <SkeletonBlock className="h-7 w-12 shrink-0" />
     </article>
+  );
+}
+
+function HomePanelSkeleton({ title, rows }: { title: string; rows: number }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex min-h-12 items-center justify-between border-b border-[var(--border)] px-4">
+        <p className="text-sm font-semibold text-[var(--foreground)] sm:text-base">
+          {title}
+        </p>
+        <SkeletonBlock className="h-4 w-12" />
+      </div>
+      <div className="divide-y divide-[var(--border)]">
+        {Array.from({ length: rows }).map((_, row) => (
+          <div key={row} className="px-4 py-2.5">
+            <SkeletonBlock className="h-4 w-3/5" />
+            <SkeletonBlock className="mt-1.5 h-3 w-4/5" />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
 function PanelSkeleton({ title, rows }: { title: string; rows: number }) {
   return (
-    <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-      <p className="text-base font-semibold text-[#16181d]">{title}</p>
-      <div className="mt-5 divide-y divide-[#eef1f5]">
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
+      <div className="mt-5 divide-y divide-[var(--border)]">
         {Array.from({ length: rows }).map((_, row) => (
           <div key={row} className="py-4 first:pt-0 last:pb-0">
             <SkeletonBlock className="h-4 w-3/5" />
@@ -462,7 +500,7 @@ function SkeletonBlock({ className }: { className: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`animate-pulse rounded-md bg-[#edf1f5] ${className}`}
+      className={`animate-pulse rounded-md bg-[var(--surface-muted)] motion-reduce:animate-none ${className}`}
     />
   );
 }

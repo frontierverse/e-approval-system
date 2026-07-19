@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { PageTitle } from "@/components/page-title";
@@ -7,6 +8,10 @@ import { UserAvatar } from "@/components/user-avatar";
 import { UserIdentity } from "@/components/user-identity";
 import { requireUser } from "@/lib/auth";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
+
+export const metadata: Metadata = {
+  title: "내 계정",
+};
 
 export default function AccountPage() {
   return (

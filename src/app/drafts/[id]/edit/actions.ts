@@ -30,6 +30,7 @@ import {
   getGeneratedApprovalPdfStorageError,
 } from "@/lib/generated-approval-pdf";
 import { prisma } from "@/lib/prisma";
+import { getApprovalAuthorityLineError } from "@/lib/approval-authority";
 
 export async function updateDraftAction(
   documentId: string,
@@ -141,6 +142,7 @@ export async function updateDraftAction(
     : values;
   const errors = validateDraftFormValues(contentValues, {
     currentUserId: user.id,
+    intent,
     submittedApproverIds,
     attachmentError: attachmentError ?? generatedPdfStorageError ?? undefined,
   });
@@ -151,7 +153,7 @@ export async function updateDraftAction(
 
   if (!template) {
     errors.templateId = "사용 가능한 문서 양식이 아닙니다.";
-  } else {
+  } else if (intent === "submit") {
     const templateErrors = validateDocumentTemplateContentValues(
       template.schema,
       values.templateFieldValues,
@@ -228,8 +230,16 @@ export async function updateDraftAction(
       positionLevel: approver.position.level,
     })),
   );
+  const approvalAuthorityError =
+    intent === "submit"
+      ? getApprovalAuthorityLineError(
+          orderedApprovers.map((approver) => ({
+            positionName: approver.position.name,
+          })),
+        )
+      : null;
 
-  if (approvalLineError) {
+  if (approvalLineError || approvalAuthorityError) {
     if (isClientUploaded) {
       await removePreparedAttachments(resolvedAttachmentResult.files);
     }
@@ -237,7 +247,7 @@ export async function updateDraftAction(
     return {
       values,
       errors: {
-        approvers: approvalLineError,
+        approvers: approvalAuthorityError ?? approvalLineError ?? undefined,
       },
     };
   }
@@ -249,6 +259,10 @@ export async function updateDraftAction(
     mimeType: file.mimeType,
     size: file.size,
   }));
+  const documentTitle =
+    intent === "draft" && !contentValues.title
+      ? "제목 없는 기안"
+      : contentValues.title;
   let updatedDocumentId = documentId;
 
   try {
@@ -259,7 +273,7 @@ export async function updateDraftAction(
     const result = await updateDraftDocument({
       documentId,
       actorId: user.id,
-      title: contentValues.title,
+      title: documentTitle,
       category: template.name,
       content: contentValues.content,
       templateId: contentValues.templateId,

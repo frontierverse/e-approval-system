@@ -4,7 +4,6 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   HomeRecentApprovalActivity,
-  type HomePublicApprovalActivity,
   type HomeRecentApprovalHistory,
 } from "../src/components/home-recent-approval-activity.tsx";
 
@@ -49,25 +48,8 @@ const personalHistories: HomeRecentApprovalHistory[] = [
   },
 ];
 
-const publicActivities: HomePublicApprovalActivity[] = [
-  {
-    action: "승인",
-    actionValue: "APPROVE",
-    actedAt: "2026-07-02T00:00:00.000Z",
-    actor: {
-      id: "user-002",
-      name: "심태호",
-      departmentName: "바자울",
-      positionName: "팀장",
-      profileImageStorageKey: null,
-      profileImageUpdatedAt: null,
-    },
-    id: "audit-secret-001",
-  },
-];
-
 describe("HomeRecentApprovalActivity", () => {
-  test("renders personal details and redacted public activity actions", () => {
+  test("renders a compact list of changes to related documents", () => {
     const html = renderToStaticMarkup(
       React.createElement(HomeRecentApprovalActivity, {
         personalHistoryPage: {
@@ -77,31 +59,17 @@ describe("HomeRecentApprovalActivity", () => {
           total: 6,
           totalPages: 2,
         },
-        publicActivityPage: {
-          activities: publicActivities,
-          page: 1,
-          pageSize: 5,
-          total: 6,
-          totalPages: 2,
-        },
       }),
     );
 
-    assert.match(html, /나의 최근 결재 활동/);
-    assert.match(html, /모든 결재 활동/);
+    assert.match(html, /내 관련 문서의 최근 변경/);
+    assert.match(html, /총 6건/);
     assert.match(html, /보이는 내 결재 문서/);
     assert.match(html, /href="\/documents\/document-001"/);
-    assert.match(html, /심태호/);
-    assert.match(html, /승인/);
-    assert.match(html, /aria-label="이전 나의 최근 결재 활동"/);
-    assert.match(html, /aria-label="다음 나의 최근 결재 활동"/);
-    assert.match(html, /aria-label="이전 모든 결재 활동"/);
-    assert.match(html, /aria-label="다음 모든 결재 활동"/);
-    assert.match(html, /dark:bg-\[#0d1117\]/);
-    assert.match(html, /dark:bg-\[#30363d\]/);
-    assert.match(html, /dark:bg-\[#21262d\]/);
-    assert.match(html, /<svg/);
-    assert.doesNotMatch(html, /보안상 감춤/);
-    assert.doesNotMatch(html, /audit-secret-001/);
+    assert.match(html, /결재 완료 · 1\/1단계/);
+    assert.match(html, /요청자/);
+    assert.doesNotMatch(html, /모든 결재 활동/);
+    assert.doesNotMatch(html, /aria-label="이전/);
+    assert.doesNotMatch(html, /animate-pulse/);
   });
 });

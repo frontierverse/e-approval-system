@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { DocumentList } from "@/components/document-list";
 import {
@@ -9,6 +10,7 @@ import {
   getDocumentListHref,
 } from "@/components/document-list-controls";
 import { EmptyState } from "@/components/empty-state";
+import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DocumentListStatusOption } from "@/components/document-list-filter-controls";
 import type { ApprovalDocument } from "@/lib/mock-data";
 
@@ -157,6 +159,14 @@ export function DocumentPageSection({
 
   const currentFilters = pageState.filters;
   const currentPage = pageState.documentPage;
+  const hasActiveFilters = Boolean(
+    currentFilters.query ||
+      currentFilters.dateFrom ||
+      currentFilters.dateTo ||
+      currentFilters.status !== "all" ||
+      currentFilters.sort !== "latest" ||
+      Object.values(currentFilters.extraParams ?? {}).some(Boolean),
+  );
 
   return (
     <>
@@ -171,7 +181,11 @@ export function DocumentPageSection({
         status={currentFilters.status}
         statusOptions={statusOptions}
         summary={
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div
+            aria-live="polite"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1"
+            role="status"
+          >
             <DocumentListSummary
               page={currentPage.page}
               pageSize={currentPage.pageSize}
@@ -187,16 +201,39 @@ export function DocumentPageSection({
       />
 
       {pageError ? (
-        <p className="mb-4 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+        <p
+          className="mb-4 rounded-md border border-[#f4b5b5] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]"
+          role="alert"
+        >
           {pageError}
         </p>
       ) : null}
 
-      <div className={isPagePending ? "opacity-60" : undefined}>
+      <div
+        aria-busy={isPagePending || undefined}
+        className={isPagePending ? "opacity-60" : undefined}
+      >
         <DocumentList
           documents={currentPage.documents}
           empty={
-            <EmptyState title={emptyTitle} description={emptyDescription} />
+            <EmptyState
+              title={emptyTitle}
+              description={emptyDescription}
+              action={
+                hasActiveFilters ? (
+                  <Link
+                    href={basePath}
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.neutral,
+                      "h-10 px-4 text-sm",
+                    )}
+                  >
+                    모든 필터 초기화
+                  </Link>
+                ) : undefined
+              }
+            />
           }
         />
       </div>

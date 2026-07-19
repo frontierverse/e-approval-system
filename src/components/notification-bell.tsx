@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useId, useRef, useState } from "react";
+import { AppModal } from "@/components/app-modal";
 import { getNotificationTypeLabel } from "@/lib/notification-labels";
 import type { AppNotification } from "@/lib/notification-types";
 
@@ -40,6 +40,7 @@ export function NotificationBell({
 }: NotificationBellProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const notificationButtonRef = useRef<HTMLButtonElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastUnreadCountRef = useRef(initialUnreadCount);
   const [isOpen, setIsOpen] = useState(false);
@@ -47,6 +48,9 @@ export function NotificationBell({
   const [notifications, setNotifications] = useState(initialNotifications);
   const [dismissedModalIds, setDismissedModalIds] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
+  const notificationPanelId = useId();
+  const approvalModalTitleId = useId();
+  const approvalModalDescriptionId = useId();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -86,6 +90,25 @@ export function NotificationBell({
     return () => {
       document.removeEventListener("pointerdown", handleOutsideClick);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function closeFromEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsOpen(false);
+      window.requestAnimationFrame(() => notificationButtonRef.current?.focus());
+    }
+
+    document.addEventListener("keydown", closeFromEscape);
+    return () => document.removeEventListener("keydown", closeFromEscape);
   }, [isOpen]);
 
   useEffect(() => {
@@ -233,11 +256,14 @@ export function NotificationBell({
     <div className="relative shrink-0" ref={containerRef}>
       <button
         type="button"
+        aria-controls={notificationPanelId}
         aria-expanded={isOpen}
+        aria-haspopup="true"
         aria-label={buttonLabel}
+        ref={notificationButtonRef}
         title={buttonLabel}
         onClick={() => setIsOpen((current) => !current)}
-        className="relative grid size-9 shrink-0 place-items-center rounded-full border border-[#cfd6e3] bg-white text-[#394150] transition hover:bg-[#f7f9fc]"
+        className="relative grid size-10 shrink-0 place-items-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
       >
         <svg
           viewBox="0 0 24 24"
@@ -260,7 +286,12 @@ export function NotificationBell({
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-12 z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-md border border-[#d9dee7] bg-white shadow-lg">
+        <div
+          id={notificationPanelId}
+          aria-label="알림 목록"
+          className="absolute right-0 top-12 z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl"
+          role="region"
+        >
           <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-[#16181d]">알림</p>
@@ -289,10 +320,13 @@ export function NotificationBell({
                 >
                   <span className="flex items-center gap-2">
                     {!notification.readAt ? (
-                      <span
-                        className="size-2 rounded-full bg-[#2563eb]"
-                        aria-hidden="true"
-                      />
+                      <>
+                        <span
+                          className="size-2 rounded-full bg-[#2563eb]"
+                          aria-hidden="true"
+                        />
+                        <span className="sr-only">읽지 않음</span>
+                      </>
                     ) : null}
                     <span className="text-xs font-semibold text-[#2563eb]">
                       {getNotificationTypeLabel(notification.type)}
@@ -331,9 +365,14 @@ export function NotificationBell({
         </div>
       ) : null}
 
-      {mounted && modalNotification && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg rounded-xl border border-[#d9dee7] bg-white p-6 shadow-2xl">
+      {mounted && modalNotification ? (
+        <AppModal
+          className="max-w-lg"
+          describedBy={approvalModalDescriptionId}
+          labelledBy={approvalModalTitleId}
+          onClose={() => handleCloseModal(modalNotification.id)}
+        >
+          <div className="relative p-6">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-[#eef1f5] pb-4">
               <div>
@@ -344,12 +383,16 @@ export function NotificationBell({
                 }`}>
                   {modalNotification.type === "APPROVAL_REJECTED" ? "반려됨" : "승인됨"}
                 </span>
-                <h3 className="mt-2 text-lg font-bold text-[#16181d]">
+                <h2
+                  id={approvalModalTitleId}
+                  className="mt-2 text-lg font-bold text-[#16181d]"
+                >
                   결재 의견 알림
-                </h3>
+                </h2>
               </div>
               <button
                 type="button"
+                aria-label="결재 의견 알림 닫기"
                 onClick={() => handleCloseModal(modalNotification.id)}
                 className="rounded-lg p-1 text-[#697386] transition hover:bg-[#f7f9fc] hover:text-[#16181d]"
               >
@@ -360,7 +403,10 @@ export function NotificationBell({
             </div>
 
             {/* Content */}
-            <div className="mt-4 space-y-4">
+            <div
+              id={approvalModalDescriptionId}
+              className="mt-4 space-y-4"
+            >
               {/* Document Metadata */}
               <div className="grid grid-cols-3 gap-2 rounded-lg bg-[#f7f9fc] p-3 text-xs text-[#697386]">
                 <div>
@@ -418,9 +464,8 @@ export function NotificationBell({
               </button>
             </div>
           </div>
-        </div>,
-        document.body
-      )}
+        </AppModal>
+      ) : null}
     </div>
   );
 }

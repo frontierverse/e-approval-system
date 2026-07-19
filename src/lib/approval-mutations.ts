@@ -20,6 +20,7 @@ import {
 } from "@/lib/approval-audit-messages";
 import { createDraftUpdateAuditDetails } from "@/lib/draft-update-audit";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
+import { getApprovalAuthorityLineError } from "@/lib/approval-authority";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import {
   canDeleteDraftDocumentByPolicy,
@@ -273,6 +274,19 @@ export async function submitDraftDocument(
       return {
         ok: false,
         message: approvalLineError,
+      };
+    }
+
+    const approvalAuthorityError = getApprovalAuthorityLineError(
+      document.approvalSteps.map((step) => ({
+        positionName: step.approver.position.name,
+      })),
+    );
+
+    if (approvalAuthorityError) {
+      return {
+        ok: false,
+        message: approvalAuthorityError,
       };
     }
 

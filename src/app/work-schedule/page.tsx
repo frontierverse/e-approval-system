@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageTitle } from "@/components/page-title";
 import { WorkScheduleCalendarBoard } from "@/components/work-schedule-calendar-board";
 import {
@@ -13,6 +14,10 @@ import {
 } from "@/lib/work-schedules";
 import { normalizeWorkScheduleMonth } from "@/lib/work-schedule-calendar";
 import { isYouthLearningScheduleDate } from "@/lib/youth-management-core";
+
+export const metadata: Metadata = {
+  title: "업무 일정",
+};
 
 type SearchParamValue = string | string[] | undefined;
 

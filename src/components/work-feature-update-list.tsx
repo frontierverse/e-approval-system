@@ -31,26 +31,26 @@ export function WorkFeatureUpdateList({
 
   return (
     <section
-      aria-label="추가된 기능 내역"
+      aria-label="업무 시스템 업데이트"
       className={buttonClass(
-        "overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm",
+        "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]",
         avoidTopRightSlot ? "home-feature-card" : "",
       )}
     >
       <div
         className={buttonClass(
-          "flex min-w-0 items-start justify-between gap-3 border-b border-[#eef1f5] px-5 py-4",
+          "flex min-w-0 items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4",
           avoidTopRightSlot ? "home-feature-card-header" : "",
         )}
       >
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-[#16181d]">
-            추가된 기능 내역
+          <h2 className="text-base font-semibold text-[var(--foreground)]">
+            업무 시스템 업데이트
           </h2>
-          <p className="mt-1 text-sm text-[#697386]">
-            최근 업무 관리에 반영된 기능을 3개까지 보여줍니다.
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            최근 반영된 기능과 변경사항을 최대 3개까지 안내합니다.
           </p>
-          {usageSummary ? (
+          {canCreate && usageSummary ? (
             <SystemUsageSummaryInline usageSummary={usageSummary} />
           ) : null}
         </div>
@@ -72,7 +72,7 @@ export function WorkFeatureUpdateList({
         ) : null}
       </div>
 
-      <div className="divide-y divide-[#eef1f5]">
+      <div className="divide-y divide-[var(--border)]">
         {updates.length > 0 ? (
           updates.slice(0, 3).map((update) => (
             <article
@@ -80,22 +80,22 @@ export function WorkFeatureUpdateList({
               className="grid min-h-14 min-w-0 gap-1 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
             >
               <div className="min-w-0">
-                <h3 className="truncate text-sm font-semibold text-[#16181d]">
+                <h3 className="truncate text-sm font-semibold text-[var(--foreground)]">
                   {update.title}
                 </h3>
                 {update.description ? (
-                  <p className="mt-1 truncate text-sm text-[#697386]">
+                  <p className="mt-1 line-clamp-2 text-sm text-[var(--text-muted)]">
                     {update.description}
                   </p>
                 ) : null}
               </div>
-              <p className="text-xs font-medium text-[#697386] sm:text-right">
+              <p className="text-xs font-medium tabular-nums text-[var(--text-muted)] sm:text-right">
                 {formatFeatureUpdateDate(update.createdAt)}
               </p>
             </article>
           ))
         ) : (
-          <p className="px-5 py-5 text-sm text-[#697386]">
+          <p className="px-5 py-5 text-sm text-[var(--text-muted)]">
             등록된 기능 내역이 없습니다.
           </p>
         )}
@@ -107,8 +107,12 @@ export function WorkFeatureUpdateList({
           labelledBy="work-feature-update-modal-title"
           onClose={() => setIsModalOpen(false)}
         >
-          <form action={formAction}>
-            <div className="flex items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
+          <form
+            action={formAction}
+            aria-busy={pending || undefined}
+            className="flex max-h-[min(46rem,calc(100dvh-2rem))] flex-col"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eef1f5] px-5 py-4">
               <div>
                 <p className="text-xs font-semibold text-[#196b69]">
                   관리자 전용
@@ -129,7 +133,7 @@ export function WorkFeatureUpdateList({
               </button>
             </div>
 
-            <div className="grid gap-4 px-5 py-5">
+            <div className="grid min-h-0 gap-4 overflow-y-auto px-5 py-5">
               <label className="block min-w-0">
                 <span className="block text-xs font-semibold text-[#697386]">
                   기능명
@@ -139,6 +143,9 @@ export function WorkFeatureUpdateList({
                   <span className="sr-only">필수</span>
                 </span>
                 <input
+                  aria-describedby={state.error ? "work-feature-update-error" : undefined}
+                  aria-invalid={Boolean(state.error) || undefined}
+                  data-modal-initial-focus
                   name="title"
                   required
                   maxLength={100}
@@ -163,13 +170,17 @@ export function WorkFeatureUpdateList({
               </label>
 
               {state.error ? (
-                <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                <p
+                  id="work-feature-update-error"
+                  role="alert"
+                  className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]"
+                >
                   {state.error}
                 </p>
               ) : null}
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-[#eef1f5] px-5 py-4">
+            <div className="flex shrink-0 justify-end gap-2 border-t border-[#eef1f5] px-5 py-4">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}

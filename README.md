@@ -6,6 +6,7 @@
 
 - [개발 계획서](./docs/e-approval-todo.md)
 - [프로젝트 기준](./docs/project-brief.md)
+- [UI/UX 개발 가이드라인](./docs/ui-ux-guidelines.md)
 - [데이터 모델 설계](./docs/data-model.md)
 - [첨부파일 도장/서명 기능 개발 계획서](./docs/attachment-signature-todo.md)
 - [문서양식 디자이너 개발 계획서](./docs/document-template-designer-todo.md)

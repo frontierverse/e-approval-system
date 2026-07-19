@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DocumentPageSection } from "@/components/document-page-section";
 import { PageTitle } from "@/components/page-title";
 import { getSentDocumentPageAction } from "@/app/document-list-actions";
@@ -8,6 +9,10 @@ import {
 } from "@/lib/approval-queries";
 import { requireUser } from "@/lib/auth";
 import { hasDocumentListFilter } from "@/lib/document-list-filters";
+
+export const metadata: Metadata = {
+  title: "제출 문서함",
+};
 
 type SentPageSearchParams = {
   q?: string;

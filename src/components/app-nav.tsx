@@ -58,6 +58,7 @@ export type NavigationTopbarAlertItem = {
   expirationDate: string;
   href: string;
   id: string;
+  isHeld: boolean;
   itemName: string;
 };
 
@@ -166,6 +167,9 @@ export function AppNav({
   const searchParams = useSearchParams();
   const currentHref = getCurrentHref(pathname, searchParams);
   const mobileNavRef = useRef<HTMLElement>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuTitleId = useId();
+  const mobileMenuDescriptionId = useId();
   const selectedGroup = getActiveGroup(groups, pathname, currentHref) ?? groups[0];
   const selectedItems = selectedGroup?.items ?? [];
   const firstEndAlignedGroupIndex = groups.findIndex(
@@ -338,35 +342,65 @@ export function AppNav({
 
   if (variant === "mobile") {
     return (
-      <div className="relative w-full max-w-full overflow-hidden lg:hidden">
-        <nav
-          ref={mobileNavRef}
-          aria-label={`${selectedGroup?.label ?? "선택된"} 하위 메뉴`}
-          className="scrollbar-none flex h-[3.25rem] w-full min-w-0 cursor-grab touch-pan-x select-none gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-t border-[#eef1f5] px-3 py-2 scroll-px-3 active:cursor-grabbing [-webkit-overflow-scrolling:touch] sm:gap-2 sm:px-6 sm:scroll-px-6"
-          onClickCapture={handleMobileNavClickCapture}
-          onPointerCancel={handleMobileNavPointerEnd}
-          onPointerDown={handleMobileNavPointerDown}
-          onPointerMove={handleMobileNavPointerMove}
-          onPointerUp={handleMobileNavPointerEnd}
-        >
-          {selectedItems.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={isActivePath(pathname, item.href, currentHref)}
-              variant="mobile"
+      <>
+        <div className="w-full max-w-full border-t border-[var(--border)] bg-[var(--surface)] lg:hidden">
+          <div className="flex h-[3.25rem] min-w-0">
+            <div className="relative z-10 flex shrink-0 items-center border-r border-[var(--border)] bg-[var(--surface)] py-1 pl-3 pr-2 sm:pl-6">
+              <MobileMenuTrigger
+                open={mobileMenuOpen}
+                onClick={() => setMobileMenuOpen(true)}
+              />
+            </div>
+            <div className="relative min-w-0 flex-1 overflow-hidden">
+              <nav
+                ref={mobileNavRef}
+                aria-label={`${selectedGroup?.label ?? "선택된"} 하위 메뉴`}
+                className="scrollbar-none flex h-full w-full min-w-0 cursor-grab touch-pan-x select-none gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 pl-2 pr-4 scroll-px-2 active:cursor-grabbing [-webkit-overflow-scrolling:touch] sm:gap-2 sm:pr-6"
+                onClickCapture={handleMobileNavClickCapture}
+                onPointerCancel={handleMobileNavPointerEnd}
+                onPointerDown={handleMobileNavPointerDown}
+                onPointerMove={handleMobileNavPointerMove}
+                onPointerUp={handleMobileNavPointerEnd}
+              >
+                {selectedItems.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    active={isActivePath(pathname, item.href, currentHref)}
+                    variant="mobile"
+                  />
+                ))}
+              </nav>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-[var(--surface)] to-transparent"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--surface)] to-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {mobileMenuOpen ? (
+          <AppModal
+            className="max-w-xl"
+            describedBy={mobileMenuDescriptionId}
+            labelledBy={mobileMenuTitleId}
+            onClose={() => setMobileMenuOpen(false)}
+          >
+            <MobileNavigationMenuContent
+              currentHref={currentHref}
+              descriptionId={mobileMenuDescriptionId}
+              groups={groups}
+              onClose={() => setMobileMenuOpen(false)}
+              pathname={pathname}
+              titleId={mobileMenuTitleId}
             />
-          ))}
-        </nav>
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-6 border-t border-[#eef1f5] bg-gradient-to-r from-white to-white/0 dark:from-[#161b22] dark:to-[#161b22]/0"
-        />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-6 border-t border-[#eef1f5] bg-gradient-to-l from-white to-white/0 dark:from-[#161b22] dark:to-[#161b22]/0"
-        />
-      </div>
+          </AppModal>
+        ) : null}
+      </>
     );
   }
 
@@ -715,6 +749,7 @@ function TopbarExpirationAlertButton({
   const titleId = useId();
   const descriptionId = useId();
   const hasItems = alert.items.length > 0;
+  const isHeld = alert.items[0]?.isHeld === true;
   const className = [
     "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#7a5200] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f0d28a] sm:px-3",
     "hover:border-[#e8bc5f] hover:bg-[#fff3d0]",
@@ -725,11 +760,12 @@ function TopbarExpirationAlertButton({
         : "",
     alignEnd ? "ml-auto" : "",
   ].join(" ");
+  const heldLabel = isHeld ? " 보류" : "";
   const title = hasItems
-    ? `${alert.itemName} ${alert.ddayLabel}`
+    ? `${alert.itemName}${heldLabel} ${alert.ddayLabel}`
     : "유통기한 조치 필요 물품 없음";
   const ariaLabel = hasItems
-    ? `${alert.itemName} ${alert.ddayLabel} 유통기한 조치 필요 물품 목록 열기`
+    ? `${alert.itemName}${heldLabel} ${alert.ddayLabel} 유통기한 조치 필요 물품 목록 열기`
     : "유통기한 조치 필요 물품 목록 열기, 대상 없음";
 
   return (
@@ -746,6 +782,7 @@ function TopbarExpirationAlertButton({
         <span className="max-w-[8rem] truncate text-[#4a2f00]">
           {alert.itemName}
         </span>
+        {isHeld ? <CafeItemHoldBadge /> : null}
         {hasItems ? (
           <span className="rounded-sm bg-white/80 px-1.5 py-0.5 text-[#a13a3a]">
             {alert.ddayLabel}
@@ -1230,8 +1267,11 @@ export function TopbarDdayAlertModalContent({
                     ].join(" ")}
                   >
                     <span className="min-w-0">
-                      <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                        {item.itemName}
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="break-words text-sm font-semibold text-[#16181d] dark:!text-black [overflow-wrap:anywhere]">
+                          {item.itemName}
+                        </span>
+                        {item.isHeld ? <CafeItemHoldBadge /> : null}
                       </span>
                       <span className="mt-1 block text-xs text-[#697386]">
                         유통기한 {formatTopbarAlertDate(item.expirationDate)}
@@ -1632,8 +1672,11 @@ export function TopbarExpirationAlertModalContent({
                 ].join(" ")}
               >
                 <span className="min-w-0">
-                  <span className="block break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                    {item.itemName}
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+                      {item.itemName}
+                    </span>
+                    {item.isHeld ? <CafeItemHoldBadge /> : null}
                   </span>
                   <span className="mt-1 block text-xs text-[#697386]">
                     유통기한 {formatTopbarAlertDate(item.expirationDate)}
@@ -1658,6 +1701,193 @@ export function TopbarExpirationAlertModalContent({
           유통기한이 지난 항목 또는 31일 이내에 도래하는 물품이 없습니다.
         </p>
       )}
+    </div>
+  );
+}
+
+function CafeItemHoldBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-md border border-[#e6cf91] bg-[#fff4d8] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[#7a5200]">
+      보류
+    </span>
+  );
+}
+
+export function MobileMenuTrigger({
+  onClick,
+  open,
+}: {
+  onClick: () => void;
+  open: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      aria-label="전체 메뉴 열기"
+      onClick={onClick}
+      className={[
+        "inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-semibold transition",
+        open
+          ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand)]"
+          : "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]",
+      ].join(" ")}
+    >
+      <svg
+        aria-hidden="true"
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </svg>
+      <span>전체 메뉴</span>
+    </button>
+  );
+}
+
+export function MobileNavigationMenuContent({
+  currentHref,
+  descriptionId,
+  groups,
+  onClose,
+  pathname,
+  titleId,
+}: {
+  currentHref: string;
+  descriptionId: string;
+  groups: NavigationGroup[];
+  onClose: () => void;
+  pathname: string;
+  titleId: string;
+}) {
+  const activeGroup = getActiveGroup(groups, pathname, currentHref);
+
+  return (
+    <div className="flex max-h-[calc(100dvh-3rem)] min-h-0 flex-col">
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6 sm:py-5">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[var(--brand)]">전체 탐색</p>
+          <h2
+            id={titleId}
+            className="mt-1 text-xl font-semibold text-[var(--foreground)]"
+          >
+            전체 메뉴
+          </h2>
+          <p
+            id={descriptionId}
+            className="mt-1 text-sm leading-6 text-[var(--text-muted)]"
+          >
+            원하는 업무 영역과 화면을 한 번에 선택할 수 있습니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="전체 메뉴 닫기"
+          data-modal-initial-focus
+          onClick={onClose}
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] transition hover:bg-[var(--surface-hover)]"
+        >
+          <svg
+            aria-hidden="true"
+            className="size-5"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        <nav aria-label="전체 메뉴" className="space-y-3">
+          {groups.map((group, groupIndex) => {
+            const groupTitleId = `${titleId}-group-${groupIndex}`;
+            const groupActive = group.label === activeGroup?.label;
+
+            return (
+              <section
+                key={group.label}
+                aria-labelledby={groupTitleId}
+                className={[
+                  "rounded-xl border p-3",
+                  groupActive
+                    ? "border-[var(--brand)] bg-[var(--brand-soft)]"
+                    : "border-[var(--border)] bg-[var(--surface-muted)]",
+                ].join(" ")}
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3 px-1">
+                  <h3
+                    id={groupTitleId}
+                    className="text-sm font-semibold text-[var(--foreground)]"
+                  >
+                    {group.label}
+                  </h3>
+                  {groupActive ? (
+                    <span className="shrink-0 rounded-full bg-[var(--surface)] px-2 py-1 text-[11px] font-semibold text-[var(--brand)]">
+                      현재 영역
+                    </span>
+                  ) : null}
+                </div>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {group.items.map((item) => {
+                    const active = isActivePath(
+                      pathname,
+                      item.href,
+                      currentHref,
+                    );
+
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          onClick={onClose}
+                          className={[
+                            "flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition",
+                            active
+                              ? "border-[var(--brand)] bg-[var(--brand)] text-white shadow-sm"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
+                          ].join(" ")}
+                        >
+                          <span className="min-w-0 break-words">
+                            {item.label}
+                          </span>
+                          {active ? (
+                            <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
+                              현재
+                            </span>
+                          ) : (
+                            <svg
+                              aria-hidden="true"
+                              className="size-4 shrink-0 text-[var(--text-muted)]"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="m9 18 6-6-6-6" />
+                            </svg>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }
@@ -1705,7 +1935,7 @@ function NavLink({
 }) {
   const base =
     variant === "mobile"
-      ? "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition sm:px-3"
+      ? "relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition sm:px-3"
       : "relative flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-sm font-medium transition";
   const activeClass =
     variant === "mobile"

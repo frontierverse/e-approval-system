@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApprovalDecisionForm } from "@/components/approval-decision-form";
@@ -44,6 +45,10 @@ import {
   rejectProxyApprovalAction,
   submitDocumentAction,
 } from "./actions";
+
+export const metadata: Metadata = {
+  title: "문서 상세",
+};
 
 export default async function DocumentDetailPage({
   params,
@@ -219,7 +224,7 @@ export default async function DocumentDetailPage({
         </p>
       ) : null}
 
-      <section className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="space-y-6">
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] pb-4">
@@ -460,7 +465,7 @@ export default async function DocumentDetailPage({
           <DocumentAuditHistory histories={document.histories} />
         </div>
 
-        <aside className="space-y-6">
+        <aside className="scrollbar-stable self-start space-y-6 xl:sticky xl:top-0 xl:max-h-[calc(100vh-10.25rem)] xl:overflow-y-auto">
           {canDecide ? (
             <ApprovalDecisionForm
               action={decideDocumentAction.bind(null, document.id)}

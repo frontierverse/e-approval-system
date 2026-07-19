@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DraftForm } from "@/components/draft-form";
 import { PageTitle } from "@/components/page-title";
@@ -8,16 +9,18 @@ import {
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import { requireUser } from "@/lib/auth";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
+import { APPROVAL_AUTHORITY_POSITION_NAME } from "@/lib/approval-authority";
+
+export const metadata: Metadata = {
+  title: "기안작성",
+};
 
 export const dynamic = "force-dynamic";
 
 export default function NewDraftPage() {
   return (
     <>
-      <PageTitle
-        title="기안작성"
-        description="문서 양식을 선택하고 결재 문서를 작성합니다."
-      />
+      <PageTitle title="기안작성" compact />
 
       <Suspense fallback={<RouteContentSkeleton variant="draft" />}>
         <DraftFormContent />
@@ -30,7 +33,9 @@ async function DraftFormContent() {
   const user = await requireUser();
   const [templates, approverCandidates, attachmentPolicy] = await Promise.all([
     getActiveDocumentTemplates(),
-    getApprovalCandidateUsers(user.id),
+    getApprovalCandidateUsers(user.id, {
+      positionName: APPROVAL_AUTHORITY_POSITION_NAME,
+    }),
     getAttachmentPolicy(),
   ]);
 
@@ -43,6 +48,7 @@ async function DraftFormContent() {
         schema: template.schema,
       }))}
       attachmentPolicy={attachmentPolicy}
+      allowedApproverPositionName={APPROVAL_AUTHORITY_POSITION_NAME}
       approverCandidates={approverCandidates.map((candidate) => ({
         id: candidate.id,
         name: candidate.name,
@@ -54,6 +60,9 @@ async function DraftFormContent() {
         profileImageUpdatedAt:
           candidate.profileImageUpdatedAt?.toISOString() ?? null,
       }))}
+      defaultApproverIds={
+        approverCandidates.length === 1 ? [approverCandidates[0].id] : []
+      }
     />
   );
 }

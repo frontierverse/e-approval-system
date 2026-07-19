@@ -46,6 +46,7 @@ const roster = {
           phone: "010-3333-4444",
         },
       ],
+      updatedAt: "2026-06-21T12:45:00.000Z",
     },
   ],
   dischargedYouths: [
@@ -62,6 +63,7 @@ const roster = {
       phone: null,
       decisionDocuments: [],
       familyContacts: [],
+      updatedAt: "2026-05-01T03:20:00.000Z",
     },
   ],
 } satisfies YouthRosterData;
@@ -94,7 +96,7 @@ const changeLogFilters: YouthRosterChangeLogFilters = {
 
 const rosterActions = {
   createYouth: async (values: YouthCreateInput) => ({
-    ok: true,
+    ok: true as const,
     data: {
       youth: {
         id: "created-youth",
@@ -111,11 +113,12 @@ const rosterActions = {
         })),
         decisionDocuments: [],
         notes: [],
+        updatedAt: "2026-06-22T01:00:00.000Z",
       },
     },
   }),
   updateYouth: async (_youthId: string, values: YouthUpdateInput) => ({
-    ok: true,
+    ok: true as const,
     data: {
       youth: {
         id: _youthId,
@@ -132,19 +135,21 @@ const rosterActions = {
         })),
         decisionDocuments: [],
         notes: [],
+        updatedAt: "2026-06-22T02:00:00.000Z",
       },
     },
   }),
   deleteYouth: async (youthId: string) => ({
-    ok: true,
+    ok: true as const,
     data: {
       youthId,
     },
   }),
   deleteDecisionDocument: async (documentId: string) => ({
-    ok: true,
+    ok: true as const,
     data: {
       documentId,
+      updatedAt: "2026-06-22T03:00:00.000Z",
       youthId: "youth-admitted-001",
     },
   }),
@@ -164,14 +169,31 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /2026\. 06\. 22\./);
     assert.match(html, /입소중인 청소년 목록/);
     assert.match(html, /퇴소 청소년 목록/);
+    assert.match(html, /aria-label="청소년 이름 검색"/);
+    assert.match(html, /placeholder="청소년 이름을 입력하세요"/);
+    assert.match(html, />전체 2명</);
+    assert.match(html, />31일 내 퇴소</);
+    assert.match(html, />D-23</);
     assert.match(html, />청소년 추가</);
     assert.match(html, /김하늘/);
     assert.match(html, /김하늘 정보 수정/);
-    assert.match(html, /role="button"/);
-    assert.match(html, /group cursor-pointer transition hover:bg-\[#f7fbfb\]/);
+    assert.match(
+      html,
+      /aria-label="김하늘 정보 수정"[^>]*class="group grid size-11/,
+    );
+    assert.match(
+      html,
+      /aria-hidden="true" class="grid size-8 place-items-center/,
+    );
+    assert.doesNotMatch(html, /<tr[^>]*role="button"/);
+    assert.match(html, /group transition hover:bg-\[var\(--surface-hover\)\]/);
+    assert.match(html, /xl:hidden/);
+    assert.match(html, /aria-label="입소중인 청소년 목록 표"/);
     assert.match(html, /만 17세\(18세\)/);
     assert.match(html, /고2/);
     assert.match(html, /입소중/);
+    assert.match(html, /마지막 업데이트/);
+    assert.match(html, /2026\. 06\. 21\./);
     assert.doesNotMatch(html, /010-1111-2222/);
     assert.match(html, /어머니/);
     assert.doesNotMatch(html, /010-3333-4444/);
@@ -184,7 +206,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /aria-label="입소 날짜 내림차순 정렬"/);
     assert.match(html, /aria-label="퇴소 예정 오름차순 정렬"/);
     assert.match(html, /aria-sort="ascending"/);
-    assert.equal((html.match(/aria-haspopup="dialog"/g) ?? []).length, 3);
+    assert.equal((html.match(/aria-haspopup="dialog"/g) ?? []).length, 5);
     assert.doesNotMatch(html, /name="name"/);
     assert.doesNotMatch(html, />저장</);
     assert.match(html, /결정문/);
@@ -211,6 +233,22 @@ describe("YouthRosterBoard", () => {
 
     assert.match(html, /입소중인 청소년이 없습니다/);
     assert.match(html, /퇴소 청소년이 없습니다/);
+  });
+
+  test("keeps the page add action in the roster header", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRosterBoard, {
+        ...rosterActions,
+        data: roster,
+        pageHeader: true,
+      }),
+    );
+
+    assert.match(html, /청소년 명단/);
+    assert.match(html, /기준일 2026\. 06\. 22\./);
+    assert.match(html, /mb-3 flex min-w-0 items-start justify-between/);
+    assert.match(html, />청소년 추가</);
+    assert.doesNotMatch(html, /class="flex justify-end"/);
   });
 
   test("renders roster change logs with pagination links", () => {
@@ -240,6 +278,7 @@ describe("YouthRosterBoard", () => {
           youth: roster.admittedYouths[0],
         },
         onClose: () => {},
+        onDecisionDocumentDownload: () => {},
         onDeleted: () => {},
         onSaved: () => {},
       }),
@@ -283,6 +322,7 @@ describe("YouthRosterBoard", () => {
           youth: roster.dischargedYouths[0],
         },
         onClose: () => {},
+        onDecisionDocumentDownload: () => {},
         onDeleted: () => {},
         onSaved: () => {},
       }),
@@ -307,6 +347,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /입소중인 청소년 목록/);
     assert.match(html, /퇴소 청소년 목록/);
     assert.match(html, /animate-pulse/);
-    assert.match(html, /dark:bg-\[#2a3038\]/);
+    assert.match(html, /motion-reduce:animate-none/);
+    assert.match(html, /h-16 w-full sm:h-\[4\.75rem\]/);
   });
 });

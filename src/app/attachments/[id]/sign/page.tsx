@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AttachmentSignaturePlacement } from "@/components/attachment-signature-placement";
@@ -15,6 +16,10 @@ import {
   DocumentStatus,
 } from "@/generated/prisma/client";
 import { createSignedAttachmentAction } from "./actions";
+
+export const metadata: Metadata = {
+  title: "첨부파일 도장 찍기",
+};
 
 export default async function AttachmentSignPage({
   params,

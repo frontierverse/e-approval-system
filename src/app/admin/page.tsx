@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AdminAttachmentPolicyManagement } from "@/components/admin-attachment-policy-management";
@@ -29,6 +30,10 @@ import {
   getAdminAuditLogPageAction,
   getAdminLoginHistoryPageAction,
 } from "@/app/admin/actions";
+
+export const metadata: Metadata = {
+  title: "관리 설정",
+};
 
 type SearchParamValue = string | string[] | undefined;
 

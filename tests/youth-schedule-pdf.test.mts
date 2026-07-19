@@ -49,6 +49,7 @@ const youths: YouthProfile[] = Array.from({ length: 5 }, (_, index) => ({
   decisionDocuments: [],
   familyContacts: [],
   notes: [],
+  updatedAt: "2026-06-21T12:45:00.000Z",
 }));
 
 const learningSchedules: YouthLearningSchedule[] = [

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageTitle } from "@/components/page-title";
 import { YouthSubjectProgressBoard } from "@/components/youth-subject-progress-board";
 import { requireUser } from "@/lib/auth";
@@ -6,6 +7,10 @@ import {
   getYouthStudyConceptChecks,
   getYouthStudyConcepts,
 } from "@/lib/youth-subject-progress";
+
+export const metadata: Metadata = {
+  title: "학습진도",
+};
 
 export default async function YouthLearningProgressPage() {
   await requireUser();

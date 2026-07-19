@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
@@ -14,6 +15,10 @@ import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatDateTime } from "@/lib/mock-data";
 import { getResourcePostById } from "@/lib/resource-library";
+
+export const metadata: Metadata = {
+  title: "자료 상세",
+};
 
 export default async function ResourceDetailPage({
   params,

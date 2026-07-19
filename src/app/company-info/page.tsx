@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { CompanyInfoBoard } from "@/components/company-info-board";
 import { PageTitle } from "@/components/page-title";
 import { getCompanyInfo } from "@/lib/company-info";
+
+export const metadata: Metadata = {
+  title: "회사 정보",
+};
 
 export default async function CompanyInfoPage() {
   const companyInfo = await getCompanyInfo();

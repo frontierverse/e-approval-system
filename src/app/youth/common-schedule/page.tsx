@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { YouthCommonScheduleBoard } from "@/components/youth-common-schedule-board";
+import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import {
   getYouthCommonScheduleChangeLogActors,
@@ -14,6 +16,10 @@ import {
   getYouthCommonScheduleChangeLogsAction,
   saveYouthCommonScheduleAction,
 } from "@/app/youth/common-schedule/actions";
+
+export const metadata: Metadata = {
+  title: "공통 일정표",
+};
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -45,22 +51,29 @@ export default async function YouthCommonSchedulePage({
   });
 
   return (
-    <YouthCommonScheduleBoard
-      changeLogActors={changeLogActors}
-      changeLogFilters={{
-        actorId: changeLogResult.actorId,
-        page: changeLogResult.page,
-        pageSize: changeLogResult.pageSize,
-        total: changeLogResult.total,
-        totalPages: changeLogResult.totalPages,
-        weekday: changeLogResult.weekday,
-      }}
-      changeLogs={changeLogResult.logs}
-      deleteSchedule={deleteYouthCommonScheduleAction}
-      loadChangeLogs={getYouthCommonScheduleChangeLogsAction}
-      saveSchedule={saveYouthCommonScheduleAction}
-      schedules={schedules}
-    />
+    <>
+      <PageTitle
+        title="공통 일정표"
+        description="청소년 공통 일정을 요일과 시간대별로 관리합니다."
+      />
+      <YouthCommonScheduleBoard
+        changeLogActors={changeLogActors}
+        changeLogFilters={{
+          actorId: changeLogResult.actorId,
+          page: changeLogResult.page,
+          pageSize: changeLogResult.pageSize,
+          total: changeLogResult.total,
+          totalPages: changeLogResult.totalPages,
+          weekday: changeLogResult.weekday,
+        }}
+        changeLogs={changeLogResult.logs}
+        deleteSchedule={deleteYouthCommonScheduleAction}
+        labels={{ scheduleTitle: "주간 시간표" }}
+        loadChangeLogs={getYouthCommonScheduleChangeLogsAction}
+        saveSchedule={saveYouthCommonScheduleAction}
+        schedules={schedules}
+      />
+    </>
   );
 }
 

@@ -9,12 +9,11 @@ import {
   useTransition,
   type ChangeEvent,
   type FormEvent,
-  type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
 } from "react";
 import { AppModal } from "@/components/app-modal";
-import { EmptyState } from "@/components/empty-state";
+import { PageTitle } from "@/components/page-title";
 import { SplitDateInput } from "@/components/split-date-input";
 import { UserIdentity } from "@/components/user-identity";
 import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
@@ -39,6 +38,11 @@ import {
   type YouthProfile,
   type YouthUpdateInput,
 } from "@/lib/youth-management-core";
+import {
+  createYouthDischargeAlertItems,
+  getUpcomingYouthDischarge,
+  youthDischargeAlertWindowDays,
+} from "@/lib/youth-discharge-alerts-core";
 import type {
   YouthRosterChangeLog,
   YouthRosterChangeLogFilters,
@@ -59,7 +63,13 @@ type YouthRosterBoardProps = {
   ) => Promise<YouthActionResult<{ youthId: string }>>;
   deleteDecisionDocument: (
     documentId: string,
-  ) => Promise<YouthActionResult<{ documentId: string; youthId: string }>>;
+  ) => Promise<
+    YouthActionResult<{
+      documentId: string;
+      updatedAt: string;
+      youthId: string;
+    }>
+  >;
   extendYouthDischarge?: (
     youthId: string,
     values: YouthDischargeExtensionInput,
@@ -68,12 +78,14 @@ type YouthRosterBoardProps = {
       dischargeDate: string;
       extension: YouthDischargeExtension;
       initialDischargeDate: string;
+      updatedAt: string;
       youthId: string;
     }>
   >;
   loadChangeLogs?: (
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
+  pageHeader?: boolean;
   recordYouthContactView?: (
     youthId: string,
   ) => Promise<
@@ -93,15 +105,18 @@ type YouthRosterBoardProps = {
 type YouthRosterModalState =
   | {
       mode: "create";
+      returnFocusTo?: HTMLElement;
     }
   | {
       mode: "edit";
       canDelete: boolean;
+      returnFocusTo?: HTMLElement;
       youth: YouthRosterItem;
     };
 
 type DecisionDocumentDownloadModalState = {
   document: YouthDecisionDocumentItem;
+  returnFocusTo?: HTMLElement;
   youthName: string;
 };
 
@@ -145,6 +160,7 @@ export function YouthRosterBoard({
   deleteDecisionDocument,
   extendYouthDischarge,
   loadChangeLogs,
+  pageHeader = false,
   recordYouthContactView,
   recordYouthDetailView,
   updateYouth,
@@ -157,6 +173,7 @@ export function YouthRosterBoard({
     direction: "asc",
     field: "admissionDate",
   });
+  const [searchQuery, setSearchQuery] = useState("");
   const [modal, setModal] = useState<YouthRosterModalState | null>(null);
   const [decisionDocumentDownload, setDecisionDocumentDownload] =
     useState<DecisionDocumentDownloadModalState | null>(null);
@@ -173,6 +190,19 @@ export function YouthRosterBoard({
         .sort(compareDischargedYouth),
     }),
     [admittedSort, data.referenceDate, youths],
+  );
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase("ko-KR");
+  const filteredRosterData = useMemo(
+    () => ({
+      referenceDate: rosterData.referenceDate,
+      admittedYouths: rosterData.admittedYouths.filter((youth) =>
+        matchesYouthSearch(youth, normalizedSearchQuery),
+      ),
+      dischargedYouths: rosterData.dischargedYouths.filter((youth) =>
+        matchesYouthSearch(youth, normalizedSearchQuery),
+      ),
+    }),
+    [normalizedSearchQuery, rosterData],
   );
   const [changeLogState, setChangeLogState] = useState(() => ({
     filters: changeLogFilters ?? createDefaultChangeLogFilters(changeLogs.length),
@@ -277,89 +307,172 @@ export function YouthRosterBoard({
   }
 
   return (
-    <section className="space-y-6" aria-label="청소년 명단">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          aria-haspopup="dialog"
-          onClick={() => setModal({ mode: "create" })}
-          className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-        >
-          청소년 추가
-        </button>
-      </div>
-      <RosterSummary data={rosterData} />
-      <YouthRosterSection
-        emptyDescription="입소 상태의 청소년이 등록되면 이곳에 표시됩니다."
-        emptyTitle="입소중인 청소년이 없습니다."
-        onEdit={(youth) => setModal({ mode: "edit", canDelete: true, youth })}
-        onDecisionDocumentDownload={(youthName, document) =>
-          setDecisionDocumentDownload({ document, youthName })
-        }
-        onSort={sortAdmittedYouths}
-        referenceDate={rosterData.referenceDate}
-        sortState={admittedSort}
-        title="입소중인 청소년 목록"
-        youths={rosterData.admittedYouths}
-        variant="admitted"
-      />
-      <YouthRosterSection
-        emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
-        emptyTitle="퇴소 청소년이 없습니다."
-        onEdit={(youth) => setModal({ mode: "edit", canDelete: false, youth })}
-        onDecisionDocumentDownload={(youthName, document) =>
-          setDecisionDocumentDownload({ document, youthName })
-        }
-        referenceDate={rosterData.referenceDate}
-        title="퇴소 청소년 목록"
-        youths={rosterData.dischargedYouths}
-        variant="discharged"
-      />
-      <YouthRosterChangeLogSection
-        error={changeLogError}
-        filters={changeLogState.filters}
-        isPending={isChangeLogPending}
-        logs={changeLogState.logs}
-        onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
-        pendingPage={pendingChangeLogPage}
-      />
-      {modal ? (
-        <YouthRosterFormModal
-          createYouth={createYouth}
-          deleteYouth={deleteYouth}
-          deleteDecisionDocument={deleteDecisionDocument}
-          extendYouthDischarge={extendYouthDischarge}
-          modal={modal}
-          onClose={() => setModal(null)}
-          onDecisionDocumentDownload={(youthName, document) =>
-            setDecisionDocumentDownload({ document, youthName })
+    <>
+      {pageHeader ? (
+        <PageTitle
+          title="청소년 명단"
+          description={`기준일 ${formatDate(rosterData.referenceDate)}`}
+          action={
+            <AddYouthButton
+              onClick={(returnFocusTo) =>
+                setModal({ mode: "create", returnFocusTo })
+              }
+            />
           }
-          onDeleted={removeYouthFromRoster}
-          onSaved={saveYouthInRoster}
-          recordYouthContactView={recordYouthContactView}
-          recordYouthDetailView={recordYouthDetailView}
-          updateYouth={updateYouth}
+          compact
         />
       ) : null}
-      {decisionDocumentDownload ? (
-        <DecisionDocumentDownloadModal
-          document={decisionDocumentDownload.document}
-          onClose={() => setDecisionDocumentDownload(null)}
-          youthName={decisionDocumentDownload.youthName}
+      <section
+        className={`${pageHeader ? "-mt-1" : ""} space-y-2 sm:space-y-4`}
+        aria-label="청소년 명단"
+      >
+        {pageHeader ? null : (
+          <div className="flex justify-end">
+            <AddYouthButton
+              onClick={(returnFocusTo) =>
+                setModal({ mode: "create", returnFocusTo })
+              }
+            />
+          </div>
+        )}
+        <RosterSummary data={rosterData} />
+        <RosterSearch
+          query={searchQuery}
+          resultCount={
+            filteredRosterData.admittedYouths.length +
+            filteredRosterData.dischargedYouths.length
+          }
+          totalCount={
+            rosterData.admittedYouths.length + rosterData.dischargedYouths.length
+          }
+          onChange={setSearchQuery}
+          onClear={() => setSearchQuery("")}
         />
-      ) : null}
-    </section>
+        <YouthRosterSection
+          emptyDescription="입소 상태의 청소년이 등록되면 이곳에 표시됩니다."
+          emptyTitle="입소중인 청소년이 없습니다."
+          onEdit={(youth, returnFocusTo) =>
+            setModal({ mode: "edit", canDelete: true, returnFocusTo, youth })
+          }
+          onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
+            setDecisionDocumentDownload({
+              document,
+              returnFocusTo,
+              youthName,
+            })
+          }
+          onSort={sortAdmittedYouths}
+          isFiltered={normalizedSearchQuery.length > 0}
+          onClearSearch={() => setSearchQuery("")}
+          referenceDate={filteredRosterData.referenceDate}
+          sortState={admittedSort}
+          title="입소중인 청소년 목록"
+          totalCount={rosterData.admittedYouths.length}
+          youths={filteredRosterData.admittedYouths}
+          variant="admitted"
+        />
+        <YouthRosterSection
+          emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
+          emptyTitle="퇴소 청소년이 없습니다."
+          onEdit={(youth, returnFocusTo) =>
+            setModal({ mode: "edit", canDelete: false, returnFocusTo, youth })
+          }
+          onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
+            setDecisionDocumentDownload({
+              document,
+              returnFocusTo,
+              youthName,
+            })
+          }
+          isFiltered={normalizedSearchQuery.length > 0}
+          onClearSearch={() => setSearchQuery("")}
+          referenceDate={filteredRosterData.referenceDate}
+          title="퇴소 청소년 목록"
+          totalCount={rosterData.dischargedYouths.length}
+          youths={filteredRosterData.dischargedYouths}
+          variant="discharged"
+        />
+        <YouthRosterChangeLogSection
+          error={changeLogError}
+          filters={changeLogState.filters}
+          isPending={isChangeLogPending}
+          logs={changeLogState.logs}
+          onPageChange={loadChangeLogs ? loadChangeLogPage : undefined}
+          pendingPage={pendingChangeLogPage}
+        />
+        {modal ? (
+          <YouthRosterFormModal
+            createYouth={createYouth}
+            deleteYouth={deleteYouth}
+            deleteDecisionDocument={deleteDecisionDocument}
+            extendYouthDischarge={extendYouthDischarge}
+            modal={modal}
+            onClose={() => setModal(null)}
+            onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
+              setDecisionDocumentDownload({
+                document,
+                returnFocusTo,
+                youthName,
+              })
+            }
+            onDeleted={removeYouthFromRoster}
+            onSaved={saveYouthInRoster}
+            recordYouthContactView={recordYouthContactView}
+            recordYouthDetailView={recordYouthDetailView}
+            updateYouth={updateYouth}
+          />
+        ) : null}
+        {decisionDocumentDownload ? (
+          <DecisionDocumentDownloadModal
+            document={decisionDocumentDownload.document}
+            onClose={() => setDecisionDocumentDownload(null)}
+            returnFocusTo={decisionDocumentDownload.returnFocusTo}
+            youthName={decisionDocumentDownload.youthName}
+          />
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+function AddYouthButton({
+  onClick,
+}: {
+  onClick: (returnFocusTo: HTMLButtonElement) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true });
+        onClick(event.currentTarget);
+      }}
+      className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md bg-[var(--brand)] px-3.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+    >
+      <span aria-hidden="true" className="text-lg leading-none">
+        +
+      </span>
+      청소년 추가
+    </button>
   );
 }
 
 export function YouthRosterSkeleton() {
   return (
-    <section className="space-y-6" aria-label="청소년 명단 불러오는 중">
-      <section className="grid gap-3 sm:grid-cols-3">
-        <SkeletonBlock className="h-24 w-full" />
-        <SkeletonBlock className="h-24 w-full" />
-        <SkeletonBlock className="h-24 w-full" />
+    <section
+      className="space-y-2 sm:space-y-4"
+      aria-label="청소년 명단 불러오는 중"
+    >
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <SkeletonBlock
+            key={index}
+            className="h-16 w-full sm:h-[4.75rem]"
+          />
+        ))}
       </section>
+      <SkeletonBlock className="h-14 w-full" />
       <SkeletonPanel title="입소중인 청소년 목록" />
       <SkeletonPanel title="퇴소 청소년 목록" />
     </section>
@@ -367,35 +480,146 @@ export function YouthRosterSkeleton() {
 }
 
 function RosterSummary({ data }: { data: YouthRosterData }) {
+  const upcomingDischargeCount = createYouthDischargeAlertItems(
+    data.admittedYouths,
+    data.referenceDate,
+  ).length;
   const items = [
     {
-      label: "기준일",
-      value: formatDate(data.referenceDate),
+      label: "전체",
+      value: `${data.admittedYouths.length + data.dischargedYouths.length}명`,
     },
     {
       label: "입소중",
       value: `${data.admittedYouths.length}명`,
     },
     {
-      label: "퇴소",
+      label: `${youthDischargeAlertWindowDays}일 내 퇴소`,
+      value: `${upcomingDischargeCount}명`,
+      urgent: upcomingDischargeCount > 0,
+    },
+    {
+      label: "퇴소 이력",
       value: `${data.dischargedYouths.length}명`,
     },
   ];
 
   return (
-    <section className="grid gap-3 sm:grid-cols-3" aria-label="청소년 명단 요약">
+    <section
+      className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4"
+      aria-label={`청소년 명단 요약, 기준일 ${formatDate(data.referenceDate)}`}
+    >
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-md border border-[#d9dee7] bg-white px-4 py-4"
+          className={[
+            "min-h-16 rounded-md border bg-[var(--surface)] px-3 py-2 sm:min-h-[4.75rem] sm:px-4 sm:py-3",
+            item.urgent
+              ? "border-[#e59b93] bg-[#fff7f6] dark:border-[#8f4a45] dark:bg-[#2a1818]"
+              : "border-[var(--border)]",
+          ].join(" ")}
         >
-          <p className="text-xs font-semibold text-[#697386]">{item.label}</p>
-          <p className="mt-2 break-words text-xl font-semibold text-[#16181d] [overflow-wrap:anywhere]">
+          <p className="text-xs font-semibold text-[var(--text-muted)]">
+            {item.label}
+          </p>
+          <p
+            className={[
+              "mt-1 break-words text-lg font-semibold tabular-nums [overflow-wrap:anywhere]",
+              item.urgent ? "text-[var(--danger)]" : "text-[var(--foreground)]",
+            ].join(" ")}
+          >
             {item.value}
           </p>
         </div>
       ))}
     </section>
+  );
+}
+
+function RosterSearch({
+  onChange,
+  onClear,
+  query,
+  resultCount,
+  totalCount,
+}: {
+  onChange: (value: string) => void;
+  onClear: () => void;
+  query: string;
+  resultCount: number;
+  totalCount: number;
+}) {
+  const hasQuery = query.trim().length > 0;
+
+  return (
+    <search
+      aria-label="청소년 이름 검색"
+      className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 sm:justify-between"
+    >
+      <label className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="shrink-0 px-1 text-sm font-semibold text-[var(--foreground)]">
+          <span className="block">이름 검색</span>
+          <span
+            aria-hidden="true"
+            className="mt-0.5 block text-xs font-normal tabular-nums text-[var(--text-muted)] sm:hidden"
+          >
+            {hasQuery ? `${resultCount}/${totalCount}명` : `${totalCount}명`}
+          </span>
+        </span>
+        <span className="relative min-w-0 flex-1 sm:max-w-sm">
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="search"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="청소년 이름을 입력하세요"
+            className="h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface-muted)] pl-9 pr-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+          />
+        </span>
+      </label>
+      <p className="sr-only sm:hidden" aria-live="polite">
+        {hasQuery ? `${totalCount}명 중 ${resultCount}명` : `전체 ${totalCount}명`}
+      </p>
+      <div className="hidden min-h-11 items-center justify-end gap-2 px-1 sm:flex">
+        <p
+          className="text-sm tabular-nums text-[var(--text-muted)]"
+          aria-live="polite"
+        >
+          {hasQuery ? `${totalCount}명 중 ${resultCount}명` : `전체 ${totalCount}명`}
+        </p>
+        {hasQuery ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex h-11 items-center justify-center rounded-md px-3 text-sm font-semibold text-[var(--brand)] transition hover:bg-[var(--brand-soft)]"
+          >
+            초기화
+          </button>
+        ) : null}
+      </div>
+      {hasQuery ? (
+        <button
+          type="button"
+          aria-label="검색 초기화"
+          onClick={onClear}
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-md px-2.5 text-sm font-semibold text-[var(--brand)] transition hover:bg-[var(--brand-soft)] sm:hidden"
+        >
+          초기화
+        </button>
+      ) : null}
+    </search>
   );
 }
 
@@ -417,11 +641,11 @@ function YouthRosterChangeLogSection({
   return (
     <section
       aria-label="청소년 명단 변경기록"
-      className="rounded-md border border-[#d9dee7] bg-white"
+      className="rounded-md border border-[var(--border)] bg-[var(--surface)]"
     >
-      <header className="border-b border-[#eef1f5] px-4 py-4">
+      <header className="border-b border-[var(--border)] px-4 py-3">
         <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-base font-semibold text-[#16181d]">
+          <h2 className="text-base font-semibold text-[var(--foreground)]">
             변경기록
           </h2>
           <YouthRosterChangeLogListSummary filters={filters} />
@@ -437,19 +661,19 @@ function YouthRosterChangeLogSection({
       {logs.length > 0 ? (
         <ol
           className={[
-            "divide-y divide-[#eef1f5]",
+            "divide-y divide-[var(--border)]",
             isPending ? "opacity-60" : "",
           ].join(" ")}
         >
           {logs.map((log) => (
             <li
               key={log.id}
-              className="grid gap-3 px-4 py-4 lg:grid-cols-[12rem_minmax(0,1fr)]"
+              className="grid gap-3 px-4 py-3 lg:grid-cols-[12rem_minmax(0,1fr)]"
             >
               <div className="min-w-0">
                 <time
                   dateTime={log.createdAt}
-                  className="text-sm font-semibold text-[#394150]"
+                  className="text-sm font-semibold tabular-nums text-[var(--foreground)]"
                 >
                   {formatDateTime(log.createdAt)}
                 </time>
@@ -458,7 +682,7 @@ function YouthRosterChangeLogSection({
                   size="xs"
                   meta={log.actor.email ?? "이메일 미등록"}
                   className="mt-2"
-                  nameClassName="text-[#394150]"
+                  nameClassName="text-[var(--foreground)]"
                 />
               </div>
               <div className="min-w-0">
@@ -471,11 +695,11 @@ function YouthRosterChangeLogSection({
                   >
                     {getAuditActionLabel(log.action)}
                   </span>
-                  <span className="inline-flex h-7 items-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-2.5 text-xs font-semibold text-[#394150]">
+                  <span className="inline-flex h-7 items-center rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 text-xs font-semibold text-[var(--foreground)]">
                     {getYouthRosterChangeLogTargetLabel(log)}
                   </span>
                 </div>
-                <p className="whitespace-pre-line break-words text-sm font-semibold leading-6 text-[#16181d] [overflow-wrap:anywhere]">
+                <p className="whitespace-pre-line break-words text-sm font-semibold leading-6 text-[var(--foreground)] [overflow-wrap:anywhere]">
                   {log.message ?? "청소년 명단 변경기록을 기록했습니다."}
                 </p>
               </div>
@@ -483,7 +707,7 @@ function YouthRosterChangeLogSection({
           ))}
         </ol>
       ) : (
-        <p className="m-4 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm text-[#697386]">
+        <p className="m-4 rounded-md border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-4 py-5 text-sm text-[var(--text-muted)]">
           표시할 변경기록이 없습니다.
         </p>
       )}
@@ -505,7 +729,7 @@ function YouthRosterChangeLogListSummary({
 }) {
   if (filters.total === 0) {
     return (
-      <p className="text-sm text-[#697386]">
+      <p className="text-sm text-[var(--text-muted)]">
         표시할 변경기록이 없습니다.
       </p>
     );
@@ -515,7 +739,7 @@ function YouthRosterChangeLogListSummary({
   const lastItem = Math.min(filters.page * filters.pageSize, filters.total);
 
   return (
-    <p className="text-sm text-[#697386]">
+    <p className="text-sm tabular-nums text-[var(--text-muted)]">
       총 {filters.total}건 중 {firstItem}-{lastItem}건 표시
     </p>
   );
@@ -539,9 +763,9 @@ function YouthRosterChangeLogPagination({
   return (
     <nav
       aria-label="청소년 명단 변경기록 페이지"
-      className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1f5] px-4 py-3"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-3"
     >
-      <p className="text-sm text-[#697386]">
+      <p className="text-sm tabular-nums text-[var(--text-muted)]">
         {filters.page} / {filters.totalPages} 페이지
       </p>
       <div className="flex gap-2">
@@ -585,7 +809,7 @@ function YouthRosterChangeLogPaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+      <span className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-4 text-sm font-semibold text-[var(--text-muted)] opacity-60">
         {children}
       </span>
     );
@@ -603,7 +827,7 @@ function YouthRosterChangeLogPaginationLink({
         event.preventDefault();
         onPageChange(page);
       }}
-      className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
     >
       {children}
     </a>
@@ -654,186 +878,404 @@ function getYouthRosterChangeLogTargetLabel(log: YouthRosterChangeLog) {
 function YouthRosterSection({
   emptyDescription,
   emptyTitle,
+  isFiltered,
+  onClearSearch,
   onEdit,
   onDecisionDocumentDownload,
   onSort,
   referenceDate,
   sortState,
   title,
+  totalCount,
   youths,
   variant,
 }: {
   emptyDescription: string;
   emptyTitle: string;
-  onEdit: (youth: YouthRosterItem) => void;
+  isFiltered: boolean;
+  onClearSearch: () => void;
+  onEdit: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
   onDecisionDocumentDownload: (
     youthName: string,
     document: YouthDecisionDocumentItem,
+    returnFocusTo?: HTMLElement,
   ) => void;
   onSort?: (field: YouthRosterSortField) => void;
   referenceDate: string;
   sortState?: YouthRosterSortState;
   title: string;
+  totalCount: number;
   youths: YouthRosterItem[];
   variant: "admitted" | "discharged";
 }) {
   const canSort = variant === "admitted" && onSort && sortState;
-  const rowsOpenEditor = variant === "admitted";
 
   return (
     <section
       aria-labelledby={`${variant}-youth-roster-title`}
-      className="rounded-md border border-[#d9dee7] bg-white"
+      className="rounded-md border border-[var(--border)] bg-[var(--surface)]"
     >
       <SectionHeader
         id={`${variant}-youth-roster-title`}
         title={title}
-        description={`${youths.length}명`}
+        description={
+          isFiltered
+            ? `검색 ${youths.length}명 / 전체 ${totalCount}명`
+            : `${youths.length}명`
+        }
       />
       {youths.length > 0 ? (
-        <div className="overflow-x-auto border-t border-[#eef1f5]">
-          <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
-            <thead className="bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
-              <tr className="border-b border-[#d9dee7]">
-                <th scope="col" className="px-4 py-3">
-                  이름
-                </th>
-                {canSort ? (
-                  <>
-                    <SortableRosterHeader
-                      field="age"
-                      label="나이"
-                      onSort={onSort}
-                      sortState={sortState}
-                    />
-                    <th scope="col" className="px-4 py-3">
-                      학년
-                    </th>
-                    <SortableRosterHeader
-                      field="admissionDate"
-                      label="입소 날짜"
-                      onSort={onSort}
-                      sortState={sortState}
-                    />
-                    <SortableRosterHeader
-                      field="dischargeDate"
-                      label="퇴소 예정"
-                      onSort={onSort}
-                      sortState={sortState}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <th scope="col" className="px-4 py-3">
-                      나이
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      학년
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      입소 날짜
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      {variant === "admitted" ? "퇴소 예정" : "퇴소 날짜"}
-                    </th>
-                  </>
-                )}
-                <th scope="col" className="px-4 py-3">
-                  연락처
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  가족 연락처
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  결정문
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#eef1f5]">
-              {youths.map((youth) => (
-                <tr
-                  key={youth.id}
-                  aria-haspopup={rowsOpenEditor ? "dialog" : undefined}
-                  aria-label={
-                    rowsOpenEditor ? `${youth.name} 정보 수정` : undefined
-                  }
-                  onClick={rowsOpenEditor ? () => onEdit(youth) : undefined}
-                  onKeyDown={
-                    rowsOpenEditor
-                      ? (event) =>
-                          handleEditableRosterRowKeyDown(event, youth, onEdit)
-                      : undefined
-                  }
-                  role={rowsOpenEditor ? "button" : undefined}
-                  tabIndex={rowsOpenEditor ? 0 : undefined}
-                  className={
-                    rowsOpenEditor
-                      ? "group cursor-pointer transition hover:bg-[#f7fbfb] focus:bg-[#f7fbfb] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                      : undefined
-                  }
-                >
-                  <td className="break-words px-4 py-3 font-semibold text-[#16181d] [overflow-wrap:anywhere]">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                        {youth.name}
-                      </span>
-                      {rowsOpenEditor ? (
-                        <span
-                          aria-hidden="true"
-                          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] bg-white text-sm font-semibold text-[#394150] transition group-hover:border-[#196b69] group-hover:text-[#196b69]"
-                        >
-                          ✎
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          aria-haspopup="dialog"
-                          onClick={() => onEdit(youth)}
-                          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#cfd6e3] bg-white text-sm font-semibold text-[#394150] transition hover:border-[#196b69] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
-                        >
-                          <span aria-hidden="true">✎</span>
-                          <span className="sr-only">
-                            {youth.name} 정보 수정
-                          </span>
-                        </button>
-                      )}
-                    </span>
-                  </td>
-                  <TableCell>{formatYouthRosterAge(youth)}</TableCell>
-                  <TableCell>
-                    {formatYouthSchoolGradeLabel(youth, referenceDate) ??
-                      "미등록"}
-                  </TableCell>
-                  <TableCell>{formatOptionalDate(youth.admissionDate)}</TableCell>
-                  <TableCell>
-                    {youth.dischargeDate
-                      ? formatDate(youth.dischargeDate)
-                      : variant === "admitted"
-                        ? "입소중"
-                        : "미등록"}
-                  </TableCell>
-                  <TableCell>{formatMaskedPhone(youth.phone)}</TableCell>
-                  <TableCell>
-                    <FamilyContactList youth={youth} />
-                  </TableCell>
-                  <TableCell>
-                    <DecisionDocumentLinks
-                      documents={youth.decisionDocuments}
-                      onDownload={onDecisionDocumentDownload}
-                      youthName={youth.name}
-                    />
-                  </TableCell>
+        <>
+          <MobileYouthRosterList
+            onDecisionDocumentDownload={onDecisionDocumentDownload}
+            onEdit={onEdit}
+            referenceDate={referenceDate}
+            youths={youths}
+            variant={variant}
+          />
+          <div
+            role="region"
+            aria-label={`${title} 표`}
+            tabIndex={0}
+            className="hidden overflow-x-auto border-t border-[var(--border)] xl:block"
+          >
+            <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+              <thead className="bg-[var(--surface-muted)] text-xs font-semibold text-[var(--foreground)]">
+                <tr className="border-b border-[var(--border)]">
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-[1] bg-[var(--surface-muted)] px-4 py-2"
+                  >
+                    이름
+                  </th>
+                  {canSort ? (
+                    <>
+                      <SortableRosterHeader
+                        field="age"
+                        label="나이"
+                        onSort={onSort}
+                        sortState={sortState}
+                      />
+                      <th scope="col" className="px-4 py-2">
+                        학년
+                      </th>
+                      <SortableRosterHeader
+                        field="admissionDate"
+                        label="입소 날짜"
+                        onSort={onSort}
+                        sortState={sortState}
+                      />
+                      <SortableRosterHeader
+                        field="dischargeDate"
+                        label="퇴소 예정"
+                        onSort={onSort}
+                        sortState={sortState}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <th scope="col" className="px-4 py-2">
+                        나이
+                      </th>
+                      <th scope="col" className="px-4 py-2">
+                        학년
+                      </th>
+                      <th scope="col" className="px-4 py-2">
+                        입소 날짜
+                      </th>
+                      <th scope="col" className="px-4 py-2">
+                        {variant === "admitted" ? "퇴소 예정" : "퇴소 날짜"}
+                      </th>
+                    </>
+                  )}
+                  <th scope="col" className="px-4 py-2">
+                    마지막 업데이트
+                  </th>
+                  <th scope="col" className="px-4 py-2">
+                    연락처
+                  </th>
+                  <th scope="col" className="px-4 py-2">
+                    가족 연락처
+                  </th>
+                  <th scope="col" className="px-4 py-2">
+                    결정문
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {youths.map((youth) => (
+                  <tr
+                    key={youth.id}
+                    className="group transition hover:bg-[var(--surface-hover)]"
+                  >
+                    <td className="sticky left-0 z-[1] break-words bg-[var(--surface)] px-4 py-2.5 font-semibold text-[var(--foreground)] transition group-hover:bg-[var(--surface-hover)] [overflow-wrap:anywhere]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                          {youth.name}
+                        </span>
+                        <EditYouthButton youth={youth} onEdit={onEdit} />
+                      </span>
+                    </td>
+                    <TableCell>{formatYouthRosterAge(youth)}</TableCell>
+                    <TableCell>
+                      {formatYouthSchoolGradeLabel(youth, referenceDate) ??
+                        "미등록"}
+                    </TableCell>
+                    <TableCell>{formatOptionalDate(youth.admissionDate)}</TableCell>
+                    <TableCell>
+                      <DischargeDateValue
+                        referenceDate={referenceDate}
+                        youth={youth}
+                        variant={variant}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <LastUpdatedDate value={youth.updatedAt} />
+                    </TableCell>
+                    <TableCell>{formatMaskedPhone(youth.phone)}</TableCell>
+                    <TableCell>
+                      <FamilyContactList youth={youth} />
+                    </TableCell>
+                    <TableCell>
+                      <DecisionDocumentLinks
+                        documents={youth.decisionDocuments}
+                        onDownload={onDecisionDocumentDownload}
+                        youthName={youth.name}
+                      />
+                    </TableCell>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
-        <div className="border-t border-[#eef1f5] p-4">
-          <EmptyState title={emptyTitle} description={emptyDescription} />
+        <div className="border-t border-[var(--border)] p-3 sm:p-4">
+          <RosterEmptyState
+            action={
+              isFiltered ? (
+                <button
+                  type="button"
+                  onClick={onClearSearch}
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
+                >
+                  검색 초기화
+                </button>
+              ) : undefined
+            }
+            description={
+              isFiltered ? "다른 이름으로 검색하거나 검색어를 지워보세요." : emptyDescription
+            }
+            title={isFiltered ? "검색 결과가 없습니다." : emptyTitle}
+          />
         </div>
       )}
     </section>
+  );
+}
+
+function MobileYouthRosterList({
+  onDecisionDocumentDownload,
+  onEdit,
+  referenceDate,
+  youths,
+  variant,
+}: {
+  onDecisionDocumentDownload: (
+    youthName: string,
+    document: YouthDecisionDocumentItem,
+    returnFocusTo?: HTMLElement,
+  ) => void;
+  onEdit: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  referenceDate: string;
+  youths: YouthRosterItem[];
+  variant: "admitted" | "discharged";
+}) {
+  return (
+    <ul className="divide-y divide-[var(--border)] border-t border-[var(--border)] xl:hidden">
+      {youths.map((youth) => (
+        <li key={youth.id} className="px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 pt-0.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="min-w-0 break-words font-semibold text-[var(--foreground)] [overflow-wrap:anywhere]">
+                  {youth.name}
+                </p>
+                <span
+                  className={[
+                    "inline-flex h-6 items-center rounded-md border px-2 text-[11px] font-semibold",
+                    variant === "admitted"
+                      ? "border-[#b8d9d7] bg-[#eef7f6] text-[#196b69] dark:border-[#2f7f7b] dark:bg-[#16302f] dark:text-[#7dd3ce]"
+                      : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]",
+                  ].join(" ")}
+                >
+                  {variant === "admitted" ? "입소중" : "퇴소"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                {formatYouthRosterAge(youth)} · {formatYouthSchoolGradeLabel(youth, referenceDate) ?? "학년 미등록"}
+              </p>
+            </div>
+            <EditYouthButton youth={youth} onEdit={onEdit} />
+          </div>
+
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <div className="min-w-0">
+              <dt className="text-xs font-semibold text-[var(--text-muted)]">
+                입소 날짜
+              </dt>
+              <dd className="mt-1 break-words tabular-nums text-[var(--foreground)]">
+                {formatOptionalDate(youth.admissionDate)}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs font-semibold text-[var(--text-muted)]">
+                {variant === "admitted" ? "퇴소 예정" : "퇴소 날짜"}
+              </dt>
+              <dd className="mt-1">
+                <DischargeDateValue
+                  referenceDate={referenceDate}
+                  youth={youth}
+                  variant={variant}
+                />
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs font-semibold text-[var(--text-muted)]">
+                연락처
+              </dt>
+              <dd className="mt-1 break-words text-[var(--foreground)]">
+                {formatMaskedPhone(youth.phone)}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs font-semibold text-[var(--text-muted)]">
+                가족 연락처
+              </dt>
+              <dd className="mt-1 text-[var(--foreground)]">
+                <FamilyContactList youth={youth} />
+              </dd>
+            </div>
+            <div className="col-span-2 flex min-w-0 items-baseline gap-2">
+              <dt className="shrink-0 text-xs font-semibold text-[var(--text-muted)]">
+                마지막 업데이트
+              </dt>
+              <dd className="min-w-0 text-[var(--foreground)]">
+                <LastUpdatedDate value={youth.updatedAt} />
+              </dd>
+            </div>
+          </dl>
+
+          <div className="mt-3 flex min-h-11 items-center gap-3 border-t border-[var(--border)] pt-2">
+            <span className="shrink-0 text-xs font-semibold text-[var(--text-muted)]">
+              결정문
+            </span>
+            <DecisionDocumentLinks
+              documents={youth.decisionDocuments}
+              onDownload={onDecisionDocumentDownload}
+              youthName={youth.name}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function EditYouthButton({
+  onEdit,
+  youth,
+}: {
+  onEdit: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  youth: YouthRosterItem;
+}) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      aria-label={`${youth.name} 정보 수정`}
+      title={`${youth.name} 정보 수정`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus({ preventScroll: true });
+        onEdit(youth, event.currentTarget);
+      }}
+      className="group grid size-11 shrink-0 place-items-center rounded-md"
+    >
+      <span
+        aria-hidden="true"
+        className="grid size-8 place-items-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] text-sm font-semibold text-[var(--foreground)] transition group-hover:border-[var(--brand)] group-hover:bg-[var(--brand-soft)] group-hover:text-[var(--brand)]"
+      >
+        ✎
+      </span>
+    </button>
+  );
+}
+
+function LastUpdatedDate({ value }: { value: string }) {
+  return (
+    <time
+      dateTime={value}
+      title={formatLastUpdatedDateTime(value)}
+      className="whitespace-nowrap tabular-nums"
+    >
+      {formatLastUpdatedDate(value)}
+    </time>
+  );
+}
+
+function DischargeDateValue({
+  referenceDate,
+  youth,
+  variant,
+}: {
+  referenceDate: string;
+  youth: YouthRosterItem;
+  variant: "admitted" | "discharged";
+}) {
+  if (!youth.dischargeDate) {
+    return <span className="text-[var(--text-muted)]">{variant === "admitted" ? "미정" : "미등록"}</span>;
+  }
+
+  const upcomingDischarge =
+    variant === "admitted"
+      ? getUpcomingYouthDischarge(youth.dischargeDate, referenceDate)
+      : null;
+  const urgentDischarge =
+    upcomingDischarge &&
+    upcomingDischarge.daysUntil <= youthDischargeAlertWindowDays
+      ? upcomingDischarge
+      : null;
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5 tabular-nums text-[var(--foreground)]">
+      <span>{formatDate(youth.dischargeDate)}</span>
+      {urgentDischarge ? (
+        <span className="inline-flex h-6 items-center rounded-md border border-[#e59b93] bg-[#fff1f1] px-2 text-[11px] font-semibold text-[var(--danger)] dark:border-[#8f4a45] dark:bg-[#321b1b]">
+          {urgentDischarge.ddayLabel}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function RosterEmptyState({
+  action,
+  description,
+  title,
+}: {
+  action?: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="flex min-h-32 flex-col items-center justify-center rounded-md border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-4 py-4 text-center">
+      <p className="font-semibold text-[var(--foreground)]">{title}</p>
+      <p className="mt-1 max-w-md text-sm leading-5 text-[var(--text-muted)]">
+        {description}
+      </p>
+      {action ? <div className="mt-3">{action}</div> : null}
+    </div>
   );
 }
 
@@ -863,37 +1305,24 @@ function SortableRosterHeader({
             : "descending"
           : "none"
       }
-      className="px-4 py-3"
+      className="px-4 py-1"
     >
       <button
         type="button"
         aria-label={`${label} ${sortLabel} 정렬`}
         onClick={() => onSort(field)}
-        className="-mx-2 inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[#394150] transition hover:bg-[#eaf0f7] hover:text-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+        className="-mx-2 inline-flex h-11 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
       >
         <span>{label}</span>
         <span
           aria-hidden="true"
-          className="inline-flex w-3 justify-center text-[11px] text-[#697386]"
+          className="inline-flex w-3 justify-center text-[11px] text-[var(--text-muted)]"
         >
           {isActive ? (sortState.direction === "asc" ? "↑" : "↓") : "↕"}
         </span>
       </button>
     </th>
   );
-}
-
-function handleEditableRosterRowKeyDown(
-  event: KeyboardEvent<HTMLTableRowElement>,
-  youth: YouthRosterItem,
-  onEdit: (youth: YouthRosterItem) => void,
-) {
-  if (event.key !== "Enter" && event.key !== " ") {
-    return;
-  }
-
-  event.preventDefault();
-  onEdit(youth);
 }
 
 export function YouthRosterFormModal({
@@ -919,6 +1348,7 @@ export function YouthRosterFormModal({
   onDecisionDocumentDownload: (
     youthName: string,
     document: YouthDecisionDocumentItem,
+    returnFocusTo?: HTMLElement,
   ) => void;
   onDeleted: (youthId: string) => void;
   onSaved: (youth: YouthRosterItem) => void;
@@ -1112,6 +1542,7 @@ export function YouthRosterFormModal({
         onSaved({
           ...modal.youth,
           decisionDocuments: nextDocuments,
+          updatedAt: result.data.updatedAt,
         });
       } finally {
         setPendingIntent(null);
@@ -1187,6 +1618,7 @@ export function YouthRosterFormModal({
       className="max-w-2xl"
       labelledBy={titleId}
       onClose={onClose}
+      returnFocusTo={modal.returnFocusTo}
     >
       <form onSubmit={submitForm}>
         <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
@@ -1209,7 +1641,7 @@ export function YouthRosterFormModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                className="h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
               >
                 닫기
               </button>
@@ -1299,7 +1731,7 @@ export function YouthRosterFormModal({
                   <button
                     type="button"
                     onClick={addFamilyContact}
-                    className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+                    className="h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
                   >
                     추가
                   </button>
@@ -1318,7 +1750,7 @@ export function YouthRosterFormModal({
                               relationship: event.target.value,
                             })
                           }
-                          className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                          className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
                         />
                       </RosterFormField>
                       <RosterFormField label="연락처">
@@ -1330,7 +1762,7 @@ export function YouthRosterFormModal({
                             })
                           }
                           placeholder="010-0000-0000"
-                          className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+                          className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
                         />
                       </RosterFormField>
                       <div className="flex items-end">
@@ -1338,7 +1770,7 @@ export function YouthRosterFormModal({
                           type="button"
                           onClick={() => removeFamilyContact(contact.key)}
                           disabled={draft.familyContacts.length <= 1}
-                          className="h-10 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-11 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           삭제
                         </button>
@@ -1354,7 +1786,7 @@ export function YouthRosterFormModal({
                 <h3 className="text-sm font-semibold text-[#394150]">
                   결정문 파일
                 </h3>
-                <label className="inline-flex h-9 cursor-pointer items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus-within:ring-2 focus-within:ring-[#d7eceb]">
+                <label className="inline-flex h-11 cursor-pointer items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus-within:ring-2 focus-within:ring-[#d7eceb]">
                   파일 선택
                   <input
                     type="file"
@@ -1386,13 +1818,15 @@ export function YouthRosterFormModal({
                           <div className="flex shrink-0 gap-2">
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={(event) => {
+                                event.currentTarget.focus({ preventScroll: true });
                                 onDecisionDocumentDownload(
                                   modal.youth.name,
                                   document,
-                                )
-                              }
-                              className="inline-flex h-9 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
+                                  event.currentTarget,
+                                );
+                              }}
+                              className="inline-flex h-11 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
                             >
                               다운로드
                             </button>
@@ -1400,7 +1834,7 @@ export function YouthRosterFormModal({
                               type="button"
                               onClick={() => deleteSavedDocument(document)}
                               disabled={pending}
-                              className="h-9 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-11 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {pending && pendingIntent === "deleteDocument"
                                 ? "삭제 중"
@@ -1436,7 +1870,7 @@ export function YouthRosterFormModal({
                           type="button"
                           onClick={() => removeDecisionFile(file)}
                           disabled={pending}
-                          className="h-9 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-11 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           제외
                         </button>
@@ -1466,7 +1900,7 @@ export function YouthRosterFormModal({
                 aria-label={`${modal.youth.name} 청소년 삭제`}
                 onClick={deleteCurrentYouth}
                 disabled={pending}
-                className="h-10 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-11 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pending && pendingIntent === "delete" ? "삭제 중" : "삭제"}
               </button>
@@ -1478,14 +1912,14 @@ export function YouthRosterFormModal({
                 type="button"
                 onClick={onClose}
                 disabled={pending}
-                className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 취소
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
+                className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {pending && pendingIntent === "save" ? "저장 중" : "저장"}
               </button>
@@ -1517,6 +1951,7 @@ export function YouthRosterFormModal({
             dischargeDate: result.dischargeDate,
             dischargeExtensions: nextExtensions,
             initialDischargeDate: result.initialDischargeDate,
+            updatedAt: result.updatedAt,
           });
           setDischargeExtensionOpen(false);
         }}
@@ -1566,7 +2001,7 @@ function ContactRevealPanel({
           type="button"
           onClick={onReveal}
           disabled={disabled}
-          className="mt-3 h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-3 h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? "확인 중" : "연락처 확인"}
         </button>
@@ -1601,7 +2036,7 @@ function DischargeDateSummary({
           type="button"
           onClick={onExtend}
           disabled={!canExtend}
-          className="h-8 shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-11 shrink-0 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-2.5 text-xs font-semibold text-[#9d3328] transition hover:bg-[#ffe7e5] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {extensionCount >= 2 ? "연장 한도" : "퇴소 연장"}
         </button>
@@ -1634,6 +2069,7 @@ function YouthDischargeExtensionModal({
     dischargeDate: string;
     extension: YouthDischargeExtension;
     initialDischargeDate: string;
+    updatedAt: string;
     youthId: string;
   }) => void;
   youthId: string;
@@ -1692,7 +2128,7 @@ function YouthDischargeExtensionModal({
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="h-9 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
             >
               닫기
             </button>
@@ -1776,14 +2212,14 @@ function YouthDischargeExtensionModal({
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={!canExtend || pending}
-              className="h-10 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
+              className="h-11 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {pending ? "연장 등록 중" : "퇴소 연장 등록"}
             </button>
@@ -1797,10 +2233,12 @@ function YouthDischargeExtensionModal({
 function DecisionDocumentDownloadModal({
   document,
   onClose,
+  returnFocusTo,
   youthName,
 }: {
   document: YouthDecisionDocumentItem;
   onClose: () => void;
+  returnFocusTo?: HTMLElement;
   youthName: string;
 }) {
   const titleId = useId();
@@ -1815,6 +2253,7 @@ function DecisionDocumentDownloadModal({
       describedBy={descriptionId}
       labelledBy={titleId}
       onClose={onClose}
+      returnFocusTo={returnFocusTo}
     >
       <form
         action={`/youth/decision-documents/${document.id}`}
@@ -1899,14 +2338,14 @@ function DecisionDocumentDownloadModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
           >
             취소
           </button>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="h-10 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
+            className="h-11 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting ? "다운로드 요청 중" : "사유 기록 후 다운로드"}
           </button>
@@ -1922,7 +2361,11 @@ function DecisionDocumentLinks({
   youthName,
 }: {
   documents: YouthDecisionDocumentItem[];
-  onDownload: (youthName: string, document: YouthDecisionDocumentItem) => void;
+  onDownload: (
+    youthName: string,
+    document: YouthDecisionDocumentItem,
+    returnFocusTo?: HTMLElement,
+  ) => void;
   youthName: string;
 }) {
   if (documents.length === 0) {
@@ -1938,10 +2381,13 @@ function DecisionDocumentLinks({
         <button
           type="button"
           key={document.id}
-          onClick={() => onDownload(youthName, document)}
+          onClick={(event) => {
+            event.currentTarget.focus({ preventScroll: true });
+            onDownload(youthName, document, event.currentTarget);
+          }}
           title={document.originalName}
           aria-label={`${youthName} 결정문 ${document.originalName} 다운로드`}
-          className="grid size-8 shrink-0 place-items-center rounded-md border border-[#f0c6c6] bg-[#fff1f1] text-[#b42318] transition hover:border-[#d92d20] hover:bg-[#ffe7e5] hover:text-[#8a1f1f] focus:outline-none focus:ring-2 focus:ring-[#ffd0cc]"
+          className="grid size-11 shrink-0 place-items-center rounded-md border border-[#e59b93] bg-[#fff1f1] text-[var(--danger)] transition hover:border-[#d92d20] hover:bg-[#ffe7e5] focus:outline-none focus:ring-2 focus:ring-[#ffd0cc] dark:border-[#8f4a45] dark:bg-[#321b1b] dark:hover:bg-[#442020]"
         >
           <DecisionDocumentIcon />
         </button>
@@ -2000,12 +2446,12 @@ function FamilyContactList({ youth }: { youth: YouthRosterItem }) {
       {youth.familyContacts.map((contact) => (
         <li
           key={contact.id}
-          className="break-words leading-6 [overflow-wrap:anywhere]"
+          className="break-words leading-5 [overflow-wrap:anywhere]"
         >
-          <span className="font-semibold text-[#16181d]">
+          <span className="font-semibold text-[var(--foreground)]">
             {contact.relationship ?? "관계 미등록"}
           </span>
-          <span className="text-[#8a95a6]"> · </span>
+          <span className="text-[var(--text-muted)]"> · </span>
           <span>{formatMaskedPhone(contact.phone)}</span>
         </li>
       ))}
@@ -2023,18 +2469,20 @@ function SectionHeader({
   title: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
-      <h2 id={id} className="text-base font-semibold text-[#16181d]">
+    <div className="flex min-h-12 min-w-0 items-center justify-between gap-3 px-4 py-2">
+      <h2 id={id} className="text-base font-semibold text-[var(--foreground)]">
         {title}
       </h2>
-      <p className="text-sm text-[#697386]">{description}</p>
+      <p className="shrink-0 text-sm tabular-nums text-[var(--text-muted)]">
+        {description}
+      </p>
     </div>
   );
 }
 
 function TableCell({ children }: { children: React.ReactNode }) {
   return (
-    <td className="break-words px-4 py-3 text-[#394150] [overflow-wrap:anywhere]">
+    <td className="break-words px-4 py-2.5 text-[var(--foreground)] [overflow-wrap:anywhere]">
       {children}
     </td>
   );
@@ -2042,17 +2490,14 @@ function TableCell({ children }: { children: React.ReactNode }) {
 
 function SkeletonPanel({ title }: { title: string }) {
   return (
-    <section className="rounded-md border border-[#d9dee7] bg-white">
-      <div className="flex items-end justify-between gap-3 px-4 py-4">
-        <div>
-          <p className="text-base font-semibold text-[#16181d]">{title}</p>
-          <SkeletonBlock className="mt-2 h-3 w-32" />
-        </div>
+    <section className="rounded-md border border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
+        <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
         <SkeletonBlock className="h-4 w-12" />
       </div>
-      <div className="space-y-3 border-t border-[#eef1f5] p-4">
+      <div className="space-y-2 border-t border-[var(--border)] p-3 sm:p-4">
         {Array.from({ length: 5 }, (_, index) => (
-          <SkeletonBlock key={index} className="h-10 w-full" />
+          <SkeletonBlock key={index} className="h-14 w-full" />
         ))}
       </div>
     </section>
@@ -2063,7 +2508,7 @@ function SkeletonBlock({ className }: { className: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`block animate-pulse rounded bg-[#e5e9f0] dark:bg-[#2a3038] ${className}`}
+      className={`block animate-pulse rounded bg-[var(--border)] motion-reduce:animate-none ${className}`}
     />
   );
 }
@@ -2077,6 +2522,10 @@ function createDefaultChangeLogFilters(
     total,
     totalPages: 1,
   };
+}
+
+function matchesYouthSearch(youth: YouthRosterItem, query: string) {
+  return query.length === 0 || youth.name.toLocaleLowerCase("ko-KR").includes(query);
 }
 
 function formatOptionalDate(value: string | null) {
@@ -2100,6 +2549,23 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  }).format(new Date(value));
+}
+
+function formatLastUpdatedDate(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatLastUpdatedDateTime(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Asia/Seoul",
   }).format(new Date(value));
 }
 
@@ -2205,6 +2671,7 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
     })),
     name: youth.name,
     phone: youth.phone,
+    updatedAt: youth.updatedAt,
   };
 }
 

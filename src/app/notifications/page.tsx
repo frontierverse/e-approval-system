@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/page-title";
@@ -5,6 +6,10 @@ import { requireUser } from "@/lib/auth";
 import { getNotificationTypeLabel } from "@/lib/notification-labels";
 import { getNotifications } from "@/lib/notifications";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
+
+export const metadata: Metadata = {
+  title: "알림",
+};
 
 const notificationDateFormatter = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",

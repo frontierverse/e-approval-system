@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import ./tests/tsx-loader.mjs --test --test-isolation=none \"tests/**/*.test.mts\"",
+    "test": "node --import ./tests/tsx-loader.mjs --test --experimental-test-isolation=none \"tests/**/*.test.mts\"",
     "verify": "npm run test && npm run lint && npm run build",
     "deploy:check": "node scripts/check-production-env.mjs",
     "admin:create": "tsx scripts/create-initial-admin.ts",

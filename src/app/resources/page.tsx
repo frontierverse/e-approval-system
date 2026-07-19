@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTitle } from "@/components/page-title";
 import { ResourceLibraryPageSection } from "@/components/resource-library-page-section";
@@ -13,6 +14,10 @@ import {
   type ResourceCategoryFilter,
   type ResourceEducationLevelFilter,
 } from "@/lib/resource-library-core";
+
+export const metadata: Metadata = {
+  title: "자료실",
+};
 
 type ResourcesPageSearchParams = {
   q?: string;

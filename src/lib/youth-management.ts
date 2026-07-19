@@ -112,6 +112,7 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
       processedBy: extension.processedBy,
     })),
     notes: record.notes.map(mapYouthSpecialNote),
+    updatedAt: record.updatedAt.toISOString(),
   };
 }
 

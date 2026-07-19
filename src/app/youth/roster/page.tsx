@@ -1,4 +1,4 @@
-import { PageTitle } from "@/components/page-title";
+import type { Metadata } from "next";
 import { YouthRosterBoard } from "@/components/youth-roster-board";
 import { requireUser } from "@/lib/auth";
 import {
@@ -15,6 +15,10 @@ import {
   recordYouthDetailViewAction,
   updateYouthAction,
 } from "@/app/youth/actions";
+
+export const metadata: Metadata = {
+  title: "청소년 명단",
+};
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -37,31 +41,25 @@ export default async function YouthRosterPage({
   ]);
 
   return (
-    <>
-      <PageTitle
-        title="청소년 명단"
-        description="입소중인 청소년과 퇴소 청소년 현황을 확인합니다."
-      />
-
-      <YouthRosterBoard
-        changeLogFilters={{
-          page: changeLogResult.page,
-          pageSize: changeLogResult.pageSize,
-          total: changeLogResult.total,
-          totalPages: changeLogResult.totalPages,
-        }}
-        changeLogs={changeLogResult.logs}
-        createYouth={createYouthAction}
-        data={roster}
-        deleteYouth={deleteYouthAction}
-        deleteDecisionDocument={deleteYouthDecisionDocumentAction}
-        extendYouthDischarge={extendYouthDischargeAction}
-        loadChangeLogs={getYouthRosterChangeLogsAction}
-        recordYouthContactView={recordYouthContactViewAction}
-        recordYouthDetailView={recordYouthDetailViewAction}
-        updateYouth={updateYouthAction}
-      />
-    </>
+    <YouthRosterBoard
+      changeLogFilters={{
+        page: changeLogResult.page,
+        pageSize: changeLogResult.pageSize,
+        total: changeLogResult.total,
+        totalPages: changeLogResult.totalPages,
+      }}
+      changeLogs={changeLogResult.logs}
+      createYouth={createYouthAction}
+      data={roster}
+      deleteYouth={deleteYouthAction}
+      deleteDecisionDocument={deleteYouthDecisionDocumentAction}
+      extendYouthDischarge={extendYouthDischargeAction}
+      loadChangeLogs={getYouthRosterChangeLogsAction}
+      pageHeader
+      recordYouthContactView={recordYouthContactViewAction}
+      recordYouthDetailView={recordYouthDetailViewAction}
+      updateYouth={updateYouthAction}
+    />
   );
 }
 

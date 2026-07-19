@@ -309,16 +309,6 @@ const auditActionLabels: Record<AuditAction, string> = {
   UPDATE_LUNCH_BOX_COUNT: "도시락 개수 변경",
 };
 
-const publicApprovalActivityActions: AuditAction[] = [
-  AuditAction.SUBMIT,
-  AuditAction.APPROVE,
-  AuditAction.PROXY_APPROVE,
-  AuditAction.PROXY_REJECT,
-  AuditAction.REJECT,
-  AuditAction.RECALL,
-  AuditAction.COMPLETE,
-];
-
 export async function getInboxDocuments(userId: string) {
   const records = await prisma.approvalDocument.findMany({
     where: {
@@ -733,84 +723,6 @@ function toRecentHistory(record: RecentHistoryRecord) {
   };
 }
 
-export async function getRecentPublicApprovalActivityPage({
-  page = 1,
-  pageSize = 5,
-}: {
-  page?: number;
-  pageSize?: number;
-} = {}) {
-  const safePageSize = Math.max(1, pageSize);
-  const where = getPublicApprovalActivityWhere();
-  const total = await prisma.auditLog.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
-  const currentPage = Math.min(Math.max(page, 1), totalPages);
-  const records = await prisma.auditLog.findMany({
-    where,
-    select: {
-      id: true,
-      action: true,
-      createdAt: true,
-      actor: {
-        select: {
-          id: true,
-          name: true,
-          profileImageStorageKey: true,
-          profileImageUpdatedAt: true,
-          department: {
-            select: {
-              name: true,
-            },
-          },
-          position: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
-    },
-    skip: (currentPage - 1) * safePageSize,
-    take: safePageSize,
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  return {
-    activities: records.map((record) => ({
-      id: record.id,
-      action: auditActionLabels[record.action],
-      actionValue: record.action,
-      actedAt: record.createdAt.toISOString(),
-      actor: {
-        id: record.actor.id,
-        name: record.actor.name,
-        departmentName: record.actor.department.name,
-        positionName: record.actor.position.name,
-        profileImageStorageKey: record.actor.profileImageStorageKey,
-        profileImageUpdatedAt:
-          record.actor.profileImageUpdatedAt?.toISOString() ?? null,
-      },
-    })),
-    page: currentPage,
-    pageSize: safePageSize,
-    total,
-    totalPages,
-  };
-}
-
-function getPublicApprovalActivityWhere(): Prisma.AuditLogWhereInput {
-  return {
-    documentId: {
-      not: null,
-    },
-    action: {
-      in: publicApprovalActivityActions,
-    },
-  };
-}
-
 export async function getActiveDocumentTemplates() {
   return prisma.documentTemplate.findMany({
     where: {
@@ -828,13 +740,23 @@ export async function getActiveDocumentTemplates() {
   });
 }
 
-export async function getApprovalCandidateUsers(currentUserId: string) {
+export async function getApprovalCandidateUsers(
+  currentUserId: string,
+  options: { positionName?: string } = {},
+) {
   return prisma.user.findMany({
     where: {
       id: {
         not: currentUserId,
       },
       status: UserStatus.ACTIVE,
+      ...(options.positionName
+        ? {
+            position: {
+              name: options.positionName,
+            },
+          }
+        : {}),
     },
     select: {
       id: true,

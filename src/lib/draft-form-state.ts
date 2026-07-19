@@ -46,15 +46,17 @@ export function validateDraftFormValues(
   values: DraftFormValues,
   options: {
     currentUserId: string;
+    intent?: DraftFormIntent;
     submittedApproverIds?: string[];
     attachmentError?: string;
   },
 ) {
   const errors: NonNullable<DraftFormState["errors"]> = {};
+  const intent = options.intent ?? "submit";
   const submittedApproverIds =
     options.submittedApproverIds ?? values.approverIds;
 
-  if (values.title.length < 2) {
+  if (intent === "submit" && values.title.length < 2) {
     errors.title = "제목은 2자 이상 입력하세요.";
   }
 
@@ -66,7 +68,7 @@ export function validateDraftFormValues(
     errors.templateId = "문서 양식을 선택하세요.";
   }
 
-  if (values.content.length < 10) {
+  if (intent === "submit" && values.content.length < 10) {
     errors.content = "기안 내용은 10자 이상 입력하세요.";
   }
 
@@ -74,7 +76,7 @@ export function validateDraftFormValues(
     errors.content = "기안 내용은 5000자 이내로 입력하세요.";
   }
 
-  if (submittedApproverIds.length === 0) {
+  if (intent === "submit" && submittedApproverIds.length === 0) {
     errors.approvers = "결재자를 1명 이상 지정하세요.";
   }
 

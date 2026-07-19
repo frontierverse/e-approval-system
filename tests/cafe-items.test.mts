@@ -4,10 +4,14 @@ import { PDFDocument } from "pdf-lib";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-table.tsx";
-import { CafeItemList } from "../src/components/cafe-item-list.tsx";
+import {
+  CafeItemHeldItemsModal,
+  CafeItemList,
+} from "../src/components/cafe-item-list.tsx";
 import { createCafeExpiringFoodsPdf } from "../src/lib/cafe-item-expiration-pdf.ts";
 import {
   createCafeItemDueSoonHref,
+  createCafeItemExpirationAlert,
   createCafeItemExpirationSearchHref,
   createCafeItemExpiringFoodPrintHref,
   formatCafeItemDateValue,
@@ -43,6 +47,14 @@ const cafeItems: CafeItem[] = [
   },
 ];
 
+const heldCafeItem: CafeItem = {
+  ...cafeItems[0],
+  id: "cafe-item-held",
+  name: "보류 쿠키",
+  expirationDate: "2026-06-20",
+  expirationHoldReason: "폐기 전 재고 확인을 위해 임시 보관",
+};
+
 const itemPage: CafeItemPage = {
   expiredFoodCount: 2,
   filters: {
@@ -52,6 +64,7 @@ const itemPage: CafeItemPage = {
     query: "",
     sort: "latest",
   },
+  heldItems: [heldCafeItem],
   items: cafeItems,
   page: 1,
   pageSize: 7,
@@ -158,6 +171,50 @@ describe("cafe items", () => {
     );
   });
 
+  test("moves held items behind active expiration alerts while preserving each group order", () => {
+    const alert = createCafeItemExpirationAlert(
+      [
+        {
+          id: "normal-early",
+          name: "먼저 만료되는 일반 식품",
+          expirationDate: "2026-07-18",
+          expirationHoldReason: null,
+        },
+        {
+          id: "held-early",
+          name: "먼저 만료되는 보류 식품",
+          expirationDate: "2026-07-20",
+          expirationHoldReason: "확인 필요",
+        },
+        {
+          id: "held-late",
+          name: "나중에 만료되는 보류 식품",
+          expirationDate: "2026-07-22",
+          expirationHoldReason: "담당자 확인 필요",
+        },
+        {
+          id: "normal-late",
+          name: "나중에 만료되는 일반 식품",
+          expirationDate: "2026-07-24",
+          expirationHoldReason: null,
+        },
+      ],
+      "2026-07-17",
+    );
+
+    assert.ok(alert);
+    assert.equal(alert.itemName, "먼저 만료되는 일반 식품");
+    assert.equal(alert.ddayLabel, "D-1");
+    assert.deepEqual(
+      alert.items.map((item) => item.id),
+      ["normal-early", "normal-late", "held-early", "held-late"],
+    );
+    assert.deepEqual(
+      alert.items.map((item) => item.isHeld),
+      [false, false, true, true],
+    );
+  });
+
   test("creates cafe item expiring food print links", () => {
     assert.equal(
       createCafeItemExpiringFoodPrintHref(),
@@ -199,6 +256,8 @@ describe("cafe items", () => {
     assert.match(html, /sm:ml-auto/);
     assert.match(html, /유통기한 경과 식품/);
     assert.match(html, /2개/);
+    assert.match(html, /보류 처리 1개/);
+    assert.match(html, /aria-haspopup="dialog"/);
     assert.match(
       html,
       /href="\/work-schedule\/cafe\?category=food&amp;deadline=expired"/,
@@ -226,6 +285,40 @@ describe("cafe items", () => {
     assert.match(html, />편집</);
     assert.doesNotMatch(html, />삭제</);
     assert.match(html, /href="\/work-schedule\/cafe\?page=2"/);
+  });
+
+  test("renders held cafe items in a dedicated modal", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemHeldItemsModal, {
+        heldItems: [heldCafeItem],
+        onClose() {},
+        today: "2026-06-24",
+      }),
+    );
+
+    assert.match(html, /카페 물품 보류 현황/);
+    assert.match(html, /보류 처리된 물품/);
+    assert.match(html, /총 1개/);
+    assert.match(html, /보류 쿠키/);
+    assert.match(html, /2026\.06\.20/);
+    assert.match(html, /D\+4/);
+    assert.match(html, /폐기 전 재고 확인을 위해 임시 보관/);
+    assert.match(html, />닫기</);
+  });
+
+  test("disables the held item summary when there are no held items", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemList, {
+        itemPage: {
+          ...itemPage,
+          heldItems: [],
+        },
+        today: "2026-06-24",
+      }),
+    );
+
+    assert.match(html, /disabled=""/);
+    assert.match(html, /보류 처리 0개/);
   });
 
   test("renders active cafe item expiration sort links", () => {

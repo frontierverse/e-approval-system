@@ -30,6 +30,7 @@ export type YouthRosterItem = {
   familyContacts: YouthRosterFamilyContact[];
   name: string;
   phone: string | null;
+  updatedAt: string;
 };
 
 export type YouthRosterFamilyContact = {
@@ -203,6 +204,7 @@ async function getYouthRosterRows() {
       familyRelationship: true,
       name: true,
       phone: true,
+      updatedAt: true,
     },
   });
 }
@@ -241,6 +243,7 @@ function mapYouthRosterItem(
     familyContacts: getFamilyContacts(record),
     name: record.name,
     phone: normalizeBlank(record.phone),
+    updatedAt: record.updatedAt.toISOString(),
   };
 }
 

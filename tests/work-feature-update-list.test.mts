@@ -45,7 +45,7 @@ describe("WorkFeatureUpdateList", () => {
       }),
     );
 
-    assert.match(html, /추가된 기능 내역/);
+    assert.match(html, /업무 시스템 업데이트/);
     assert.match(html, /Feature 1/);
     assert.match(html, /Feature 2/);
     assert.match(html, /Feature 3/);
@@ -54,8 +54,8 @@ describe("WorkFeatureUpdateList", () => {
     assert.doesNotMatch(html, />추가</);
   });
 
-  test("renders system usage as used over quota", () => {
-    const html = renderToStaticMarkup(
+  test("keeps system usage private to administrators", () => {
+    const nonAdminHtml = renderToStaticMarkup(
       React.createElement(WorkFeatureUpdateList, {
         canCreate: false,
         usageSummary: {
@@ -76,10 +76,33 @@ describe("WorkFeatureUpdateList", () => {
       }),
     );
 
-    assert.match(html, /DB/);
-    assert.match(html, /14\.8 MB \/ 500 MB/);
-    assert.match(html, /스토리지/);
-    assert.match(html, /590\.4 MB \/ 1 GB/);
+    const adminHtml = renderToStaticMarkup(
+      React.createElement(WorkFeatureUpdateList, {
+        canCreate: true,
+        usageSummary: {
+          database: {
+            label: "DB",
+            limitLabel: "500 MB",
+            usedLabel: "14.8 MB",
+            usedPercent: 3,
+          },
+          storage: {
+            label: "스토리지",
+            limitLabel: "1 GB",
+            usedLabel: "590.4 MB",
+            usedPercent: 57.6,
+          },
+        },
+        updates: updates.slice(0, 1),
+      }),
+    );
+
+    assert.doesNotMatch(nonAdminHtml, /14\.8 MB \/ 500 MB/);
+    assert.doesNotMatch(nonAdminHtml, /590\.4 MB \/ 1 GB/);
+    assert.match(adminHtml, /DB/);
+    assert.match(adminHtml, /14\.8 MB \/ 500 MB/);
+    assert.match(adminHtml, /스토리지/);
+    assert.match(adminHtml, /590\.4 MB \/ 1 GB/);
   });
 
   test("renders the add button for admins", () => {

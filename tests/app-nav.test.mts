@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   isActivePath,
+  MobileMenuTrigger,
+  MobileNavigationMenuContent,
   TopbarBirthdayAlertModalContent,
   TopbarCurrentScheduleLink,
   TopbarDdayAlertModalContent,
@@ -15,7 +18,13 @@ import {
   type NavigationTopbarCurrentScheduleAlert,
   type NavigationTopbarAlert,
   type NavigationTopbarVacationAlert,
+  type NavigationGroup,
 } from "../src/components/app-nav.tsx";
+
+const appShellSource = readFileSync(
+  new URL("../src/components/app-shell.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("app navigation active paths", () => {
   test("keeps work schedule and cafe management sibling links exclusive", () => {
@@ -58,6 +67,104 @@ describe("app navigation active paths", () => {
       ),
       false,
     );
+  });
+
+  test("keeps notifications in the account navigation instead of the approval fallback", () => {
+    assert.equal(isActivePath("/notifications", "/", "/notifications"), false);
+    assert.equal(
+      isActivePath("/notifications", "/notifications", "/notifications"),
+      true,
+    );
+    assert.match(
+      appShellSource,
+      /const accountNavigationItems[\s\S]*?label: "알림", href: "\/notifications"/,
+    );
+  });
+
+  test("keeps the topbar mounted in a desktop-only visual wrapper", () => {
+    assert.match(
+      appShellSource,
+      /<div className="hidden lg:block" data-shell-topbar>[\s\S]*?<ShellNavigation variant="topbar" \/>/,
+    );
+  });
+
+  test("renders an accessible mobile all-menu trigger", () => {
+    const closedHtml = renderToStaticMarkup(
+      React.createElement(MobileMenuTrigger, {
+        onClick() {},
+        open: false,
+      }),
+    );
+    const openHtml = renderToStaticMarkup(
+      React.createElement(MobileMenuTrigger, {
+        onClick() {},
+        open: true,
+      }),
+    );
+
+    assert.match(closedHtml, /aria-expanded="false"/);
+    assert.match(closedHtml, /aria-haspopup="dialog"/);
+    assert.match(closedHtml, /aria-label="전체 메뉴 열기"/);
+    assert.match(closedHtml, /h-11/);
+    assert.match(closedHtml, />전체 메뉴</);
+    assert.match(openHtml, /aria-expanded="true"/);
+  });
+
+  test("renders every navigation group and marks the active mobile menu item", () => {
+    const groups: NavigationGroup[] = [
+      {
+        label: "전자결재",
+        items: [
+          { label: "오늘의 업무", href: "/" },
+          { label: "기안작성", href: "/drafts/new" },
+        ],
+      },
+      {
+        label: "업무 관리",
+        items: [
+          { label: "업무 일정", href: "/work-schedule" },
+          { label: "카페 관리", href: "/work-schedule/cafe" },
+        ],
+      },
+      {
+        label: "내 정보",
+        items: [
+          { label: "내 계정", href: "/account" },
+          { label: "알림", href: "/notifications" },
+        ],
+        align: "end",
+      },
+    ];
+    const html = renderToStaticMarkup(
+      React.createElement(MobileNavigationMenuContent, {
+        currentHref: "/notifications",
+        descriptionId: "mobile-menu-description",
+        groups,
+        onClose() {},
+        pathname: "/notifications",
+        titleId: "mobile-menu-title",
+      }),
+    );
+
+    assert.match(html, /id="mobile-menu-title"/);
+    assert.match(html, /id="mobile-menu-description"/);
+    assert.match(html, /aria-label="전체 메뉴"/);
+    assert.match(html, /aria-labelledby="mobile-menu-title-group-0"/);
+    assert.match(html, /aria-labelledby="mobile-menu-title-group-1"/);
+    assert.match(html, /aria-labelledby="mobile-menu-title-group-2"/);
+    assert.match(html, /오늘의 업무/);
+    assert.match(html, /기안작성/);
+    assert.match(html, /업무 일정/);
+    assert.match(html, /카페 관리/);
+    assert.match(html, /내 계정/);
+    assert.match(
+      html,
+      /<a[^>]*aria-current="page"[^>]*href="\/notifications"/,
+    );
+    assert.match(html, /현재 영역/);
+    assert.match(html, />현재</);
+    assert.match(html, /aria-label="전체 메뉴 닫기"/);
+    assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
   });
 
   test("renders the current common schedule topbar link", () => {
@@ -175,6 +282,7 @@ describe("app navigation active paths", () => {
           expirationDate: "2026-06-29",
           href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
           id: "cafe-item-001",
+          isHeld: true,
           itemName: "우유",
         },
       ],
@@ -207,6 +315,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /topbar-widget-due topbar-widget-due-birthday/);
     assert.match(html, /topbar-widget-due topbar-widget-due-expiration/);
     assert.match(html, /topbar-widget-due topbar-widget-due-vacation/);
+    assert.match(html, /보류/);
   });
 
   test("renders D-Day birthday, vacation and expiration items in one modal", () => {
@@ -227,6 +336,7 @@ describe("app navigation active paths", () => {
         expirationDate: "2026-06-29",
         href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
         id: "cafe-item-001",
+        isHeld: true,
         itemName: "우유",
       },
     ];
@@ -271,6 +381,8 @@ describe("app navigation active paths", () => {
     assert.match(html, /휴가일 2026\.06\.29 \(월\)/);
     assert.match(html, /유통기한 도래·경과/);
     assert.match(html, /우유/);
+    assert.match(html, /dark:!text-black/);
+    assert.match(html, /보류/);
     assert.match(html, /식품 유통기한 도래·경과/);
     assert.match(html, /샐러드/);
     assert.match(html, /D-Day/);
@@ -287,6 +399,7 @@ describe("app navigation active paths", () => {
             expirationDate: "2026-06-27",
             href: "/work-schedule/cafe",
             id: "cafe-item-expired",
+            isHeld: true,
             itemName: "우유",
           },
         ],
@@ -308,6 +421,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /아직 조치되지 않은 유통기한 경과 항목/);
     assert.match(html, /D[+]2/);
     assert.match(html, /D[+]1/);
+    assert.match(html, /보류/);
     assert.ok(html.includes("bg-[#fff1f1]"));
   });
 
@@ -386,6 +500,7 @@ describe("app navigation active paths", () => {
           expirationDate: "2026-06-30",
           href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%9A%B0%EC%9C%A0",
           id: "cafe-item-001",
+          isHeld: false,
           itemName: "우유",
         },
         {
@@ -393,6 +508,7 @@ describe("app navigation active paths", () => {
           expirationDate: "2026-07-26",
           href: "/work-schedule/cafe?category=food&sort=expirationAsc&q=%EC%BB%A4%ED%94%BC",
           id: "cafe-item-002",
+          isHeld: true,
           itemName: "커피 원두",
         },
       ],
@@ -418,6 +534,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /우유/);
     assert.match(html, /2026\.06\.30/);
     assert.match(html, /D-31/);
+    assert.match(html, /보류/);
     assert.match(
       html,
       /href="\/work-schedule\/cafe\?category=food&amp;sort=expirationAsc&amp;q=%EC%BB%A4%ED%94%BC"/,

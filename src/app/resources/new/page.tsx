@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ResourceForm } from "@/components/resource-form";
 import { PageTitle } from "@/components/page-title";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
@@ -7,6 +8,10 @@ import {
   normalizeResourceEducationLevel,
 } from "@/lib/resource-library-core";
 import { createResourceAction } from "../actions";
+
+export const metadata: Metadata = {
+  title: "자료 업로드",
+};
 
 type NewResourcePageSearchParams = {
   category?: string;

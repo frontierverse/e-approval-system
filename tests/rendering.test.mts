@@ -14,6 +14,7 @@ import { AttachmentFileRow } from "../src/components/attachment-file-row.tsx";
 import { ApprovalTimeline } from "../src/components/approval-timeline.tsx";
 import { DocumentList } from "../src/components/document-list.tsx";
 import { DocumentAuditHistory } from "../src/components/document-audit-history.tsx";
+import { DraftForm } from "../src/components/draft-form.tsx";
 import { EducationResourceQuickFiltersContent } from "../src/components/education-resource-quick-filters.tsx";
 import { EmptyState } from "../src/components/empty-state.tsx";
 import { LineNumberedDocumentContent } from "../src/components/line-numbered-document-content.tsx";
@@ -23,6 +24,7 @@ import { ResourceLibraryFilterControlsContent } from "../src/components/resource
 import { ResourceLibraryList } from "../src/components/resource-library-list.tsx";
 import { ResourceCategoryBadge } from "../src/components/resource-category-badge.tsx";
 import { ResourceViewerList } from "../src/components/resource-viewer-list.tsx";
+import { RouteContentSkeleton } from "../src/components/route-loading-shell.tsx";
 import { ShellQuickStatusLinks } from "../src/components/shell-quick-status-links.tsx";
 import { SignedAttachmentDeleteForm } from "../src/components/signed-attachment-delete-form.tsx";
 import { StatusBadge } from "../src/components/status-badge.tsx";
@@ -186,7 +188,9 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /data-app-modal="true"/);
-    assert.match(html, /border border-\[#d9dee7\]/);
+    assert.ok(html.includes("border-[var(--border)]"));
+    assert.match(html, /role="dialog"/);
+    assert.match(html, /tabindex="-1"/);
   });
 
   test("renders fallback user avatars with initial-based colors", () => {
@@ -209,39 +213,62 @@ describe("major UI rendering", () => {
     assert.ok(html.includes(kimColorClass));
   });
 
-  test("renders quick status cards as links", () => {
+  test("renders action-oriented quick status cards with accessible names", () => {
     const html = renderToStaticMarkup(
       React.createElement(QuickStatusLinks, {
+        ariaLabel: "오늘의 결재 현황",
         items: [
-          {
-            label: "임시저장/회수",
-            value: "2",
-            note: "이어 작성할 문서",
-            href: "/drafts",
-          },
           {
             label: "받은 결재 대기",
             value: "3",
             note: "처리할 문서",
             href: "/inbox",
+            tone: "brand",
+            unit: "건",
+            meta: "최우선 처리",
+          },
+          {
+            label: "장기 대기",
+            value: "2",
+            note: "24시간 이상 대기",
+            href: "/inbox?age=overdue",
+            tone: "warning",
+            unit: "건",
+          },
+          {
+            label: "보완 필요",
+            value: "1",
+            note: "회수 또는 반려 문서",
+            href: "/drafts",
+            tone: "danger",
+            unit: "건",
           },
           {
             label: "완료 문서",
             value: "7",
-            note: "승인 또는 반려",
-            href: "/completed",
+            note: "이번 주 처리 완료",
           },
         ],
       }),
     );
 
-    assert.match(html, /aria-label="빠른 현황"/);
-    assert.match(html, /href="\/drafts"/);
-    assert.match(html, /aria-label="임시저장\/회수 바로가기"/);
+    assert.match(html, /aria-label="오늘의 결재 현황"/);
+    assert.match(html, /grid-cols-2/);
+    assert.match(html, /lg:grid-cols-4/);
     assert.match(html, /href="\/inbox"/);
-    assert.match(html, /aria-label="받은 결재 대기 바로가기"/);
-    assert.match(html, /href="\/completed"/);
+    assert.match(html, /href="\/inbox\?age=overdue"/);
+    assert.match(html, /href="\/drafts"/);
+    assert.match(html, /data-tone="brand"/);
+    assert.match(html, /data-tone="warning"/);
+    assert.match(html, /data-tone="danger"/);
+    assert.match(html, /data-tone="neutral"/);
+    assert.match(html, /tabular-nums/);
+    assert.match(html, /min-h-11/);
     assert.match(html, /받은 결재 대기/);
+    assert.match(html, />3<\/span> <span[^>]*>건<\/span>/);
+    assert.match(html, /최우선 처리/);
+    assert.match(html, /처리할 문서/);
+    assert.doesNotMatch(html, /aria-label="받은 결재 대기 바로가기"/);
     assert.match(html, /완료 문서/);
   });
 
@@ -316,6 +343,105 @@ describe("major UI rendering", () => {
     assert.doesNotMatch(html, /업무 홈/);
   });
 
+  test("keeps draft approval setup before the submit actions on compact screens", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DraftForm, {
+        templates: [
+          {
+            id: "template-001",
+            name: "일반 기안서",
+            description: null,
+            schema: null,
+          },
+        ],
+        attachmentPolicy: {
+          maxFileCount: 5,
+          maxFileSizeMb: 10,
+          allowedExtensions: [".pdf"],
+        },
+        approverCandidates: [
+          {
+            id: "user-002",
+            name: "박서연",
+            email: null,
+            departmentName: "바자울",
+            positionName: "팀장",
+            positionLevel: 2,
+          },
+        ],
+        action: async () => ({}),
+      }),
+    );
+
+    assert.ok(html.includes("xl:grid-cols-[minmax(0,1fr)_22rem]"));
+    assert.ok(html.includes("xl:sticky"));
+    assert.ok(html.indexOf("기안 내용") < html.indexOf("결재선"));
+    assert.ok(html.indexOf("결재선") < html.indexOf("저장 및 결재 요청"));
+    assert.match(html, /결재 요청 전 확인: 제목은 2자 이상 입력하세요\./);
+    assert.match(html, /aria-describedby="draft-submit-readiness"/);
+  });
+
+  test("renders the facility head as a compact fixed approval authority", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DraftForm, {
+        templates: [
+          {
+            id: "template-001",
+            name: "일반 기안서",
+            description: "일반 업무용 양식",
+            schema: null,
+          },
+        ],
+        attachmentPolicy: {
+          maxFileCount: 5,
+          maxFileSizeMb: 10,
+          allowedExtensions: [".pdf"],
+        },
+        approverCandidates: [
+          {
+            id: "facility-head-001",
+            name: "안윤숙",
+            email: null,
+            departmentName: "바자울",
+            positionName: "시설장",
+            positionLevel: 5,
+          },
+        ],
+        allowedApproverPositionName: "시설장",
+        defaultApproverIds: ["facility-head-001"],
+        action: async () => ({}),
+      }),
+    );
+
+    assert.match(html, /시설장 단일 결재/);
+    assert.match(html, /자동 지정/);
+    assert.match(html, /name="approverIds" value="facility-head-001"/);
+    assert.doesNotMatch(html, /id="approverSearch"/);
+    assert.match(
+      html,
+      /type="submit" value="draft" formNoValidate=""|type="submit" value="draft" formnovalidate=""/,
+    );
+    assert.match(html, /type="submit" value="submit"/);
+    assert.equal(html.match(/name="intent"/g)?.length, 2);
+    assert.match(html, /파일 선택/);
+    assert.match(html, /h-11/);
+  });
+
+  test("matches draft and document loading layouts to the xl sticky panels", () => {
+    const draftHtml = renderToStaticMarkup(
+      React.createElement(RouteContentSkeleton, { variant: "draft" }),
+    );
+    const documentHtml = renderToStaticMarkup(
+      React.createElement(RouteContentSkeleton, { variant: "documentDetail" }),
+    );
+
+    assert.ok(draftHtml.includes("xl:grid-cols-[minmax(0,1fr)_22rem]"));
+    assert.ok(draftHtml.includes("xl:sticky"));
+    assert.ok(draftHtml.indexOf("결재선") < draftHtml.indexOf("저장 및 결재 요청"));
+    assert.ok(documentHtml.includes("xl:grid-cols-[minmax(0,1fr)_22rem]"));
+    assert.ok(documentHtml.includes("xl:sticky"));
+  });
+
   test("renders document content with line numbers", () => {
     const html = renderToStaticMarkup(
       React.createElement(LineNumberedDocumentContent, {
@@ -368,6 +494,9 @@ describe("major UI rendering", () => {
     assert.match(html, /김민준/);
     assert.match(html, /이도윤/);
     assert.match(html, /1\/2/);
+    assert.match(html, /role="table"/);
+    assert.match(html, /role="columnheader"/);
+    assert.match(html, /role="cell"/);
     assert.match(html, /whitespace-nowrap px-5 py-4 tabular-nums/);
     assert.doesNotMatch(html, /문서가 없습니다/);
   });

@@ -9,6 +9,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { AppModal } from "@/components/app-modal";
 import { CafeItemRow } from "@/components/cafe-item-row";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -17,10 +18,12 @@ import {
   createCafeItemExpiredHref,
   createCafeItemExpiringFoodPrintHref,
   formatCafeItemDate,
+  getCafeItemUsageDday,
   normalizeCafeItemCategory,
   normalizeCafeItemDeadlineFilter,
   normalizeCafeItemPage,
   normalizeCafeItemSort,
+  type CafeItem,
   type CafeItemActionResult,
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
@@ -46,6 +49,7 @@ export function CafeItemList({
   const [todayState, setTodayState] = useState(today);
   const [pageError, setPageError] = useState("");
   const [pendingPage, setPendingPage] = useState<number | null>(null);
+  const [isHeldItemsOpen, setIsHeldItemsOpen] = useState(false);
   const [isPagePending, startPageTransition] = useTransition();
 
   const loadPage = useCallback(
@@ -129,84 +133,211 @@ export function CafeItemList({
   );
 
   return (
-    <section
-      aria-busy={isPagePending || undefined}
-      className="rounded-md border border-[#d9dee7] bg-white shadow-sm"
-    >
-      <div className="border-b border-[#eef1f5] px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-[#16181d]">
-              물품 목록
-            </h2>
-            <p className="mt-1 text-sm text-[#697386]">
-              {currentItemPage.total > 0
-                ? `${currentItemPage.total}건 중 ${firstItem}-${lastItem}건 표시`
-                : "등록된 물품이 없습니다."}
-            </p>
+    <>
+      <section
+        aria-busy={isPagePending || undefined}
+        className="rounded-md border border-[#d9dee7] bg-white shadow-sm"
+      >
+        <div className="border-b border-[#eef1f5] px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-[#16181d]">
+                물품 목록
+              </h2>
+              <p className="mt-1 text-sm text-[#697386]">
+                {currentItemPage.total > 0
+                  ? `${currentItemPage.total}건 중 ${firstItem}-${lastItem}건 표시`
+                  : "등록된 물품이 없습니다."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                disabled={currentItemPage.heldItems.length === 0}
+                onClick={() => setIsHeldItemsOpen(true)}
+                className={[
+                  "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition",
+                  currentItemPage.heldItems.length > 0
+                    ? "border-[#e6cf91] bg-[#fff4d8] text-[#7a5200] hover:bg-[#ffedbf]"
+                    : "cursor-not-allowed border-[#cfd6e3] bg-[#f7f9fc] text-[#8a95a6]",
+                ].join(" ")}
+              >
+                보류 처리 {currentItemPage.heldItems.length}개
+              </button>
+              <Link
+                href={createCafeItemExpiredHref()}
+                className={[
+                  "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition",
+                  currentItemPage.expiredFoodCount > 0
+                    ? "border-[#efb4b4] bg-[#fff1f1] text-[#a13a3a] hover:bg-[#ffe7e7]"
+                    : "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150] hover:bg-[#eef2f7]",
+                ].join(" ")}
+              >
+                유통기한 경과 식품 {currentItemPage.expiredFoodCount}개
+              </Link>
+              <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-xs font-semibold text-[#394150]">
+                기준일 {formatCafeItemDate(currentToday)}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Link
-              href={createCafeItemExpiredHref()}
-              className={[
-                "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition",
-                currentItemPage.expiredFoodCount > 0
-                  ? "border-[#efb4b4] bg-[#fff1f1] text-[#a13a3a] hover:bg-[#ffe7e7]"
-                  : "border-[#cfd6e3] bg-[#f7f9fc] text-[#394150] hover:bg-[#eef2f7]",
-              ].join(" ")}
-            >
-              유통기한 경과 식품 {currentItemPage.expiredFoodCount}개
-            </Link>
-            <span className="rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-3 py-1.5 text-xs font-semibold text-[#394150]">
-              기준일 {formatCafeItemDate(currentToday)}
+
+          <CafeItemFilterControls filters={currentItemPage.filters} />
+        </div>
+
+        {currentItemPage.items.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-max min-w-[1296px] max-w-none border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
+                  <th className="w-[12rem] px-6 py-3.5">물품</th>
+                  <th className="w-[9rem] px-6 py-3.5">구매일</th>
+                  <th className="w-[8rem] px-6 py-3.5">종류</th>
+                  <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
+                  <SortableExpirationHeader
+                    filters={currentItemPage.filters}
+                  />
+                  <th className="w-[8rem] px-6 py-3.5">가격</th>
+                  <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
+                  <th className="w-[12rem] px-6 py-3.5">보류 사유</th>
+                  <th className="w-[10rem] px-6 py-3.5">관리</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eef1f5]">
+                {currentItemPage.items.map((item) => (
+                  <CafeItemRow key={item.id} item={item} today={currentToday} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
+            조건에 맞는 물품이 없습니다.
+          </p>
+        )}
+
+        {pageError ? (
+          <p className="mx-5 mb-4 rounded-md border border-[#efb4b4] bg-[#fff7f7] px-4 py-3 text-sm font-semibold text-[#a13a3a]">
+            {pageError}
+          </p>
+        ) : null}
+
+        <CafeItemPagination
+          itemPage={currentItemPage}
+          onPageChange={loadItemPage ? loadPage : undefined}
+          pendingPage={pendingPage}
+        />
+      </section>
+
+      {isHeldItemsOpen ? (
+        <CafeItemHeldItemsModal
+          heldItems={currentItemPage.heldItems}
+          onClose={() => setIsHeldItemsOpen(false)}
+          today={currentToday}
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function CafeItemHeldItemsModal({
+  heldItems,
+  onClose,
+  today,
+}: {
+  heldItems: CafeItem[];
+  onClose: () => void;
+  today: string;
+}) {
+  return (
+    <AppModal
+      className="max-w-4xl"
+      labelledBy="cafe-held-items-title"
+      onClose={onClose}
+    >
+      <div className="flex max-h-[calc(100vh-3rem)] min-h-0 flex-col">
+        <header className="shrink-0 border-b border-[#eef1f5] px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-[#7a5200]">
+                카페 물품 보류 현황
+              </p>
+              <h3
+                id="cafe-held-items-title"
+                className="mt-1 text-xl font-semibold text-[#16181d]"
+              >
+                보류 처리된 물품
+              </h3>
+              <p className="mt-1 text-sm text-[#697386]">
+                폐기하지 않고 보관 중인 물품 {heldItems.length}개입니다.
+              </p>
+            </div>
+            <span className="rounded-md border border-[#e6cf91] bg-[#fff4d8] px-3 py-1.5 text-sm font-semibold text-[#7a5200]">
+              총 {heldItems.length}개
             </span>
           </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
+          {heldItems.length > 0 ? (
+            <div className="overflow-x-auto rounded-md border border-[#e2e7ee]">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#e2e7ee] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
+                    <th className="px-4 py-3">물품명</th>
+                    <th className="w-36 px-4 py-3">유통기한</th>
+                    <th className="w-28 px-4 py-3">경과 상태</th>
+                    <th className="w-[45%] px-4 py-3">보류 사유</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#eef1f5]">
+                  {heldItems.map((item) => {
+                    const usageDday = getCafeItemUsageDday(item, today);
+
+                    return (
+                      <tr key={item.id} className="align-top">
+                        <td className="px-4 py-4 font-semibold text-[#16181d]">
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-4 text-[#394150]">
+                          {formatCafeItemDate(item.expirationDate)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="inline-flex rounded-md border border-[#efb4b4] bg-[#fff1f1] px-2 py-1 text-xs font-semibold text-[#a13a3a]">
+                            {usageDday.label}
+                          </span>
+                        </td>
+                        <td className="whitespace-pre-line break-words px-4 py-4 leading-6 text-[#394150] [overflow-wrap:anywhere]">
+                          {item.expirationHoldReason}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-center text-sm text-[#697386]">
+              보류 처리된 물품이 없습니다.
+            </p>
+          )}
         </div>
 
-        <CafeItemFilterControls filters={currentItemPage.filters} />
+        <footer className="flex shrink-0 justify-end border-t border-[#eef1f5] bg-white px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.neutral,
+              "h-10 px-4 text-sm",
+            )}
+          >
+            닫기
+          </button>
+        </footer>
       </div>
-
-      {currentItemPage.items.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-max min-w-[1296px] max-w-none border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
-                <th className="w-[12rem] px-6 py-3.5">물품</th>
-                <th className="w-[9rem] px-6 py-3.5">구매일</th>
-                <th className="w-[8rem] px-6 py-3.5">종류</th>
-                <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
-                <SortableExpirationHeader filters={currentItemPage.filters} />
-                <th className="w-[8rem] px-6 py-3.5">가격</th>
-                <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
-                <th className="w-[12rem] px-6 py-3.5">보류 사유</th>
-                <th className="w-[10rem] px-6 py-3.5">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#eef1f5]">
-              {currentItemPage.items.map((item) => (
-                <CafeItemRow key={item.id} item={item} today={currentToday} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
-          조건에 맞는 물품이 없습니다.
-        </p>
-      )}
-
-      {pageError ? (
-        <p className="mx-5 mb-4 rounded-md border border-[#efb4b4] bg-[#fff7f7] px-4 py-3 text-sm font-semibold text-[#a13a3a]">
-          {pageError}
-        </p>
-      ) : null}
-
-      <CafeItemPagination
-        itemPage={currentItemPage}
-        onPageChange={loadItemPage ? loadPage : undefined}
-        pendingPage={pendingPage}
-      />
-    </section>
+    </AppModal>
   );
 }
 

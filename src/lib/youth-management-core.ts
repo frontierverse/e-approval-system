@@ -123,6 +123,7 @@ export type YouthProfile = {
   decisionDocuments: YouthDecisionDocumentItem[];
   dischargeExtensions?: YouthDischargeExtension[];
   notes: YouthSpecialNote[];
+  updatedAt: string;
 };
 
 export const youthLearningScheduleWeekdays = [

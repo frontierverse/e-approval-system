@@ -16,6 +16,7 @@ export function AppModal({
   label,
   labelledBy,
   onClose,
+  returnFocusTo,
   style,
 }: {
   children: ReactNode;
@@ -24,35 +25,92 @@ export function AppModal({
   label?: string;
   labelledBy?: string;
   onClose: () => void;
+  returnFocusTo?: HTMLElement | null;
   style?: CSSProperties;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    function closeFromEscape(event: globalThis.KeyboardEvent) {
-      if (event.defaultPrevented || event.key !== "Escape") {
-        return;
-      }
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previouslyFocusedElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const focusReturnTarget = returnFocusTo ?? previouslyFocusedElement;
+    const previousBodyOverflow = document.body.style.overflow;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const focusableElements = getFocusableElements(dialog);
+      const initialFocusTarget =
+        dialog?.querySelector<HTMLElement>("[data-modal-initial-focus]") ??
+        focusableElements[0] ??
+        dialog;
+
+      initialFocusTarget?.focus({ preventScroll: true });
+    });
+
+    document.body.style.overflow = "hidden";
+
+    function handleDialogKeyboard(event: globalThis.KeyboardEvent) {
       const dialogs = Array.from(
         document.querySelectorAll<HTMLElement>("[data-app-modal='true']"),
       );
       const topmostDialog = dialogs[dialogs.length - 1];
 
-      if (topmostDialog !== dialogRef.current) {
+      if (topmostDialog !== dialog || event.defaultPrevented) {
         return;
       }
 
-      event.preventDefault();
-      onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = getFocusableElements(dialog);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog?.focus({ preventScroll: true });
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (
+        !event.shiftKey &&
+        (activeElement === lastElement || !dialog?.contains(activeElement))
+      ) {
+        event.preventDefault();
+        firstElement.focus();
+      }
     }
 
-    document.addEventListener("keydown", closeFromEscape);
+    document.addEventListener("keydown", handleDialogKeyboard);
 
     return () => {
-      document.removeEventListener("keydown", closeFromEscape);
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleDialogKeyboard);
+      document.body.style.overflow = previousBodyOverflow;
+
+      if (focusReturnTarget?.isConnected) {
+        focusReturnTarget.focus({ preventScroll: true });
+      }
     };
-  }, [onClose]);
+  }, [returnFocusTo]);
 
   function closeFromBackdrop(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) {
@@ -72,7 +130,7 @@ export function AppModal({
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={[
-          "max-h-[calc(100vh-3rem)] w-full overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-xl",
+          "max-h-[calc(100dvh-3rem)] w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl",
           className,
         ]
           .filter(Boolean)
@@ -80,6 +138,7 @@ export function AppModal({
         data-app-modal="true"
         ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
         style={style}
       >
         {children}
@@ -90,4 +149,25 @@ export function AppModal({
   return typeof document === "undefined"
     ? modal
     : createPortal(modal, document.body);
+}
+
+function getFocusableElements(container: HTMLElement | null) {
+  if (!container) {
+    return [];
+  }
+
+  const selector = [
+    "a[href]",
+    "button:not(:disabled)",
+    "input:not(:disabled):not([type='hidden'])",
+    "select:not(:disabled)",
+    "textarea:not(:disabled)",
+    "[tabindex]:not([tabindex='-1'])",
+  ].join(",");
+
+  return Array.from(container.querySelectorAll<HTMLElement>(selector)).filter(
+    (element) =>
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.getClientRects().length > 0,
+  );
 }

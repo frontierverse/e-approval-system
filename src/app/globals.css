@@ -5,11 +5,33 @@
 :root {
   --background: #f6f7f9;
   --foreground: #16181d;
+  --surface: #ffffff;
+  --surface-muted: #f7f9fc;
+  --surface-hover: #eef4f4;
+  --text-muted: #697386;
+  --border: #d9dee7;
+  --border-strong: #cfd6e3;
+  --brand: #196b69;
+  --brand-hover: #12514f;
+  --brand-soft: #e5f2f1;
+  --focus-ring: #0f766e;
+  --danger: #b42318;
 }
 
 .dark {
   --background: #0d1117;
   --foreground: #c9d1d9;
+  --surface: #161b22;
+  --surface-muted: #21262d;
+  --surface-hover: #262c33;
+  --text-muted: #8b949e;
+  --border: #30363d;
+  --border-strong: #484f58;
+  --brand: #1f6feb;
+  --brand-hover: #388bfd;
+  --brand-soft: rgb(31 111 235 / 0.16);
+  --focus-ring: #79c0ff;
+  --danger: #f85149;
   color-scheme: dark;
 }
 
@@ -32,6 +54,25 @@ body {
   overflow-x: hidden;
 }
 
+::selection {
+  background: color-mix(in srgb, var(--brand) 24%, transparent);
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--focus-ring) !important;
+  outline-offset: 2px;
+}
+
+:where(input, select, textarea):focus-visible {
+  outline-width: 2px !important;
+  outline-offset: 0;
+}
+
+:where(a, button, summary, [tabindex])[class*="focus-visible:ring-"]:focus-visible,
+:where(input, select, textarea)[class*="focus:ring-"]:focus-visible {
+  outline: none !important;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -44,6 +85,11 @@ button:not(:disabled),
 
 button:disabled {
   cursor: not-allowed;
+}
+
+.placeholder\:text-\[\#9aa4b2\]::placeholder {
+  color: #697386;
+  opacity: 1;
 }
 
 [data-app-modal="true"] input:not([type="checkbox"]):not([type="radio"]):not(
@@ -337,6 +383,26 @@ button:disabled {
   color: #ffffff;
 }
 
+[data-theme-toggle-compact] [data-theme-toggle-thumb] {
+  display: none;
+}
+
+[data-theme-toggle-compact] [data-theme-toggle-sun] {
+  display: grid;
+}
+
+[data-theme-toggle-compact] [data-theme-toggle-moon] {
+  display: none;
+}
+
+.dark [data-theme-toggle-compact] [data-theme-toggle-sun] {
+  display: none;
+}
+
+.dark [data-theme-toggle-compact] [data-theme-toggle-moon] {
+  display: grid;
+}
+
 .dark .bg-\[\#f6f7f9\] {
   background-color: #0d1117;
 }
@@ -425,6 +491,27 @@ button:disabled {
   background-color: rgb(218 54 51 / 0.16);
 }
 
+.dark .bg-\[\#eef2ff\],
+.dark .bg-\[\#e0e7ff\] {
+  background-color: rgb(99 102 241 / 0.18);
+}
+
+.dark .bg-\[\#fff8e8\],
+.dark .bg-\[\#fff3d0\],
+.dark .bg-\[\#fff4d8\] {
+  background-color: rgb(210 153 34 / 0.16);
+}
+
+.dark .bg-\[\#edf8fb\],
+.dark .bg-\[\#dff1f6\] {
+  background-color: rgb(31 111 235 / 0.16);
+}
+
+.dark .bg-\[\#edf8f5\],
+.dark .bg-\[\#e1f3ef\] {
+  background-color: rgb(35 134 54 / 0.16);
+}
+
 .dark .bg-\[\#faf6ef\] {
   background-color: rgb(158 106 3 / 0.16);
 }
@@ -454,6 +541,28 @@ button:disabled {
 
 .dark .text-\[\#22633a\] {
   color: #3fb950;
+}
+
+.dark .text-\[\#3730a3\],
+.dark .text-\[\#312e81\] {
+  color: #a5b4fc;
+}
+
+.dark .text-\[\#9d3328\],
+.dark .text-\[\#7a271a\],
+.dark .text-\[\#a13a3a\] {
+  color: #ff7b72;
+}
+
+.dark .text-\[\#7a5200\],
+.dark .text-\[\#4a2f00\] {
+  color: #e3b341;
+}
+
+.dark .text-\[\#1d5f78\],
+.dark .text-\[\#17475a\],
+.dark .text-\[\#174f4d\] {
+  color: #79c0ff;
 }
 
 .dark .text-\[\#8a1f1f\],
@@ -496,6 +605,32 @@ button:disabled {
 
 .dark .border-\[\#ddd4c6\] {
   border-color: rgb(210 153 34 / 0.55);
+}
+
+.dark .border-\[\#c7d2fe\],
+.dark .border-\[\#a5b4fc\] {
+  border-color: rgb(165 180 252 / 0.55);
+}
+
+.dark .border-\[\#e59b93\] {
+  border-color: rgb(248 81 73 / 0.55);
+}
+
+.dark .border-\[\#f0d28a\],
+.dark .border-\[\#e8bc5f\],
+.dark .border-\[\#e6cf91\] {
+  border-color: rgb(227 179 65 / 0.55);
+}
+
+.dark .border-\[\#b9d8e4\],
+.dark .border-\[\#94c4d5\] {
+  border-color: rgb(121 192 255 / 0.55);
+}
+
+.dark .border-\[\#b7d9d4\],
+.dark .border-\[\#8fc8bf\],
+.dark .border-\[\#9dcfaf\] {
+  border-color: rgb(63 185 80 / 0.55);
 }
 
 .dark .placeholder\:text-\[\#9aa4b2\]::placeholder {

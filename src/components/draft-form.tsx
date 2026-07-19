@@ -57,8 +57,10 @@ type DraftFormProps = {
     allowedExtensions: string[];
   };
   approverCandidates: ApprovalCandidate[];
+  allowedApproverPositionName?: string;
   action?: DraftFormAction;
   cancelHref?: string;
+  defaultApproverIds?: string[];
   initialValues?: DraftFormValues;
   existingAttachments?: ExistingAttachment[];
   mode?: "create" | "edit";
@@ -70,6 +72,10 @@ type DraftFormAction = (
 ) => Promise<DraftFormState>;
 
 type DraftSubmitIntent = "draft" | "submit" | null;
+type DraftFormErrorField = Exclude<
+  keyof NonNullable<DraftFormState["errors"]>,
+  "form"
+>;
 
 type UploadedAttachmentMetadata = {
   originalName: string;
@@ -110,8 +116,10 @@ export function DraftForm({
   templates,
   attachmentPolicy,
   approverCandidates,
+  allowedApproverPositionName,
   action = createDraftAction,
   cancelHref,
+  defaultApproverIds = [],
   initialValues: providedInitialValues,
   existingAttachments = [],
   mode = "create",
@@ -120,13 +128,19 @@ export function DraftForm({
     action,
     initialState,
   );
-  const initialValues = getInitialValues(state, templates, providedInitialValues);
+  const initialValues = getInitialValues(
+    state,
+    templates,
+    providedInitialValues,
+    defaultApproverIds,
+  );
 
   return (
     <DraftFormFields
       templates={templates}
       attachmentPolicy={attachmentPolicy}
       approverCandidates={approverCandidates}
+      allowedApproverPositionName={allowedApproverPositionName}
       cancelHref={cancelHref}
       errors={state.errors}
       existingAttachments={existingAttachments}
@@ -142,6 +156,7 @@ function DraftFormFields({
   templates,
   attachmentPolicy,
   approverCandidates,
+  allowedApproverPositionName,
   cancelHref,
   errors,
   existingAttachments = [],
@@ -159,6 +174,7 @@ function DraftFormFields({
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>(
     initialValues.approverIds,
   );
+  const formRef = useRef<HTMLFormElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -171,10 +187,29 @@ function DraftFormFields({
   const clientActionPendingRef = useRef(false);
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
-  const titleHasError = Boolean(errors?.title);
-  const templateHasError = Boolean(errors?.templateId);
-  const contentHasError = Boolean(errors?.content);
-  const approverHasError = Boolean(errors?.approvers);
+  const [isCandidateDirectoryOpen, setIsCandidateDirectoryOpen] = useState(
+    initialValues.approverIds.length === 0,
+  );
+  const [clearedServerErrorState, setClearedServerErrorState] = useState<{
+    errors: DraftFormState["errors"];
+    fields: Set<DraftFormErrorField>;
+  }>(() => ({ errors, fields: new Set() }));
+  const clearedServerErrors =
+    clearedServerErrorState.errors === errors
+      ? clearedServerErrorState.fields
+      : new Set<DraftFormErrorField>();
+  const titleHasError = Boolean(
+    errors?.title && !clearedServerErrors.has("title"),
+  );
+  const templateHasError = Boolean(
+    errors?.templateId && !clearedServerErrors.has("templateId"),
+  );
+  const contentHasError = Boolean(
+    errors?.content && !clearedServerErrors.has("content"),
+  );
+  const approverHasError = Boolean(
+    errors?.approvers && !clearedServerErrors.has("approvers"),
+  );
   const attachmentHasError = Boolean(attachmentError);
   const isEditMode = mode === "edit";
   const retainedAttachmentCount =
@@ -212,12 +247,27 @@ function DraftFormFields({
 
   const errorBorderClass = "border-[#cc1f1f] ring-2 ring-[#f4c7c7]";
 
+  const eligibleApproverCandidates = useMemo(
+    () =>
+      allowedApproverPositionName
+        ? approverCandidates.filter(
+            (candidate) =>
+              candidate.positionName === allowedApproverPositionName,
+          )
+        : approverCandidates,
+    [allowedApproverPositionName, approverCandidates],
+  );
+
   const departments = useMemo(
     () =>
       Array.from(
-        new Set(approverCandidates.map((candidate) => candidate.departmentName)),
+        new Set(
+          eligibleApproverCandidates.map(
+            (candidate) => candidate.departmentName,
+          ),
+        ),
       ).sort((a, b) => a.localeCompare(b, "ko-KR")),
-    [approverCandidates],
+    [eligibleApproverCandidates],
   );
 
   const selectedApprovers = useMemo(
@@ -239,6 +289,7 @@ function DraftFormFields({
         selectedTemplate,
         templateFieldValues,
         title,
+        allowedApproverPositionName,
       }),
     [
       attachmentError,
@@ -248,6 +299,7 @@ function DraftFormFields({
       structuredContent,
       templateFieldValues,
       title,
+      allowedApproverPositionName,
     ],
   );
   const canSubmitForApproval = submitBlockReason === null;
@@ -255,7 +307,7 @@ function DraftFormFields({
   const availableApprovers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
 
-    return approverCandidates.filter((candidate) => {
+    return eligibleApproverCandidates.filter((candidate) => {
       if (selectedApproverIds.includes(candidate.id)) {
         return false;
       }
@@ -281,11 +333,38 @@ function DraftFormFields({
         .toLocaleLowerCase("ko-KR")
         .includes(normalizedQuery);
     });
-  }, [approverCandidates, departmentFilter, query, selectedApproverIds]);
+  }, [
+    departmentFilter,
+    eligibleApproverCandidates,
+    query,
+    selectedApproverIds,
+  ]);
+  const isFixedSingleApprover = Boolean(
+    allowedApproverPositionName &&
+      eligibleApproverCandidates.length === 1 &&
+      selectedApproverIds.length === 1 &&
+      selectedApproverIds[0] === eligibleApproverCandidates[0].id,
+  );
 
   useEffect(() => {
     syncAttachmentInputFiles(attachmentInputRef.current, selectedFiles);
   }, [errors, selectedFiles]);
+
+  useEffect(() => {
+    if (!errors || Object.keys(errors).length === 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      formRef.current
+        ?.querySelector<HTMLElement>(
+          '[aria-invalid="true"], [data-form-error-target="true"]',
+        )
+        ?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [errors]);
 
   useEffect(() => {
     if (pending && activeSubmitIntent) {
@@ -323,6 +402,24 @@ function DraftFormFields({
     setActiveSubmitIntent(null);
   }
 
+  function clearServerError(field: DraftFormErrorField) {
+    setClearedServerErrorState((current) => {
+      const fields =
+        current.errors === errors
+          ? current.fields
+          : new Set<DraftFormErrorField>();
+
+      if (fields.has(field)) {
+        return current.errors === errors ? current : { errors, fields };
+      }
+
+      return {
+        errors,
+        fields: new Set(fields).add(field),
+      };
+    });
+  }
+
   function addApprover(approverId: string) {
     if (selectedApproverIds.includes(approverId)) {
       return;
@@ -336,7 +433,9 @@ function DraftFormFields({
       return;
     }
 
-    const next = [...selectedApproverIds, approverId];
+    const next = allowedApproverPositionName
+      ? [approverId]
+      : [...selectedApproverIds, approverId];
     const policyError = getApprovalLinePolicyError(
       next
         .map((id) =>
@@ -353,12 +452,22 @@ function DraftFormFields({
     }
 
     setSelectedApproverIds(next);
+    clearServerError("approvers");
+
+    if (allowedApproverPositionName) {
+      setIsCandidateDirectoryOpen(false);
+    }
   }
 
   function removeApprover(approverId: string) {
-    setSelectedApproverIds((current) =>
-      current.filter((id) => id !== approverId),
-    );
+    const next = selectedApproverIds.filter((id) => id !== approverId);
+
+    setSelectedApproverIds(next);
+    clearServerError("approvers");
+
+    if (next.length === 0) {
+      setIsCandidateDirectoryOpen(true);
+    }
   }
 
   function moveApprover(approverId: string, direction: -1 | 1) {
@@ -389,6 +498,7 @@ function DraftFormFields({
     }
 
     setSelectedApproverIds(next);
+    clearServerError("approvers");
   }
 
   function handleAttachmentChange(fileList: FileList | null) {
@@ -527,39 +637,68 @@ function DraftFormFields({
 
   return (
     <form
+      ref={formRef}
       action={formAction}
+      aria-busy={isBusy}
       onInvalidCapture={clearSubmitIntent}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing &&
+          event.target instanceof HTMLInputElement &&
+          event.target.type !== "checkbox" &&
+          event.target.type !== "file"
+        ) {
+          event.preventDefault();
+        }
+      }}
       onSubmit={handleSubmit}
-      className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]"
+      className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
     >
-      <section className="rounded-md border border-[#d9dee7] bg-white p-5">
-        <div>
-          <label
-            htmlFor="title"
-            className="text-sm font-semibold text-[#394150]"
-          >
-            제목
-          </label>
-          <input
-            id="title"
-            name="title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="제목을 입력하세요"
-            className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
-              titleHasError ? ` ${errorBorderClass}` : ""
-            }`}
-          />
-          {errors?.title ? (
-            <p className="mt-2 text-sm text-[#8a1f1f]">{errors.title}</p>
-          ) : null}
-        </div>
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 xl:col-start-1 xl:row-start-1">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_15rem]">
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="title"
+                className="text-sm font-semibold text-[var(--foreground)]"
+              >
+                제목
+              </label>
+              <span className="text-xs tabular-nums text-[var(--text-muted)]">
+                {title.length}/120
+              </span>
+            </div>
+            <input
+              id="title"
+              name="title"
+              value={title}
+              disabled={isBusy}
+              aria-invalid={titleHasError}
+              aria-describedby={titleHasError ? "draft-title-error" : undefined}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                clearServerError("title");
+              }}
+              placeholder="제목을 입력하세요"
+              className={`mt-2 h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+                titleHasError ? ` ${errorBorderClass}` : ""
+              }`}
+            />
+            {titleHasError && errors?.title ? (
+              <p
+                id="draft-title-error"
+                className="mt-2 text-sm text-[var(--danger)]"
+              >
+                {errors.title}
+              </p>
+            ) : null}
+          </div>
 
-        <div className="mt-5">
           <div>
             <label
               htmlFor="templateId"
-              className="text-sm font-semibold text-[#394150]"
+              className="text-sm font-semibold text-[var(--foreground)]"
             >
               문서 양식
             </label>
@@ -567,8 +706,22 @@ function DraftFormFields({
               id="templateId"
               name="templateId"
               value={templateId}
+              disabled={isBusy}
+              aria-invalid={templateHasError}
+              aria-describedby={
+                [
+                  templateHasError ? "draft-template-error" : "",
+                  selectedTemplate?.description
+                    ? "draft-template-description"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
               onChange={(event) => {
                 setTemplateId(event.target.value);
+                clearServerError("templateId");
+                clearServerError("content");
                 setTemplateFieldValues(
                   getTemplateFieldValuesForSelectedTemplate(
                     event.target.value,
@@ -577,7 +730,7 @@ function DraftFormFields({
                   ),
                 );
               }}
-              className={`mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
+              className={`mt-2 h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]${
                 templateHasError ? ` ${errorBorderClass}` : ""
               }`}
             >
@@ -590,42 +743,69 @@ function DraftFormFields({
                 </option>
               ))}
             </select>
-            {errors?.templateId ? (
-              <p className="mt-2 text-sm text-[#8a1f1f]">{errors.templateId}</p>
+            {templateHasError && errors?.templateId ? (
+              <p
+                id="draft-template-error"
+                className="mt-2 text-sm text-[var(--danger)]"
+              >
+                {errors.templateId}
+              </p>
             ) : null}
             {templates.length === 0 ? (
-              <p className="mt-2 text-sm text-[#8a1f1f]">
+              <p className="mt-2 text-sm text-[var(--danger)]">
                 관리자에게 활성 문서 양식을 요청하세요.
+              </p>
+            ) : selectedTemplate?.description ? (
+              <p
+                id="draft-template-description"
+                className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--text-muted)]"
+              >
+                {selectedTemplate.description}
               </p>
             ) : null}
           </div>
         </div>
 
-        <div className="mt-5">
-          <label
-            className="text-sm font-semibold text-[#394150]"
-            htmlFor={usesStructuredTemplate ? undefined : "content"}
-          >
-            {usesStructuredTemplate && selectedTemplate
-              ? `${selectedTemplate.name} 입력`
-              : "기안 내용"}
-          </label>
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <label
+              className="text-sm font-semibold text-[var(--foreground)]"
+              htmlFor={usesStructuredTemplate ? undefined : "content"}
+            >
+              {usesStructuredTemplate && selectedTemplate
+                ? `${selectedTemplate.name} 입력`
+                : "기안 내용"}
+            </label>
+            {!usesStructuredTemplate ? (
+              <span className="text-xs tabular-nums text-[var(--text-muted)]">
+                {content.length}/5000
+              </span>
+            ) : null}
+          </div>
           {usesStructuredTemplate && selectedTemplate ? (
             <>
               <input name="content" type="hidden" value={structuredContent} />
-              <div className="mt-2 grid gap-4 lg:grid-cols-2">
+              <div
+                role="group"
+                aria-label={`${selectedTemplate.name} 입력 항목`}
+                aria-describedby={contentHasError ? "draft-content-error" : undefined}
+                data-form-error-target={contentHasError ? "true" : undefined}
+                tabIndex={contentHasError ? -1 : undefined}
+                className="mt-2 grid gap-4 lg:grid-cols-2"
+              >
                 {selectedTemplateFields.map((field) => (
                   <TemplateInput
                     key={field.name}
                     field={field}
                     pending={isBusy}
                     value={templateFieldValues[field.name] ?? ""}
-                    onChange={(value) =>
+                    onChange={(value) => {
+                      clearServerError("content");
                       setTemplateFieldValues((current) => ({
                         ...current,
                         [field.name]: value,
-                      }))
-                    }
+                      }));
+                    }}
                   />
                 ))}
               </div>
@@ -635,26 +815,37 @@ function DraftFormFields({
               id="content"
               name="content"
               value={content}
-              onChange={setContent}
-              rows={12}
+              ariaDescribedBy={contentHasError ? "draft-content-error" : undefined}
+              ariaInvalid={contentHasError}
+              disabled={isBusy}
+              onChange={(value) => {
+                setContent(value);
+                clearServerError("content");
+              }}
+              rows={9}
               placeholder="기안 내용을 입력하세요"
               hasError={contentHasError}
             />
           )}
-          {errors?.content ? (
-            <p className="mt-2 text-sm text-[#8a1f1f]">{errors.content}</p>
+          {contentHasError && errors?.content ? (
+            <p
+              id="draft-content-error"
+              className="mt-2 text-sm text-[var(--danger)]"
+            >
+              {errors.content}
+            </p>
           ) : null}
         </div>
 
-        <div className="mt-5">
+        <div className="mt-4">
           <label
             htmlFor="attachments"
-            className="text-sm font-semibold text-[#394150]"
+            className="text-sm font-semibold text-[var(--foreground)]"
           >
             첨부파일
           </label>
           {existingAttachments.length > 0 ? (
-            <ul className="mt-2 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5]">
+            <ul className="mt-2 divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
               {existingAttachments.map((attachment) => {
                 const isRemoved = removedAttachmentIds.includes(attachment.id);
 
@@ -699,7 +890,7 @@ function DraftFormFields({
                             isRemoved
                               ? buttonStyles.neutral
                               : buttonStyles.dangerOutline,
-                            "h-8 px-3 text-xs",
+                            "h-11 px-3 text-xs",
                           )}
                         >
                           {isRemoved ? "삭제 취소" : "삭제"}
@@ -716,18 +907,45 @@ function DraftFormFields({
             name="attachments"
             type="file"
             ref={attachmentInputRef}
+            hidden
             multiple
             accept={attachmentPolicy.allowedExtensions.join(",")}
             disabled={isBusy}
             onChange={(event) => handleAttachmentChange(event.currentTarget.files)}
-            className={`mt-2 block w-full rounded-md border border-dashed bg-[#fbfcfd] px-4 py-4 text-sm text-[#394150] file:mr-4 file:h-9 file:rounded-md file:border-0 file:bg-[#0f6f8f] file:px-3 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0b5973] disabled:cursor-not-allowed disabled:opacity-60${
+          />
+          <div
+            className={`mt-2 flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-md border border-dashed bg-[var(--surface-muted)] px-3 py-2${
               attachmentHasError
                 ? ` ${errorBorderClass}`
-                : " border-[#cfd6e3]"
+                : " border-[var(--border-strong)]"
             }`}
-          />
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-[var(--foreground)]">
+                {selectedFiles.length > 0
+                  ? `새 파일 ${selectedFiles.length}개 선택됨`
+                  : "첨부할 파일을 선택하세요"}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                여러 파일을 한 번에 선택할 수 있습니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isBusy}
+              aria-describedby="draft-attachment-policy"
+              onClick={() => attachmentInputRef.current?.click()}
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.create,
+                "h-11 shrink-0 px-4 text-sm",
+              )}
+            >
+              파일 선택
+            </button>
+          </div>
           {selectedFiles.length > 0 ? (
-            <ul className="mt-3 divide-y divide-[#eef1f5] rounded-md border border-[#eef1f5] bg-white">
+            <ul className="mt-3 divide-y divide-[var(--border)] rounded-md border border-[var(--border)] bg-[var(--surface)]">
               {selectedFiles.map((file) => (
                 <li key={getAttachmentSelectionKey(file)} className="px-3 py-2">
                   <AttachmentFileRow
@@ -747,7 +965,7 @@ function DraftFormFields({
                         className={buttonClass(
                           buttonStyles.base,
                           buttonStyles.dangerOutline,
-                          "h-8 px-3 text-xs",
+                          "h-11 px-3 text-xs",
                         )}
                       >
                         제거
@@ -759,9 +977,17 @@ function DraftFormFields({
             </ul>
           ) : null}
           {attachmentError ? (
-            <p className="mt-2 text-sm text-[#8a1f1f]">{attachmentError}</p>
+            <p
+              id="draft-attachment-error"
+              className="mt-2 text-sm text-[var(--danger)]"
+            >
+              {attachmentError}
+            </p>
           ) : null}
-          <p className="mt-2 text-xs text-[#697386]">
+          <p
+            id="draft-attachment-policy"
+            className="mt-2 text-xs text-[var(--text-muted)]"
+          >
             최대 {attachmentPolicy.maxFileCount}개, 파일당{" "}
             {attachmentPolicy.maxFileSizeMb}MB 이하. 허용 확장자:{" "}
             {attachmentPolicy.allowedExtensions.join(", ")}
@@ -772,166 +998,84 @@ function DraftFormFields({
         </div>
 
         {errors?.form ? (
-          <p className="mt-5 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+          <p
+            tabIndex={-1}
+            data-form-error-target="true"
+            className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-[var(--danger)] dark:border-red-400/40 dark:bg-red-400/10"
+          >
             {errors.form}
           </p>
         ) : null}
-
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
-          {cancelHref ? (
-            <Link
-              href={cancelHref}
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.cancel,
-                "h-10 px-4 text-sm",
-              )}
-            >
-              취소
-            </Link>
-          ) : null}
-          <button
-            type="submit"
-            name="intent"
-            value="draft"
-            disabled={isBusy || templates.length === 0}
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.save,
-              "h-10 px-4 text-sm",
-            )}
-          >
-            {isDraftPending ? "저장 중" : isEditMode ? "수정 저장" : "임시저장"}
-          </button>
-          <button
-            type="submit"
-            name="intent"
-            value="submit"
-            disabled={isBusy || !canSubmitForApproval}
-            title={submitBlockReason ?? undefined}
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.primary,
-              "h-10 px-4 text-sm",
-            )}
-          >
-            {isSubmitPending ? "결재 요청 중" : "결재 요청"}
-          </button>
-        </div>
       </section>
 
-          <aside
-            className={`self-start rounded-md border bg-white p-5${
-              approverHasError
-                ? ` border-[#cc1f1f] ring-2 ring-[#f4c7c7]`
-                : " border-[#d9dee7]"
-            }`}
-          >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">결재선</h2>
-            <p className="mt-1 text-xs text-[#697386]">
-              {selectedApprovers.length}명 지정
+      <aside
+        aria-labelledby="draft-approval-line-title"
+        aria-describedby={approverHasError ? "draft-approver-error" : undefined}
+        data-form-error-target={approverHasError ? "true" : undefined}
+        tabIndex={approverHasError ? -1 : undefined}
+        className={`scrollbar-stable self-start rounded-xl border bg-[var(--surface)] p-4 xl:sticky xl:top-0 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-h-[calc(100vh-10.25rem)] xl:overflow-y-auto${
+          approverHasError
+            ? ` border-[#cc1f1f] ring-2 ring-[#f4c7c7]`
+            : " border-[var(--border)]"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2
+              id="draft-approval-line-title"
+              className="text-base font-semibold text-[var(--foreground)]"
+            >
+              결재선
+            </h2>
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+              {allowedApproverPositionName
+                ? `${allowedApproverPositionName} 단일 결재`
+                : "결재 처리 순서"}
             </p>
           </div>
+          <span className="shrink-0 rounded-full bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold tabular-nums text-[var(--text-muted)]">
+            {selectedApprovers.length}명
+          </span>
         </div>
 
-        <div className="mt-4 grid gap-3">
-          <div>
-            <label
-              htmlFor="approverSearch"
-              className="text-xs font-semibold text-[#697386]"
+        <section className="mt-3" aria-labelledby="selected-approvers-title">
+          <div className="flex min-h-11 items-center justify-between gap-2">
+            <h3
+              id="selected-approvers-title"
+              className="text-sm font-semibold text-[var(--foreground)]"
             >
-              검색
-            </label>
-            <input
-              id="approverSearch"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="이름, 이메일, 부서"
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="departmentFilter"
-              className="text-xs font-semibold text-[#697386]"
-            >
-              부서
-            </label>
-            <select
-              id="departmentFilter"
-              value={departmentFilter}
-              onChange={(event) => setDepartmentFilter(event.target.value)}
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
-            >
-              <option value="all">전체</option>
-              {departments.map((department) => (
-                <option key={department} value={department}>
-                  {department}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4 max-h-[18rem] space-y-2 overflow-y-auto pr-1">
-          {availableApprovers.length > 0 ? (
-            availableApprovers.map((candidate) => (
-              <div
-                key={candidate.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-[#eef1f5] p-3"
+              지정된 결재자
+            </h3>
+            {!isFixedSingleApprover && eligibleApproverCandidates.length > 0 ? (
+              <button
+                type="button"
+                aria-controls="draft-approver-directory"
+                aria-expanded={isCandidateDirectoryOpen}
+                disabled={isBusy}
+                onClick={() =>
+                  setIsCandidateDirectoryOpen((current) => !current)
+                }
+                className={buttonClass(
+                  buttonStyles.base,
+                  buttonStyles.neutral,
+                  "h-11 px-3 text-xs",
+                )}
               >
-                <UserIdentity
-                  user={candidate}
-                  meta={`${candidate.departmentName} · ${candidate.positionName}`}
-                />
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => addApprover(candidate.id)}
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.create,
-                    "h-8 shrink-0 px-3 text-xs",
-                  )}
-                >
-                  추가
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm leading-6 text-[#697386]">
-              선택 가능한 결재자가 없습니다.
-            </div>
-          )}
-        </div>
+                {isCandidateDirectoryOpen ? "후보 닫기" : "결재자 선택"}
+              </button>
+            ) : null}
+          </div>
 
-        <div className="mt-5 border-t border-[#eef1f5] pt-5">
-          <h3 className="text-sm font-semibold text-[#394150]">결재 순서</h3>
           {selectedApprovers.length > 0 ? (
-            <ol className="mt-4 space-y-4">
+            <ol className="mt-2 divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)]">
               {selectedApprovers.map((approver, index) => (
                 <li
                   key={approver.id}
-                  className="relative min-h-20 pl-11"
+                  className="flex min-h-16 items-center gap-2 px-2 py-1.5"
                 >
-                  {index < selectedApprovers.length - 1 ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-[1.125rem] top-10 h-[calc(100%-1rem)] w-px bg-[#e7ecf2]"
-                    />
-                  ) : null}
                   <span
                     aria-hidden="true"
-                    className={[
-                      "absolute left-0 top-0 grid size-9 place-items-center rounded-full border text-sm font-semibold",
-                      index === 0
-                        ? "border-[#b8d9d7] bg-[#196b69] text-white"
-                        : "border-[#cfd6e3] bg-[#f7f9fc] text-[#697386]",
-                    ].join(" ")}
+                    className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--brand)] text-xs font-semibold text-white"
                   >
                     {index + 1}
                   </span>
@@ -940,25 +1084,19 @@ function DraftFormFields({
                     name="approverIds"
                     value={approver.id}
                   />
-                  <div
-                    className={[
-                      "rounded-md border px-3 py-3",
-                      index === 0
-                        ? "border-[#b8d9d7] bg-[#e5f2f1]"
-                        : "border-[#eef1f5] bg-white",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="mb-2 text-xs font-semibold text-[#697386]">
-                          {index + 1}차 결재자
-                        </p>
-                        <UserIdentity
-                          user={approver}
-                          meta={`${approver.departmentName} · ${approver.positionName}`}
-                        />
-                      </div>
-                      <div className="flex shrink-0 gap-1">
+                  <UserIdentity
+                    user={approver}
+                    className="min-w-0 flex-1"
+                    nameClassName="text-[var(--foreground)]"
+                    metaClassName="text-[var(--text-muted)]"
+                    meta={`${approver.departmentName} · ${approver.positionName}`}
+                  />
+                  {isFixedSingleApprover ? (
+                    <span className="shrink-0 rounded-full bg-[var(--brand-soft)] px-2 py-1 text-xs font-semibold text-[var(--brand)]">
+                      자동 지정
+                    </span>
+                  ) : (
+                    <div className="flex shrink-0 gap-1">
                         <button
                           type="button"
                           title="위로 이동"
@@ -968,7 +1106,7 @@ function DraftFormFields({
                           className={buttonClass(
                             buttonStyles.base,
                             buttonStyles.neutral,
-                            "h-8 w-8 text-sm disabled:opacity-40",
+                            "size-11 text-sm disabled:opacity-40",
                           )}
                         >
                           ↑
@@ -984,7 +1122,7 @@ function DraftFormFields({
                           className={buttonClass(
                             buttonStyles.base,
                             buttonStyles.neutral,
-                            "h-8 w-8 text-sm disabled:opacity-40",
+                            "size-11 text-sm disabled:opacity-40",
                           )}
                         >
                           ↓
@@ -998,36 +1136,223 @@ function DraftFormFields({
                           className={buttonClass(
                             buttonStyles.base,
                             buttonStyles.dangerOutline,
-                            "h-8 w-8 text-sm disabled:opacity-40",
+                            "size-11 text-sm disabled:opacity-40",
                           )}
                         >
                           ×
                         </button>
-                      </div>
                     </div>
-                    <p className="mt-3 text-xs font-medium text-[#697386]">
-                      {index === 0
-                        ? "결재 요청 후 가장 먼저 처리할 단계입니다."
-                        : "앞 단계가 끝나면 결재 차례가 됩니다."}
-                    </p>
-                  </div>
+                  )}
                 </li>
               ))}
             </ol>
           ) : (
-            <div className="mt-3 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-6 text-sm leading-6 text-[#697386]">
-              결재자를 1명 이상 지정하세요.
+            <div className="mt-2 rounded-md border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-3 py-4 text-sm leading-5 text-[var(--text-muted)]">
+              {allowedApproverPositionName
+                ? `${allowedApproverPositionName}을 지정해야 결재를 요청할 수 있습니다.`
+                : "결재자를 1명 이상 지정하세요."}
             </div>
           )}
-          {errors?.approvers ? (
-            <p className="mt-3 text-sm text-[#8a1f1f]">{errors.approvers}</p>
+          {approverHasError && errors?.approvers ? (
+            <p
+              id="draft-approver-error"
+              className="mt-2 text-sm text-[var(--danger)]"
+            >
+              {errors.approvers}
+            </p>
           ) : null}
-          <p className="mt-3 text-xs leading-5 text-[#697386]">
-            작성자 본인은 제외되며 같은 결재자는 한 번만 지정됩니다. 결재선은
-            낮은 직급에서 높은 직급 순서로 지정하세요.
+        </section>
+
+        {!isFixedSingleApprover && isCandidateDirectoryOpen ? (
+          <section
+            id="draft-approver-directory"
+            aria-labelledby="approver-directory-title"
+            className="mt-3 border-t border-[var(--border)] pt-3"
+          >
+            <h3
+              id="approver-directory-title"
+              className="text-sm font-semibold text-[var(--foreground)]"
+            >
+              결재자 후보
+            </h3>
+            {eligibleApproverCandidates.length > 0 ? (
+              <>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+                  <div>
+                    <label htmlFor="approverSearch" className="sr-only">
+                      결재자 검색
+                    </label>
+                    <input
+                      id="approverSearch"
+                      type="search"
+                      value={query}
+                      disabled={isBusy}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                        }
+                      }}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="이름 또는 부서"
+                      className="h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="departmentFilter" className="sr-only">
+                      부서
+                    </label>
+                    <select
+                      id="departmentFilter"
+                      value={departmentFilter}
+                      disabled={isBusy}
+                      onChange={(event) =>
+                        setDepartmentFilter(event.target.value)
+                      }
+                      className="h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+                    >
+                      <option value="all">전체 부서</option>
+                      {departments.map((department) => (
+                        <option key={department} value={department}>
+                          {department}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {availableApprovers.length > 0 ? (
+                  <div className="mt-2 max-h-56 divide-y divide-[var(--border)] overflow-y-auto rounded-md border border-[var(--border)]">
+                    {availableApprovers.map((candidate) => (
+                      <div
+                        key={candidate.id}
+                        className="flex min-h-14 items-center justify-between gap-2 px-2 py-1.5"
+                      >
+                        <UserIdentity
+                          user={candidate}
+                          className="min-w-0 flex-1"
+                          nameClassName="text-[var(--foreground)]"
+                          metaClassName="text-[var(--text-muted)]"
+                          meta={`${candidate.departmentName} · ${candidate.positionName}`}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`${candidate.name} 결재자로 추가`}
+                          disabled={isBusy}
+                          onClick={() => addApprover(candidate.id)}
+                          className={buttonClass(
+                            buttonStyles.base,
+                            buttonStyles.create,
+                            "h-11 shrink-0 px-3 text-xs",
+                          )}
+                        >
+                          추가
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-md border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] px-3 py-4 text-sm text-[var(--text-muted)]">
+                    검색 조건에 맞는 결재자가 없습니다.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm leading-5 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
+                {allowedApproverPositionName ?? "결재 가능 직급"} 계정이 없습니다.
+                관리자에게 직급 설정을 요청하세요.
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        <p className="mt-3 border-t border-[var(--border)] pt-3 text-xs leading-5 text-[var(--text-muted)]">
+          {allowedApproverPositionName
+            ? `결재 요청은 지정된 ${allowedApproverPositionName}에게 전달됩니다.`
+            : "작성자 본인은 제외되며 결재선은 낮은 직급에서 높은 직급 순서로 지정합니다."}
           </p>
-        </div>
       </aside>
+
+      <section
+        aria-labelledby="draft-submit-actions-title"
+        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-4 xl:col-start-1 xl:row-start-2"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2
+              id="draft-submit-actions-title"
+              className="text-sm font-semibold text-[var(--foreground)]"
+            >
+              저장 및 결재 요청
+            </h2>
+            <p
+              id="draft-submit-readiness"
+              aria-live="polite"
+              className={[
+                "mt-1 text-sm leading-5",
+                canSubmitForApproval
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-[var(--text-muted)]",
+              ].join(" ")}
+            >
+              {canSubmitForApproval
+                ? `필수 입력과 결재선 ${selectedApprovers.length}명이 준비되었습니다.`
+                : `결재 요청 전 확인: ${submitBlockReason}`}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+              임시저장은 작성 중인 내용 그대로 보관합니다.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2 sm:shrink-0">
+            {cancelHref ? (
+              <Link
+                href={cancelHref}
+                className={buttonClass(
+                  buttonStyles.base,
+                  buttonStyles.cancel,
+                  "h-11 px-4 text-sm",
+                )}
+              >
+                취소
+              </Link>
+            ) : null}
+            <button
+              type="submit"
+              name="intent"
+              value="draft"
+              formNoValidate
+              disabled={isBusy || templates.length === 0}
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.neutral,
+                "h-11 px-4 text-sm",
+              )}
+            >
+              {isDraftPending
+                ? "저장 중"
+                : isEditMode
+                  ? "수정 저장"
+                  : "임시저장"}
+            </button>
+            <button
+              type="submit"
+              name="intent"
+              value="submit"
+              aria-describedby="draft-submit-readiness"
+              disabled={isBusy || !canSubmitForApproval}
+              title={submitBlockReason ?? undefined}
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.primary,
+                "h-11 px-4 text-sm",
+              )}
+            >
+              {isSubmitPending ? "결재 요청 중" : "결재 요청"}
+            </button>
+          </div>
+        </div>
+      </section>
+
       <PendingOverlay
         description="서버에서 문서 저장과 결재 요청을 처리하는 중입니다. 완료되면 문서 화면으로 이동합니다."
         label="결재 요청 중"
@@ -1091,6 +1416,7 @@ function getInitialValues(
   state: DraftFormState,
   templates: DraftFormProps["templates"],
   providedInitialValues?: DraftFormValues,
+  defaultApproverIds: string[] = [],
 ): DraftFormValues {
   const templateId =
     state.values?.templateId ??
@@ -1105,7 +1431,9 @@ function getInitialValues(
     templateId,
     content,
     approverIds:
-      state.values?.approverIds ?? providedInitialValues?.approverIds ?? [],
+      state.values?.approverIds ??
+      providedInitialValues?.approverIds ??
+      defaultApproverIds,
     templateFieldValues:
       state.values?.templateFieldValues ??
       providedInitialValues?.templateFieldValues ??
@@ -1128,6 +1456,7 @@ function getInitialTemplateFieldValues(
 }
 
 function getDraftSubmitBlockReason({
+  allowedApproverPositionName,
   attachmentError,
   content,
   selectedApproverIds,
@@ -1136,6 +1465,7 @@ function getDraftSubmitBlockReason({
   templateFieldValues,
   title,
 }: {
+  allowedApproverPositionName?: string;
   attachmentError: string | null;
   content: string;
   selectedApproverIds: string[];
@@ -1174,6 +1504,14 @@ function getDraftSubmitBlockReason({
 
   if (trimmedContent.length > 5000) {
     return "기안 내용은 5000자 이내로 입력하세요.";
+  }
+
+  if (
+    allowedApproverPositionName &&
+    (selectedApprovers.length !== 1 ||
+      selectedApprovers[0]?.positionName !== allowedApproverPositionName)
+  ) {
+    return `${allowedApproverPositionName} 1명을 결재자로 지정하세요.`;
   }
 
   if (selectedApproverIds.length === 0) {
@@ -1287,11 +1625,14 @@ function TemplateInput({
   const inputName = getTemplateFieldInputName(field.name);
   const isRequired = field.required;
   const baseClass =
-    "mt-2 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
+    "mt-2 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]";
 
   return (
     <div className={field.type === "textarea" ? "lg:col-span-2" : ""}>
-      <label htmlFor={inputId} className="text-xs font-semibold text-[#697386]">
+      <label
+        htmlFor={inputId}
+        className="text-xs font-semibold text-[var(--text-muted)]"
+      >
         {field.label}
       </label>
       {field.type === "textarea" ? (
@@ -1323,7 +1664,7 @@ function TemplateInput({
           ))}
         </select>
       ) : field.type === "checkbox" ? (
-        <label className="mt-2 flex h-11 items-center gap-2 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm text-[#394150]">
+        <label className="mt-2 flex h-11 items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)]">
           <input name={inputName} type="hidden" value="false" />
           <input
             id={inputId}
@@ -1369,6 +1710,8 @@ function TemplateInput({
 }
 
 function LineNumberedTextarea({
+  ariaDescribedBy,
+  ariaInvalid = false,
   disabled = false,
   hasError = false,
   id,
@@ -1379,6 +1722,8 @@ function LineNumberedTextarea({
   rows,
   value,
 }: {
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
   disabled?: boolean;
   hasError?: boolean;
   id: string;
@@ -1429,7 +1774,7 @@ function LineNumberedTextarea({
   return (
     <div
       className={[
-        "mt-2 flex w-full max-w-[53.75rem] overflow-hidden rounded-md border bg-white text-sm transition focus-within:border-[#196b69]",
+        "mt-2 flex w-full max-w-[53.75rem] overflow-hidden rounded-md border bg-[var(--surface)] text-sm transition focus-within:border-[var(--brand)]",
         borderClass,
         disabled ? "opacity-60" : "",
       ].join(" ")}
@@ -1450,6 +1795,8 @@ function LineNumberedTextarea({
         ref={textareaRef}
         id={id}
         name={name}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         required={required}
         disabled={disabled}
         rows={rows}
@@ -1457,7 +1804,7 @@ function LineNumberedTextarea({
         onChange={(event) => onChange(event.target.value)}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         placeholder={placeholder}
-        className={`${documentContentTextColumnBaseClass} resize-y border-0 bg-white outline-none placeholder:text-[#9aa4b2] disabled:cursor-not-allowed`}
+        className={`${documentContentTextColumnBaseClass} resize-y border-0 bg-[var(--surface)] outline-none placeholder:text-[#9aa4b2] disabled:cursor-not-allowed`}
       />
     </div>
   );
