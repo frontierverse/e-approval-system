@@ -11,6 +11,7 @@ import {
   formatYouthAgeLabel,
   formatYouthSchoolGradeLabel,
 } from "@/lib/youth-management-core";
+import { getKoreanWeekdayLabel } from "@/lib/korean-date";
 
 export function CompanyInfoBoard({ data }: { data: CompanyInfoData }) {
   return (
@@ -247,10 +248,12 @@ function AdmittedYouthSection({
                     {formatYouthSchoolGradeLabel(youth, referenceDate) ??
                       "미등록"}
                   </TableCell>
-                  <TableCell>{formatOptionalDate(youth.admissionDate)}</TableCell>
+                  <TableCell>
+                    {formatOptionalYouthDate(youth.admissionDate)}
+                  </TableCell>
                   <TableCell>
                     {youth.dischargeDate
-                      ? formatDate(youth.dischargeDate)
+                      ? formatYouthDateWithWeekday(youth.dischargeDate)
                       : "입소중"}
                   </TableCell>
                 </tr>
@@ -336,8 +339,19 @@ function formatOptionalDate(value: string | null) {
   return value ? formatDate(value) : "미등록";
 }
 
+function formatOptionalYouthDate(value: string | null) {
+  return value ? formatYouthDateWithWeekday(value) : "미등록";
+}
+
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
 
   return year && month && day ? `${year}. ${month}. ${day}.` : value;
+}
+
+function formatYouthDateWithWeekday(value: string) {
+  const formattedDate = formatDate(value);
+  const weekday = getKoreanWeekdayLabel(value);
+
+  return weekday ? `${formattedDate} (${weekday})` : formattedDate;
 }

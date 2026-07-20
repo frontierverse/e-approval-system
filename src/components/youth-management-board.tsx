@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { SplitDateInput } from "@/components/split-date-input";
+import { getKoreanWeekdayLabel } from "@/lib/korean-date";
 import {
   formatYouthAgeLabel,
   youthNoteCategories,
@@ -1455,9 +1456,15 @@ function YouthMetaSummary({
         </button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <YouthMetaItem label="입소 날짜" value={formatOptionalDate(youth.admissionDate)} />
+        <YouthMetaItem
+          label="입소 날짜"
+          value={formatOptionalYouthDate(youth.admissionDate)}
+        />
         <YouthMetaItem label="생년월일" value={formatOptionalDate(youth.birthDate)} />
-        <YouthMetaItem label="퇴소 날짜" value={formatOptionalDate(youth.dischargeDate)} />
+        <YouthMetaItem
+          label="퇴소 날짜"
+          value={formatOptionalYouthDate(youth.dischargeDate)}
+        />
         <YouthMetaItem label="퇴소까지" value={dday} highlight />
         <YouthMetaItem
           label="나이"
@@ -1624,6 +1631,17 @@ function formatDate(value: string) {
 
 function formatOptionalDate(value: string | null) {
   return value ? formatDate(value) : "미입력";
+}
+
+function formatOptionalYouthDate(value: string | null) {
+  return value ? formatYouthDateWithWeekday(value) : "미입력";
+}
+
+function formatYouthDateWithWeekday(value: string) {
+  const formattedDate = formatDate(value);
+  const weekday = getKoreanWeekdayLabel(value);
+
+  return weekday ? `${formattedDate} (${weekday})` : formattedDate;
 }
 
 function getDischargeDday(value: string | null) {

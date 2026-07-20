@@ -122,6 +122,8 @@ describe("YouthManagementBoard", () => {
     assert.match(html, /김하늘/);
     assert.match(html, /이도현/);
     assert.match(html, /입소 날짜/);
+    assert.match(html, /2026\.05\.01 \(금\)/);
+    assert.match(html, /2026\.12\.31 \(목\)/);
     assert.match(html, /퇴소까지/);
     assert.match(html, /기본 정보 수정/);
     assert.match(html, /가족 연락처/);

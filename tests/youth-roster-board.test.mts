@@ -194,13 +194,15 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /입소중/);
     assert.match(html, /마지막 업데이트/);
     assert.match(html, /2026\. 06\. 21\./);
+    assert.match(html, /2026\. 05\. 01\. \(금\)/);
+    assert.match(html, /2026\. 07\. 15\. \(수\)/);
     assert.doesNotMatch(html, /010-1111-2222/);
     assert.match(html, /어머니/);
     assert.doesNotMatch(html, /010-3333-4444/);
     assert.match(html, /\*\*\*\*\*\*\*\*\*\*\*\*/);
     assert.match(html, /이도현/);
     assert.match(html, /이도현 정보 수정/);
-    assert.match(html, /2026\. 04\. 30\./);
+    assert.match(html, /2026\. 04\. 30\. \(목\)/);
     assert.match(html, /미등록/);
     assert.match(html, /aria-label="나이 오름차순 정렬"/);
     assert.match(html, /aria-label="입소 날짜 내림차순 정렬"/);
@@ -291,8 +293,8 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /aria-label="입소 날짜 월"/);
     assert.match(html, /aria-label="입소 날짜 일"/);
     assert.match(html, /퇴소 예정/);
-    assert.match(html, /2026\. 07\. 15\./);
-    assert.match(html, /기본 예정일 2026\. 07\. 15\. · 연장 0\/2회/);
+    assert.match(html, /2026\. 07\. 15\. \(수\)/);
+    assert.match(html, /기본 예정일 2026\. 07\. 15\. \(수\) · 연장 0\/2회/);
     assert.match(html, />퇴소 연장</);
     assert.match(html, /aria-label="생년월일 년"/);
     assert.match(html, /value="2026"/);

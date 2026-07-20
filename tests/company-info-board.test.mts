@@ -105,6 +105,7 @@ describe("CompanyInfoBoard", () => {
     assert.match(html, /입소중 청소년 목록/);
     assert.match(html, /입소중 청소년 1명/);
     assert.match(html, /최하늘/);
+    assert.match(html, /2026\. 05\. 01\. \(금\)/);
     assert.match(html, /만 17세\(18세\)/);
     assert.match(html, /고2/);
     assert.doesNotMatch(html, /연락처/);

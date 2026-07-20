@@ -1,3 +1,5 @@
+import { getKoreanWeekdayLabel } from "@/lib/korean-date";
+
 export type YouthDischargeAlertPerson = {
   dischargeDate: string | null;
   id: string;
@@ -111,16 +113,11 @@ export function formatYouthDischargeAlertDate(value: string) {
 }
 
 export function formatYouthDischargeAlertDateWithWeekday(value: string) {
-  const parts = getDateParts(value);
+  const weekday = getKoreanWeekdayLabel(value);
 
-  if (!parts) {
+  if (!weekday) {
     return formatYouthDischargeAlertDate(value);
   }
-
-  const weekday = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "UTC",
-    weekday: "short",
-  }).format(createUtcDate(parts.year, parts.month, parts.day));
 
   return `${formatYouthDischargeAlertDate(value)} (${weekday})`;
 }

@@ -43,6 +43,7 @@ import {
   getUpcomingYouthDischarge,
   youthDischargeAlertWindowDays,
 } from "@/lib/youth-discharge-alerts-core";
+import { getKoreanWeekdayLabel } from "@/lib/korean-date";
 import type {
   YouthRosterChangeLog,
   YouthRosterChangeLogFilters,
@@ -1249,7 +1250,7 @@ function DischargeDateValue({
 
   return (
     <span className="flex flex-wrap items-center gap-1.5 tabular-nums text-[var(--foreground)]">
-      <span>{formatDate(youth.dischargeDate)}</span>
+      <span>{formatYouthDateWithWeekday(youth.dischargeDate)}</span>
       {urgentDischarge ? (
         <span className="inline-flex h-6 items-center rounded-md border border-[#e59b93] bg-[#fff1f1] px-2 text-[11px] font-semibold text-[var(--danger)] dark:border-[#8f4a45] dark:bg-[#321b1b]">
           {urgentDischarge.ddayLabel}
@@ -2030,7 +2031,9 @@ function DischargeDateSummary({
       <span className="text-sm font-semibold text-[#394150]">퇴소 예정</span>
       <div className="mt-2 flex h-11 items-center justify-between gap-2 rounded-md border border-[#cfd6e3] px-3">
         <span className="min-w-0 truncate text-sm text-[#16181d]">
-          {currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}
+          {currentDischargeDate
+            ? formatYouthDateWithWeekday(currentDischargeDate)
+            : "미등록"}
         </span>
         <button
           type="button"
@@ -2042,7 +2045,7 @@ function DischargeDateSummary({
         </button>
       </div>
       <p className="mt-1 text-xs text-[#697386]">
-        기본 예정일 {initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회
+        기본 예정일 {initialDischargeDate ? formatYouthDateWithWeekday(initialDischargeDate) : "미등록"} · 연장 {extensionCount}/2회
       </p>
     </div>
   );
@@ -2137,10 +2140,10 @@ function YouthDischargeExtensionModal({
           <div className="grid gap-4 px-6 py-5">
             <div className="grid gap-2 rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-3 text-sm">
               <p className="text-[#394150]">
-                기본 퇴소 예정일: <strong>{initialDischargeDate ? formatDate(initialDischargeDate) : "미등록"}</strong>
+                기본 퇴소 예정일: <strong>{initialDischargeDate ? formatYouthDateWithWeekday(initialDischargeDate) : "미등록"}</strong>
               </p>
               <p className="text-[#394150]">
-                현재 적용 퇴소일: <strong>{currentDischargeDate ? formatDate(currentDischargeDate) : "미등록"}</strong>
+                현재 적용 퇴소일: <strong>{currentDischargeDate ? formatYouthDateWithWeekday(currentDischargeDate) : "미등록"}</strong>
               </p>
               <p className="text-xs text-[#697386]">등록된 연장: {extensions.length}/2회</p>
             </div>
@@ -2155,7 +2158,7 @@ function YouthDischargeExtensionModal({
                       className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] px-3 py-2 text-sm"
                     >
                       <p className="font-semibold text-[#16181d]">
-                        {extension.extensionOrder}차 · {formatDate(extension.previousDischargeDate)} → {formatDate(extension.extendedDischargeDate)}
+                        {extension.extensionOrder}차 · {formatYouthDateWithWeekday(extension.previousDischargeDate)} → {formatYouthDateWithWeekday(extension.extendedDischargeDate)}
                       </p>
                       <p className="mt-1 text-xs text-[#697386]">{extension.reason}</p>
                       <p className="mt-1 text-xs text-[#697386]">
@@ -2529,7 +2532,7 @@ function matchesYouthSearch(youth: YouthRosterItem, query: string) {
 }
 
 function formatOptionalDate(value: string | null) {
-  return value ? formatDate(value) : "미등록";
+  return value ? formatYouthDateWithWeekday(value) : "미등록";
 }
 
 function formatMaskedPhone(value: string | null) {
@@ -2540,6 +2543,13 @@ function formatDate(value: string) {
   const [year, month, day] = value.split("-");
 
   return year && month && day ? `${year}. ${month}. ${day}.` : value;
+}
+
+function formatYouthDateWithWeekday(value: string) {
+  const formattedDate = formatDate(value);
+  const weekday = getKoreanWeekdayLabel(value);
+
+  return weekday ? `${formattedDate} (${weekday})` : formattedDate;
 }
 
 function formatDateTime(value: string) {
