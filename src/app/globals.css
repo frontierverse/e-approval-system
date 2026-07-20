@@ -389,6 +389,7 @@ button:disabled {
 
 [data-theme-toggle-compact] [data-theme-toggle-sun] {
   display: grid;
+  color: var(--foreground);
 }
 
 [data-theme-toggle-compact] [data-theme-toggle-moon] {
@@ -401,6 +402,7 @@ button:disabled {
 
 .dark [data-theme-toggle-compact] [data-theme-toggle-moon] {
   display: grid;
+  color: var(--foreground);
 }
 
 .dark .bg-\[\#f6f7f9\] {

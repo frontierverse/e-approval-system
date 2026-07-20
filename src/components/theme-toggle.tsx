@@ -21,8 +21,8 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       <span
         data-theme-toggle-sun
         className={[
-          "relative size-7 place-items-center transition-colors",
-          compact ? "absolute inset-1.5" : "grid",
+          "size-7 place-items-center transition-colors",
+          compact ? "absolute inset-1.5" : "relative grid",
         ].join(" ")}
         aria-hidden="true"
       >
@@ -49,8 +49,8 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       <span
         data-theme-toggle-moon
         className={[
-          "relative size-7 place-items-center transition-colors",
-          compact ? "absolute inset-1.5" : "grid",
+          "size-7 place-items-center transition-colors",
+          compact ? "absolute inset-1.5" : "relative grid",
         ].join(" ")}
         aria-hidden="true"
       >
