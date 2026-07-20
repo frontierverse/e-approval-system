@@ -631,13 +631,14 @@ model CafeComplianceNote {
 }
 
 model LunchBoxSchool {
-  id        String   @id @default(cuid())
-  name      String
-  type      String
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(cuid())
+  name              String
+  type              String
+  preservationClass Int?
+  order             Int      @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   counts LunchBoxCount[]
 
@@ -646,17 +647,19 @@ model LunchBoxSchool {
 }
 
 model LunchBoxCount {
-  id          String   @id @default(cuid())
-  schoolId    String
-  school      LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  date        DateTime @db.Date
-  class1Count Int      @default(0)
-  class2Count Int      @default(0)
-  class3Count Int      @default(0)
-  class4Count Int      @default(0)
-  linkedCount Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String         @id @default(cuid())
+  schoolId          String
+  school            LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date              DateTime       @db.Date
+  class1Count       Int            @default(0)
+  class2Count       Int            @default(0)
+  class3Count       Int            @default(0)
+  class4Count       Int            @default(0)
+  linkedCount       Int            @default(0)
+  preservationCount Int            @default(0)
+  deliveryDriverCount Int          @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   @@unique([schoolId, date])
   @@index([date])

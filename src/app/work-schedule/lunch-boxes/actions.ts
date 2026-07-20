@@ -6,12 +6,17 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { getLunchBoxCountGrid, getLunchBoxSchools } from "@/lib/lunch-box-counts";
 import {
+  hasLunchBoxCountChanges,
   isLunchBoxDate,
+  isLunchBoxPreservationClassValue,
   isLunchBoxSchoolType,
-  lunchBoxCountFields,
   normalizeLunchBoxCountValue,
+  normalizeLunchBoxDeliveryDriverCountForSave,
+  normalizeLunchBoxPreservationClass,
+  normalizeLunchBoxPreservationCountForSave,
   normalizeLunchBoxSchoolFormValues,
   parseLunchBoxDateValue,
+  resolveLunchBoxPreservationClassForUpdate,
   type LunchBoxActionResult,
   type LunchBoxCountGrid,
   type LunchBoxCountRowInput,
@@ -71,28 +76,22 @@ export async function saveLunchBoxCountsAction(
 
   const schools = await getLunchBoxSchools({ activeOnly: false });
   const schoolsById = new Map(schools.map((school) => [school.id, school]));
-  const normalizedRows = rows.flatMap((row) => {
+  const submittedRowsBySchoolId = new Map<
+    string,
+    { row: LunchBoxCountRowInput; school: LunchBoxSchool }
+  >();
+
+  for (const row of rows) {
     const school = schoolsById.get(row.schoolId);
 
-    if (!school) {
-      return [];
+    if (school) {
+      submittedRowsBySchoolId.set(school.id, { row, school });
     }
+  }
 
-    return [
-      {
-        school,
-        values: {
-          class1Count: normalizeLunchBoxCountValue(row.class1Count),
-          class2Count: normalizeLunchBoxCountValue(row.class2Count),
-          class3Count: normalizeLunchBoxCountValue(row.class3Count),
-          class4Count: normalizeLunchBoxCountValue(row.class4Count),
-          linkedCount: normalizeLunchBoxCountValue(row.linkedCount),
-        },
-      },
-    ];
-  });
+  const submittedRows = Array.from(submittedRowsBySchoolId.values());
 
-  if (normalizedRows.length === 0) {
+  if (submittedRows.length === 0) {
     return {
       ok: true,
       data: {
@@ -104,7 +103,7 @@ export async function saveLunchBoxCountsAction(
   const existingCounts = await prisma.lunchBoxCount.findMany({
     where: {
       date: parseLunchBoxDateValue(date),
-      schoolId: { in: normalizedRows.map((row) => row.school.id) },
+      schoolId: { in: submittedRows.map((item) => item.school.id) },
     },
     select: {
       schoolId: true,
@@ -113,19 +112,38 @@ export async function saveLunchBoxCountsAction(
       class3Count: true,
       class4Count: true,
       linkedCount: true,
+      preservationCount: true,
+      deliveryDriverCount: true,
     },
   });
   const existingBySchoolId = new Map(
     existingCounts.map((count) => [count.schoolId, count]),
   );
-  const changedRows = normalizedRows.filter(({ school, values }) => {
+  const normalizedRows = submittedRows.map(({ row, school }) => {
     const previous = existingBySchoolId.get(school.id);
 
-    return (
-      !previous ||
-      lunchBoxCountFields.some((field) => previous[field] !== values[field])
-    );
+    return {
+      school,
+      values: {
+        class1Count: normalizeLunchBoxCountValue(row.class1Count),
+        class2Count: normalizeLunchBoxCountValue(row.class2Count),
+        class3Count: normalizeLunchBoxCountValue(row.class3Count),
+        class4Count: normalizeLunchBoxCountValue(row.class4Count),
+        linkedCount: normalizeLunchBoxCountValue(row.linkedCount),
+        preservationCount: normalizeLunchBoxPreservationCountForSave(
+          row,
+          previous?.preservationCount ?? 0,
+        ),
+        deliveryDriverCount: normalizeLunchBoxDeliveryDriverCountForSave(
+          row,
+          previous?.deliveryDriverCount ?? 0,
+        ),
+      },
+    };
   });
+  const changedRows = normalizedRows.filter(({ school, values }) =>
+    hasLunchBoxCountChanges(existingBySchoolId.get(school.id), values),
+  );
 
   if (changedRows.length === 0) {
     return {
@@ -226,6 +244,9 @@ export async function createLunchBoxSchoolAction(
     const school = await tx.lunchBoxSchool.create({
       data: {
         name: values.name,
+        preservationClass: normalizeLunchBoxPreservationClass(
+          values.preservationClass,
+        ),
         type: values.type,
         order: (maxOrder._max.order ?? 0) + 1,
       },
@@ -241,7 +262,11 @@ export async function createLunchBoxSchoolAction(
         message: `${school.name} 학교를 등록했습니다.`,
         metadata: {
           changeType: "lunchBoxSchool.create",
-          next: { name: school.name, type: school.type },
+          next: {
+            name: school.name,
+            preservationClass: school.preservationClass,
+            type: school.type,
+          },
           previous: null,
           source: "lunch-box-school",
         },
@@ -265,6 +290,7 @@ export async function updateLunchBoxSchoolAction(
   const user = await requireUser();
 
   const values = normalizeLunchBoxSchoolFormValues(formData);
+  const preservationClassWasSubmitted = formData.has("preservationClass");
   const validationError = validateLunchBoxSchoolValues(values);
 
   if (validationError) {
@@ -276,7 +302,12 @@ export async function updateLunchBoxSchoolAction(
 
   const existingSchool = await prisma.lunchBoxSchool.findUnique({
     where: { id: schoolId },
-    select: { id: true, name: true, type: true },
+    select: {
+      id: true,
+      name: true,
+      preservationClass: true,
+      type: true,
+    },
   });
 
   if (!existingSchool) {
@@ -305,6 +336,11 @@ export async function updateLunchBoxSchoolAction(
       where: { id: schoolId },
       data: {
         name: values.name,
+        preservationClass: resolveLunchBoxPreservationClassForUpdate({
+          previousClass: existingSchool.preservationClass,
+          submitted: preservationClassWasSubmitted,
+          value: values.preservationClass,
+        }),
         type: values.type,
       },
     });
@@ -319,8 +355,16 @@ export async function updateLunchBoxSchoolAction(
         message: `${school.name} 학교 정보를 수정했습니다.`,
         metadata: {
           changeType: "lunchBoxSchool.update",
-          next: { name: school.name, type: school.type },
-          previous: { name: existingSchool.name, type: existingSchool.type },
+          next: {
+            name: school.name,
+            preservationClass: school.preservationClass,
+            type: school.type,
+          },
+          previous: {
+            name: existingSchool.name,
+            preservationClass: existingSchool.preservationClass,
+            type: existingSchool.type,
+          },
           source: "lunch-box-school",
         },
       },
@@ -386,6 +430,7 @@ export async function setLunchBoxSchoolActiveAction(
 
 function validateLunchBoxSchoolValues(values: {
   name: string;
+  preservationClass: string;
   type: string;
 }) {
   if (!values.name) {
@@ -398,6 +443,13 @@ function validateLunchBoxSchoolValues(values: {
 
   if (!isLunchBoxSchoolType(values.type)) {
     return "학교 구분을 다시 선택하세요.";
+  }
+
+  if (
+    values.preservationClass !== "" &&
+    !isLunchBoxPreservationClassValue(Number(values.preservationClass))
+  ) {
+    return "보존식 지정 반을 다시 선택하세요.";
   }
 
   return "";

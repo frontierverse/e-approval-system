@@ -27,6 +27,8 @@ const requiredPrismaDelegates = [
   "youthRule",
   "staffLeaveLedger",
   "loginHistory",
+  "lunchBoxCount",
+  "lunchBoxSchool",
 ] as const;
 
 const requiredYouthLearningScheduleFields = [
@@ -36,6 +38,11 @@ const requiredYouthLearningScheduleFields = [
 const requiredYouthFields = ["birthDate"] as const;
 const requiredWorkScheduleFields = ["scheduleDate"] as const;
 const requiredUserFields = ["birthDate", "hireDate", "resignationDate"] as const;
+const requiredLunchBoxSchoolFields = ["preservationClass"] as const;
+const requiredLunchBoxCountFields = [
+  "preservationCount",
+  "deliveryDriverCount",
+] as const;
 
 const adapter = new PrismaPg({
   connectionString: getDatabaseUrl(),
@@ -77,6 +84,7 @@ function isReusablePrismaClient(
     hasRequiredYouthFields(client) &&
     hasRequiredYouthLearningScheduleFields(client) &&
     hasRequiredWorkScheduleFields(client) &&
+    hasRequiredLunchBoxFields(client) &&
     hasRequiredUserFields(client)
   );
 }
@@ -171,4 +179,29 @@ function hasRequiredWorkScheduleFields(client: PrismaClient) {
   );
 
   return requiredWorkScheduleFields.every((field) => fieldNames.has(field));
+}
+
+function hasRequiredLunchBoxFields(client: PrismaClient) {
+  const models = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: Record<string, { fields?: Array<{ name?: string }> }>;
+      };
+    }
+  )._runtimeDataModel?.models;
+  const schoolFieldNames = new Set(
+    (models?.LunchBoxSchool?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+  const countFieldNames = new Set(
+    (models?.LunchBoxCount?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+
+  return (
+    requiredLunchBoxSchoolFields.every((field) => schoolFieldNames.has(field)) &&
+    requiredLunchBoxCountFields.every((field) => countFieldNames.has(field))
+  );
 }

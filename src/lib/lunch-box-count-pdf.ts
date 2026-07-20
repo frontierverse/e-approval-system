@@ -23,7 +23,9 @@ type LunchBoxCountPdfRow = {
   class2Count: number;
   class3Count: number;
   class4Count: number;
+  deliveryDriverCount: number;
   linkedCount: number;
+  preservation: string;
   rowNumber: number;
   schoolName: string;
   schoolType: string;
@@ -68,15 +70,22 @@ const borderColor = rgb(0.81, 0.84, 0.87);
 const stripeColor = rgb(0.985, 0.99, 0.995);
 
 const columns: LunchBoxCountPdfColumn[] = [
-  { key: "rowNumber", label: "번호", width: 28, align: "center" },
-  { key: "schoolName", label: "학교명", width: 169, align: "left" },
-  { key: "schoolType", label: "구분", width: 60, align: "center" },
-  { key: "class1Count", label: "1반", width: 40, align: "center" },
-  { key: "class2Count", label: "2반", width: 40, align: "center" },
-  { key: "class3Count", label: "3반", width: 40, align: "center" },
-  { key: "class4Count", label: "4반", width: 40, align: "center" },
-  { key: "linkedCount", label: "연계형", width: 40, align: "center" },
-  { key: "total", label: "합계", width: 50, align: "center" },
+  { key: "rowNumber", label: "번호", width: 26, align: "center" },
+  { key: "schoolName", label: "학교명", width: 114, align: "left" },
+  { key: "schoolType", label: "구분", width: 52, align: "center" },
+  { key: "preservation", label: "보존식", width: 64, align: "center" },
+  {
+    key: "deliveryDriverCount",
+    label: "배송기사",
+    width: 58,
+    align: "center",
+  },
+  { key: "class1Count", label: "1반", width: 32, align: "center" },
+  { key: "class2Count", label: "2반", width: 32, align: "center" },
+  { key: "class3Count", label: "3반", width: 32, align: "center" },
+  { key: "class4Count", label: "4반", width: 32, align: "center" },
+  { key: "linkedCount", label: "연계형", width: 36, align: "center" },
+  { key: "total", label: "합계", width: 42, align: "center" },
 ];
 
 export async function createLunchBoxCountPdf({
@@ -98,7 +107,7 @@ export async function createLunchBoxCountPdf({
   const pages = rowPages.length > 0 ? rowPages : [[]];
 
   pdf.setTitle(`${formatDeliveryDate(grid.date)} 도시락 납품 현황`);
-  pdf.setSubject("학교별 도시락 납품 개수");
+  pdf.setSubject("학교별 도시락·보존식·배송기사 납품 개수");
   pdf.setCreator("바자울 사내 시스템");
   pdf.setProducer("바자울 사내 시스템");
   pdf.setCreationDate(generatedAt);
@@ -138,7 +147,12 @@ function createPrintableRows(rows: LunchBoxCountRow[]) {
       class2Count: row.class2Count,
       class3Count: row.class3Count,
       class4Count: row.class4Count,
+      deliveryDriverCount: row.deliveryDriverCount,
       linkedCount: row.linkedCount,
+      preservation: formatPreservationCount(
+        row.preservationCount,
+        row.preservationClass,
+      ),
       rowNumber: printableRows.length + 1,
       schoolName: row.schoolName,
       schoolType: getLunchBoxSchoolTypeLabel(row.schoolType),
@@ -466,7 +480,7 @@ function drawFooter(
     tableWidth: number;
   },
 ) {
-  const note = "합계 1개 이상인 학교만 표시";
+  const note = "합계는 보존식·배송기사 포함 · 합계 1개 이상인 학교만 표시";
   const pageLabel = `${pageNumber} / ${pageCount}`;
   const pageLabelWidth = font.widthOfTextAtSize(pageLabel, footerFontSize);
 
@@ -663,6 +677,21 @@ function formatCellValue(
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("ko-KR").format(value);
+}
+
+function formatPreservationCount(
+  count: number,
+  preservationClass: number | null,
+) {
+  if (count === 0) {
+    return "-";
+  }
+
+  const formattedCount = formatCount(count);
+
+  return preservationClass === null
+    ? formattedCount
+    : `${formattedCount} (${preservationClass}반)`;
 }
 
 function formatDeliveryDate(value: string) {

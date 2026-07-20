@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition, type KeyboardEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { AppModal } from "@/components/app-modal";
 import { LunchBoxCountGrid } from "@/components/lunch-box-count-grid";
 import {
@@ -59,7 +64,10 @@ function LunchBoxCountCalendarBoardContent({
   const [selectedGrid, setSelectedGrid] =
     useState<LunchBoxCountGridData | null>(null);
   const [modalError, setModalError] = useState("");
-  const [isGridLoading, startGridTransition] = useTransition();
+  const [isGridDirty, setIsGridDirty] = useState(false);
+  const [isGridSavePending, setIsGridSavePending] = useState(false);
+  const [isGridLoading, setIsGridLoading] = useState(false);
+  const gridRequestIdRef = useRef(0);
 
   const calendarDays = useMemo(
     () => createLunchBoxCalendarDays(selectedMonth),
@@ -83,17 +91,35 @@ function LunchBoxCountCalendarBoardContent({
     setSelectedDate(date);
     setSelectedGrid(null);
     setModalError("");
+    setIsGridDirty(false);
+    setIsGridSavePending(false);
+    setIsGridLoading(true);
+    const requestId = ++gridRequestIdRef.current;
 
-    startGridTransition(async () => {
-      const result = await loadGrid(date);
+    void (async () => {
+      try {
+        const result = await loadGrid(date);
 
-      if (!result.ok) {
-        setModalError(result.error);
-        return;
+        if (requestId !== gridRequestIdRef.current) {
+          return;
+        }
+
+        if (!result.ok) {
+          setModalError(result.error);
+          return;
+        }
+
+        setSelectedGrid(result.data.grid);
+      } catch {
+        if (requestId === gridRequestIdRef.current) {
+          setModalError("도시락 개수를 불러오지 못했습니다. 다시 시도하세요.");
+        }
+      } finally {
+        if (requestId === gridRequestIdRef.current) {
+          setIsGridLoading(false);
+        }
       }
-
-      setSelectedGrid(result.data.grid);
-    });
+    })();
   }
 
   function openDayModalWithKeyboard(
@@ -109,12 +135,28 @@ function LunchBoxCountCalendarBoardContent({
   }
 
   function closeDayModal() {
+    if (isGridSavePending) {
+      return;
+    }
+
+    if (
+      isGridDirty &&
+      !window.confirm("저장하지 않은 도시락 개수 변경사항을 버릴까요?")
+    ) {
+      return;
+    }
+
+    gridRequestIdRef.current += 1;
     setSelectedDate(null);
     setSelectedGrid(null);
     setModalError("");
+    setIsGridDirty(false);
+    setIsGridSavePending(false);
+    setIsGridLoading(false);
   }
 
   function applySavedGrid(grid: LunchBoxCountGridData) {
+    setIsGridDirty(false);
     setDays((currentDays) => {
       const schools = grid.rows.flatMap((row) => {
         const total = getLunchBoxCountTotal(row);
@@ -159,8 +201,9 @@ function LunchBoxCountCalendarBoardContent({
               {monthLabel}
             </h2>
             <p className="mt-1 text-sm text-[#697386]">
-              월 총계 {monthTotal.toLocaleString("ko-KR")}개 · 날짜를 누르면
-              학교별 개수를 입력할 수 있습니다.
+              월 총계 {monthTotal.toLocaleString("ko-KR")}개
+              (보존식·배송기사 포함) · 날짜를 누르면 학교별 개수를 입력할 수
+              있습니다.
             </p>
           </div>
 
@@ -272,35 +315,95 @@ function LunchBoxCountCalendarBoardContent({
 
       {selectedDate ? (
         <AppModal
-          className="max-w-4xl"
+          className="max-w-7xl"
           label={`${formatLunchBoxDateLabel(selectedDate)} 도시락 개수 입력`}
           onClose={closeDayModal}
         >
           <div className="flex h-[min(52rem,calc(100dvh-3rem))] min-h-0 flex-col p-4">
-            {modalError ? (
-              <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-                {modalError}
-              </p>
-            ) : isGridLoading || !selectedGrid ? (
-              <div
-                aria-label="도시락 개수 불러오는 중"
-                className="flex min-h-48 flex-1 items-center justify-center text-sm text-[#697386]"
+            <div className="mb-2 flex shrink-0 justify-end">
+              <button
+                type="button"
+                className="inline-flex h-11 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#196b69] disabled:cursor-wait disabled:opacity-60"
+                disabled={isGridSavePending}
+                title={
+                  isGridSavePending ? "저장이 끝난 후 닫을 수 있습니다." : undefined
+                }
+                onClick={closeDayModal}
               >
-                {formatLunchBoxDateLabel(selectedDate)} 개수를 불러오는 중...
-              </div>
-            ) : (
-              <LunchBoxCountGrid
-                initialGrid={selectedGrid}
-                loadGrid={loadGrid}
-                onGridSaved={applySavedGrid}
-                saveCounts={saveCounts}
-                today={today}
-              />
-            )}
+                닫기
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              {modalError ? (
+                <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                  {modalError}
+                </p>
+              ) : isGridLoading || !selectedGrid ? (
+                <LunchBoxCountGridSkeleton date={selectedDate} />
+              ) : (
+                <LunchBoxCountGrid
+                  initialGrid={selectedGrid}
+                  loadGrid={loadGrid}
+                  onDirtyChange={setIsGridDirty}
+                  onGridLoaded={(loadedGrid) =>
+                    setSelectedDate(loadedGrid.date)
+                  }
+                  onGridSaved={applySavedGrid}
+                  onSavePendingChange={setIsGridSavePending}
+                  saveCounts={saveCounts}
+                  today={today}
+                />
+              )}
+            </div>
           </div>
         </AppModal>
       ) : null}
     </section>
+  );
+}
+
+function LunchBoxCountGridSkeleton({ date }: { date: string }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-[#d9dee7] bg-white">
+      <span className="sr-only" role="status">
+        {formatLunchBoxDateLabel(date)} 도시락 개수를 불러오는 중입니다.
+      </span>
+      <div aria-hidden="true" className="border-b border-[#eef1f5] px-5 py-4">
+        <div className="h-5 w-36 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+        <div className="mt-2 h-4 w-64 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+      </div>
+      <div aria-hidden="true" className="min-h-0 flex-1 overflow-hidden px-5 pb-4">
+        <div className="grid min-w-[900px] grid-cols-[2fr_repeat(8,1fr)] border-b border-[#eef1f5] py-3 text-center text-xs font-semibold text-[#697386]">
+          <span className="text-left">학교명</span>
+          <span>보존식</span>
+          <span>배송기사</span>
+          <span>1반</span>
+          <span>2반</span>
+          <span>3반</span>
+          <span>4반</span>
+          <span>연계형</span>
+          <span>합계</span>
+        </div>
+        {Array.from({ length: 6 }, (_, index) => (
+          <div
+            key={index}
+            className="grid min-w-[900px] grid-cols-[2fr_repeat(8,1fr)] items-center gap-3 border-b border-[#f3f5f8] py-2"
+          >
+            <div className="h-8 w-32 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+            {Array.from({ length: 8 }, (_, cellIndex) => (
+              <div
+                key={cellIndex}
+                className="mx-auto h-11 w-14 rounded bg-[#edf1f5] motion-safe:animate-pulse"
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div aria-hidden="true" className="flex justify-between border-t border-[#eef1f5] px-5 py-4">
+        <div className="h-4 w-28 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+        <div className="h-11 w-16 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+      </div>
+    </div>
   );
 }
 

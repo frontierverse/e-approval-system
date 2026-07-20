@@ -5,12 +5,18 @@ import {
   saveLunchBoxCountsAction,
 } from "@/app/work-schedule/lunch-boxes/actions";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
+import { LunchBoxCountChangeLog } from "@/components/lunch-box-count-change-log";
 import { LunchBoxSchoolList } from "@/components/lunch-box-school-list";
 import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
-import { getLunchBoxCountMonth, getLunchBoxSchools } from "@/lib/lunch-box-counts";
+import {
+  getLunchBoxCountChangeLogPage,
+  getLunchBoxCountMonth,
+  getLunchBoxSchools,
+} from "@/lib/lunch-box-counts";
 import {
   getLunchBoxCountToday,
+  normalizeLunchBoxCountChangeLogPage,
   normalizeLunchBoxMonth,
 } from "@/lib/lunch-box-counts-core";
 
@@ -21,6 +27,7 @@ export const metadata: Metadata = {
 type LunchBoxManagementTab = "counts" | "schools";
 
 type LunchBoxManagementSearchParams = {
+  logPage?: string | string[];
   month?: string;
   tab?: string;
 };
@@ -39,7 +46,7 @@ export default async function WorkScheduleLunchBoxesPage({
     <>
       <PageTitle
         title="도시락 현황"
-        description="날짜별 도시락 수량과 학교 정보를 한곳에서 관리합니다."
+        description="날짜별 도시락·보존식·배송기사 수량과 학교별 보존식 배정을 관리합니다."
       />
       <LunchBoxManagementTabs activeTab={activeTab} />
 
@@ -47,26 +54,42 @@ export default async function WorkScheduleLunchBoxesPage({
         {activeTab === "schools" ? (
           <LunchBoxSchoolPanel />
         ) : (
-          <LunchBoxCountPanel month={params.month} />
+          <LunchBoxCountPanel logPage={params.logPage} month={params.month} />
         )}
       </div>
     </>
   );
 }
 
-async function LunchBoxCountPanel({ month }: { month: string | undefined }) {
+async function LunchBoxCountPanel({
+  logPage,
+  month,
+}: {
+  logPage: string | string[] | undefined;
+  month: string | undefined;
+}) {
   const today = getLunchBoxCountToday();
   const selectedMonth = normalizeLunchBoxMonth(month);
-  const monthData = await getLunchBoxCountMonth({ month: selectedMonth });
+  const selectedLogPage = normalizeLunchBoxCountChangeLogPage(logPage);
+  const [monthData, changeLogPage] = await Promise.all([
+    getLunchBoxCountMonth({ month: selectedMonth }),
+    getLunchBoxCountChangeLogPage({ page: selectedLogPage }),
+  ]);
 
   return (
-    <LunchBoxCountCalendarBoard
-      loadGrid={getLunchBoxCountGridAction}
-      monthData={monthData}
-      saveCounts={saveLunchBoxCountsAction}
-      selectedMonth={selectedMonth}
-      today={today}
-    />
+    <>
+      <LunchBoxCountCalendarBoard
+        loadGrid={getLunchBoxCountGridAction}
+        monthData={monthData}
+        saveCounts={saveLunchBoxCountsAction}
+        selectedMonth={selectedMonth}
+        today={today}
+      />
+      <LunchBoxCountChangeLog
+        changeLogPage={changeLogPage}
+        selectedMonth={selectedMonth}
+      />
+    </>
   );
 }
 

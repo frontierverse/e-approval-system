@@ -16,14 +16,17 @@ describe("lunch box count PDF", () => {
           schoolId: `school-${index + 1}`,
           schoolName:
             index === 0
-              ? "이리동남초 병설유치원"
+              ? "동남초 병설유치원"
               : `납품 학교 ${index + 1}`,
           schoolType: index === 0 ? ("kindergarten" as const) : ("elementary" as const),
           class1Count: index === 0 ? 16 : 1,
           class2Count: index === 0 ? 15 : 0,
           class3Count: index === 0 ? 14 : 0,
           class4Count: 0,
+          deliveryDriverCount: index === 0 ? 1 : index === 1 ? 2 : 0,
           linkedCount: 0,
+          preservationClass: index === 0 ? null : (2 as const),
+          preservationCount: index < 2 ? 1 : 0,
         })),
         {
           schoolId: "school-zero",
@@ -33,7 +36,10 @@ describe("lunch box count PDF", () => {
           class2Count: 0,
           class3Count: 0,
           class4Count: 0,
+          deliveryDriverCount: 0,
           linkedCount: 0,
+          preservationClass: null,
+          preservationCount: 0,
         },
       ],
     };
@@ -53,8 +59,17 @@ describe("lunch box count PDF", () => {
     assert.match(text, /2026년 7월 29일 \(수요일\)/);
     assert.match(text, /PDF 생성 2026\.07\.17\. 14:05/);
     assert.match(text, /납품 학교\|\s*\|41곳/);
-    assert.match(text, /총 도시락\|\s*\|85개/);
-    assert.match(text, /이리동남초 병설유치원/);
+    assert.match(text, /총 도시락\|\s*\|90개/);
+    assert.match(text, /보존식/);
+    assert.match(text, /배송기사/);
+    assert.match(text, /1 \(2반\)/);
+    assert.ok(
+      text.indexOf("보존식") < text.indexOf("배송기사") &&
+        text.indexOf("배송기사") < text.indexOf("1반"),
+      "PDF 열은 보존식, 배송기사, 1반 순서여야 합니다.",
+    );
+    assert.match(text, /합계는 보존식·배송기사 포함/);
+    assert.match(text, /동남초 병설유치원/);
     assert.match(text, /납품 학교 41/);
     assert.doesNotMatch(text, /미납품 학교/);
     assert.match(text, /1 \/ 2/);

@@ -16,9 +16,10 @@ import {
 
 const initialState: LunchBoxSchoolFormState = {};
 const inputClassName =
-  "mt-2 h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
+  "mt-2 h-11 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 const fieldLabelClassName =
   "block text-xs font-semibold leading-4 text-[#697386]";
+const preservationClassOptions = [1, 2, 3, 4] as const;
 
 export function LunchBoxSchoolRowActions({
   school,
@@ -49,10 +50,11 @@ export function LunchBoxSchoolRowActions({
       <button
         type="button"
         onClick={openEditModal}
+        aria-label={`${school.name} 편집`}
         className={buttonClass(
           buttonStyles.base,
           buttonStyles.neutral,
-          "h-9 px-3 text-xs",
+          "h-11 px-3 text-xs",
         )}
       >
         편집
@@ -61,10 +63,11 @@ export function LunchBoxSchoolRowActions({
         type="button"
         disabled={isTogglePending}
         onClick={toggleActive}
+        aria-label={`${school.name} ${school.active ? "비활성화" : "활성화"}`}
         className={buttonClass(
           buttonStyles.base,
           school.active ? buttonStyles.dangerOutline : buttonStyles.neutral,
-          "h-9 px-3 text-xs",
+          "h-11 px-3 text-xs",
         )}
       >
         {isTogglePending ? "처리 중" : school.active ? "비활성화" : "활성화"}
@@ -163,6 +166,28 @@ function LunchBoxSchoolEditModal({
                 ))}
               </select>
             </label>
+
+            <label className="block min-w-0">
+              <span className={fieldLabelClassName}>보존식 배정 반</span>
+              <select
+                name="preservationClass"
+                defaultValue={
+                  state.values?.preservationClass ??
+                  (school.preservationClass === null
+                    ? ""
+                    : String(school.preservationClass))
+                }
+                disabled={pending}
+                className={`${inputClassName} cursor-pointer`}
+              >
+                <option value="">미지정</option>
+                {preservationClassOptions.map((classNumber) => (
+                  <option key={classNumber} value={classNumber}>
+                    {classNumber}반
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </form>
@@ -175,7 +200,7 @@ function LunchBoxSchoolEditModal({
           className={buttonClass(
             buttonStyles.base,
             buttonStyles.neutral,
-            "h-10 px-4 text-sm",
+            "h-11 px-4 text-sm",
           )}
         >
           취소
@@ -187,7 +212,7 @@ function LunchBoxSchoolEditModal({
           className={buttonClass(
             buttonStyles.base,
             buttonStyles.save,
-            "h-10 px-4 text-sm",
+            "h-11 px-4 text-sm",
           )}
         >
           {pending ? "저장 중" : "저장"}

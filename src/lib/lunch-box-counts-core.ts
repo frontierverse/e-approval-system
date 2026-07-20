@@ -6,6 +6,8 @@ export const lunchBoxSchoolTypes = [
 ] as const;
 
 export const lunchBoxCountFields = [
+  "preservationCount",
+  "deliveryDriverCount",
   "class1Count",
   "class2Count",
   "class3Count",
@@ -17,12 +19,17 @@ export const lunchBoxCountFieldLabels: Record<
   (typeof lunchBoxCountFields)[number],
   string
 > = {
+  preservationCount: "보존식",
+  deliveryDriverCount: "배송기사",
   class1Count: "1반",
   class2Count: "2반",
   class3Count: "3반",
   class4Count: "4반",
   linkedCount: "연계형",
 };
+
+export const lunchBoxPreservationClasses = [1, 2, 3, 4] as const;
+export const lunchBoxCountChangeLogPageSize = 10;
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -49,10 +56,13 @@ export type LunchBoxCalendarDay = {
 
 export type LunchBoxSchoolType = (typeof lunchBoxSchoolTypes)[number]["value"];
 export type LunchBoxCountField = (typeof lunchBoxCountFields)[number];
+export type LunchBoxPreservationClass =
+  (typeof lunchBoxPreservationClasses)[number];
 
 export type LunchBoxSchool = {
   id: string;
   name: string;
+  preservationClass: LunchBoxPreservationClass | null;
   type: LunchBoxSchoolType;
   order: number;
   active: boolean;
@@ -63,6 +73,7 @@ export type LunchBoxCountValues = Record<LunchBoxCountField, number>;
 export type LunchBoxCountRow = LunchBoxCountValues & {
   schoolId: string;
   schoolName: string;
+  preservationClass: LunchBoxPreservationClass | null;
   schoolType: LunchBoxSchoolType;
 };
 
@@ -93,8 +104,48 @@ export type LunchBoxCountMonth = {
   days: Record<string, LunchBoxCountMonthDay>;
 };
 
+export type LunchBoxCountFieldChange = {
+  field: LunchBoxCountField;
+  previous: number;
+  next: number;
+};
+
+export type LunchBoxCountSchoolChange = {
+  schoolId: string;
+  schoolName: string;
+  changes: LunchBoxCountFieldChange[];
+};
+
+export type LunchBoxCountChangeDetail = {
+  date: string;
+  schools: LunchBoxCountSchoolChange[];
+};
+
+export type LunchBoxCountChangeLog = LunchBoxCountChangeDetail & {
+  id: string;
+  message: string | null;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string;
+    departmentName: string;
+    positionName: string;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
+export type LunchBoxCountChangeLogPage = {
+  logs: LunchBoxCountChangeLog[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 export type LunchBoxSchoolFormValues = {
   name: string;
+  preservationClass: string;
   type: string;
 };
 
@@ -133,11 +184,54 @@ export function getLunchBoxSchoolTypeLabel(type: string) {
   );
 }
 
+export function normalizeLunchBoxSchoolName(value: unknown) {
+  const name = String(value ?? "").trim();
+
+  if (name === "이리초" || name === "익산초") {
+    return name;
+  }
+
+  return name.replace(/^(?:이리|익산)/, "").trim();
+}
+
+export function isLunchBoxPreservationClassValue(
+  value: number,
+): value is LunchBoxPreservationClass {
+  return lunchBoxPreservationClasses.some((item) => item === value);
+}
+
+export function normalizeLunchBoxPreservationClass(
+  value: unknown,
+): LunchBoxPreservationClass | null {
+  const parsed = Number(value);
+
+  return isLunchBoxPreservationClassValue(parsed) ? parsed : null;
+}
+
+export function resolveLunchBoxPreservationClassForUpdate({
+  previousClass,
+  submitted,
+  value,
+}: {
+  previousClass: number | null;
+  submitted: boolean;
+  value: unknown;
+}) {
+  return submitted
+    ? normalizeLunchBoxPreservationClass(value)
+    : normalizeLunchBoxPreservationClass(previousClass);
+}
+
+export function getLunchBoxPreservationClassLabel(value: number | null) {
+  return value ? `${value}반` : "지정반 없음";
+}
+
 export function normalizeLunchBoxSchoolFormValues(
   formData: FormData,
 ): LunchBoxSchoolFormValues {
   return {
-    name: String(formData.get("name") ?? "").trim(),
+    name: normalizeLunchBoxSchoolName(formData.get("name")),
+    preservationClass: String(formData.get("preservationClass") ?? ""),
     type: String(formData.get("type") ?? ""),
   };
 }
@@ -152,8 +246,103 @@ export function normalizeLunchBoxCountValue(value: unknown): number {
   return Math.floor(parsed);
 }
 
+export function parseLunchBoxCountChangeDetail(
+  metadata: unknown,
+  fallbackDate = "",
+): LunchBoxCountChangeDetail {
+  const metadataRecord = getLunchBoxMetadataRecord(metadata);
+  const metadataDate = metadataRecord?.date;
+  const date =
+    typeof metadataDate === "string" && isLunchBoxDate(metadataDate)
+      ? metadataDate
+      : isLunchBoxDate(fallbackDate)
+        ? fallbackDate
+        : "";
+  const schoolRecords = Array.isArray(metadataRecord?.schools)
+    ? metadataRecord.schools
+    : [];
+  const schools = schoolRecords.flatMap((schoolValue) => {
+    const schoolRecord = getLunchBoxMetadataRecord(schoolValue);
+    const next = getLunchBoxMetadataRecord(schoolRecord?.next);
+
+    if (!schoolRecord || !next) {
+      return [];
+    }
+
+    const previous = getLunchBoxMetadataRecord(schoolRecord.previous);
+    const changes = lunchBoxCountFields.flatMap((field) => {
+      if (!Object.prototype.hasOwnProperty.call(next, field)) {
+        return [];
+      }
+
+      const previousCount = previous
+        ? normalizeLunchBoxCountValue(previous[field])
+        : 0;
+      const nextCount = normalizeLunchBoxCountValue(next[field]);
+
+      return previousCount === nextCount
+        ? []
+        : [
+            {
+              field,
+              previous: previousCount,
+              next: nextCount,
+            },
+          ];
+    });
+
+    if (changes.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        schoolId:
+          typeof schoolRecord.schoolId === "string"
+            ? schoolRecord.schoolId
+            : "",
+        schoolName:
+          typeof schoolRecord.schoolName === "string" &&
+          schoolRecord.schoolName.trim()
+            ? schoolRecord.schoolName.trim()
+            : "학교명 미상",
+        changes,
+      },
+    ];
+  });
+
+  return { date, schools };
+}
+
+export function normalizeLunchBoxPreservationCountForSave(
+  values: { preservationCount?: unknown },
+  previousCount: number,
+) {
+  return Object.prototype.hasOwnProperty.call(values, "preservationCount")
+    ? normalizeLunchBoxCountValue(values.preservationCount)
+    : normalizeLunchBoxCountValue(previousCount);
+}
+
+export function normalizeLunchBoxDeliveryDriverCountForSave(
+  values: { deliveryDriverCount?: unknown },
+  previousCount: number,
+) {
+  return Object.prototype.hasOwnProperty.call(values, "deliveryDriverCount")
+    ? normalizeLunchBoxCountValue(values.deliveryDriverCount)
+    : normalizeLunchBoxCountValue(previousCount);
+}
+
 export function getLunchBoxCountTotal(values: LunchBoxCountValues): number {
   return lunchBoxCountFields.reduce((sum, field) => sum + values[field], 0);
+}
+
+export function hasLunchBoxCountChanges(
+  previous: Partial<LunchBoxCountValues> | null | undefined,
+  next: LunchBoxCountValues,
+) {
+  return lunchBoxCountFields.some(
+    (field) => (previous?.[field] ?? 0) !== next[field],
+  );
 }
 
 export function isLunchBoxDate(value: string) {
@@ -244,6 +433,14 @@ export function normalizeLunchBoxMonth(value: string | undefined) {
   return value && isLunchBoxMonth(value) ? value : getLunchBoxCurrentMonth();
 }
 
+export function normalizeLunchBoxCountChangeLogPage(
+  value: string | string[] | undefined,
+) {
+  const parsed = Number(Array.isArray(value) ? value[0] : value);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 export function getLunchBoxCurrentMonth() {
   return getLunchBoxMonthFromDate(getLunchBoxCountToday());
 }
@@ -309,4 +506,12 @@ function formatLunchBoxMonthValue(value: Date) {
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
 
   return `${year}-${month}`;
+}
+
+function getLunchBoxMetadataRecord(
+  value: unknown,
+): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }

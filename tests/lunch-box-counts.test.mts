@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LunchBoxCountCalendarBoard } from "../src/components/lunch-box-count-calendar-board.tsx";
+import {
+  createLunchBoxCountChangeLogHref,
+  LunchBoxCountChangeLog,
+} from "../src/components/lunch-box-count-change-log.tsx";
 import { LunchBoxCountGrid } from "../src/components/lunch-box-count-grid.tsx";
+import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-management-skeleton.tsx";
 import {
   createLunchBoxCalendarDays,
   formatLunchBoxDateLabel,
@@ -12,15 +18,36 @@ import {
   getLunchBoxCountTotal,
   getLunchBoxCurrentMonth,
   getLunchBoxMonthRange,
+  hasLunchBoxCountChanges,
   isLunchBoxDate,
   isLunchBoxMonth,
+  lunchBoxCountChangeLogPageSize,
+  normalizeLunchBoxCountChangeLogPage,
   normalizeLunchBoxCountValue,
+  normalizeLunchBoxDeliveryDriverCountForSave,
+  normalizeLunchBoxPreservationCountForSave,
+  normalizeLunchBoxSchoolName,
   normalizeLunchBoxMonth,
+  parseLunchBoxCountChangeDetail,
+  resolveLunchBoxPreservationClassForUpdate,
   shiftLunchBoxDate,
   shiftLunchBoxMonth,
   type LunchBoxCountGrid as LunchBoxCountGridData,
+  type LunchBoxCountChangeLogPage,
   type LunchBoxCountMonth,
 } from "../src/lib/lunch-box-counts-core.ts";
+
+const lunchBoxCalendarBoardSource = readFileSync(
+  new URL(
+    "../src/components/lunch-box-count-calendar-board.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxPageSource = readFileSync(
+  new URL("../src/app/work-schedule/lunch-boxes/page.tsx", import.meta.url),
+  "utf8",
+);
 
 const grid: LunchBoxCountGridData = {
   date: "2026-07-29",
@@ -29,21 +56,27 @@ const grid: LunchBoxCountGridData = {
       schoolId: "school-001",
       schoolName: "영만초",
       schoolType: "elementary",
+      preservationClass: 1,
       class1Count: 16,
       class2Count: 15,
       class3Count: 14,
       class4Count: 0,
       linkedCount: 0,
+      preservationCount: 1,
+      deliveryDriverCount: 1,
     },
     {
       schoolId: "school-002",
-      schoolName: "이리동남초 병설유치원",
+      schoolName: "동남초 병설유치원",
       schoolType: "kindergarten",
+      preservationClass: null,
       class1Count: 9,
       class2Count: 0,
       class3Count: 0,
       class4Count: 0,
       linkedCount: 0,
+      preservationCount: 1,
+      deliveryDriverCount: 0,
     },
   ],
 };
@@ -65,8 +98,10 @@ describe("lunch box counts", () => {
         class3Count: 14,
         class4Count: 0,
         linkedCount: 0,
+        preservationCount: 1,
+        deliveryDriverCount: 1,
       }),
-      45,
+      47,
     );
   });
 
@@ -76,6 +111,143 @@ describe("lunch box counts", () => {
     assert.equal(normalizeLunchBoxCountValue(3.7), 3);
     assert.equal(normalizeLunchBoxCountValue("abc"), 0);
     assert.equal(normalizeLunchBoxCountValue(undefined), 0);
+  });
+
+  test("parses detailed count changes without inventing legacy fields", () => {
+    const detail = parseLunchBoxCountChangeDetail(
+      {
+        date: "2026-07-29",
+        schools: [
+          {
+            schoolId: "school-001",
+            schoolName: "영만초",
+            previous: {
+              class1Count: 10,
+              class2Count: 5,
+            },
+            next: {
+              class1Count: 12,
+              class2Count: 5,
+              deliveryDriverCount: 1,
+            },
+          },
+        ],
+      },
+      "2026-07-28",
+    );
+
+    assert.equal(detail.date, "2026-07-29");
+    assert.deepEqual(detail.schools, [
+      {
+        schoolId: "school-001",
+        schoolName: "영만초",
+        changes: [
+          { field: "deliveryDriverCount", previous: 0, next: 1 },
+          { field: "class1Count", previous: 10, next: 12 },
+        ],
+      },
+    ]);
+    assert.doesNotMatch(JSON.stringify(detail), /preservationCount/);
+  });
+
+  test("keeps malformed count history readable and falls back to its target date", () => {
+    assert.deepEqual(
+      parseLunchBoxCountChangeDetail(null, "2026-07-30"),
+      { date: "2026-07-30", schools: [] },
+    );
+    assert.deepEqual(
+      parseLunchBoxCountChangeDetail(
+        { date: "bad", schools: [null, [], { next: "bad" }] },
+        "2026-07-31",
+      ),
+      { date: "2026-07-31", schools: [] },
+    );
+  });
+
+  test("normalizes count-history pages and fixes the page size at ten", () => {
+    assert.equal(lunchBoxCountChangeLogPageSize, 10);
+    assert.equal(normalizeLunchBoxCountChangeLogPage(undefined), 1);
+    assert.equal(normalizeLunchBoxCountChangeLogPage("0"), 1);
+    assert.equal(normalizeLunchBoxCountChangeLogPage("2.5"), 1);
+    assert.equal(normalizeLunchBoxCountChangeLogPage("bad"), 1);
+    assert.equal(normalizeLunchBoxCountChangeLogPage(["3", "4"]), 3);
+  });
+
+  test("does not create a history entry when an empty row is saved as zero", () => {
+    const zeroCounts = {
+      preservationCount: 0,
+      deliveryDriverCount: 0,
+      class1Count: 0,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+    };
+
+    assert.equal(hasLunchBoxCountChanges(null, zeroCounts), false);
+    assert.equal(
+      hasLunchBoxCountChanges(zeroCounts, {
+        ...zeroCounts,
+        class1Count: 1,
+      }),
+      true,
+    );
+  });
+
+  test("preserves stored preservation counts for older partial save payloads", () => {
+    assert.equal(normalizeLunchBoxPreservationCountForSave({}, 1), 1);
+    assert.equal(
+      normalizeLunchBoxPreservationCountForSave({ preservationCount: 0 }, 1),
+      0,
+    );
+    assert.equal(
+      normalizeLunchBoxPreservationCountForSave(
+        { preservationCount: "2" },
+        1,
+      ),
+      2,
+    );
+  });
+
+  test("preserves stored delivery-driver counts for older partial save payloads", () => {
+    assert.equal(normalizeLunchBoxDeliveryDriverCountForSave({}, 1), 1);
+    assert.equal(
+      normalizeLunchBoxDeliveryDriverCountForSave(
+        { deliveryDriverCount: 0 },
+        1,
+      ),
+      0,
+    );
+  });
+
+  test("only clears a school preservation assignment when the field is submitted", () => {
+    assert.equal(
+      resolveLunchBoxPreservationClassForUpdate({
+        previousClass: 2,
+        submitted: false,
+        value: "",
+      }),
+      2,
+    );
+    assert.equal(
+      resolveLunchBoxPreservationClassForUpdate({
+        previousClass: 2,
+        submitted: true,
+        value: "",
+      }),
+      null,
+    );
+  });
+
+  test("removes city prefixes except from the exact Iri and Iksan school names", () => {
+    assert.equal(normalizeLunchBoxSchoolName("이리동초"), "동초");
+    assert.equal(normalizeLunchBoxSchoolName("익산가온초"), "가온초");
+    assert.equal(
+      normalizeLunchBoxSchoolName("이리동남초 병설유치원"),
+      "동남초 병설유치원",
+    );
+    assert.equal(normalizeLunchBoxSchoolName("이리초"), "이리초");
+    assert.equal(normalizeLunchBoxSchoolName("익산초"), "익산초");
   });
 
   test("validates calendar dates", () => {
@@ -106,8 +278,24 @@ describe("lunch box counts", () => {
     assert.match(html, /일자별 도시락 개수/);
     assert.match(html, /영만초/);
     assert.match(html, /초등학교/);
-    assert.match(html, /이리동남초 병설유치원/);
+    assert.match(html, /동남초 병설유치원/);
     assert.match(html, /병설유치원/);
+    assert.match(html, /보존식/);
+    assert.match(html, /배송기사/);
+    assert.match(
+      html,
+      /총계 57개 ·\s*보존식 2개 · 배송기사 1개 포함/,
+    );
+    assert.match(html, /보존식 지정: 1반/);
+    assert.match(html, /보존식 지정: 지정반 없음/);
+    assert.match(html, /aria-label="영만초 보존식 개수 \(1반 배정\)"/);
+    assert.match(html, /aria-label="영만초 배송기사 도시락 개수"/);
+    assert.ok(
+      html.indexOf(">보존식</th>") <
+        html.indexOf(">배송기사</th>") &&
+        html.indexOf(">배송기사</th>") < html.indexOf(">1반</th>"),
+      "보존식과 배송기사 열은 1반 열 왼쪽에 있어야 합니다.",
+    );
     assert.match(html, />저장</);
     assert.match(html, /변경 사항이 없습니다\./);
     assert.doesNotMatch(html, />오늘</);
@@ -117,6 +305,10 @@ describe("lunch box counts", () => {
     );
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noreferrer"/);
+    assert.match(
+      html,
+      /class="[^"]*bg-\[#3b5f7f\][^"]*"[^>]*>PDF 인쇄<\/a>/,
+    );
     assert.match(html, />PDF 인쇄</);
   });
 
@@ -141,11 +333,14 @@ describe("lunch box counts", () => {
         schoolId: `school-${index + 1}`,
         schoolName: `학교 ${index + 1}`,
         schoolType: "elementary" as const,
+        preservationClass: 1 as const,
         class1Count: 1,
         class2Count: 2,
         class3Count: 3,
         class4Count: 4,
         linkedCount: 5,
+        preservationCount: 1,
+        deliveryDriverCount: 1,
       })),
     };
     const html = renderToStaticMarkup(
@@ -164,18 +359,35 @@ describe("lunch box counts", () => {
     );
     assert.match(
       html,
-      /class="min-h-0 flex-1 overflow-auto px-5 pb-4"/,
+      /class="min-h-0 flex-1 overflow-auto px-5 pb-4 [^"]*"/,
     );
     assert.doesNotMatch(html, /overflow-auto px-5 py-4/);
     assert.match(
       html,
-      /<th class="sticky top-0 z-20 border-b border-\[#eef1f5\] bg-white py-3 pr-3">학교명<\/th>/,
+      /<th class="sticky top-0 left-0 z-30 [^"]*" scope="col">학교명<\/th>/,
+    );
+    assert.match(
+      html,
+      /aria-label="학교별 도시락·보존식·배송기사 개수 입력 표"[^>]*role="region"[^>]*tabindex="0"/,
+    );
+    assert.match(
+      html,
+      /<th class="sticky left-0 z-10 [^"]*" scope="row">/,
     );
     assert.match(html, /<footer class="flex shrink-0 [^"]*">/);
   });
 });
 
 describe("lunch box calendar", () => {
+  test("uses a desktop-wide count modal while preserving narrow-screen overflow", () => {
+    assert.match(
+      lunchBoxCalendarBoardSource,
+      /<AppModal\s+className="max-w-7xl"/,
+    );
+    assert.doesNotMatch(lunchBoxCalendarBoardSource, /className="max-w-4xl"/);
+    assert.match(lunchBoxCalendarBoardSource, /min-w-\[900px\]/);
+  });
+
   test("validates and normalizes month values", () => {
     assert.equal(isLunchBoxMonth("2026-07"), true);
     assert.equal(isLunchBoxMonth("2026-13"), false);
@@ -236,19 +448,19 @@ describe("lunch box calendar", () => {
       days: {
         "2026-07-29": {
           date: "2026-07-29",
-          totalCount: 54,
+          totalCount: 57,
           schools: [
             {
               schoolId: "school-001",
               schoolName: "영만초",
               schoolType: "elementary",
-              total: 45,
+              total: 47,
             },
             {
               schoolId: "school-002",
-              schoolName: "이리동남초 병설유치원",
+              schoolName: "동남초 병설유치원",
               schoolType: "kindergarten",
-              total: 9,
+              total: 10,
             },
           ],
         },
@@ -265,12 +477,13 @@ describe("lunch box calendar", () => {
     );
 
     assert.match(html, /2026년 7월/);
-    assert.match(html, /월 총계 54개/);
+    assert.match(html, /월 총계 57개/);
+    assert.match(html, /보존식·배송기사 포함/);
     assert.match(html, /영만초/);
-    assert.match(html, /이리동남초 병설유치원/);
-    assert.match(html, />45</);
-    assert.match(html, />9</);
-    assert.match(html, /54개/);
+    assert.match(html, /동남초 병설유치원/);
+    assert.match(html, />47</);
+    assert.match(html, />10</);
+    assert.match(html, /57개/);
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-06"/);
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-08"/);
     assert.match(html, /2026년 7월 29일 도시락 개수 입력|2026\.07\.29\.\(수\) 도시락 개수 입력/);
@@ -358,5 +571,128 @@ describe("lunch box calendar", () => {
     assert.match(html, /외 3곳/);
     assert.doesNotMatch(html, /학교 3/);
     assert.match(html, /h-36/);
+  });
+});
+
+describe("lunch box count change log", () => {
+  const changeLogPage: LunchBoxCountChangeLogPage = {
+    logs: [
+      {
+        id: "log-001",
+        date: "2026-07-29",
+        createdAt: "2026-07-20T05:30:00.000Z",
+        message: "2026-07-29 도시락 개수를 2개교 반영했습니다.",
+        actor: {
+          id: "user-001",
+          name: "김담당",
+          departmentName: "생활복지팀",
+          positionName: "생활지도원",
+          profileImageStorageKey: null,
+          profileImageUpdatedAt: null,
+        },
+        schools: [
+          {
+            schoolId: "school-001",
+            schoolName: "영만초",
+            changes: [
+              { field: "preservationCount", previous: 0, next: 1 },
+              { field: "class1Count", previous: 10, next: 12 },
+            ],
+          },
+          {
+            schoolId: "school-002",
+            schoolName: "동남초 병설유치원",
+            changes: [
+              { field: "deliveryDriverCount", previous: 0, next: 1 },
+            ],
+          },
+        ],
+      },
+    ],
+    page: 2,
+    pageSize: 10,
+    total: 21,
+    totalPages: 3,
+  };
+
+  test("renders who changed each school field before and after", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxCountChangeLog, {
+        changeLogPage,
+        selectedMonth: "2026-07",
+      }),
+    );
+
+    assert.match(html, /도시락 변경 기록/);
+    assert.match(html, /21건 중 11-20건 표시/);
+    assert.match(html, /김담당/);
+    assert.match(html, /생활복지팀/);
+    assert.match(html, /생활지도원/);
+    assert.match(html, /대상일 2026\.07\.29\.\(수\)/);
+    assert.match(html, /영만초/);
+    assert.match(html, /동남초 병설유치원/);
+    assert.match(html, /보존식/);
+    assert.match(html, /배송기사/);
+    assert.match(html, /1반/);
+    assert.match(html, /0/);
+    assert.match(html, /12/);
+    assert.match(html, /aria-label="학교별 상세 변경값"/);
+    assert.match(html, /2 \/ 3 페이지/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\?month=2026-07#lunch-box-change-log"/,
+    );
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\?month=2026-07&amp;logPage=3#lunch-box-change-log"/,
+    );
+  });
+
+  test("keeps the calendar before history and renders a matching loading state", () => {
+    assert.ok(
+      lunchBoxPageSource.indexOf("<LunchBoxCountCalendarBoard") <
+        lunchBoxPageSource.indexOf("<LunchBoxCountChangeLog"),
+      "도시락 변경 기록은 달력 아래에 렌더링되어야 합니다.",
+    );
+
+    const loadingHtml = renderToStaticMarkup(
+      React.createElement(LunchBoxManagementSkeleton),
+    );
+
+    assert.match(loadingHtml, /aria-label="도시락 현황 로딩"/);
+    assert.match(loadingHtml, /aria-label="도시락 변경 기록 로딩"/);
+  });
+
+  test("creates month-preserving page links and a clear empty state", () => {
+    assert.equal(
+      createLunchBoxCountChangeLogHref({
+        page: 1,
+        selectedMonth: "2026-07",
+      }),
+      "/work-schedule/lunch-boxes?month=2026-07#lunch-box-change-log",
+    );
+    assert.equal(
+      createLunchBoxCountChangeLogHref({
+        page: 4,
+        selectedMonth: "2026-07",
+      }),
+      "/work-schedule/lunch-boxes?month=2026-07&logPage=4#lunch-box-change-log",
+    );
+
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxCountChangeLog, {
+        changeLogPage: {
+          logs: [],
+          page: 1,
+          pageSize: 10,
+          total: 0,
+          totalPages: 1,
+        },
+        selectedMonth: "2026-07",
+      }),
+    );
+
+    assert.match(html, /아직 기록된 도시락 변경 내역이 없습니다/);
+    assert.doesNotMatch(html, /도시락 변경 기록 페이지/);
   });
 });

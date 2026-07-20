@@ -6,7 +6,7 @@ export default function WorkScheduleLunchBoxesLoading() {
     <>
       <PageTitle
         title="도시락 현황"
-        description="날짜별 도시락 수량과 학교 정보를 한곳에서 관리합니다."
+        description="날짜별 도시락·보존식·배송기사 수량과 학교별 보존식 배정을 관리합니다."
       />
       <LunchBoxManagementSkeleton />
     </>
