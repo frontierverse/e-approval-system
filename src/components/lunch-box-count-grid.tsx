@@ -21,9 +21,11 @@ import {
 
 type LunchBoxCountGridProps = {
   initialGrid: LunchBoxCountGridData;
+  isCloseDisabled?: boolean;
   loadGrid: (
     date: string,
   ) => Promise<LunchBoxActionResult<{ grid: LunchBoxCountGridData }>>;
+  onClose?: () => void;
   onGridSaved?: (grid: LunchBoxCountGridData) => void;
   onGridLoaded?: (grid: LunchBoxCountGridData) => void;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -47,10 +49,17 @@ const pdfButtonClassName = buttonClass(
   buttonStyles.save,
   "h-11 px-3 text-sm",
 );
+const closeButtonClassName = buttonClass(
+  buttonStyles.base,
+  buttonStyles.danger,
+  "h-11 px-3 text-sm",
+);
 
 export function LunchBoxCountGrid({
   initialGrid,
+  isCloseDisabled = false,
   loadGrid,
+  onClose,
   onDirtyChange,
   onGridLoaded,
   onGridSaved,
@@ -257,29 +266,45 @@ export function LunchBoxCountGrid({
               오늘
             </button>
           ) : null}
-          {editedCount > 0 || isPending ? (
-            <button
-              type="button"
-              disabled
-              title={
-                editedCount > 0
-                  ? "변경사항을 저장한 후 인쇄할 수 있습니다."
-                  : "날짜를 불러온 후 인쇄할 수 있습니다."
-              }
-              className={pdfButtonClassName}
-            >
-              PDF 인쇄
-            </button>
-          ) : (
-            <Link
-              href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
-              target="_blank"
-              rel="noreferrer"
-              className={pdfButtonClassName}
-            >
-              PDF 인쇄
-            </Link>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {editedCount > 0 || isPending ? (
+              <button
+                type="button"
+                disabled
+                title={
+                  editedCount > 0
+                    ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                    : "날짜를 불러온 후 인쇄할 수 있습니다."
+                }
+                className={pdfButtonClassName}
+              >
+                PDF 인쇄
+              </button>
+            ) : (
+              <Link
+                href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
+                target="_blank"
+                rel="noreferrer"
+                className={pdfButtonClassName}
+              >
+                PDF 인쇄
+              </Link>
+            )}
+            {onClose ? (
+              <button
+                type="button"
+                data-modal-initial-focus
+                disabled={isCloseDisabled}
+                title={
+                  isCloseDisabled ? "저장이 끝난 후 닫을 수 있습니다." : undefined
+                }
+                onClick={onClose}
+                className={closeButtonClassName}
+              >
+                닫기
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 

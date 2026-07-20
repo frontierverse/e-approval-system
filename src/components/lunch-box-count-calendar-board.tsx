@@ -319,20 +319,7 @@ function LunchBoxCountCalendarBoardContent({
           label={`${formatLunchBoxDateLabel(selectedDate)} 도시락 개수 입력`}
           onClose={closeDayModal}
         >
-          <div className="flex h-[min(52rem,calc(100dvh-3rem))] min-h-0 flex-col p-4">
-            <div className="mb-2 flex shrink-0 justify-end">
-              <button
-                type="button"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#196b69] disabled:cursor-wait disabled:opacity-60"
-                disabled={isGridSavePending}
-                title={
-                  isGridSavePending ? "저장이 끝난 후 닫을 수 있습니다." : undefined
-                }
-                onClick={closeDayModal}
-              >
-                닫기
-              </button>
-            </div>
+          <div className="flex h-[calc(100dvh-3rem)] min-h-0 flex-col p-4">
             <div className="min-h-0 flex-1">
               {modalError ? (
                 <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
@@ -343,7 +330,9 @@ function LunchBoxCountCalendarBoardContent({
               ) : (
                 <LunchBoxCountGrid
                   initialGrid={selectedGrid}
+                  isCloseDisabled={isGridSavePending}
                   loadGrid={loadGrid}
+                  onClose={closeDayModal}
                   onDirtyChange={setIsGridDirty}
                   onGridLoaded={(loadedGrid) =>
                     setSelectedDate(loadedGrid.date)

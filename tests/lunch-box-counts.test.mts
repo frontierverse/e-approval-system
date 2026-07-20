@@ -270,6 +270,7 @@ describe("lunch box counts", () => {
       React.createElement(LunchBoxCountGrid, {
         initialGrid: grid,
         loadGrid,
+        onClose: () => {},
         saveCounts,
         today: "2026-07-29",
       }),
@@ -305,6 +306,14 @@ describe("lunch box counts", () => {
     );
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noreferrer"/);
+    assert.match(
+      html,
+      /PDF \uC778\uC1C4<\/a><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
+    );
+    assert.match(
+      html,
+      /data-modal-initial-focus[^>]*class="[^"]*bg-\[#b42318\][^"]*"[^>]*>\uB2EB\uAE30<\/button>/,
+    );
     assert.match(
       html,
       /class="[^"]*bg-\[#3b5f7f\][^"]*"[^>]*>PDF 인쇄<\/a>/,
@@ -386,6 +395,14 @@ describe("lunch box calendar", () => {
     );
     assert.doesNotMatch(lunchBoxCalendarBoardSource, /className="max-w-4xl"/);
     assert.match(lunchBoxCalendarBoardSource, /min-w-\[900px\]/);
+    assert.match(
+      lunchBoxCalendarBoardSource,
+      /h-\[calc\(100dvh-3rem\)\]/,
+    );
+    assert.doesNotMatch(
+      lunchBoxCalendarBoardSource,
+      /h-\[min\(52rem,calc\(100dvh-3rem\)\)\]/,
+    );
   });
 
   test("validates and normalizes month values", () => {
