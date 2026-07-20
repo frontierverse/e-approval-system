@@ -736,7 +736,7 @@ function DraftFormFields({
           <div>
             <label
               htmlFor="templateId"
-              className="text-sm font-semibold text-[var(--foreground)]"
+              className="block text-sm font-semibold text-[var(--foreground)]"
             >
               문서 양식
             </label>
