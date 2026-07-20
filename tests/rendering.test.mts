@@ -416,6 +416,38 @@ describe("major UI rendering", () => {
       agendaIndex < specialNotesIndex,
       "expected agenda inputs before special notes",
     );
+    const draftSaveIndex = html.indexOf(">임시저장</button>");
+    const previewIndex = html.indexOf(">PDF 미리보기</button>");
+    const submitIndex = html.indexOf(">결재 요청</button>");
+
+    assert.match(html, /type="button"[^>]*>PDF 미리보기</);
+    assert.ok(draftSaveIndex < previewIndex);
+    assert.ok(previewIndex < submitIndex);
+    assert.equal(html.match(/name="intent"/g)?.length, 2);
+  });
+
+  test("does not show the meeting PDF preview for other templates", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DraftForm, {
+        templates: [
+          {
+            id: "template-general",
+            name: "일반 기안서",
+            description: null,
+            schema: null,
+          },
+        ],
+        attachmentPolicy: {
+          maxFileCount: 5,
+          maxFileSizeMb: 10,
+          allowedExtensions: [".pdf"],
+        },
+        approverCandidates: [],
+        action: async () => ({}),
+      }),
+    );
+
+    assert.doesNotMatch(html, />PDF 미리보기</);
   });
 
   test("renders the facility head as a compact fixed approval authority", () => {

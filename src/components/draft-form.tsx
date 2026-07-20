@@ -16,6 +16,7 @@ import { createDraftAction } from "@/app/drafts/new/actions";
 import { createSignedUploadUrlAction } from "@/app/attachments/actions";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { DatePickerInput } from "@/components/date-picker-input";
+import { MeetingMinutesPdfPreviewButton } from "@/components/meeting-minutes-pdf-preview-button";
 import { PendingOverlay } from "@/components/form-pending-overlay";
 import {
   documentContentLineNumberColumnClass,
@@ -1424,6 +1425,15 @@ function DraftFormFields({
                   ? "수정 저장"
                   : "임시저장"}
             </button>
+            {isMeetingMinutesTemplate ? (
+              <MeetingMinutesPdfPreviewButton
+                approverIds={selectedApproverIds}
+                content={structuredContent}
+                disabled={isBusy}
+                templateId={templateId}
+                title={title}
+              />
+            ) : null}
             <button
               type="submit"
               name="intent"
