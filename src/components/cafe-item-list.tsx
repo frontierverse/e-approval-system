@@ -186,29 +186,44 @@ export function CafeItemList({
         </div>
 
         {currentItemPage.items.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-max min-w-[1296px] max-w-none border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
-                  <th className="w-[12rem] px-6 py-3.5">물품</th>
-                  <th className="w-[9rem] px-6 py-3.5">구매일</th>
-                  <th className="w-[8rem] px-6 py-3.5">종류</th>
-                  <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
-                  <SortableExpirationHeader
-                    filters={currentItemPage.filters}
-                  />
-                  <th className="w-[8rem] px-6 py-3.5">가격</th>
-                  <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
-                  <th className="w-[12rem] px-6 py-3.5">보류 사유</th>
-                  <th className="w-[10rem] px-6 py-3.5">관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#eef1f5]">
-                {currentItemPage.items.map((item) => (
-                  <CafeItemRow key={item.id} item={item} today={currentToday} />
-                ))}
-              </tbody>
-            </table>
+          <div>
+            <p className="border-b border-[var(--border)] px-5 py-2 text-xs text-[var(--text-muted)] lg:hidden">
+              표를 좌우로 스크롤하면 모든 상세 정보를 확인할 수 있습니다.
+            </p>
+            <div className="relative overflow-x-auto">
+              <table className="w-max min-w-[1352px] max-w-none border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
+                    <th className="sticky left-0 z-20 w-14 bg-[var(--surface-muted)] px-4 py-3.5 text-center">
+                      번호
+                    </th>
+                    <th className="sticky left-14 z-20 w-[12rem] border-r border-[var(--border)] bg-[var(--surface-muted)] px-6 py-3.5">
+                      물품명
+                    </th>
+                    <th className="w-[9rem] px-6 py-3.5">구매일</th>
+                    <th className="w-[8rem] px-6 py-3.5">종류</th>
+                    <th className="w-[10rem] px-6 py-3.5">사용 기한</th>
+                    <SortableExpirationHeader
+                      filters={currentItemPage.filters}
+                    />
+                    <th className="w-[8rem] px-6 py-3.5">가격</th>
+                    <th className="w-[6rem] px-6 py-3.5">구매 사유</th>
+                    <th className="w-[12rem] px-6 py-3.5">보류 사유</th>
+                    <th className="w-[10rem] px-6 py-3.5">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#eef1f5]">
+                  {currentItemPage.items.map((item, index) => (
+                    <CafeItemRow
+                      key={item.id}
+                      item={item}
+                      rowNumber={firstItem + index}
+                      today={currentToday}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <p className="mx-5 my-5 rounded-md border border-dashed border-[#cfd6e3] bg-[#fbfcfd] px-4 py-8 text-sm text-[#697386]">
@@ -427,9 +442,9 @@ function CafeItemFilterControls({
         href={createCafeItemExpiringFoodPrintHref()}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex h-10 items-center justify-center rounded-md border border-[#0f5553] bg-[#196b69] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12514f] focus:outline-none focus:ring-2 focus:ring-[#d7eceb] sm:ml-auto"
+        className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--brand)] transition hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 sm:ml-auto"
       >
-        PDF 출력 · 유통기한 15일 이내
+        유통기한 15일 이내 PDF
       </Link>
     </form>
   );

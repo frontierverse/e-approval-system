@@ -57,23 +57,29 @@ export function CafeItemListSkeleton() {
           <CafeFieldSkeleton className="w-44" label="사용 기한" />
           <CafeSkeletonBlock className="h-10 w-20" />
           <CafeSkeletonBlock className="h-10 w-20" />
+          <CafeSkeletonBlock className="h-10 w-40 sm:ml-auto" />
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <div className="w-max min-w-[1152px] max-w-none text-sm">
-          <div className="grid grid-cols-[12rem_9rem_8rem_10rem_9rem_8rem_6rem_10rem] border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
+        <div className="w-max min-w-[1352px] max-w-none text-sm">
+          <div className="grid grid-cols-[3.5rem_12rem_9rem_8rem_10rem_9rem_8rem_6rem_12rem_10rem] border-b border-[#eef1f5] bg-[#f7f9fc] text-xs font-semibold text-[#394150]">
             {[
-              "물품",
+              "번호",
+              "물품명",
               "구매일",
               "종류",
               "사용 기한",
               "유통기한",
               "가격",
               "구매 사유",
+              "보류 사유",
               "관리",
             ].map((label) => (
-              <div key={label} className="px-6 py-3.5">
+              <div
+                key={label}
+                className={label === "번호" ? "px-4 py-3.5 text-center" : "px-6 py-3.5"}
+              >
                 {label}
               </div>
             ))}
@@ -81,8 +87,11 @@ export function CafeItemListSkeleton() {
           {[0, 1, 2, 3].map((row) => (
             <div
               key={row}
-              className="grid grid-cols-[12rem_9rem_8rem_10rem_9rem_8rem_6rem_10rem] border-b border-[#eef1f5] last:border-b-0"
+              className="grid grid-cols-[3.5rem_12rem_9rem_8rem_10rem_9rem_8rem_6rem_12rem_10rem] border-b border-[#eef1f5] last:border-b-0"
             >
+              <div className="px-4 py-5">
+                <CafeSkeletonBlock className="mx-auto h-4 w-4" />
+              </div>
               <div className="px-6 py-5">
                 <CafeSkeletonBlock className="h-4 w-40 max-w-full" />
                 <CafeSkeletonBlock className="mt-2 h-3 w-24" />
@@ -98,6 +107,9 @@ export function CafeItemListSkeleton() {
               <div className="px-6 py-5">
                 <CafeSkeletonBlock className="h-4 w-48 max-w-full" />
                 <CafeSkeletonBlock className="mt-2 h-4 w-32 max-w-full" />
+              </div>
+              <div className="px-6 py-5">
+                <CafeSkeletonBlock className="h-4 w-40 max-w-full" />
               </div>
               <div className="px-6 py-5">
                 <div className="flex gap-2">

@@ -10,7 +10,15 @@ import {
   type CafeItem,
 } from "@/lib/cafe-items-core";
 
-export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) {
+export function CafeItemRow({
+  item,
+  rowNumber,
+  today,
+}: {
+  item: CafeItem;
+  rowNumber: number;
+  today: string;
+}) {
   const usageDday = getCafeItemUsageDday(item, today);
   const isExpirationHeld =
     usageDday.status === "expired" && Boolean(item.expirationHoldReason);
@@ -48,13 +56,16 @@ export function CafeItemRow({ item, today }: { item: CafeItem; today: string }) 
   return (
     <tr
       aria-label={`${item.name} 물품 수정`}
-      className="cursor-pointer align-top transition hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
+      className="group cursor-pointer align-top transition hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#196b69]"
       onClick={handleRowClick}
       onKeyDown={handleRowKeyDown}
       role="button"
       tabIndex={0}
     >
-      <td className="w-[12rem] max-w-[12rem] px-6 py-5">
+      <td className="sticky left-0 z-10 w-14 bg-[var(--surface)] px-4 py-5 text-center text-[#697386] tabular-nums transition-colors group-hover:bg-[var(--surface-hover)]">
+        {rowNumber}
+      </td>
+      <td className="sticky left-14 z-10 w-[12rem] max-w-[12rem] border-r border-[var(--border)] bg-[var(--surface)] px-6 py-5 transition-colors group-hover:bg-[var(--surface-hover)]">
         <p
           className="max-w-full truncate font-semibold text-[#16181d]"
           title={item.name}

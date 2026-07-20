@@ -1,24 +1,29 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PageSizes } from "pdf-lib";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-table.tsx";
+import { CafeItemInventoryPrintLink } from "../src/components/cafe-item-inventory-print-link.tsx";
 import {
   CafeItemHeldItemsModal,
   CafeItemList,
 } from "../src/components/cafe-item-list.tsx";
+import { createCafeItemInventoryPdf } from "../src/lib/cafe-item-inventory-pdf.ts";
 import { createCafeExpiringFoodsPdf } from "../src/lib/cafe-item-expiration-pdf.ts";
 import {
   createCafeItemDueSoonHref,
   createCafeItemExpirationAlert,
   createCafeItemExpirationSearchHref,
   createCafeItemExpiringFoodPrintHref,
+  createCafeItemInventoryPrintHref,
   formatCafeItemDateValue,
   getCafeItemUsageDday,
   normalizeCafeItemSort,
   type CafeItemChangeLogPage,
   type CafeItem,
+  type CafeItemInventoryItem,
   type CafeItemPage,
 } from "../src/lib/cafe-items-core.ts";
 
@@ -222,6 +227,24 @@ describe("cafe items", () => {
     );
   });
 
+  test("creates a prominent full inventory PDF link", () => {
+    assert.equal(
+      createCafeItemInventoryPrintHref(),
+      "/work-schedule/cafe/items/print",
+    );
+
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemInventoryPrintLink),
+    );
+
+    assert.match(html, /전체 물품 PDF 출력/);
+    assert.match(html, /href="\/work-schedule\/cafe\/items\/print"/);
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /전체 카페 물품 상세 목록을 PDF로 출력\(새 창\)/);
+    assert.match(html, /h-11/);
+    assert.match(html, /bg-\[var\(--brand\)\]/);
+  });
+
   test("normalizes cafe item sort values", () => {
     assert.equal(normalizeCafeItemSort("expirationAsc"), "expirationAsc");
     assert.equal(normalizeCafeItemSort("expirationDesc"), "expirationDesc");
@@ -246,13 +269,14 @@ describe("cafe items", () => {
 
     assert.match(html, /물품 목록/);
     assert.match(html, /10건 중 1-7건 표시/);
-    assert.match(html, /PDF 출력 · 유통기한 15일 이내/);
+    assert.match(html, /유통기한 15일 이내 PDF/);
     assert.match(
       html,
       /href="\/work-schedule\/cafe\/expiring-foods\/print"/,
     );
     assert.match(html, /target="_blank"/);
-    assert.match(html, /bg-\[#196b69\]/);
+    assert.match(html, /border-\[var\(--border-strong\)\]/);
+    assert.match(html, /h-11/);
     assert.match(html, /sm:ml-auto/);
     assert.match(html, /유통기한 경과 식품/);
     assert.match(html, /2개/);
@@ -273,6 +297,13 @@ describe("cafe items", () => {
     assert.ok(purchaseDateHeaderIndex < categoryHeaderIndex);
     assert.match(html, /flex min-w-0 items-center gap-3/);
     assert.match(html, /관리/);
+    assert.match(html, /번호/);
+    assert.match(html, /tabular-nums/);
+    assert.match(
+      html,
+      /표를 좌우로 스크롤하면 모든 상세 정보를 확인할 수 있습니다/,
+    );
+    assert.match(html, /sticky left-0/);
     assert.match(html, /우유/);
     assert.match(html, /식품/);
     assert.match(html, /2026\.07\.24/);
@@ -351,6 +382,21 @@ describe("cafe items", () => {
     );
   });
 
+  test("keeps cafe item row numbers continuous across pages", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CafeItemList, {
+        itemPage: {
+          ...itemPage,
+          items: [cafeItems[0]],
+          page: 2,
+        },
+        today: "2026-06-24",
+      }),
+    );
+
+    assert.match(html, /tabular-nums[^"]*">8<\/td>/);
+  });
+
   test("renders the hold status and reason for an expired food item", () => {
     const html = renderToStaticMarkup(
       React.createElement(CafeItemList, {
@@ -426,8 +472,85 @@ describe("cafe items", () => {
     assert.equal(readPdfHeader(buffer), "%PDF");
     assert.equal(pdf.getPageCount(), 1);
   });
+
+  test("creates a detailed, multi-page A4 landscape inventory PDF", async () => {
+    const items: CafeItemInventoryItem[] = Array.from(
+      { length: 18 },
+      (_, index) => ({
+        ...cafeItems[index % cafeItems.length],
+        id: `inventory-${index + 1}`,
+        name: index === 17 ? "마지막 확인 물품" : `카페 물품 ${index + 1}`,
+        purchaseReason:
+          index === 0
+            ? `${"가\n".repeat(247)}구매끝`
+            : cafeItems[index % cafeItems.length]?.purchaseReason ?? null,
+        expirationHoldReason:
+          index === 0 ? `${"나\n".repeat(247)}보류끝` : null,
+        updatedAt: "2026-06-25T03:40:00.000Z",
+      }),
+    );
+    const buffer = await createCafeItemInventoryPdf({
+      generatedAt: new Date("2026-07-20T09:20:00.000Z"),
+      items,
+      today: "2026-06-24",
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const text = await extractPdfText(buffer);
+
+    assert.equal(readPdfHeader(buffer), "%PDF");
+    assert.ok(pdf.getPageCount() > 1);
+    assert.equal(pdf.getTitle(), "카페 물품 전체 목록");
+    assertA4LandscapePages(pdf);
+    assert.match(text, /카페 물품 전체 목록/);
+    assert.match(text, /번호/);
+    assert.match(text, /물품명/);
+    assert.match(text, /종류/);
+    assert.match(text, /사용 상태/);
+    assert.match(text, /구매일/);
+    assert.match(text, /유통기한/);
+    assert.match(text, /등록일시/);
+    assert.match(text, /수정일시/);
+    assert.match(text, /가격/);
+    assert.match(text, /구매·보류 사유/);
+    assert.match(text, /3,200원/);
+    assert.match(text, /구매끝/);
+    assert.match(text, /보류끝/);
+    assert.match(text, /마지막 확인 물품/);
+  });
 });
 
 function readPdfHeader(buffer: Uint8Array) {
   return Buffer.from(buffer.slice(0, 4)).toString("utf8");
+}
+
+function assertA4LandscapePages(pdf: PDFDocument) {
+  for (const page of pdf.getPages()) {
+    const { height, width } = page.getSize();
+
+    assert.ok(Math.abs(width - PageSizes.A4[1]) < 0.01);
+    assert.ok(Math.abs(height - PageSizes.A4[0]) < 0.01);
+  }
+}
+
+async function extractPdfText(buffer: Uint8Array) {
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+  const pdf = await loadingTask.promise;
+  const texts: string[] = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+
+      texts.push(
+        ...content.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .filter(Boolean),
+      );
+    }
+  } finally {
+    await loadingTask.destroy();
+  }
+
+  return texts.join("|");
 }

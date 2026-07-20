@@ -51,6 +51,10 @@ export type CafeItem = {
   createdAt: string;
 };
 
+export type CafeItemInventoryItem = CafeItem & {
+  updatedAt: string;
+};
+
 export type CafeItemPageFilters = {
   category: CafeItemCategoryFilter;
   deadline: CafeItemDeadlineFilter;
@@ -397,6 +401,10 @@ export function createCafeItemExpiredHref() {
 
 export function createCafeItemExpiringFoodPrintHref() {
   return "/work-schedule/cafe/expiring-foods/print";
+}
+
+export function createCafeItemInventoryPrintHref() {
+  return "/work-schedule/cafe/items/print";
 }
 
 export function shiftCafeItemDate(value: string, days: number) {

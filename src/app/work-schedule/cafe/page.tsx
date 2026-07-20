@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CafeItemChangeLogTable } from "@/components/cafe-item-change-log-table";
+import { CafeItemInventoryPrintLink } from "@/components/cafe-item-inventory-print-link";
 import { CafeItemList } from "@/components/cafe-item-list";
 import { CafeItemRegistrationForm } from "@/components/cafe-item-registration-form";
 import {
@@ -68,6 +69,7 @@ export default async function WorkScheduleCafePage({
             ? "카페 운영 시 함께 지켜야 할 준수사항을 기록하고 공유합니다."
             : "카페 물품을 등록하고 구매일과 유통기한 기준 사용 기한을 확인합니다."
         }
+        action={activeTab === "items" ? <CafeItemInventoryPrintLink /> : undefined}
       />
 
       <CafeManagementTabs activeTab={activeTab} />

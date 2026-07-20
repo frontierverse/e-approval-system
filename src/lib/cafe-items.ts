@@ -19,6 +19,7 @@ import {
   type CafeItemCategoryFilter,
   type CafeItemDeadlineFilter,
   type CafeItemExpirationAlert,
+  type CafeItemInventoryItem,
   type CafeItemPage,
   type CafeItemSort,
 } from "@/lib/cafe-items-core";
@@ -33,6 +34,10 @@ type CafeItemRecord = {
   expirationDate: Date | string | null;
   expirationHoldReason: string | null;
   createdAt: Date;
+};
+
+type CafeItemInventoryRecord = CafeItemRecord & {
+  updatedAt: Date;
 };
 
 type CafeItemChangeLogMetadata = {
@@ -190,6 +195,28 @@ export async function getCafeItemsExpiringWithin({
   });
 
   return items.map(mapCafeItem);
+}
+
+export async function getCafeItemInventoryItems(): Promise<
+  CafeItemInventoryItem[]
+> {
+  const items = await prisma.cafeItem.findMany({
+    orderBy: [{ createdAt: "desc" }, { name: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      purchasedAt: true,
+      priceWon: true,
+      purchaseReason: true,
+      expirationDate: true,
+      expirationHoldReason: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  return items.map(mapCafeItemInventoryItem);
 }
 
 function createCafeItemOrderBy({
@@ -484,6 +511,15 @@ function mapCafeItem(item: CafeItemRecord): CafeItem {
       : null,
     createdAt: item.createdAt.toISOString(),
     purchasedAt: formatCafeItemDateValue(item.purchasedAt),
+  };
+}
+
+function mapCafeItemInventoryItem(
+  item: CafeItemInventoryRecord,
+): CafeItemInventoryItem {
+  return {
+    ...mapCafeItem(item),
+    updatedAt: item.updatedAt.toISOString(),
   };
 }
 
