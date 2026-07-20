@@ -130,7 +130,7 @@ const defaultCommonScheduleBoardLabels: CommonScheduleBoardLabels = {
   boardAriaLabel: "청소년 공통 일정표",
   changeLogAriaLabel: "공통 일정표 변경내역",
   changeLogFallbackMessage: "공통 일정표 변경내역을 기록했습니다.",
-  description: "오전 9시부터 오후 6시까지 요일별 공통 일정을 관리합니다.",
+  description: "청소년 공통 일정을 오전 9시부터 오후 6시까지 요일별로 관리합니다.",
   loadingLabel: "공통 일정표 불러오는 중",
   noMatchingChangeLogsMessage: "조건에 맞는 변경내역이 없습니다.",
   paginationAriaLabel: "공통 일정표 변경내역 페이지",

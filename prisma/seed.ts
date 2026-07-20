@@ -11,6 +11,7 @@ import {
 import {
   getDefaultDocumentTemplateSchema,
   getExpenseReportDocumentTemplateSchema,
+  getMeetingMinutesDocumentTemplateSchema,
   getVacationRequestDocumentTemplateSchema,
 } from "../src/lib/document-template-schema";
 import { hashPassword } from "../src/lib/password";
@@ -25,6 +26,8 @@ const expenseReportDocumentTemplateSchema =
   getExpenseReportDocumentTemplateSchema();
 const vacationRequestDocumentTemplateSchema =
   getVacationRequestDocumentTemplateSchema();
+const meetingMinutesDocumentTemplateSchema =
+  getMeetingMinutesDocumentTemplateSchema();
 const defaultAllowedAttachmentExtensions = [
   ".pdf",
   ".png",
@@ -158,6 +161,12 @@ async function main() {
         name: "구매요청서",
         description: "물품과 서비스 구매 승인을 요청하는 양식",
         schema: defaultDocumentTemplateSchema,
+      },
+      {
+        id: "template-meeting-minutes",
+        name: "회의록",
+        description: "회의 내용과 결정 사항을 기록하는 양식",
+        schema: meetingMinutesDocumentTemplateSchema,
       },
     ],
   });

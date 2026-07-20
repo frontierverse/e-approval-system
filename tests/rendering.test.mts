@@ -33,6 +33,10 @@ import {
   UserAvatar,
 } from "../src/components/user-avatar.tsx";
 import type { ApprovalDocument } from "../src/lib/mock-data.ts";
+import {
+  getMeetingMinutesDocumentTemplateSchema,
+  meetingMinutesTemplateId,
+} from "../src/lib/document-template-schema.ts";
 import type {
   ResourceLibraryItem,
   ResourceViewer,
@@ -379,6 +383,39 @@ describe("major UI rendering", () => {
     assert.ok(html.indexOf("결재선") < html.indexOf("저장 및 결재 요청"));
     assert.match(html, /결재 요청 전 확인: 제목은 2자 이상 입력하세요\./);
     assert.match(html, /aria-describedby="draft-submit-readiness"/);
+  });
+
+  test("places meeting agenda inputs before special notes", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(DraftForm, {
+        templates: [
+          {
+            id: meetingMinutesTemplateId,
+            name: "회의록",
+            description: null,
+            schema: getMeetingMinutesDocumentTemplateSchema(),
+          },
+        ],
+        attachmentPolicy: {
+          maxFileCount: 5,
+          maxFileSizeMb: 10,
+          allowedExtensions: [".pdf"],
+        },
+        approverCandidates: [],
+        action: async () => ({}),
+      }),
+    );
+    const agendaIndex = html.indexOf('for="meeting-agenda-1-title"');
+    const specialNotesIndex = html.indexOf(
+      'for="template-field-specialNotes"',
+    );
+
+    assert.ok(agendaIndex >= 0, "expected a meeting agenda title input");
+    assert.ok(specialNotesIndex >= 0, "expected the special notes input");
+    assert.ok(
+      agendaIndex < specialNotesIndex,
+      "expected agenda inputs before special notes",
+    );
   });
 
   test("renders the facility head as a compact fixed approval authority", () => {

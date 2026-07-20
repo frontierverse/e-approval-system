@@ -57,6 +57,7 @@ const maxOptionCount = 50;
 const maxConditionValueCount = 50;
 
 export const vacationRequestTemplateId = "template-vacation-request";
+export const meetingMinutesTemplateId = "template-meeting-minutes";
 
 export function getDefaultDocumentTemplateSchema(): DocumentTemplateSchemaV1 {
   return {
@@ -279,6 +280,84 @@ export function getVacationRequestDocumentTemplateSchema(): DocumentTemplateSche
         type: "textarea",
         required: true,
         placeholder: "휴가 신청 사유를 입력하세요.",
+      },
+      {
+        name: "attachments",
+        label: "첨부파일",
+        type: "attachments",
+        required: false,
+      },
+    ],
+  };
+}
+
+export function getMeetingMinutesDocumentTemplateSchema(): DocumentTemplateSchemaV1 {
+  return {
+    version: 1,
+    fields: [
+      { name: "title", label: "제목", type: "text", required: true },
+      {
+        name: "meetingTitle",
+        label: "회의제목",
+        type: "text",
+        required: true,
+        placeholder: "예: 주간 운영회의(시설 운영 및 생활지도 방향 논의)",
+      },
+      {
+        name: "meetingDate",
+        label: "일시",
+        type: "date",
+        required: true,
+      },
+      {
+        name: "location",
+        label: "장소",
+        type: "text",
+        required: true,
+        placeholder: "예: 바자울청소년회복지원시설",
+      },
+      {
+        name: "attendees",
+        label: "참석자",
+        type: "text",
+        required: true,
+        placeholder: "예: 안윤숙, 박재숙, 심태호, 최윤서 (총 4명)",
+      },
+      {
+        name: "host",
+        label: "회의 주최자",
+        type: "text",
+        required: true,
+        placeholder: "예: 안윤숙 시설장",
+      },
+      {
+        name: "agenda",
+        label: "안건",
+        type: "textarea",
+        required: true,
+        placeholder: "예:\n1. 시설 주간 일정 및 업무 운영 계획 공유\n2. 입소 청소년 프로그램 운영",
+      },
+      {
+        name: "discussion",
+        label: "논의 내용",
+        type: "textarea",
+        required: true,
+        placeholder:
+          "안건별 논의 내용과 결정 사항을 입력하세요.\n예:\n안건 1. 시설 주간 일정 및 업무 운영 계획 공유\n 논의 내용\n  - ...\n 결정 사항\n  - ...",
+      },
+      {
+        name: "specialNotes",
+        label: "특이사항",
+        type: "textarea",
+        required: false,
+        placeholder: "회의 중 공유된 특이사항을 입력하세요.",
+      },
+      {
+        name: "followUpSchedule",
+        label: "추후 일정",
+        type: "textarea",
+        required: false,
+        placeholder: "예: 차기 주간회의 실시.(2026.07.20.)",
       },
       {
         name: "attachments",

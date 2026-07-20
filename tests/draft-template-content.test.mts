@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  compileMeetingAgendaFieldValues,
   compileDocumentTemplateContent,
   compileTemplateContent,
   draftTemplateFormats,
   extractDocumentTemplateFieldValuesFromContent,
   extractDisplayContentFromTemplate,
+  getMeetingAgendaItems,
   extractTextareaContentFromCompiledTemplate,
   getDocumentTemplateInitialFieldValues,
   getDocumentTemplateDisplayRows,
@@ -13,6 +15,7 @@ import {
 } from "../src/lib/draft-template-content.ts";
 import {
   getExpenseReportDocumentTemplateSchema,
+  getMeetingMinutesDocumentTemplateSchema,
   getVacationRequestDocumentTemplateSchema,
 } from "../src/lib/document-template-schema.ts";
 
@@ -357,5 +360,55 @@ describe("draft template content", () => {
     );
 
     assert.deepEqual(errors, ["신청 사유을(를) 입력하세요."]);
+  });
+
+  test("compiles, restores, and validates separate meeting agenda titles and content", () => {
+    const agendaValues = compileMeetingAgendaFieldValues([
+      {
+        title: "시설 주간 일정 및 업무 운영 계획 공유",
+        content: "7월 16일부터 아동돌봄도시락 사업 운영을 시작합니다.",
+      },
+      {
+        title: "입소 청소년 프로그램 운영",
+        content: "프로그램 운영 일정을 확정합니다.",
+      },
+    ]);
+
+    assert.deepEqual(getMeetingAgendaItems(agendaValues), [
+      {
+        title: "시설 주간 일정 및 업무 운영 계획 공유",
+        content: "7월 16일부터 아동돌봄도시락 사업 운영을 시작합니다.",
+      },
+      {
+        title: "입소 청소년 프로그램 운영",
+        content: "프로그램 운영 일정을 확정합니다.",
+      },
+    ]);
+    assert.match(agendaValues.discussion, /안건 1\. 시설 주간 일정/);
+
+    const schema = getMeetingMinutesDocumentTemplateSchema();
+    const errors = validateDocumentTemplateContentValues(schema, {
+      meetingTitle: "주간 운영회의",
+      meetingDate: "2026-07-20",
+      location: "회의실",
+      attendees: "최윤서 외 3명",
+      host: "안윤숙 시설장",
+      ...agendaValues,
+    });
+
+    assert.deepEqual(errors, []);
+
+    const incompleteErrors = validateDocumentTemplateContentValues(schema, {
+      meetingTitle: "주간 운영회의",
+      meetingDate: "2026-07-20",
+      location: "회의실",
+      attendees: "최윤서 외 3명",
+      host: "안윤숙 시설장",
+      ...compileMeetingAgendaFieldValues([
+        { title: "시설 운영", content: "" },
+      ]),
+    });
+
+    assert.deepEqual(incompleteErrors, ["안건 1의 내용을 입력하세요."]);
   });
 });

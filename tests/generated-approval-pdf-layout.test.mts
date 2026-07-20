@@ -8,6 +8,7 @@ describe("generated approval pdf layout", () => {
     assert.equal(getApprovalPdfLayout("지출결의서").kind, "expense");
     assert.equal(getApprovalPdfLayout("휴가신청서").kind, "vacation");
     assert.equal(getApprovalPdfLayout("구매요청서").kind, "purchase");
+    assert.equal(getApprovalPdfLayout("회의록").kind, "meeting");
   });
 
   test("provides different visual labels for each document layout", () => {

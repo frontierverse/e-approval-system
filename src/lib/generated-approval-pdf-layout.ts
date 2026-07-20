@@ -1,6 +1,7 @@
 export type ApprovalPdfLayoutKind =
   | "expense"
   | "general"
+  | "meeting"
   | "purchase"
   | "vacation";
 
@@ -91,6 +92,28 @@ const approvalPdfLayouts = {
     reviewValue: "기간 확인",
     subtitleFill: "#c8e8ef",
   },
+  meeting: {
+    accentFill: "#16181d",
+    badgeLabel: "회의록",
+    bodyTitle: "논의 내용",
+    focusFill: "#f8fafc",
+    focusTitle: "회의록 검토 기준",
+    headerFill: "#16181d",
+    headerTitle: "회의록",
+    heroFill: "#ffffff",
+    heroStroke: "#16181d",
+    infoLabelFill: "#ffffff",
+    kind: "meeting",
+    notesLines: [
+      "결재자는 회의 참석자, 안건, 논의 내용과 결정 사항을 확인합니다.",
+      "최종 승인 완료 후 이 회의록을 기준으로 보관 및 후속 일정이 진행됩니다.",
+    ],
+    notesTitle: "회의록 결재 유의사항",
+    pageFill: "#ffffff",
+    reviewLabel: "회의",
+    reviewValue: "내용 확인",
+    subtitleFill: "#c8d3df",
+  },
   purchase: {
     accentFill: "#2f6b3f",
     badgeLabel: "구매 요청",
@@ -140,6 +163,10 @@ export function getApprovalPdfLayout(templateName: string) {
     normalized.includes("발주")
   ) {
     return approvalPdfLayouts.purchase;
+  }
+
+  if (normalized.includes("회의")) {
+    return approvalPdfLayouts.meeting;
   }
 
   return approvalPdfLayouts.general;

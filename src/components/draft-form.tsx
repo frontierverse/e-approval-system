@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   type FormEvent,
   startTransition,
   useActionState,
@@ -27,13 +28,17 @@ import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import type { DraftFormState, DraftFormValues } from "@/lib/draft-form-state";
 import {
+  compileMeetingAgendaFieldValues,
   compileDocumentTemplateContentFromSchema,
+  getMeetingAgendaItems,
   getDocumentTemplateInitialFieldValues,
   getSafeRenderableDocumentTemplateFields,
   getTemplateFieldInputName,
   validateDocumentTemplateContentValues,
+  type MeetingAgendaItem,
 } from "@/lib/draft-template-content";
 import {
+  meetingMinutesTemplateId,
   vacationRequestTemplateId,
   type DocumentTemplateField,
 } from "@/lib/document-template-schema";
@@ -171,6 +176,13 @@ function DraftFormFields({
   const [templateFieldValues, setTemplateFieldValues] = useState<
     Record<string, string>
   >(() => getInitialTemplateFieldValues(initialValues, templates));
+  const [meetingAgendaItems, setMeetingAgendaItems] = useState<
+    MeetingAgendaItem[]
+  >(() =>
+    ensureMeetingAgendaItems(
+      getMeetingAgendaItems(getInitialTemplateFieldValues(initialValues, templates)),
+    ),
+  );
   const [selectedApproverIds, setSelectedApproverIds] = useState<string[]>(
     initialValues.approverIds,
   );
@@ -218,6 +230,23 @@ function DraftFormFields({
     () => templates.find((template) => template.id === templateId),
     [templateId, templates],
   );
+  const isMeetingMinutesTemplate =
+    selectedTemplate?.id === meetingMinutesTemplateId;
+  const meetingAgendaFieldValues = useMemo(
+    () => compileMeetingAgendaFieldValues(meetingAgendaItems),
+    [meetingAgendaItems],
+  );
+  const resolvedTemplateFieldValues = useMemo(
+    () =>
+      isMeetingMinutesTemplate
+        ? { ...templateFieldValues, ...meetingAgendaFieldValues }
+        : templateFieldValues,
+    [
+      isMeetingMinutesTemplate,
+      meetingAgendaFieldValues,
+      templateFieldValues,
+    ],
+  );
   const selectedTemplateFields = useMemo(() => {
     if (!selectedTemplate) {
       return [];
@@ -225,14 +254,23 @@ function DraftFormFields({
 
     return getSafeRenderableDocumentTemplateFields(
       selectedTemplate.schema,
-    ).filter((field) =>
-      isDraftFormTemplateFieldVisible(
-        selectedTemplate.id,
-        field,
-        templateFieldValues,
-      ),
+    ).filter(
+      (field) =>
+        !(
+          isMeetingMinutesTemplate &&
+          (field.name === "agenda" || field.name === "discussion")
+        ) &&
+        isDraftFormTemplateFieldVisible(
+          selectedTemplate.id,
+          field,
+          resolvedTemplateFieldValues,
+        ),
     );
-  }, [selectedTemplate, templateFieldValues]);
+  }, [
+    isMeetingMinutesTemplate,
+    resolvedTemplateFieldValues,
+    selectedTemplate,
+  ]);
   const usesStructuredTemplate = selectedTemplate
     ? getSafeRenderableDocumentTemplateFields(selectedTemplate.schema).length > 0
     : false;
@@ -240,7 +278,7 @@ function DraftFormFields({
     usesStructuredTemplate && selectedTemplate
       ? compileDocumentTemplateContentFromSchema(
           selectedTemplate.schema,
-          templateFieldValues,
+          resolvedTemplateFieldValues,
           content,
         )
       : content;
@@ -287,7 +325,7 @@ function DraftFormFields({
         selectedApproverIds,
         selectedApprovers,
         selectedTemplate,
-        templateFieldValues,
+        templateFieldValues: resolvedTemplateFieldValues,
         title,
         allowedApproverPositionName,
       }),
@@ -297,7 +335,7 @@ function DraftFormFields({
       selectedApprovers,
       selectedTemplate,
       structuredContent,
-      templateFieldValues,
+      resolvedTemplateFieldValues,
       title,
       allowedApproverPositionName,
     ],
@@ -599,7 +637,7 @@ function DraftFormFields({
       formData.set("title", title);
       formData.set("templateId", templateId);
       formData.set("content", structuredContent);
-      setTemplateFieldFormDataValues(formData, templateFieldValues);
+      setTemplateFieldFormDataValues(formData, resolvedTemplateFieldValues);
 
       if (submitIntent) {
         formData.set("intent", submitIntent);
@@ -722,11 +760,16 @@ function DraftFormFields({
                 setTemplateId(event.target.value);
                 clearServerError("templateId");
                 clearServerError("content");
-                setTemplateFieldValues(
+                const nextTemplateFieldValues =
                   getTemplateFieldValuesForSelectedTemplate(
                     event.target.value,
                     templates,
                     "",
+                  );
+                setTemplateFieldValues(nextTemplateFieldValues);
+                setMeetingAgendaItems(
+                  ensureMeetingAgendaItems(
+                    getMeetingAgendaItems(nextTemplateFieldValues),
                   ),
                 );
               }}
@@ -785,6 +828,20 @@ function DraftFormFields({
           {usesStructuredTemplate && selectedTemplate ? (
             <>
               <input name="content" type="hidden" value={structuredContent} />
+              {isMeetingMinutesTemplate ? (
+                <>
+                  <input
+                    name={getTemplateFieldInputName("agenda")}
+                    type="hidden"
+                    value={meetingAgendaFieldValues.agenda}
+                  />
+                  <input
+                    name={getTemplateFieldInputName("discussion")}
+                    type="hidden"
+                    value={meetingAgendaFieldValues.discussion}
+                  />
+                </>
+              ) : null}
               <div
                 role="group"
                 aria-label={`${selectedTemplate.name} 입력 항목`}
@@ -794,19 +851,52 @@ function DraftFormFields({
                 className="mt-2 grid gap-4 lg:grid-cols-2"
               >
                 {selectedTemplateFields.map((field) => (
-                  <TemplateInput
-                    key={field.name}
-                    field={field}
-                    pending={isBusy}
-                    value={templateFieldValues[field.name] ?? ""}
-                    onChange={(value) => {
-                      clearServerError("content");
-                      setTemplateFieldValues((current) => ({
-                        ...current,
-                        [field.name]: value,
-                      }));
-                    }}
-                  />
+                  <Fragment key={field.name}>
+                    {isMeetingMinutesTemplate &&
+                    field.name === "specialNotes" ? (
+                      <MeetingAgendaInputs
+                        items={meetingAgendaItems}
+                        pending={isBusy}
+                        onAdd={() => {
+                          clearServerError("content");
+                          setMeetingAgendaItems((current) => [
+                            ...current,
+                            { title: "", content: "" },
+                          ]);
+                        }}
+                        onChange={(index, nextItem) => {
+                          clearServerError("content");
+                          setMeetingAgendaItems((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index ? nextItem : item,
+                            ),
+                          );
+                        }}
+                        onRemove={(index) => {
+                          clearServerError("content");
+                          setMeetingAgendaItems((current) =>
+                            ensureMeetingAgendaItems(
+                              current.filter(
+                                (_, itemIndex) => itemIndex !== index,
+                              ),
+                            ),
+                          );
+                        }}
+                      />
+                    ) : null}
+                    <TemplateInput
+                      field={field}
+                      pending={isBusy}
+                      value={templateFieldValues[field.name] ?? ""}
+                      onChange={(value) => {
+                        clearServerError("content");
+                        setTemplateFieldValues((current) => ({
+                          ...current,
+                          [field.name]: value,
+                        }));
+                      }}
+                    />
+                  </Fragment>
                 ))}
               </div>
             </>
@@ -1707,6 +1797,127 @@ function TemplateInput({
       )}
     </div>
   );
+}
+
+function MeetingAgendaInputs({
+  items,
+  onAdd,
+  onChange,
+  onRemove,
+  pending,
+}: {
+  items: MeetingAgendaItem[];
+  onAdd: () => void;
+  onChange: (index: number, item: MeetingAgendaItem) => void;
+  onRemove: (index: number) => void;
+  pending: boolean;
+}) {
+  return (
+    <fieldset className="space-y-3 lg:col-span-2">
+      <legend className="text-xs font-semibold text-[var(--text-muted)]">
+        안건
+      </legend>
+      <div className="grid gap-3">
+        {items.map((item, index) => {
+          const itemHeadingId = `meeting-agenda-${index + 1}-heading`;
+          const titleInputId = `meeting-agenda-${index + 1}-title`;
+          const contentInputId = `meeting-agenda-${index + 1}-content`;
+
+          return (
+            <section
+              key={index}
+              aria-labelledby={itemHeadingId}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface-muted)] p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h3
+                  id={itemHeadingId}
+                  className="text-sm font-semibold text-[var(--foreground)]"
+                >
+                  안건 {index + 1}
+                </h3>
+                <button
+                  type="button"
+                  aria-label={`안건 ${index + 1} 삭제`}
+                  disabled={pending || items.length === 1}
+                  onClick={() => onRemove(index)}
+                  className={buttonClass(
+                    buttonStyles.base,
+                    buttonStyles.dangerOutline,
+                    "h-11 px-3 text-xs",
+                  )}
+                >
+                  삭제
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label
+                    htmlFor={titleInputId}
+                    className="text-xs font-semibold text-[var(--text-muted)]"
+                  >
+                    안건 제목
+                  </label>
+                  <input
+                    id={titleInputId}
+                    type="text"
+                    value={item.title}
+                    required
+                    aria-required="true"
+                    disabled={pending}
+                    onChange={(event) =>
+                      onChange(index, {
+                        ...item,
+                        title: event.currentTarget.value,
+                      })
+                    }
+                    placeholder="예: 시설 주간 일정 및 업무 운영 계획 공유"
+                    className="mt-2 h-11 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor={contentInputId}
+                    className="text-xs font-semibold text-[var(--text-muted)]"
+                  >
+                    안건 내용
+                  </label>
+                  <LineNumberedTextarea
+                    id={contentInputId}
+                    required
+                    ariaInvalid={false}
+                    disabled={pending}
+                    rows={4}
+                    value={item.content}
+                    onChange={(content) =>
+                      onChange(index, { ...item, content })
+                    }
+                    placeholder="논의 내용과 결정 사항을 입력하세요."
+                  />
+                </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onAdd}
+        className={buttonClass(
+          buttonStyles.base,
+          buttonStyles.neutral,
+          "h-11 w-full text-sm",
+        )}
+      >
+        + 안건 추가
+      </button>
+    </fieldset>
+  );
+}
+
+function ensureMeetingAgendaItems(items: MeetingAgendaItem[]) {
+  return items.length > 0 ? items : [{ title: "", content: "" }];
 }
 
 function LineNumberedTextarea({

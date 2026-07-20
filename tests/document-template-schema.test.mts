@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
   getDefaultDocumentTemplateSchema,
   getExpenseReportDocumentTemplateSchema,
+  getMeetingMinutesDocumentTemplateSchema,
   getSafeDocumentTemplateSchema,
   getVacationRequestDocumentTemplateSchema,
   validateDocumentTemplateSchema,
@@ -130,6 +131,43 @@ describe("document template schema", () => {
         { label: "출산", value: "birth" },
         { label: "장례", value: "bereavement" },
         { label: "기타", value: "other" },
+      ]);
+    }
+  });
+
+  test("validates the meeting minutes schema", () => {
+    const validation = validateDocumentTemplateSchema(
+      getMeetingMinutesDocumentTemplateSchema(),
+    );
+
+    assert.equal(validation.ok, true);
+
+    if (validation.ok) {
+      assert.deepEqual(
+        validation.schema.fields.map((field) => field.name),
+        [
+          "title",
+          "meetingTitle",
+          "meetingDate",
+          "location",
+          "attendees",
+          "host",
+          "agenda",
+          "discussion",
+          "specialNotes",
+          "followUpSchedule",
+          "attachments",
+        ],
+      );
+
+      const optionalFields = validation.schema.fields
+        .filter((field) => !field.required)
+        .map((field) => field.name);
+
+      assert.deepEqual(optionalFields, [
+        "specialNotes",
+        "followUpSchedule",
+        "attachments",
       ]);
     }
   });

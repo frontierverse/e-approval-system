@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import {
   getApprovalPdfLayout,
   type ApprovalPdfLayout,
+  type ApprovalPdfLayoutKind,
 } from "@/lib/generated-approval-pdf-layout";
 import {
   ApprovalStepStatus,
@@ -114,6 +115,21 @@ const templateTableMaxWrappedLines = 500;
 const continuationBodyTitleY = 350;
 const continuationTableY = 382;
 const continuationTableMaxBottomY = 1548;
+const meetingTableX = 118;
+const meetingTableWidth = 1004;
+const meetingLabelWidth = 158;
+const meetingCellPaddingX = 20;
+const meetingLineHeight = 26;
+const meetingInfoRowHeight = 50;
+const meetingBlockFirstBaseline = 34;
+const meetingBlockPaddingBottom = 16;
+const meetingFontSize = 15;
+const meetingHeadingFontSize = 18;
+const meetingBorderColor = "#16181d";
+const meetingTitleY = 170;
+const meetingFirstTableY = 250;
+const meetingContinuationTableY = 96;
+const meetingTableMaxBottomY = 1666;
 const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v5/";
 const approvalDocumentFooterText =
   "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
@@ -339,6 +355,11 @@ export async function attachStampedApprovalPdfToDocument(
       title: true,
       status: true,
       drafterId: true,
+      template: {
+        select: {
+          name: true,
+        },
+      },
       approvalSteps: {
         orderBy: {
           order: "asc",
@@ -408,6 +429,7 @@ export async function attachStampedApprovalPdfToDocument(
     sourceBuffer,
     stamps,
     approvalStepCount,
+    layoutKind: getApprovalPdfLayout(document.template.name).kind,
   });
   const previousFile = existingAttachment
     ? {
@@ -557,11 +579,13 @@ export async function createGeneratedApprovalPdfFile(
 
 async function createStampedApprovalPdfFile({
   approvalStepCount,
+  layoutKind,
   originalName,
   sourceBuffer,
   stamps,
 }: {
   approvalStepCount: number;
+  layoutKind: ApprovalPdfLayoutKind;
   originalName: string;
   sourceBuffer: Buffer;
   stamps: ApprovalPdfStamp[];
@@ -578,6 +602,7 @@ async function createStampedApprovalPdfFile({
     sourceBuffer,
     stamps,
     approvalStepCount,
+    layoutKind,
   );
 
   return {
@@ -594,6 +619,7 @@ async function stampFinalApprovalPdf(
   sourceBuffer: Buffer,
   stamps: ApprovalPdfStamp[],
   approvalStepCount: number,
+  layoutKind: ApprovalPdfLayoutKind = "general",
 ) {
   const pdf = await PDFDocument.load(sourceBuffer);
   const fonts = await embedApprovalPdfFonts(pdf);
@@ -607,6 +633,7 @@ async function stampFinalApprovalPdf(
     const placement = getApprovalStampPlacement(
       stamp.order,
       approvalStepCount,
+      layoutKind,
     );
 
     if (
@@ -652,6 +679,18 @@ function drawApprovalDocumentPage(
   input: ApprovalPdfInput,
 ) {
   const layout = getApprovalPdfLayout(input.templateName);
+
+  if (layout.kind === "meeting") {
+    const meetingDisplayRows = input.templateSchema
+      ? getDocumentTemplateDisplayRows(input.templateSchema, input.content)
+      : [];
+
+    if (meetingDisplayRows.length > 0) {
+      drawMeetingMinutesDocumentPages(pdf, page, fonts, input, meetingDisplayRows);
+      return;
+    }
+  }
+
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
   const approvers = input.approvers;
@@ -781,6 +820,445 @@ function drawApprovalDocumentPage(
   }
 
   drawApprovalDocumentFooter(page, fonts);
+}
+
+type MeetingMinutesInfoCell = {
+  label: string;
+  value: string;
+  labelWidth: number;
+  valueWidth: number;
+};
+
+type MeetingMinutesSegment =
+  | {
+      kind: "info";
+      cells: MeetingMinutesInfoCell[];
+    }
+  | {
+      kind: "block";
+      label: string;
+      value: string;
+    };
+
+function drawMeetingMinutesDocumentPages(
+  pdf: PDFDocument,
+  firstPage: PDFPage,
+  fonts: ApprovalPdfFonts,
+  input: ApprovalPdfInput,
+  rows: DocumentTemplateDisplayRow[],
+) {
+  const segments = createMeetingMinutesSegments(rows);
+  let page = firstPage;
+  let y = meetingFirstTableY;
+  let pageTableTop = meetingFirstTableY;
+
+  drawSvgText(page, fonts, "회의록", 620, meetingTitleY, 46, meetingBorderColor, {
+    align: "middle",
+    fontWeight: 800,
+  });
+
+  function finishPageOutline() {
+    if (y > pageTableTop) {
+      drawMeetingMinutesTableOutline(page, pageTableTop, y);
+    }
+  }
+
+  function moveToNextPage() {
+    finishPageOutline();
+    page = pdf.addPage([pageWidth, pageHeight]);
+    y = meetingContinuationTableY;
+    pageTableTop = meetingContinuationTableY;
+  }
+
+  for (const segment of segments) {
+    if (segment.kind === "info") {
+      if (y + meetingInfoRowHeight > meetingTableMaxBottomY) {
+        moveToNextPage();
+      }
+
+      drawMeetingMinutesInfoRow(page, fonts, y, segment.cells);
+      y += meetingInfoRowHeight;
+      continue;
+    }
+
+    const valueMaxWidth =
+      meetingTableWidth - meetingLabelWidth - meetingCellPaddingX * 2;
+    const lines = wrapMeetingMinutesBlockLines(
+      fonts,
+      segment.value,
+      valueMaxWidth,
+    );
+    let lineIndex = 0;
+
+    while (lineIndex < lines.length) {
+      const remainingHeight = meetingTableMaxBottomY - y;
+      const fittingLineCount =
+        Math.floor(
+          (remainingHeight -
+            meetingBlockFirstBaseline -
+            meetingBlockPaddingBottom) /
+            meetingLineHeight,
+        ) + 1;
+
+      if (fittingLineCount < 1) {
+        moveToNextPage();
+        continue;
+      }
+
+      const visibleLines = lines.slice(lineIndex, lineIndex + fittingLineCount);
+      const rowHeight = Math.max(
+        meetingInfoRowHeight,
+        meetingBlockFirstBaseline +
+          (visibleLines.length - 1) * meetingLineHeight +
+          meetingBlockPaddingBottom,
+      );
+
+      drawMeetingMinutesBlockRow(
+        page,
+        fonts,
+        y,
+        rowHeight,
+        segment.label,
+        visibleLines,
+      );
+      y += rowHeight;
+      lineIndex += visibleLines.length;
+
+      if (lineIndex < lines.length) {
+        moveToNextPage();
+      }
+    }
+  }
+
+  finishPageOutline();
+
+  let writerY = y + 46;
+
+  if (writerY > svgHeight - 60) {
+    page = pdf.addPage([pageWidth, pageHeight]);
+    writerY = meetingContinuationTableY + 30;
+  }
+
+  drawSvgText(
+    page,
+    fonts,
+    `작성자: ${input.drafter.name}`,
+    meetingTableX + meetingTableWidth - meetingCellPaddingX,
+    writerY,
+    16,
+    meetingBorderColor,
+    {
+      align: "end",
+      fontWeight: 700,
+    },
+  );
+}
+
+function createMeetingMinutesSegments(
+  rows: DocumentTemplateDisplayRow[],
+): MeetingMinutesSegment[] {
+  const rowByName = new Map(rows.map((row) => [row.name, row]));
+  const consumedNames = new Set<string>();
+  const segments: MeetingMinutesSegment[] = [];
+  const fullValueWidth = meetingTableWidth - meetingLabelWidth;
+
+  function takeRow(name: string) {
+    const row = rowByName.get(name);
+
+    if (row) {
+      consumedNames.add(name);
+    }
+
+    return row;
+  }
+
+  const meetingTitleRow = takeRow("meetingTitle");
+
+  if (meetingTitleRow) {
+    segments.push({
+      kind: "info",
+      cells: [
+        {
+          label: meetingTitleRow.label,
+          value: meetingTitleRow.value,
+          labelWidth: meetingLabelWidth,
+          valueWidth: fullValueWidth,
+        },
+      ],
+    });
+  }
+
+  const meetingDateRow = takeRow("meetingDate");
+  const locationRow = takeRow("location");
+
+  if (meetingDateRow || locationRow) {
+    segments.push({
+      kind: "info",
+      cells: [
+        {
+          label: meetingDateRow?.label ?? "일시",
+          value: formatMeetingMinutesDate(meetingDateRow?.value ?? ""),
+          labelWidth: meetingLabelWidth,
+          valueWidth: 372,
+        },
+        {
+          label: locationRow?.label ?? "장소",
+          value: locationRow?.value ?? "",
+          labelWidth: 130,
+          valueWidth: 344,
+        },
+      ],
+    });
+  }
+
+  for (const name of ["attendees", "host"]) {
+    const row = takeRow(name);
+
+    if (row) {
+      segments.push({
+        kind: "info",
+        cells: [
+          {
+            label: row.label,
+            value: row.value,
+            labelWidth: meetingLabelWidth,
+            valueWidth: fullValueWidth,
+          },
+        ],
+      });
+    }
+  }
+
+  for (const name of [
+    "agenda",
+    "discussion",
+    "specialNotes",
+    "followUpSchedule",
+  ]) {
+    const row = takeRow(name);
+
+    if (row) {
+      segments.push({
+        kind: "block",
+        label: row.label,
+        value: row.value,
+      });
+    }
+  }
+
+  for (const row of rows) {
+    if (consumedNames.has(row.name)) {
+      continue;
+    }
+
+    segments.push({
+      kind: "block",
+      label: row.label,
+      value: row.value,
+    });
+  }
+
+  return segments;
+}
+
+function drawMeetingMinutesInfoRow(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  y: number,
+  cells: MeetingMinutesInfoCell[],
+) {
+  const textBaselineY = y + meetingInfoRowHeight / 2 + 6;
+  let x = meetingTableX;
+
+  for (const cell of cells) {
+    drawSvgRect(
+      page,
+      x,
+      y,
+      cell.labelWidth,
+      meetingInfoRowHeight,
+      "#ffffff",
+      meetingBorderColor,
+      1.5,
+    );
+    drawSvgText(
+      page,
+      fonts,
+      cell.label,
+      x + cell.labelWidth / 2,
+      textBaselineY,
+      meetingFontSize,
+      meetingBorderColor,
+      {
+        align: "middle",
+        fontWeight: 700,
+      },
+    );
+    drawSvgRect(
+      page,
+      x + cell.labelWidth,
+      y,
+      cell.valueWidth,
+      meetingInfoRowHeight,
+      "#ffffff",
+      meetingBorderColor,
+      1.5,
+    );
+    drawSvgFittedText(
+      page,
+      fonts,
+      cell.value || "-",
+      x + cell.labelWidth + meetingCellPaddingX,
+      textBaselineY,
+      meetingFontSize,
+      "#16181d",
+      cell.valueWidth - meetingCellPaddingX * 2,
+    );
+    x += cell.labelWidth + cell.valueWidth;
+  }
+}
+
+type MeetingMinutesBlockLine = {
+  fontSize: number;
+  fontWeight: number;
+  text: string;
+};
+
+function wrapMeetingMinutesBlockLines(
+  fonts: ApprovalPdfFonts,
+  value: string,
+  maxWidth: number,
+): MeetingMinutesBlockLine[] {
+  const lines: MeetingMinutesBlockLine[] = [];
+  const sourceLines = (value || "-")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n");
+
+  for (const sourceLine of sourceLines) {
+    const trimmedLine = sourceLine.trim();
+
+    if (!trimmedLine) {
+      continue;
+    }
+
+    const isAgendaHeading = /^안건\s*\d+\s*\./.test(trimmedLine);
+    const isSectionHeading = ["논의 내용", "논의내용", "결정 사항", "결정사항"].includes(
+      trimmedLine,
+    );
+    const fontSize = isAgendaHeading ? meetingHeadingFontSize : meetingFontSize;
+    const fontWeight = isAgendaHeading || isSectionHeading ? 700 : 400;
+
+    for (const wrappedLine of wrapSvgTextLines(
+      fonts,
+      trimmedLine,
+      fontSize,
+      maxWidth,
+      templateTableMaxWrappedLines,
+    )) {
+      lines.push({
+        fontSize,
+        fontWeight,
+        text: wrappedLine,
+      });
+    }
+  }
+
+  if (lines.length === 0) {
+    return [
+      {
+        fontSize: meetingFontSize,
+        fontWeight: 400,
+        text: "-",
+      },
+    ];
+  }
+
+  return lines;
+}
+
+function drawMeetingMinutesBlockRow(
+  page: PDFPage,
+  fonts: ApprovalPdfFonts,
+  y: number,
+  height: number,
+  label: string,
+  lines: MeetingMinutesBlockLine[],
+) {
+  drawSvgRect(
+    page,
+    meetingTableX,
+    y,
+    meetingLabelWidth,
+    height,
+    "#ffffff",
+    meetingBorderColor,
+    1.5,
+  );
+  drawSvgText(
+    page,
+    fonts,
+    label,
+    meetingTableX + meetingLabelWidth / 2,
+    y + height / 2 + 6,
+    meetingFontSize,
+    meetingBorderColor,
+    {
+      align: "middle",
+      fontWeight: 700,
+    },
+  );
+  drawSvgRect(
+    page,
+    meetingTableX + meetingLabelWidth,
+    y,
+    meetingTableWidth - meetingLabelWidth,
+    height,
+    "#ffffff",
+    meetingBorderColor,
+    1.5,
+  );
+  lines.forEach((line, index) => {
+    drawSvgText(
+      page,
+      fonts,
+      line.text,
+      meetingTableX + meetingLabelWidth + meetingCellPaddingX,
+      y + meetingBlockFirstBaseline + index * meetingLineHeight,
+      line.fontSize,
+      "#16181d",
+      {
+        fontWeight: line.fontWeight,
+      },
+    );
+  });
+}
+
+function drawMeetingMinutesTableOutline(
+  page: PDFPage,
+  topY: number,
+  bottomY: number,
+) {
+  const rightX = meetingTableX + meetingTableWidth;
+
+  drawSvgLine(page, meetingTableX, topY, rightX, topY, meetingBorderColor, 3);
+  drawSvgLine(page, meetingTableX, bottomY, rightX, bottomY, meetingBorderColor, 3);
+  drawSvgLine(page, meetingTableX, topY, meetingTableX, bottomY, meetingBorderColor, 3);
+  drawSvgLine(page, rightX, topY, rightX, bottomY, meetingBorderColor, 3);
+}
+
+function formatMeetingMinutesDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+
+  return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}.(${weekday})`;
 }
 
 function drawTextBodySection(
@@ -2172,7 +2650,15 @@ function findGeneratedApprovalPdfAttachment(document: {
   });
 }
 
-function getApprovalStampPlacement(order: number, approvalStepCount: number) {
+function getApprovalStampPlacement(
+  order: number,
+  approvalStepCount: number,
+  layoutKind: ApprovalPdfLayoutKind = "general",
+) {
+  if (layoutKind === "meeting") {
+    return getMeetingMinutesStampPlacement(order, approvalStepCount);
+  }
+
   const layout = getApprovalPanelLayout(approvalStepCount);
   const columnIndex = getApprovalStampColumnIndex(order, layout.columns);
   const rowIndex = getApprovalStampRowIndex(order, layout.columns);
@@ -2188,6 +2674,23 @@ function getApprovalStampPlacement(order: number, approvalStepCount: number) {
   return {
     x: centerX - size / 2,
     top: stampTop * scaleY,
+    size,
+  };
+}
+
+function getMeetingMinutesStampPlacement(
+  order: number,
+  approvalStepCount: number,
+) {
+  const size = 36;
+  const stepGap = 100;
+  const rightEdgeCenterX = meetingTableX + meetingTableWidth - 54;
+  const centerX =
+    rightEdgeCenterX - (approvalStepCount - order) * stepGap;
+
+  return {
+    x: centerX * pdfScaleX - size / 2,
+    top: 118 * pdfScaleY,
     size,
   };
 }

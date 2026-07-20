@@ -29,6 +29,60 @@ export type DocumentTemplateDisplayRow = {
 
 export const templateFieldFormNamePrefix = "templateField:";
 
+export type MeetingAgendaItem = {
+  title: string;
+  content: string;
+};
+
+export function getMeetingAgendaItems(
+  values: { agenda?: string; discussion?: string },
+): MeetingAgendaItem[] {
+  const agendaTitles = normalizeNewlines(values.agenda ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^\d+\s*[.)]\s*(.*)$/);
+
+      return (match?.[1] ?? line).trim();
+    });
+  const discussionItems = parseMeetingAgendaDiscussion(values.discussion ?? "");
+
+  if (agendaTitles.length > 0) {
+    const fallbackContent =
+      discussionItems.length === 0
+        ? normalizeNewlines(values.discussion ?? "").trim()
+        : "";
+
+    return agendaTitles.map((title, index) => ({
+      title,
+      content: discussionItems[index]?.content ??
+        (index === 0 ? fallbackContent : ""),
+    }));
+  }
+
+  return discussionItems;
+}
+
+export function compileMeetingAgendaFieldValues(
+  items: readonly MeetingAgendaItem[],
+) {
+  return {
+    agenda: items
+      .map((item, index) => `${index + 1}. ${item.title.trim()}`)
+      .join("\n"),
+    discussion: items
+      .map((item, index) =>
+        [
+          `안건 ${index + 1}. ${item.title.trim()}`,
+          "논의 내용",
+          item.content.trim(),
+        ].join("\n"),
+      )
+      .join("\n\n"),
+  };
+}
+
 export const draftTemplateFormats: Record<string, TemplateFormatDefinition> = {
   "template-general-draft": {
     title: "일반 기안서 입력",
@@ -353,6 +407,10 @@ export function validateDocumentTemplateContentValues(
     }
   }
 
+  if (isMeetingMinutesSchema(safeSchema)) {
+    errors.push(...validateMeetingAgendaItems(fieldValues));
+  }
+
   const startDate = fieldValues.startDate?.trim() ?? "";
   const endDate = fieldValues.endDate?.trim() ?? "";
   const hasVisibleStartDate = fields.some((field) => field.name === "startDate");
@@ -369,6 +427,85 @@ export function validateDocumentTemplateContentValues(
   }
 
   return errors;
+}
+
+function validateMeetingAgendaItems(values: Record<string, string>) {
+  const items = getMeetingAgendaItems(values);
+
+  if (items.length === 0) {
+    return ["안건을 한 건 이상 입력하세요."];
+  }
+
+  for (const [index, item] of items.entries()) {
+    if (!item.title.trim()) {
+      return [`안건 ${index + 1}의 제목을 입력하세요.`];
+    }
+
+    if (!item.content.trim()) {
+      return [`안건 ${index + 1}의 내용을 입력하세요.`];
+    }
+  }
+
+  return [];
+}
+
+function parseMeetingAgendaDiscussion(value: string): MeetingAgendaItem[] {
+  const items: Array<MeetingAgendaItem & { contentLines: string[] }> = [];
+  let currentItem: (MeetingAgendaItem & { contentLines: string[] }) | null =
+    null;
+
+  for (const line of normalizeNewlines(value).split("\n")) {
+    const heading = line.trim().match(/^안건\s*\d+\s*[.)]\s*(.*)$/);
+
+    if (heading) {
+      if (currentItem) {
+        items.push(currentItem);
+      }
+
+      currentItem = {
+        title: heading[1].trim(),
+        content: "",
+        contentLines: [],
+      };
+      continue;
+    }
+
+    currentItem?.contentLines.push(line);
+  }
+
+  if (currentItem) {
+    items.push(currentItem);
+  }
+
+  return items.map(({ contentLines, ...item }) => {
+    const firstContentLine = contentLines.findIndex((line) => line.trim());
+
+    if (
+      firstContentLine >= 0 &&
+      /^논의\s*내용$/.test(contentLines[firstContentLine].trim())
+    ) {
+      contentLines.splice(firstContentLine, 1);
+    }
+
+    return {
+      ...item,
+      content: contentLines.join("\n").trim(),
+    };
+  });
+}
+
+function isMeetingMinutesSchema(schema: DocumentTemplateSchemaV1) {
+  const fieldNames = new Set(schema.fields.map((field) => field.name));
+
+  return [
+    "meetingTitle",
+    "meetingDate",
+    "location",
+    "attendees",
+    "host",
+    "agenda",
+    "discussion",
+  ].every((name) => fieldNames.has(name));
 }
 
 export function extractDocumentTemplateFieldValuesFromContent(

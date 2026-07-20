@@ -12,6 +12,7 @@ import {
   getVisibleApprovalColumnCount,
   getVisibleApprovalRowCount,
 } from "../src/lib/approval-pdf-stamp-source.ts";
+import { getMeetingMinutesDocumentTemplateSchema } from "../src/lib/document-template-schema.ts";
 import { compileDocumentTemplateContent } from "../src/lib/draft-template-content.ts";
 import { createApprovalDocumentPdfBuffer } from "../src/lib/generated-approval-pdf.ts";
 
@@ -248,6 +249,134 @@ describe("generated approval pdf", () => {
         },
       ],
       issuedAt: new Date("2026-06-04T09:30:00+09:00"),
+    });
+    const pdf = await PDFDocument.load(buffer);
+
+    assert.ok(pdf.getPageCount() > 1);
+    assert.ok(buffer.byteLength > 0);
+  });
+
+  test("renders meeting minutes with the paper form design", async () => {
+    const schema = getMeetingMinutesDocumentTemplateSchema();
+    const content = compileDocumentTemplateContent(schema, {
+      meetingTitle: "주간 운영회의(시설 운영 및 생활지도 방향 논의)",
+      meetingDate: "2026-07-13",
+      location: "바자울청소년회복지원시설",
+      attendees: "안윤숙, 박재숙, 심태호, 최윤서 (총 4명)",
+      host: "안윤숙 시설장",
+      agenda: "1. 시설 주간 일정 및 업무 운영 계획 공유\n2. 입소 청소년 프로그램 운영",
+      discussion:
+        "안건 1. 시설 주간 일정 및 업무 운영 계획 공유\n 논의 내용\n  - 7월 16일부터 아동돌봄도시락 사업 운영 시작 예정.",
+      specialNotes: "무더위에 따른 급식 위생관리 강화.",
+      followUpSchedule: "차기 주간회의 실시.(2026.07.20.)",
+    });
+    const buffer = await createApprovalDocumentPdfBuffer({
+      documentNo: "EA-2026-0100",
+      title: "7월 13일 회의록",
+      category: "회의록",
+      content,
+      templateName: "회의록",
+      templateSchema: schema,
+      drafter: {
+        name: "최윤서",
+        departmentName: "바자울",
+        positionName: "주임",
+      },
+      approvers: [
+        {
+          name: "안윤숙",
+          departmentName: "바자울",
+          positionName: "시설장",
+        },
+      ],
+      issuedAt: new Date("2026-07-13T18:00:00+09:00"),
+    });
+    const items = await extractPdfTextItems(buffer);
+    const texts = items.map((item) => item.str);
+    const joined = texts.join(" ");
+
+    const title = items.find((item) => item.str === "회의록");
+    assert.ok(title, "expected the centered 회의록 title");
+
+    for (const label of [
+      "회의제목",
+      "일시",
+      "장소",
+      "참석자",
+      "회의 주최자",
+      "안건",
+      "논의 내용",
+      "특이사항",
+      "추후 일정",
+    ]) {
+      assert.ok(
+        texts.includes(label),
+        `expected meeting minutes PDF to include the ${label} label`,
+      );
+    }
+
+    assert.ok(
+      joined.includes("2026.07.13.(월)"),
+      "expected the meeting date formatted like the paper form",
+    );
+    assert.ok(
+      joined.includes("작성자: 최윤서"),
+      "expected the drafter as 작성자 below the table",
+    );
+    assert.ok(
+      !joined.includes("사내 전자결재 문서") &&
+        !joined.includes("문서 정보") &&
+        !joined.includes("결재란"),
+      "expected meeting minutes PDF to drop the electronic approval frame",
+    );
+
+    const agendaHeading = items.find((item) =>
+      item.str.startsWith("안건 1. 시설 주간 일정"),
+    );
+    const normalLine = items.find((item) =>
+      item.str.includes("7월 16일부터 아동돌봄도시락"),
+    );
+
+    assert.ok(agendaHeading, "expected the 안건 heading line in 논의 내용");
+    assert.ok(normalLine, "expected a normal discussion line");
+    assert.ok(
+      agendaHeading.height > normalLine.height,
+      `expected 안건 headings to use a larger font, got ${agendaHeading.height} vs ${normalLine.height}`,
+    );
+  });
+
+  test("paginates long meeting minutes discussions", async () => {
+    const schema = getMeetingMinutesDocumentTemplateSchema();
+    const longDiscussion = Array.from(
+      { length: 80 },
+      (_, index) =>
+        `안건 ${index + 1}. 논의 내용과 결정 사항이 길게 이어지는 회의 기록입니다.`,
+    ).join("\n");
+    const content = compileDocumentTemplateContent(schema, {
+      meetingTitle: "장시간 운영회의",
+      meetingDate: "2026-07-13",
+      location: "바자울청소년회복지원시설",
+      attendees: "안윤숙 외 3명",
+      host: "안윤숙 시설장",
+      agenda: "1. 장기 안건",
+      discussion: longDiscussion,
+      specialNotes: "",
+      followUpSchedule: "",
+    });
+    const buffer = await createApprovalDocumentPdfBuffer({
+      documentNo: "EA-2026-0101",
+      title: "장시간 회의록",
+      category: "회의록",
+      content,
+      templateName: "회의록",
+      templateSchema: schema,
+      drafter: {
+        name: "최윤서",
+        departmentName: "바자울",
+        positionName: "주임",
+      },
+      approvers: [],
+      issuedAt: new Date("2026-07-13T18:00:00+09:00"),
     });
     const pdf = await PDFDocument.load(buffer);
 
