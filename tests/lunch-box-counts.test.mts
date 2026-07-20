@@ -287,8 +287,8 @@ describe("lunch box counts", () => {
       html,
       /총계 57개 ·\s*보존식 2개 · 배송기사 1개 포함/,
     );
-    assert.match(html, /보존식 지정: 1반/);
-    assert.match(html, /보존식 지정: 지정반 없음/);
+    assert.match(html, /보존식 1반/);
+    assert.match(html, /보존식 지정반 없음/);
     assert.match(html, /aria-label="영만초 보존식 개수 \(1반 배정\)"/);
     assert.match(html, /aria-label="영만초 배송기사 도시락 개수"/);
     assert.ok(
@@ -319,6 +319,19 @@ describe("lunch box counts", () => {
       /class="[^"]*bg-\[#3b5f7f\][^"]*"[^>]*>PDF 인쇄<\/a>/,
     );
     assert.match(html, />PDF 인쇄</);
+    assert.match(html, /표를 좌우로 밀어 반별 개수를 입력하세요./);
+    assert.match(
+      html,
+      /grid-cols-\[auto_minmax\(0,1fr\)_auto\]/,
+    );
+    assert.match(
+      html,
+      /<table class="[^"]*min-w-\[720px\][^"]*table-fixed[^"]*sm:min-w-\[900px\][^"]*">/,
+    );
+    assert.match(
+      html,
+      /<input[^>]*class="[^"]*h-11 w-14[^"]*sm:w-16[^"]*"/,
+    );
   });
 
   test("renders an empty state when no schools are registered", () => {
@@ -368,9 +381,9 @@ describe("lunch box counts", () => {
     );
     assert.match(
       html,
-      /class="min-h-0 flex-1 overflow-auto px-5 pb-4 [^"]*"/,
+      /class="min-h-0 flex-1 overflow-auto overscroll-contain px-3 pb-3 [^"]*sm:px-5 sm:pb-4"/,
     );
-    assert.doesNotMatch(html, /overflow-auto px-5 py-4/);
+    assert.doesNotMatch(html, /overflow-auto px-5/);
     assert.match(
       html,
       /<th class="sticky top-0 left-0 z-30 [^"]*" scope="col">학교명<\/th>/,
@@ -383,17 +396,29 @@ describe("lunch box counts", () => {
       html,
       /<th class="sticky left-0 z-10 [^"]*" scope="row">/,
     );
-    assert.match(html, /<footer class="flex shrink-0 [^"]*">/);
+    assert.match(
+      html,
+      /<tr class="group [^"]*hover:bg-\[#eef7f6\][^"]*focus-within:bg-\[#eef7f6\][^"]*">/,
+    );
+    assert.match(
+      html,
+      /<th class="sticky left-0 z-10 [^"]*group-hover:bg-\[#eef7f6\][^"]*group-focus-within:bg-\[#eef7f6\][^"]*" scope="row">/,
+    );
+    assert.match(html, /<footer class="grid shrink-0 [^"]*">/);
   });
 });
 
 describe("lunch box calendar", () => {
-  test("uses a desktop-wide count modal while preserving narrow-screen overflow", () => {
+  test("uses a desktop-wide count modal with a mobile full-screen layout", () => {
     assert.match(
       lunchBoxCalendarBoardSource,
       /<AppModal\s+className="max-w-7xl"/,
     );
     assert.doesNotMatch(lunchBoxCalendarBoardSource, /className="max-w-4xl"/);
+    assert.match(lunchBoxCalendarBoardSource, /mobileFullscreen/);
+    assert.match(lunchBoxCalendarBoardSource, /h-dvh/);
+    assert.match(lunchBoxCalendarBoardSource, /sm:p-4/);
+    assert.match(lunchBoxCalendarBoardSource, /min-w-\[720px\]/);
     assert.match(lunchBoxCalendarBoardSource, /min-w-\[900px\]/);
     assert.match(
       lunchBoxCalendarBoardSource,
@@ -402,6 +427,14 @@ describe("lunch box calendar", () => {
     assert.doesNotMatch(
       lunchBoxCalendarBoardSource,
       /h-\[min\(52rem,calc\(100dvh-3rem\)\)\]/,
+    );
+    assert.match(
+      lunchBoxCalendarBoardSource,
+      /function LunchBoxCountGridError[\s\S]*?data-modal-initial-focus/,
+    );
+    assert.match(
+      lunchBoxCalendarBoardSource,
+      /function LunchBoxCountGridSkeleton[\s\S]*?data-modal-initial-focus/,
     );
   });
 

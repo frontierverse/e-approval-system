@@ -15,6 +15,7 @@ export function AppModal({
   describedBy,
   label,
   labelledBy,
+  mobileFullscreen = false,
   onClose,
   returnFocusTo,
   style,
@@ -24,6 +25,7 @@ export function AppModal({
   describedBy?: string;
   label?: string;
   labelledBy?: string;
+  mobileFullscreen?: boolean;
   onClose: () => void;
   returnFocusTo?: HTMLElement | null;
   style?: CSSProperties;
@@ -120,7 +122,10 @@ export function AppModal({
 
   const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 px-4 py-6"
+      className={[
+        "fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40",
+        mobileFullscreen ? "p-0 sm:px-4 sm:py-6" : "px-4 py-6",
+      ].join(" ")}
       onMouseDown={closeFromBackdrop}
       role="presentation"
     >
@@ -130,7 +135,9 @@ export function AppModal({
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={[
-          "max-h-[calc(100dvh-3rem)] w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl",
+          mobileFullscreen
+            ? "h-dvh max-h-dvh w-full overflow-hidden border-0 bg-[var(--surface)] shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-xl sm:border sm:border-[var(--border)]"
+            : "max-h-[calc(100dvh-3rem)] w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl",
           className,
         ]
           .filter(Boolean)

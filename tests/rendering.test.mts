@@ -197,6 +197,26 @@ describe("major UI rendering", () => {
     assert.match(html, /tabindex="-1"/);
   });
 
+  test("renders an edge-to-edge mobile modal when requested", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        AppModal,
+        {
+          label: "모바일 테스트 모달",
+          mobileFullscreen: true,
+          onClose: () => undefined,
+        },
+        React.createElement("p", null, "모달 내용"),
+      ),
+    );
+
+    assert.match(html, /p-0 sm:px-4 sm:py-6/);
+    assert.match(html, /h-dvh max-h-dvh/);
+    assert.match(html, /sm:h-auto/);
+    assert.match(html, /border-0/);
+    assert.match(html, /sm:rounded-xl/);
+  });
+
   test("renders fallback user avatars with initial-based colors", () => {
     const kimColorClass = getUserAvatarColorClass("김민준");
     const kangColorClass = getUserAvatarColorClass("강하늘");
