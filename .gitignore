@@ -48,6 +48,9 @@ next-env.d.ts
 # local uploads
 /uploads/
 
+# generated test and preview outputs
+/outputs/
+
 # prisma
 *.db
 *.db-journal
