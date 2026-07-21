@@ -60,6 +60,7 @@ const workScheduleNavigationItems: NavigationItem[] = [
 
 const companyNavigationItems: NavigationItem[] = [
   { label: "회사 정보", href: "/company-info" },
+  { label: "입소 절차 안내", href: "/company-info/intake-process" },
 ];
 
 const accountNavigationItems: NavigationItem[] = [
