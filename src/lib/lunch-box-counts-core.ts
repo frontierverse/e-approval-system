@@ -28,6 +28,14 @@ export const lunchBoxCountFieldLabels: Record<
   linkedCount: "연계형",
 };
 
+export const lunchBoxServingCountFields = [
+  "class1Count",
+  "class2Count",
+  "class3Count",
+  "class4Count",
+  "linkedCount",
+] as const;
+
 export const lunchBoxPreservationClasses = [1, 2, 3, 4] as const;
 export const lunchBoxCountChangeLogPageSize = 10;
 
@@ -85,6 +93,11 @@ export type LunchBoxCountGrid = {
   rows: LunchBoxCountRow[];
 };
 
+export type LunchBoxDailySchoolChecklistData = {
+  checkedSchoolIds: string[];
+  grid: LunchBoxCountGrid;
+};
+
 export type LunchBoxStatusCountGroup = {
   groupCount: number;
   personCount: number;
@@ -101,6 +114,51 @@ export type LunchBoxStatusSummary = {
 
 export type LunchBoxCountRowInput = LunchBoxCountValues & {
   schoolId: string;
+};
+
+export type LunchBoxServingCountField =
+  (typeof lunchBoxServingCountFields)[number];
+
+export type LunchBoxChecklistChip = {
+  field: LunchBoxServingCountField;
+  label: string;
+  value: number;
+};
+
+export type LunchBoxChecklistRow = {
+  classChips: LunchBoxChecklistChip[];
+  deliveryDriverCount: number;
+  preservationClass: LunchBoxPreservationClass | null;
+  preservationCount: number;
+  preservationLabel: string | null;
+  schoolId: string;
+  schoolName: string;
+  schoolType: LunchBoxSchoolType;
+  servingCounts: Record<LunchBoxServingCountField, number>;
+  total: number;
+};
+
+
+export type LunchBoxDailyCountRecord = LunchBoxCountValues & {
+  date: string;
+  schoolId: string;
+};
+
+export type LunchBoxFixedCountRow = LunchBoxChecklistRow & {
+  firstDate: string;
+  lastDate: string;
+  supplyDayCount: number;
+  varianceNote: string | null;
+};
+
+export type LunchBoxFixedCountList = {
+  hasDeliveryDriver: boolean;
+  idleSchoolNames: string[];
+  preservationTotal: number;
+  rows: LunchBoxFixedCountRow[];
+  totalCount: number;
+  varyingSchoolNames: string[];
+  visibleServingFields: LunchBoxServingCountField[];
 };
 
 export type LunchBoxCountMonthDaySchool = {
@@ -425,6 +483,292 @@ export function createLunchBoxStatusSummary(
       kindergartenCount +
       preservationCount,
   };
+}
+
+export function formatLunchBoxPreservationChipLabel(
+  count: number,
+  preservationClass: LunchBoxPreservationClass | null,
+) {
+  if (count < 1) {
+    return null;
+  }
+
+  return `보존식 ${count}(${preservationClass ? `${preservationClass}반` : "반 미지정"})`;
+}
+
+// 학교별 수량은 공급기간 내내 같은 값으로 운영된다. 그래서 날짜별 기록을 학교 단위로
+// 접어 고정 수치 한 줄로 보여준다. 값이 날짜마다 다른 학교는 최빈값을 쓰고 varianceNote로
+// 예외를 드러내, 실제 데이터가 고정이 아닌 경우를 숨기지 않는다.
+export function createLunchBoxFixedCountList({
+  counts,
+  schools,
+}: {
+  counts: readonly LunchBoxDailyCountRecord[];
+  schools: readonly LunchBoxSchool[];
+}): LunchBoxFixedCountList {
+  const countsBySchoolId = new Map<string, LunchBoxDailyCountRecord[]>();
+
+  for (const count of counts) {
+    if (getLunchBoxCountTotal(count) < 1) {
+      continue;
+    }
+
+    const bucket = countsBySchoolId.get(count.schoolId);
+
+    if (bucket) {
+      bucket.push(count);
+    } else {
+      countsBySchoolId.set(count.schoolId, [count]);
+    }
+  }
+
+  const idleSchoolNames: string[] = [];
+  const varyingSchoolNames: string[] = [];
+  const rows: LunchBoxFixedCountRow[] = [];
+  let hasDeliveryDriver = false;
+  let preservationTotal = 0;
+  let totalCount = 0;
+
+  for (const school of schools) {
+    const schoolCounts = countsBySchoolId.get(school.id);
+
+    if (!schoolCounts || schoolCounts.length === 0) {
+      idleSchoolNames.push(school.name);
+      continue;
+    }
+
+    const groups = new Map<string, { count: number; values: LunchBoxCountValues }>();
+
+    for (const record of schoolCounts) {
+      const values = pickLunchBoxCountValues(record);
+      const key = lunchBoxCountFields.map((field) => values[field]).join("/");
+      const group = groups.get(key);
+
+      if (group) {
+        group.count += 1;
+      } else {
+        groups.set(key, { count: 1, values });
+      }
+    }
+
+    const sortedGroups = Array.from(groups.values()).sort(
+      (left, right) =>
+        right.count - left.count ||
+        getLunchBoxCountTotal(right.values) - getLunchBoxCountTotal(left.values),
+    );
+    const [dominant, ...others] = sortedGroups;
+    const dates = schoolCounts.map((record) => record.date).sort();
+    const total = getLunchBoxCountTotal(dominant.values);
+
+    if (others.length > 0) {
+      varyingSchoolNames.push(school.name);
+    }
+
+    hasDeliveryDriver =
+      hasDeliveryDriver || dominant.values.deliveryDriverCount > 0;
+    preservationTotal += dominant.values.preservationCount;
+    totalCount += total;
+    rows.push({
+      classChips: lunchBoxServingCountFields.flatMap((field) =>
+        dominant.values[field] < 1
+          ? []
+          : [
+              {
+                field,
+                label: lunchBoxCountFieldLabels[field],
+                value: dominant.values[field],
+              },
+            ],
+      ),
+      deliveryDriverCount: dominant.values.deliveryDriverCount,
+      firstDate: dates[0],
+      lastDate: dates[dates.length - 1],
+      preservationClass: school.preservationClass,
+      preservationCount: dominant.values.preservationCount,
+      preservationLabel: formatLunchBoxPreservationChipLabel(
+        dominant.values.preservationCount,
+        school.preservationClass,
+      ),
+      schoolId: school.id,
+      schoolName: school.name,
+      schoolType: school.type,
+      servingCounts: {
+        class1Count: dominant.values.class1Count,
+        class2Count: dominant.values.class2Count,
+        class3Count: dominant.values.class3Count,
+        class4Count: dominant.values.class4Count,
+        linkedCount: dominant.values.linkedCount,
+      },
+      supplyDayCount: schoolCounts.length,
+      total,
+      varianceNote:
+        others.length === 0
+          ? null
+          : `${schoolCounts.length}일 중 ${dominant.count}일 기준 · 다른 수량 ${others.length}종`,
+    });
+  }
+
+  const visibleServingFields = lunchBoxServingCountFields.filter((field) =>
+    rows.some((row) => row.servingCounts[field] > 0),
+  );
+
+  return {
+    hasDeliveryDriver,
+    idleSchoolNames,
+    preservationTotal,
+    rows: sortLunchBoxFixedCountRows(rows),
+    totalCount,
+    varyingSchoolNames,
+    visibleServingFields,
+  };
+}
+
+// 전체 공급기간에서 가장 먼저 공급을 시작하는 학교가 위로 온다.
+// 같은 날 시작하는 학교끼리는 기존 학교 순서를 유지한다.
+export function sortLunchBoxFixedCountRows(
+  rows: readonly LunchBoxFixedCountRow[],
+): LunchBoxFixedCountRow[] {
+  return rows
+    .map((row, index) => ({ index, row }))
+    .sort(
+      (left, right) =>
+        (left.row.firstDate < right.row.firstDate
+          ? -1
+          : left.row.firstDate > right.row.firstDate
+            ? 1
+            : 0) || left.index - right.index,
+    )
+    .map((entry) => entry.row);
+}
+
+export function formatLunchBoxShortDateLabel(value: string) {
+  if (!isLunchBoxDate(value)) {
+    return value;
+  }
+
+  const [, month, day] = value.split("-");
+
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function pickLunchBoxCountValues(
+  values: LunchBoxCountValues,
+): LunchBoxCountValues {
+  return {
+    class1Count: values.class1Count,
+    class2Count: values.class2Count,
+    class3Count: values.class3Count,
+    class4Count: values.class4Count,
+    linkedCount: values.linkedCount,
+    preservationCount: values.preservationCount,
+    deliveryDriverCount: values.deliveryDriverCount,
+  };
+}
+
+export function splitLunchBoxChecklistColumns<Row>(
+  rows: readonly Row[],
+  columnCount: number,
+): Row[][] {
+  if (columnCount < 1) {
+    return [[...rows]];
+  }
+
+  const perColumn = Math.ceil(rows.length / columnCount);
+  const columns: Row[][] = [];
+
+  for (let index = 0; index < rows.length; index += perColumn) {
+    columns.push(rows.slice(index, index + perColumn));
+  }
+
+  return columns.length > 0 ? columns : [[]];
+}
+
+export function formatLunchBoxPreservationCellTitle(
+  schoolName: string,
+  count: number,
+  preservationClass: LunchBoxPreservationClass | null,
+) {
+  if (count < 1) {
+    return `${schoolName} 보존식 없음`;
+  }
+
+  return `${schoolName} 보존식 ${count}개 · ${
+    preservationClass ? `${preservationClass}반 배정` : "배정 반 미지정"
+  }`;
+}
+
+
+export function toggleLunchBoxChecklistId(
+  checkedIds: readonly string[],
+  schoolId: string,
+) {
+  return checkedIds.includes(schoolId)
+    ? checkedIds.filter((id) => id !== schoolId)
+    : [...checkedIds, schoolId];
+}
+
+export function setLunchBoxChecklistIdChecked(
+  checkedIds: readonly string[],
+  schoolId: string,
+  isChecked: boolean,
+) {
+  const nextIds = checkedIds.filter((id) => id !== schoolId);
+
+  return isChecked ? [...nextIds, schoolId] : nextIds;
+}
+
+export function resolveLunchBoxDisplayedChecklistIds({
+  canonicalCheckedIds,
+  clearPending,
+  pendingChecks,
+  rows,
+}: {
+  canonicalCheckedIds: readonly string[];
+  clearPending: boolean;
+  pendingChecks: ReadonlyMap<string, boolean>;
+  rows: readonly { schoolId: string }[];
+}) {
+  if (clearPending) {
+    return [];
+  }
+
+  let displayedIds = normalizeLunchBoxChecklistIds(
+    canonicalCheckedIds,
+    rows,
+  );
+  const allowedIds = new Set(rows.map((row) => row.schoolId));
+
+  for (const [schoolId, isChecked] of pendingChecks) {
+    if (allowedIds.has(schoolId)) {
+      displayedIds = setLunchBoxChecklistIdChecked(
+        displayedIds,
+        schoolId,
+        isChecked,
+      );
+    }
+  }
+
+  return displayedIds;
+}
+
+export function normalizeLunchBoxChecklistIds(
+  value: unknown,
+  rows: readonly { schoolId: string }[],
+) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const allowedIds = new Set(rows.map((row) => row.schoolId));
+
+  return Array.from(
+    new Set(
+      value.filter(
+        (item): item is string =>
+          typeof item === "string" && allowedIds.has(item),
+      ),
+    ),
+  );
 }
 
 export function hasLunchBoxCountChanges(

@@ -1,8 +1,13 @@
 import "dotenv/config";
+import {
+  getSupabaseProjectRefFromDatabaseUrl,
+  getSupabaseProjectRefFromProjectUrl,
+} from "./supabase-project-ref.mjs";
 
 const requiredChecks = [
   checkDatabaseUrl,
   checkAuthSecret,
+  checkSupabaseRealtime,
   checkAttachmentStorage,
 ];
 
@@ -79,6 +84,50 @@ function checkAuthSecret() {
   }
 
   return pass("AUTH_SECRET", "Session secret looks usable.");
+}
+
+function checkSupabaseRealtime() {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!supabaseUrl) {
+    return fail(
+      "SUPABASE_REALTIME_URL",
+      "SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required for lunch-box realtime.",
+    );
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return fail(
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY is required for the server-only lunch-box realtime stream.",
+    );
+  }
+
+  const databaseProjectRef = getSupabaseProjectRefFromDatabaseUrl(
+    process.env.DATABASE_URL,
+  );
+  const realtimeProjectRef =
+    getSupabaseProjectRefFromProjectUrl(supabaseUrl);
+
+  if (!databaseProjectRef || !realtimeProjectRef) {
+    return fail(
+      "SUPABASE_REALTIME_PROJECT",
+      "DATABASE_URL and the Supabase Realtime URL must use standard URLs from the same Supabase project.",
+    );
+  }
+
+  if (databaseProjectRef !== realtimeProjectRef) {
+    return fail(
+      "SUPABASE_REALTIME_PROJECT",
+      "DATABASE_URL points to a different project than the Supabase Realtime URL.",
+    );
+  }
+
+  return pass(
+    "SUPABASE_REALTIME",
+    "Server-only credentials and the matching Supabase database are configured.",
+  );
 }
 
 function checkAttachmentStorage() {

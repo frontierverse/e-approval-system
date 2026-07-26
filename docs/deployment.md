@@ -10,7 +10,8 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 
 운영 배포 전에 반드시 준비할 것:
 
-- DB: 실제 PostgreSQL `DATABASE_URL`
+- 런타임: Node.js 22 이상
+- DB: Realtime URL과 같은 Supabase 프로젝트의 PostgreSQL `DATABASE_URL`
 - 첨부파일: Supabase Storage 버킷을 만들고 Vercel 환경변수에 `ATTACHMENT_STORAGE_DRIVER=supabase-storage`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` 등록
 
 ## 배포 후보
@@ -28,6 +29,7 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 - 서버리스 환경이므로 로컬 파일 DB를 운영 DB로 쓰지 않는다.
 - 서버의 로컬 폴더에 첨부파일을 저장하지 않는다.
 - 운영 DB 마이그레이션은 `prisma migrate deploy` 방식으로 실행한다.
+- 프로젝트 런타임은 `package.json`에 맞춰 Node.js 22 이상으로 둔다.
 
 ### 일반 Node.js 서버
 
@@ -47,13 +49,13 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 
 | 이름 | 필수 | 설명 |
 | --- | --- | --- |
-| `DATABASE_URL` | 예 | PostgreSQL 연결 URL. Vercel/Neon/Supabase 등에서 발급 |
+| `DATABASE_URL` | 예 | 도시락 실시간 동기화를 위해 Realtime URL과 같은 Supabase 프로젝트에서 발급한 PostgreSQL 연결 URL |
 | `DIRECT_URL` | 선택 | provider가 pooled URL과 direct URL을 따로 줄 때 Prisma migration용으로 사용 |
 | `AUTH_SECRET` | 예 | 세션 서명용 비밀키. 운영에서는 긴 랜덤 문자열을 사용 |
+| `SUPABASE_URL` | 선택 | 서버의 Supabase Realtime·Storage 접근 URL. 없으면 `NEXT_PUBLIC_SUPABASE_URL`을 사용 |
+| `NEXT_PUBLIC_SUPABASE_URL` | 예 | 도시락 실시간 동기화에 사용하는 Supabase 프로젝트 URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | 예 | 인증된 서버 스트림에서 Realtime을 구독하고 private Storage를 관리하는 서버 전용 키. 브라우저 노출 금지 |
 | `ATTACHMENT_STORAGE_DRIVER` | 예 | 개발은 `local`, 운영 권장은 `supabase-storage`. `vercel-blob`도 지원 |
-| `SUPABASE_URL` | 선택 | Supabase Storage 서버 접근 URL. 없으면 `NEXT_PUBLIC_SUPABASE_URL`을 사용 |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Storage 사용 시 예 | Supabase 프로젝트 URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage 사용 시 예 | 서버에서 private bucket 파일을 업로드/다운로드/삭제할 때 사용. 브라우저에 노출 금지 |
 | `SUPABASE_STORAGE_BUCKET` | Supabase Storage 사용 시 예 | 첨부파일을 저장할 Supabase Storage bucket 이름 |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob 사용 시 예 | Vercel Blob 사용 시 첨부파일 업로드/다운로드에 필요 |
 | `INITIAL_ADMIN_EMAIL` | 예정 | 운영 초기 관리자 생성 절차에서 사용할 이메일 |
@@ -72,6 +74,7 @@ npm run deploy:check
 - `.env` 파일은 저장소에 커밋하지 않는다.
 - Vercel에서는 Project Settings의 Environment Variables에 값을 등록한다.
 - `AUTH_SECRET`은 유출되면 모든 세션 보안이 흔들리므로 재사용하지 않는다.
+- `DATABASE_URL`과 `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL`의 프로젝트가 다르면 DB 변경 이벤트를 받을 수 없다.
 
 ## 배포 전 검증
 
@@ -201,13 +204,14 @@ Vercel/Supabase PostgreSQL/Supabase Storage 조합으로 갈 경우:
 
 ## Vercel 전환 작업 목록
 
-1. Supabase에서 PostgreSQL DB와 Storage private bucket을 준비한다.
-2. `DATABASE_URL`과 필요 시 `DIRECT_URL`을 Vercel 환경변수에 등록한다.
-3. Vercel 환경변수에 `AUTH_SECRET`을 등록한다.
-4. Storage 환경변수 `ATTACHMENT_STORAGE_DRIVER=supabase-storage`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`을 등록한다.
-5. 필요 시 `NEXT_PUBLIC_SUPABASE_URL` 또는 `SUPABASE_URL`을 등록한다.
-6. `npm run admin:create`로 운영 초기 관리자를 만든다.
-7. Vercel 배포 후 `npm run db:deploy`가 적용되는지 확인한다.
+1. Vercel 프로젝트 런타임을 Node.js 22 이상으로 설정한다.
+2. Supabase에서 PostgreSQL DB와 Storage private bucket을 준비한다.
+3. 같은 Supabase 프로젝트의 `DATABASE_URL`과 필요 시 `DIRECT_URL`을 Vercel 환경변수에 등록한다.
+4. Vercel 환경변수에 `AUTH_SECRET`을 등록한다.
+5. Realtime 환경변수 `NEXT_PUBLIC_SUPABASE_URL`(또는 `SUPABASE_URL`)과 `SUPABASE_SERVICE_ROLE_KEY`를 등록한다.
+6. Storage 환경변수 `ATTACHMENT_STORAGE_DRIVER=supabase-storage`, `SUPABASE_STORAGE_BUCKET`을 등록한다.
+7. `npm run admin:create`로 운영 초기 관리자를 만든다.
+8. Vercel 배포 후 `npm run db:deploy`가 적용되는지 확인한다.
 
 ## 아직 배포 불가인 이유
 

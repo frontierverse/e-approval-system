@@ -3,6 +3,7 @@ import "server-only";
 import { AuditAction, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  createLunchBoxFixedCountList,
   formatLunchBoxDateValue,
   getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
@@ -14,10 +15,12 @@ import {
   parseLunchBoxCountChangeDetail,
   parseLunchBoxDateValue,
   type LunchBoxCountChangeLogPage,
+  type LunchBoxDailySchoolChecklistData,
   type LunchBoxCountGrid,
   type LunchBoxCountMonth,
   type LunchBoxCountMonthDay,
   type LunchBoxCountRow,
+  type LunchBoxFixedCountList,
   type LunchBoxSchool,
 } from "@/lib/lunch-box-counts-core";
 
@@ -56,30 +59,47 @@ export async function getLunchBoxCountGrid({
 }: {
   date: string;
 }): Promise<LunchBoxCountGrid> {
+  return (await getLunchBoxCountGridData({ date })).grid;
+}
+
+export async function getLunchBoxDailySchoolChecklist({
+  date,
+}: {
+  date: string;
+}): Promise<LunchBoxDailySchoolChecklistData> {
+  return getLunchBoxCountGridData({ date });
+}
+
+async function getLunchBoxCountGridData({
+  date,
+}: {
+  date: string;
+}): Promise<LunchBoxDailySchoolChecklistData> {
   const dateValue = parseLunchBoxDateValue(date);
-  const [schools, menu] = await Promise.all([
+  const [schools, menu, counts] = await Promise.all([
     getLunchBoxSchools({ activeOnly: true }),
     prisma.lunchBoxMenu.findUnique({
       where: { date: dateValue },
       select: { items: true },
     }),
+    prisma.lunchBoxCount.findMany({
+      where: {
+        date: dateValue,
+        school: { active: true },
+      },
+      select: {
+        schoolId: true,
+        class1Count: true,
+        class2Count: true,
+        class3Count: true,
+        class4Count: true,
+        linkedCount: true,
+        preservationCount: true,
+        deliveryDriverCount: true,
+        checkedAt: true,
+      },
+    }),
   ]);
-  const counts = await prisma.lunchBoxCount.findMany({
-    where: {
-      date: dateValue,
-      schoolId: { in: schools.map((school) => school.id) },
-    },
-    select: {
-      schoolId: true,
-      class1Count: true,
-      class2Count: true,
-      class3Count: true,
-      class4Count: true,
-      linkedCount: true,
-      preservationCount: true,
-      deliveryDriverCount: true,
-    },
-  });
   const countsBySchoolId = new Map(
     counts.map((count) => [count.schoolId, count]),
   );
@@ -103,10 +123,45 @@ export async function getLunchBoxCountGrid({
   });
 
   return {
-    date,
-    menuItems: normalizeLunchBoxMenuItems(menu?.items ?? []),
-    rows,
+    checkedSchoolIds: rows.flatMap((row) =>
+      getLunchBoxCountTotal(row) > 0 &&
+      countsBySchoolId.get(row.schoolId)?.checkedAt
+        ? [row.schoolId]
+        : [],
+    ),
+    grid: {
+      date,
+      menuItems: normalizeLunchBoxMenuItems(menu?.items ?? []),
+      rows,
+    },
   };
+}
+
+export async function getLunchBoxFixedCountList(): Promise<LunchBoxFixedCountList> {
+  const schools = await getLunchBoxSchools({ activeOnly: true });
+  const counts = await prisma.lunchBoxCount.findMany({
+    where: { schoolId: { in: schools.map((school) => school.id) } },
+    orderBy: { date: "asc" },
+    select: {
+      schoolId: true,
+      date: true,
+      class1Count: true,
+      class2Count: true,
+      class3Count: true,
+      class4Count: true,
+      linkedCount: true,
+      preservationCount: true,
+      deliveryDriverCount: true,
+    },
+  });
+
+  return createLunchBoxFixedCountList({
+    counts: counts.map((count) => ({
+      ...count,
+      date: formatLunchBoxDateValue(count.date),
+    })),
+    schools,
+  });
 }
 
 export async function getLunchBoxCountMonth({

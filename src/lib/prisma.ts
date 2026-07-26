@@ -43,6 +43,8 @@ const requiredLunchBoxSchoolFields = ["preservationClass"] as const;
 const requiredLunchBoxCountFields = [
   "preservationCount",
   "deliveryDriverCount",
+  "checkedAt",
+  "checkedById",
 ] as const;
 
 const adapter = new PrismaPg({

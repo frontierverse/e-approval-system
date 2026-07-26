@@ -1,21 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  clearLunchBoxDailySchoolChecksAction,
   getLunchBoxCountGridAction,
+  getLunchBoxDailySchoolChecklistAction,
   saveLunchBoxCountsAction,
+  setLunchBoxDailySchoolCheckAction,
 } from "@/app/work-schedule/lunch-boxes/actions";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
 import { LunchBoxCountChangeLog } from "@/components/lunch-box-count-change-log";
+import { LunchBoxDailySchoolChecklist } from "@/components/lunch-box-daily-school-checklist";
+import { LunchBoxSchoolChecklist } from "@/components/lunch-box-school-checklist";
 import { LunchBoxSchoolList } from "@/components/lunch-box-school-list";
 import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import {
   getLunchBoxCountChangeLogPage,
   getLunchBoxCountMonth,
+  getLunchBoxDailySchoolChecklist,
+  getLunchBoxFixedCountList,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
 import {
   getLunchBoxCountToday,
+  isLunchBoxDate,
   normalizeLunchBoxCountChangeLogPage,
   normalizeLunchBoxMonth,
 } from "@/lib/lunch-box-counts-core";
@@ -24,9 +32,14 @@ export const metadata: Metadata = {
   title: "도시락 현황",
 };
 
-type LunchBoxManagementTab = "counts" | "schools";
+type LunchBoxManagementTab =
+  | "counts"
+  | "schoolList"
+  | "dailySchoolList"
+  | "schools";
 
 type LunchBoxManagementSearchParams = {
+  date?: string | string[];
   logPage?: string | string[];
   month?: string;
   tab?: string;
@@ -41,18 +54,29 @@ export default async function WorkScheduleLunchBoxesPage({
 
   const params = await searchParams;
   const activeTab = getSelectedLunchBoxTab(params.tab);
+  const isChecklistTab =
+    activeTab === "schoolList" || activeTab === "dailySchoolList";
 
   return (
     <>
-      <PageTitle
-        title="도시락 현황"
-        description="날짜별 식단과 도시락·보존식·배송기사 수량, 학교별 보존식 배정을 관리합니다."
-      />
+      {/* 체크 목록은 첫 행이 바로 보이도록 제목 영역을 압축한다. */}
+      {isChecklistTab ? (
+        <PageTitle compact title="도시락 현황" />
+      ) : (
+        <PageTitle
+          title="도시락 현황"
+          description="날짜별 식단과 도시락·보존식·배송기사 수량, 학교별 보존식 배정을 관리합니다."
+        />
+      )}
       <LunchBoxManagementTabs activeTab={activeTab} />
 
-      <div className="mt-6">
+      <div className={isChecklistTab ? "mt-3" : "mt-4"}>
         {activeTab === "schools" ? (
           <LunchBoxSchoolPanel />
+        ) : activeTab === "dailySchoolList" ? (
+          <LunchBoxDailySchoolChecklistPanel date={params.date} />
+        ) : activeTab === "schoolList" ? (
+          <LunchBoxSchoolChecklistPanel />
         ) : (
           <LunchBoxCountPanel logPage={params.logPage} month={params.month} />
         )}
@@ -93,6 +117,36 @@ async function LunchBoxCountPanel({
   );
 }
 
+async function LunchBoxSchoolChecklistPanel() {
+  const fixedCountList = await getLunchBoxFixedCountList();
+
+  return <LunchBoxSchoolChecklist fixedCountList={fixedCountList} />;
+}
+
+async function LunchBoxDailySchoolChecklistPanel({
+  date,
+}: {
+  date: string | string[] | undefined;
+}) {
+  const today = getLunchBoxCountToday();
+  const requestedDate = Array.isArray(date) ? date[0] : date;
+  const selectedDate =
+    requestedDate && isLunchBoxDate(requestedDate) ? requestedDate : today;
+  const initialChecklist = await getLunchBoxDailySchoolChecklist({
+    date: selectedDate,
+  });
+
+  return (
+    <LunchBoxDailySchoolChecklist
+      clearChecks={clearLunchBoxDailySchoolChecksAction}
+      initialChecklist={initialChecklist}
+      loadChecklist={getLunchBoxDailySchoolChecklistAction}
+      setSchoolCheck={setLunchBoxDailySchoolCheckAction}
+      today={today}
+    />
+  );
+}
+
 async function LunchBoxSchoolPanel() {
   const schools = await getLunchBoxSchools({ activeOnly: false });
 
@@ -111,6 +165,16 @@ function LunchBoxManagementTabs({
           active={activeTab === "counts"}
           href="/work-schedule/lunch-boxes"
           label="일자별 개수"
+        />
+        <LunchBoxManagementTabLink
+          active={activeTab === "schoolList"}
+          href="/work-schedule/lunch-boxes?tab=school-list"
+          label="도시락 학교 목록"
+        />
+        <LunchBoxManagementTabLink
+          active={activeTab === "dailySchoolList"}
+          href="/work-schedule/lunch-boxes?tab=daily-school-list"
+          label="날짜별 학교 목록"
         />
         <LunchBoxManagementTabLink
           active={activeTab === "schools"}
@@ -157,5 +221,13 @@ function LunchBoxManagementTabLink({
 function getSelectedLunchBoxTab(
   value: string | undefined,
 ): LunchBoxManagementTab {
-  return value === "schools" ? "schools" : "counts";
+  if (value === "schools") {
+    return "schools";
+  }
+
+  if (value === "daily-school-list") {
+    return "dailySchoolList";
+  }
+
+  return value === "school-list" ? "schoolList" : "counts";
 }

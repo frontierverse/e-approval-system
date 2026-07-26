@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+  getSupabaseProjectRefFromDatabaseUrl,
+  getSupabaseProjectRefFromProjectUrl,
+} from "../scripts/supabase-project-ref.mjs";
 import { LunchBoxCountCalendarBoard } from "../src/components/lunch-box-count-calendar-board.tsx";
 import {
   createLunchBoxCountChangeLogHref,
@@ -10,8 +14,20 @@ import {
 } from "../src/components/lunch-box-count-change-log.tsx";
 import { LunchBoxCountGrid } from "../src/components/lunch-box-count-grid.tsx";
 import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-management-skeleton.tsx";
+import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-school-checklist.tsx";
+import {
+  lunchBoxChecklistStorageKey,
+  LunchBoxSchoolChecklist,
+} from "../src/components/lunch-box-school-checklist.tsx";
 import {
   createLunchBoxCalendarDays,
+  createLunchBoxFixedCountList,
+  formatLunchBoxPreservationCellTitle,
+  formatLunchBoxPreservationChipLabel,
+  formatLunchBoxShortDateLabel,
+  normalizeLunchBoxChecklistIds,
+  splitLunchBoxChecklistColumns,
+  toggleLunchBoxChecklistId,
   formatLunchBoxDateLabel,
   formatLunchBoxMenuItems,
   formatLunchBoxMonthLabel,
@@ -31,13 +47,19 @@ import {
   normalizeLunchBoxSchoolName,
   normalizeLunchBoxMonth,
   parseLunchBoxCountChangeDetail,
+  resolveLunchBoxDisplayedChecklistIds,
   resolveLunchBoxPreservationClassForUpdate,
+  setLunchBoxChecklistIdChecked,
   shiftLunchBoxDate,
   shiftLunchBoxMonth,
   type LunchBoxCountGrid as LunchBoxCountGridData,
   type LunchBoxCountChangeLogPage,
   type LunchBoxCountMonth,
 } from "../src/lib/lunch-box-counts-core.ts";
+import {
+  createLunchBoxRealtimeSyncCoordinator,
+  requestLunchBoxRealtimeSync,
+} from "../src/lib/lunch-box-realtime-sync.ts";
 
 const lunchBoxCalendarBoardSource = readFileSync(
   new URL(
@@ -48,6 +70,56 @@ const lunchBoxCalendarBoardSource = readFileSync(
 );
 const lunchBoxPageSource = readFileSync(
   new URL("../src/app/work-schedule/lunch-boxes/page.tsx", import.meta.url),
+  "utf8",
+);
+const lunchBoxDailyChecklistSource = readFileSync(
+  new URL(
+    "../src/components/lunch-box-daily-school-checklist.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxActionsSource = readFileSync(
+  new URL(
+    "../src/app/work-schedule/lunch-boxes/actions.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const prismaSchemaSource = readFileSync(
+  new URL("../prisma/schema.prisma", import.meta.url),
+  "utf8",
+);
+const lunchBoxCheckMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260726150000_add_lunch_box_count_checks/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxCheckEligibilityMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260726151000_enforce_lunch_box_check_eligibility/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxRealtimeMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260726153000_enable_lunch_box_realtime/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxRealtimeRouteSource = readFileSync(
+  new URL(
+    "../src/app/api/lunch-boxes/checks/stream/route.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const supabaseRealtimeServerSource = readFileSync(
+  new URL("../src/lib/supabase-realtime-server.ts", import.meta.url),
   "utf8",
 );
 
@@ -91,12 +163,114 @@ const grid: LunchBoxCountGridData = {
   ],
 };
 
+const fixedCountList = createLunchBoxFixedCountList({
+  counts: [
+    ...["2026-07-29", "2026-07-30"].map((date) => ({
+      schoolId: "school-001",
+      date,
+      class1Count: 16,
+      class2Count: 15,
+      class3Count: 14,
+      class4Count: 0,
+      linkedCount: 0,
+      preservationCount: 1,
+      deliveryDriverCount: 1,
+    })),
+    {
+      schoolId: "school-002",
+      date: "2026-07-29",
+      class1Count: 9,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+      preservationCount: 1,
+      deliveryDriverCount: 0,
+    },
+    ...["2026-08-03", "2026-08-04"].map((date) => ({
+      schoolId: "school-002",
+      date,
+      class1Count: 9,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+      preservationCount: 0,
+      deliveryDriverCount: 0,
+    })),
+  ],
+  schools: [
+    {
+      id: "school-001",
+      name: "영만초",
+      preservationClass: 1,
+      type: "elementary",
+      order: 0,
+      active: true,
+    },
+    {
+      id: "school-002",
+      name: "동남초 병설유치원",
+      preservationClass: null,
+      type: "kindergarten",
+      order: 1,
+      active: true,
+    },
+  ],
+});
+
 async function loadGrid() {
   return { ok: true as const, data: { grid } };
 }
 
 async function saveCounts() {
   return { ok: true as const, data: { grid } };
+}
+
+async function loadDailyChecklist() {
+  return {
+    ok: true as const,
+    data: {
+      checkedSchoolIds: [],
+      grid,
+    },
+  };
+}
+
+async function setDailySchoolCheck(
+  date: string,
+  schoolId: string,
+  isChecked: boolean,
+) {
+  return {
+    ok: true as const,
+    data: {
+      date,
+      schoolId,
+      isChecked,
+    },
+  };
+}
+
+async function clearDailySchoolChecks(date: string) {
+  return {
+    ok: true as const,
+    data: {
+      checkedSchoolIds: [],
+      date,
+    },
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, reject, resolve };
 }
 
 describe("lunch box counts", () => {
@@ -785,5 +959,695 @@ describe("lunch box count change log", () => {
 
     assert.match(html, /아직 기록된 도시락 변경 내역이 없습니다/);
     assert.doesNotMatch(html, /도시락 변경 기록 페이지/);
+  });
+
+  test("labels preservation counts with their assigned class", () => {
+    assert.equal(formatLunchBoxPreservationChipLabel(1, 2), "보존식 1(2반)");
+    assert.equal(
+      formatLunchBoxPreservationChipLabel(2, null),
+      "보존식 2(반 미지정)",
+    );
+    assert.equal(formatLunchBoxPreservationChipLabel(0, 1), null);
+  });
+
+  test("tracks checked schools without leaking stale ids", () => {
+    assert.equal(
+      lunchBoxChecklistStorageKey,
+      "lunch-box-school-checklist:fixed",
+    );
+    assert.deepEqual(
+      toggleLunchBoxChecklistId(["school-001"], "school-002"),
+      ["school-001", "school-002"],
+    );
+    assert.deepEqual(
+      toggleLunchBoxChecklistId(["school-001", "school-002"], "school-001"),
+      ["school-002"],
+    );
+    assert.deepEqual(
+      normalizeLunchBoxChecklistIds(
+        ["school-001", "school-001", "removed-school", 7, null],
+        grid.rows,
+      ),
+      ["school-001"],
+    );
+    assert.deepEqual(normalizeLunchBoxChecklistIds("not-an-array", grid.rows), []);
+  });
+
+  test("applies canonical server check states without duplicating schools", () => {
+    assert.deepEqual(
+      setLunchBoxChecklistIdChecked(
+        ["school-001", "school-002"],
+        "school-001",
+        true,
+      ),
+      ["school-002", "school-001"],
+    );
+    assert.deepEqual(
+      setLunchBoxChecklistIdChecked(
+        ["school-001", "school-002"],
+        "school-001",
+        false,
+      ),
+      ["school-002"],
+    );
+  });
+
+  test("keeps optimistic checks layered over realtime canonical snapshots", () => {
+    const rows = [
+      { schoolId: "school-001" },
+      { schoolId: "school-002" },
+    ];
+
+    assert.deepEqual(
+      resolveLunchBoxDisplayedChecklistIds({
+        canonicalCheckedIds: ["school-001", "school-002"],
+        clearPending: false,
+        pendingChecks: new Map([["school-001", false]]),
+        rows,
+      }),
+      ["school-002"],
+    );
+    assert.deepEqual(
+      resolveLunchBoxDisplayedChecklistIds({
+        canonicalCheckedIds: ["school-002"],
+        clearPending: false,
+        pendingChecks: new Map([["school-001", true]]),
+        rows,
+      }),
+      ["school-002", "school-001"],
+    );
+    assert.deepEqual(
+      resolveLunchBoxDisplayedChecklistIds({
+        canonicalCheckedIds: ["school-002"],
+        clearPending: true,
+        pendingChecks: new Map([["school-001", true]]),
+        rows,
+      }),
+      [],
+    );
+  });
+
+  test("persists daily checks on the lunch-box count row with actor metadata", () => {
+    assert.match(prismaSchemaSource, /checkedAt\s+DateTime\?/);
+    assert.match(prismaSchemaSource, /checkedById\s+String\?/);
+    assert.match(
+      prismaSchemaSource,
+      /@relation\("LunchBoxCountChecker"[\s\S]*?onDelete: SetNull\)/,
+    );
+    assert.match(lunchBoxCheckMigrationSource, /ADD COLUMN "checkedAt"/);
+    assert.match(lunchBoxCheckMigrationSource, /ADD COLUMN "checkedById"/);
+    assert.match(
+      lunchBoxCheckMigrationSource,
+      /FOREIGN KEY \("checkedById"\) REFERENCES "User"\("id"\)/,
+    );
+    assert.match(
+      lunchBoxCheckEligibilityMigrationSource,
+      /"checkedAt" IS NULL[\s\S]*?"deliveryDriverCount"[\s\S]*?> 0/,
+    );
+  });
+
+  test("streams authenticated realtime invalidations without exposing database access", () => {
+    assert.match(
+      lunchBoxRealtimeMigrationSource,
+      /ALTER PUBLICATION supabase_realtime[\s\S]*?ADD TABLE public\."LunchBoxCount"/,
+    );
+    assert.match(lunchBoxRealtimeRouteSource, /getSessionUserId\(\)/);
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /status: UserStatus\.ACTIVE/,
+    );
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /"postgres_changes"[\s\S]*?table: "LunchBoxCount"/,
+    );
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /"Content-Type": "text\/event-stream; charset=utf-8"/,
+    );
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /status === "CHANNEL_ERROR"[\s\S]*?status === "TIMED_OUT"[\s\S]*?status === "CLOSED"/,
+    );
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /addEventListener\("abort", handleAbort[\s\S]*?request\.signal\.aborted[\s\S]*?channel/,
+    );
+    assert.match(
+      supabaseRealtimeServerSource,
+      /process\.env\.SUPABASE_SERVICE_ROLE_KEY/,
+    );
+    assert.doesNotMatch(
+      lunchBoxDailyChecklistSource,
+      /SUPABASE_SERVICE_ROLE_KEY/,
+    );
+  });
+
+  test("reconciles realtime changes and reconnect gaps from canonical DB state", () => {
+    assert.match(lunchBoxDailyChecklistSource, /new EventSource\(/);
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /addEventListener\("change"/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /addEventListener\("ready"/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /visibilitychange/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /await requestCanonicalSync\(activeDate\)/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /resolveLunchBoxDisplayedChecklistIds/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /realtimeFallbackSyncIntervalMs[\s\S]*?setInterval\([\s\S]*?!isRealtimeReady[\s\S]*?scheduleCanonicalSync\(0\)/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /if \(!loadedNextDate\) \{\s*void requestCanonicalSync\(activeDateRef\.current\)/,
+    );
+  });
+
+  test("restores realtime sync after Strict Mode remounts and repeated failures", () => {
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /useEffect\(\(\) => \{\s*isMountedRef\.current = true;\s*activeDateRef\.current = syncCoordinatorRef\.current\.date;/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /async function retryCanonicalSync\(\)[\s\S]*?if \(!disposed && !succeeded\)[\s\S]*?retryCanonicalSync\(\)/,
+    );
+  });
+
+  test("serializes realtime canonical reads and catches changes received in flight", async () => {
+    const coordinator =
+      createLunchBoxRealtimeSyncCoordinator("2026-07-29");
+    const firstLoad = createDeferred<
+      { data: string; ok: true } | { ok: false }
+    >();
+    const secondLoad = createDeferred<
+      { data: string; ok: true } | { ok: false }
+    >();
+    const secondLoadStarted = createDeferred<void>();
+    const appliedSnapshots: string[] = [];
+    let loadCount = 0;
+
+    const requestSync = () =>
+      requestLunchBoxRealtimeSync({
+        coordinator,
+        isActive: () => true,
+        load: () => {
+          loadCount += 1;
+
+          if (loadCount === 1) {
+            return firstLoad.promise;
+          }
+
+          secondLoadStarted.resolve();
+          return secondLoad.promise;
+        },
+        apply: (snapshot) => appliedSnapshots.push(snapshot),
+        onFailure: () => assert.fail("sync should not fail"),
+      });
+
+    const firstRequest = requestSync();
+    const secondRequest = requestSync();
+
+    assert.equal(loadCount, 1);
+    firstLoad.resolve({ data: "first", ok: true });
+    await secondLoadStarted.promise;
+    assert.equal(loadCount, 2);
+    secondLoad.resolve({ data: "second", ok: true });
+
+    assert.deepEqual(
+      await Promise.all([firstRequest, secondRequest]),
+      [true, true],
+    );
+    assert.deepEqual(appliedSnapshots, ["first", "second"]);
+    assert.equal(coordinator.inFlight, null);
+  });
+
+  test("reports consecutive canonical failures and later converges", async () => {
+    const coordinator =
+      createLunchBoxRealtimeSyncCoordinator("2026-07-29");
+    const outcomes = [
+      { ok: false as const },
+      new Error("temporary database failure"),
+      { data: "recovered", ok: true as const },
+    ];
+    const appliedSnapshots: string[] = [];
+    let failureCount = 0;
+
+    const requestSync = () =>
+      requestLunchBoxRealtimeSync({
+        coordinator,
+        isActive: () => true,
+        load: async () => {
+          const outcome = outcomes.shift();
+
+          if (outcome instanceof Error) {
+            throw outcome;
+          }
+
+          return outcome ?? { ok: false as const };
+        },
+        apply: (snapshot) => appliedSnapshots.push(snapshot),
+        onFailure: () => {
+          failureCount += 1;
+        },
+      });
+
+    assert.equal(await requestSync(), false);
+    assert.equal(await requestSync(), false);
+    assert.equal(await requestSync(), true);
+    assert.equal(failureCount, 2);
+    assert.deepEqual(appliedSnapshots, ["recovered"]);
+  });
+
+  test("requires the database and realtime URL to use the same Supabase project", () => {
+    assert.equal(
+      getSupabaseProjectRefFromProjectUrl(
+        "https://abcdefghijklmnopqrst.supabase.co",
+      ),
+      "abcdefghijklmnopqrst",
+    );
+    assert.equal(
+      getSupabaseProjectRefFromDatabaseUrl(
+        "postgresql://postgres.abcdefghijklmnopqrst:secret@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres",
+      ),
+      "abcdefghijklmnopqrst",
+    );
+    assert.equal(
+      getSupabaseProjectRefFromDatabaseUrl(
+        "postgresql://postgres:secret@db.abcdefghijklmnopqrst.supabase.co:5432/postgres",
+      ),
+      "abcdefghijklmnopqrst",
+    );
+    assert.equal(
+      getSupabaseProjectRefFromDatabaseUrl(
+        "postgresql://postgres:secret@neon.example.com/database",
+      ),
+      null,
+    );
+  });
+
+  test("uses authenticated idempotent server actions instead of browser storage", () => {
+    assert.doesNotMatch(lunchBoxDailyChecklistSource, /localStorage/);
+    assert.doesNotMatch(lunchBoxDailyChecklistSource, /useSyncExternalStore/);
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxDailySchoolCheckAction[\s\S]*?requireUser\(\)/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxDailySchoolCheckAction[\s\S]*?schoolId_date/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function clearLunchBoxDailySchoolChecksAction[\s\S]*?updateManyAndReturn/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxDailySchoolCheckAction[\s\S]*?FOR UPDATE/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxDailySchoolCheckAction[\s\S]*?school:\s*\{\s*active: true\s*\}/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxDailySchoolCheckAction[\s\S]*?OR: lunchBoxPositiveCountFilters/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /update:\s*\{[\s\S]*?checkedAt: null,[\s\S]*?checkedById: null/,
+    );
+  });
+
+  test("adds a daily school-list tab to the right of the fixed list", () => {
+    const fixedListTabIndex = lunchBoxPageSource.indexOf(
+      'label="도시락 학교 목록"',
+    );
+    const dailyListTabIndex = lunchBoxPageSource.indexOf(
+      'label="날짜별 학교 목록"',
+    );
+    const schoolManagementTabIndex = lunchBoxPageSource.indexOf(
+      'label="학교 관리"',
+    );
+
+    assert.ok(fixedListTabIndex >= 0);
+    assert.ok(dailyListTabIndex > fixedListTabIndex);
+    assert.ok(schoolManagementTabIndex > dailyListTabIndex);
+    assert.match(lunchBoxPageSource, /value === "daily-school-list"/);
+  });
+
+  test("renders only schools assigned to the selected date with navigation", () => {
+    const dailyGrid: LunchBoxCountGridData = {
+      date: "2026-07-29",
+      menuItems: [],
+      rows: [
+        {
+          ...grid.rows[0],
+          schoolId: "zero-school",
+          schoolName: "수량없는초",
+          class1Count: 0,
+          class2Count: 0,
+          class3Count: 0,
+          class4Count: 0,
+          linkedCount: 0,
+          preservationCount: 0,
+          deliveryDriverCount: 0,
+        },
+        {
+          ...grid.rows[0],
+          schoolId: "preservation-school",
+          schoolName: "보존식만있는초",
+          class1Count: 0,
+          class2Count: 0,
+          class3Count: 0,
+          class4Count: 0,
+          linkedCount: 0,
+          preservationCount: 1,
+          deliveryDriverCount: 0,
+        },
+        {
+          ...grid.rows[0],
+          schoolId: "driver-school",
+          schoolName: "기사도시락만있는초",
+          class1Count: 0,
+          class2Count: 0,
+          class3Count: 0,
+          class4Count: 0,
+          linkedCount: 0,
+          preservationCount: 0,
+          deliveryDriverCount: 1,
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxDailySchoolChecklist, {
+        clearChecks: clearDailySchoolChecks,
+        initialChecklist: {
+          checkedSchoolIds: ["preservation-school"],
+          grid: dailyGrid,
+        },
+        loadChecklist: loadDailyChecklist,
+        setSchoolCheck: setDailySchoolCheck,
+        today: "2026-07-29",
+      }),
+    );
+
+    assert.match(html, /날짜별 학교 목록/);
+    assert.match(html, /2026\.07\.29\.\(수\)/);
+    assert.match(html, /2개교/);
+    assert.match(html, /체크 1\/2/);
+    assert.match(html, /보존식만있는초/);
+    assert.match(html, /기사도시락만있는초/);
+    assert.doesNotMatch(html, /수량없는초/);
+    assert.match(html, /aria-label="학교 목록 날짜"/);
+    assert.match(html, />전날</);
+    assert.match(html, />다음날</);
+    assert.match(html, /type="checkbox"/);
+    assert.match(html, /checked=""/);
+    assert.match(
+      html,
+      /체크·해제는 접속 중인 모든\s*직원 화면에 실시간 반영됩니다/,
+    );
+    assert.match(html, /실시간 연결 중/);
+    assert.match(
+      html,
+      /aria-label="보존식만있는초 2026\.07\.29\.\(수\) 준비 완료"/,
+    );
+  });
+
+  test("shows a compact empty state for a date without assigned schools", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxDailySchoolChecklist, {
+        clearChecks: clearDailySchoolChecks,
+        initialChecklist: {
+          checkedSchoolIds: [],
+          grid: {
+            date: "2026-07-26",
+            menuItems: [],
+            rows: grid.rows.map((row) => ({
+              ...row,
+              class1Count: 0,
+              class2Count: 0,
+              class3Count: 0,
+              class4Count: 0,
+              linkedCount: 0,
+              preservationCount: 0,
+              deliveryDriverCount: 0,
+            })),
+          },
+        },
+        loadChecklist: loadDailyChecklist,
+        setSchoolCheck: setDailySchoolCheck,
+        today: "2026-07-26",
+      }),
+    );
+
+    assert.match(html, /이 날짜에 배정된 학교가 없습니다/);
+    assert.match(html, /전날이나 다음날을 확인하세요/);
+    assert.doesNotMatch(html, /type="checkbox"/);
+  });
+
+  test("folds every date into one fixed row per school", () => {
+    const schools = [
+      {
+        id: "school-001",
+        name: "영만초",
+        preservationClass: 1 as const,
+        type: "elementary" as const,
+        order: 0,
+        active: true,
+      },
+      {
+        id: "school-002",
+        name: "동남초 병설유치원",
+        preservationClass: null,
+        type: "kindergarten" as const,
+        order: 1,
+        active: true,
+      },
+      {
+        id: "school-003",
+        name: "삼성초",
+        preservationClass: 1 as const,
+        type: "elementary" as const,
+        order: 2,
+        active: true,
+      },
+    ];
+    const base = {
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+      deliveryDriverCount: 0,
+    };
+    const fixedList = createLunchBoxFixedCountList({
+      counts: [
+        // 영만초는 3일 모두 같은 수량이다.
+        ...["2026-07-29", "2026-07-30", "2026-07-31"].map((date) => ({
+          ...base,
+          schoolId: "school-001",
+          date,
+          class1Count: 16,
+          class2Count: 15,
+          preservationCount: 1,
+        })),
+        // 병설유치원은 보존식이 있는 날 1일, 없는 날 2일로 갈린다.
+        {
+          ...base,
+          schoolId: "school-002",
+          date: "2026-07-29",
+          class1Count: 9,
+          preservationCount: 1,
+        },
+        ...["2026-08-03", "2026-08-04"].map((date) => ({
+          ...base,
+          schoolId: "school-002",
+          date,
+          class1Count: 9,
+          preservationCount: 0,
+        })),
+        // 전량 0인 날은 공급일로 세지 않는다.
+        {
+          ...base,
+          schoolId: "school-003",
+          date: "2026-08-12",
+          class1Count: 0,
+          preservationCount: 0,
+        },
+      ],
+      schools,
+    });
+
+    assert.deepEqual(
+      fixedList.rows.map((row) => row.schoolName),
+      ["영만초", "동남초 병설유치원"],
+    );
+    assert.deepEqual(fixedList.idleSchoolNames, ["삼성초"]);
+    assert.deepEqual(fixedList.varyingSchoolNames, ["동남초 병설유치원"]);
+
+    const [first, second] = fixedList.rows;
+    assert.equal(first.supplyDayCount, 3);
+    assert.equal(first.firstDate, "2026-07-29");
+    assert.equal(first.lastDate, "2026-07-31");
+    assert.equal(first.total, 32);
+    assert.equal(first.varianceNote, null);
+    // 최빈값(보존식 0인 2일)을 기준으로 삼고 예외를 note로 남긴다.
+    assert.equal(second.preservationCount, 0);
+    assert.equal(second.supplyDayCount, 3);
+    assert.equal(second.varianceNote, "3일 중 2일 기준 · 다른 수량 1종");
+    assert.deepEqual(fixedList.visibleServingFields, [
+      "class1Count",
+      "class2Count",
+    ]);
+    assert.equal(fixedList.hasDeliveryDriver, false);
+    assert.equal(fixedList.totalCount, 41);
+  });
+
+  test("orders schools by their first supply date across the whole period", () => {
+    const school = (id: string, name: string, order: number) => ({
+      id,
+      name,
+      preservationClass: 1 as const,
+      type: "elementary" as const,
+      order,
+      active: true,
+    });
+    const day = (schoolId: string, date: string) => ({
+      schoolId,
+      date,
+      class1Count: 10,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+      preservationCount: 1,
+      deliveryDriverCount: 0,
+    });
+    const sorted = createLunchBoxFixedCountList({
+      counts: [
+        day("late", "2026-07-30"),
+        day("onStart", "2026-07-27"),
+        // 7.27 이전에 시작하는 학교도 실제 시작일 그대로 앞에 놓는다.
+        day("earliest", "2026-07-16"),
+        day("earliest", "2026-08-03"),
+        day("early", "2026-07-20"),
+        day("early", "2026-07-27"),
+        // 7.24에 시작하지만 전량 0인 날은 시작일로 세지 않는다.
+        {
+          ...day("zeroFirst", "2026-07-22"),
+          class1Count: 0,
+          preservationCount: 0,
+        },
+        day("zeroFirst", "2026-07-24"),
+      ],
+      schools: [
+        school("late", "늦은초", 0),
+        school("onStart", "기준일초", 1),
+        school("earliest", "가장먼저초", 2),
+        school("early", "먼저초", 3),
+        school("zeroFirst", "빈날초", 4),
+      ],
+    });
+
+    assert.deepEqual(
+      sorted.rows.map((row) => [row.schoolName, row.firstDate]),
+      [
+        ["가장먼저초", "2026-07-16"],
+        ["먼저초", "2026-07-20"],
+        ["빈날초", "2026-07-24"],
+        ["기준일초", "2026-07-27"],
+        ["늦은초", "2026-07-30"],
+      ],
+    );
+  });
+
+  test("formats short date labels for the start column", () => {
+    assert.equal(formatLunchBoxShortDateLabel("2026-07-16"), "7.16");
+    assert.equal(formatLunchBoxShortDateLabel("2026-07-27"), "7.27");
+    assert.equal(formatLunchBoxShortDateLabel("2026-08-03"), "8.3");
+    assert.equal(formatLunchBoxShortDateLabel("bad-date"), "bad-date");
+  });
+
+  test("renders every school at once with counts next to each name", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxSchoolChecklist, { fixedCountList }),
+    );
+
+    assert.match(html, /도시락 학교 목록/);
+    assert.match(html, /보존식 1\(1반\)/);
+    assert.match(html, /체크 0\/2/);
+    assert.match(html, /type="checkbox"/);
+    // 날짜 이동 없이 전체를 한 번에 보여준다.
+    assert.doesNotMatch(html, /전날/);
+    assert.doesNotMatch(html, /다음날/);
+    assert.doesNotMatch(html, /도시락 학교 목록 날짜/);
+    // 데스크톱 3단 고정 열 배치가 함께 렌더된다.
+    assert.match(html, /aria-label="도시락 학교 목록 1단"/);
+    assert.match(html, /aria-label="영만초 준비 완료"/);
+    assert.match(html, /날짜마다 수량이 다른 학교/);
+  });
+
+  test("splits checklist rows into balanced fixed-column groups", () => {
+    const rows = Array.from({ length: 41 }, (_, index) => ({
+      schoolId: `school-${index}`,
+    })) as unknown as Parameters<typeof splitLunchBoxChecklistColumns>[0];
+
+    assert.deepEqual(
+      splitLunchBoxChecklistColumns(rows, 3).map((column) => column.length),
+      [14, 14, 13],
+    );
+    assert.deepEqual(
+      splitLunchBoxChecklistColumns(rows.slice(0, 2), 3).map(
+        (column) => column.length,
+      ),
+      [1, 1],
+    );
+    assert.deepEqual(splitLunchBoxChecklistColumns([], 3), [[]]);
+  });
+
+  test("describes preservation cells for hover and screen readers", () => {
+    assert.equal(
+      formatLunchBoxPreservationCellTitle("이리초", 1, 2),
+      "이리초 보존식 1개 · 2반 배정",
+    );
+    assert.equal(
+      formatLunchBoxPreservationCellTitle("북초 병설유치원", 1, null),
+      "북초 병설유치원 보존식 1개 · 배정 반 미지정",
+    );
+    assert.equal(
+      formatLunchBoxPreservationCellTitle("동남초 병설유치원", 0, null),
+      "동남초 병설유치원 보존식 없음",
+    );
+  });
+
+  test("shows an empty checklist state when no count is registered", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxSchoolChecklist, {
+        fixedCountList: {
+          hasDeliveryDriver: false,
+          idleSchoolNames: [],
+          preservationTotal: 0,
+          rows: [],
+          totalCount: 0,
+          varyingSchoolNames: [],
+          visibleServingFields: [],
+        },
+      }),
+    );
+
+    assert.match(html, /아직 등록된 도시락 수량이 없습니다/);
+    assert.doesNotMatch(html, /체크 전체 해제/);
   });
 });

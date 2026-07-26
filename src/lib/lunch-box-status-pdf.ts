@@ -36,6 +36,7 @@ const landscapeA4: [number, number] = [PageSizes.A4[1], PageSizes.A4[0]];
 const pageMargin = 18;
 const titleHeight = 78;
 const menuHeight = 56;
+const utensilHeight = 44;
 const summaryHeaderHeight = 52;
 const summaryValueHeight = 52;
 const menuLabelWidth = 121;
@@ -53,6 +54,8 @@ const paperWhite = rgb(1, 1, 1);
 const ink = rgb(0.03, 0.03, 0.04);
 const mutedInk = rgb(0.35, 0.35, 0.38);
 const ruleColor = rgb(0.08, 0.08, 0.09);
+const statusUtensils =
+  "미니 집게 4, 주걱 1, 스탠 국자 1, 검정 소스 국자 1, 스탠 배식스푼 1";
 
 export async function createLunchBoxStatusPdf({
   generatedAt,
@@ -137,7 +140,8 @@ function drawStatusSheet(
   const contentBottom = pageMargin;
   const titleY = contentTop - titleHeight;
   const menuY = titleY - menuHeight;
-  const summaryHeaderY = menuY - summaryHeaderHeight;
+  const utensilY = menuY - utensilHeight;
+  const summaryHeaderY = utensilY - summaryHeaderHeight;
   const summaryValueY = summaryHeaderY - summaryValueHeight;
   const distributionHeight = summaryValueY - contentBottom;
   const distributionRowHeight = distributionHeight / 2;
@@ -154,6 +158,13 @@ function drawStatusSheet(
     y: menuY,
     width: contentWidth,
     height: menuHeight,
+    color: lavender,
+  });
+  page.drawRectangle({
+    x: contentX,
+    y: utensilY,
+    width: contentWidth,
+    height: utensilHeight,
     color: lavender,
   });
   page.drawRectangle({
@@ -183,13 +194,36 @@ function drawStatusSheet(
     width: menuLabelWidth,
   });
   drawCenteredText(page, font, menu || "등록된 식단이 없습니다.", {
+    align: "left",
     color: menu ? ink : mutedInk,
     height: menuHeight,
-    maxWidth: contentWidth - menuLabelWidth - 22,
+    maxWidth: contentWidth - menuLabelWidth - 28,
     minSize: 8,
+    padding: 14,
     preferredSize: menuFontSize,
     x: contentX + menuLabelWidth,
     y: menuY,
+    width: contentWidth - menuLabelWidth,
+  });
+  drawCenteredText(page, font, "식기", {
+    color: ink,
+    height: utensilHeight,
+    maxWidth: menuLabelWidth - 16,
+    preferredSize: menuLabelFontSize,
+    x: contentX,
+    y: utensilY,
+    width: menuLabelWidth,
+  });
+  drawCenteredText(page, font, statusUtensils, {
+    align: "left",
+    color: ink,
+    height: utensilHeight,
+    maxWidth: contentWidth - menuLabelWidth - 28,
+    minSize: 8,
+    padding: 14,
+    preferredSize: 13,
+    x: contentX + menuLabelWidth,
+    y: utensilY,
     width: contentWidth - menuLabelWidth,
   });
 
@@ -264,6 +298,7 @@ function drawStatusSheet(
 
   drawHorizontalRule(page, contentX, contentX + contentWidth, titleY);
   drawHorizontalRule(page, contentX, contentX + contentWidth, menuY);
+  drawHorizontalRule(page, contentX, contentX + contentWidth, utensilY);
   drawHorizontalRule(page, contentX, contentX + contentWidth, summaryHeaderY);
   drawHorizontalRule(page, contentX, contentX + contentWidth, summaryValueY, {
     width: outerBorderWidth,
@@ -276,11 +311,12 @@ function drawStatusSheet(
   );
 
   drawVerticalRule(page, contentX + menuLabelWidth, menuY, titleY);
+  drawVerticalRule(page, contentX + menuLabelWidth, utensilY, menuY);
 
   summaryX = contentX;
   summaryWidths.slice(0, -1).forEach((width) => {
     summaryX += width;
-    drawVerticalRule(page, summaryX, summaryValueY, menuY);
+    drawVerticalRule(page, summaryX, summaryValueY, utensilY);
   });
 
   for (let index = 1; index < displayGroups.length; index += 1) {
@@ -320,19 +356,23 @@ function drawCenteredText(
   font: PDFFont,
   text: string,
   {
+    align = "center",
     color,
     height,
     maxWidth,
     minSize = 10,
+    padding = 0,
     preferredSize,
     width,
     x,
     y,
   }: {
+    align?: "center" | "left";
     color: ReturnType<typeof rgb>;
     height: number;
     maxWidth: number;
     minSize?: number;
+    padding?: number;
     preferredSize: number;
     width: number;
     x: number;
@@ -350,7 +390,10 @@ function drawCenteredText(
   const textHeight = font.heightAtSize(fontSize, { descender: false });
 
   page.drawText(text, {
-    x: x + (width - textWidth) / 2,
+    x:
+      align === "left"
+        ? x + padding
+        : x + (width - textWidth) / 2,
     y: y + (height - textHeight) / 2,
     size: fontSize,
     font,

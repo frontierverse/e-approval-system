@@ -117,6 +117,10 @@ describe("lunch box status PDF", () => {
       text,
       /잡곡밥, 감자된장국, 칠리새우볶음, \(병아리\)콩조림, 숙주나물, 열무김치\(배추김치\)/,
     );
+    assert.match(
+      text,
+      /식기\|\s*\|\s*미니 집게 4, 주걱 1, 스탠 국자 1, 검정 소스 국자 1, 스탠 배식스푼 1/,
+    );
     assert.doesNotMatch(text, /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/u);
     assert.match(text, /배송기사\|0개/);
     assert.match(text, /보존식\|9개/);
