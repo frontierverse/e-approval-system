@@ -11,6 +11,14 @@ describe("lunch box count PDF", () => {
   test("creates a readable A4 portrait PDF for the selected date", async () => {
     const grid: LunchBoxCountGrid = {
       date: "2026-07-29",
+      menuItems: [
+        "잡곡밥",
+        "콩나물국",
+        "순살닭갈비",
+        "너비아니구이",
+        "호박나물",
+        "배추김치",
+      ],
       rows: [
         ...Array.from({ length: 41 }, (_, index) => ({
           schoolId: `school-${index + 1}`,
@@ -58,6 +66,9 @@ describe("lunch box count PDF", () => {
     assert.match(text, /도시락 납품 현황/);
     assert.match(text, /2026년 7월 29일 \(수요일\)/);
     assert.match(text, /PDF 생성 2026\.07\.17\. 14:05/);
+    assert.match(text, /식단/);
+    assert.match(text, /잡곡밥, 콩나물국, 순살닭갈비/);
+    assert.doesNotMatch(text, /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/u);
     assert.match(text, /납품 학교\|\s*\|41곳/);
     assert.match(text, /총 도시락\|\s*\|90개/);
     assert.match(text, /보존식/);

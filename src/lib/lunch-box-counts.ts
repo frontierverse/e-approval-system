@@ -7,6 +7,7 @@ import {
   getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
   lunchBoxCountChangeLogPageSize,
+  normalizeLunchBoxMenuItems,
   normalizeLunchBoxPreservationClass,
   normalizeLunchBoxMonth,
   normalizeLunchBoxSchoolType,
@@ -55,10 +56,17 @@ export async function getLunchBoxCountGrid({
 }: {
   date: string;
 }): Promise<LunchBoxCountGrid> {
-  const schools = await getLunchBoxSchools({ activeOnly: true });
+  const dateValue = parseLunchBoxDateValue(date);
+  const [schools, menu] = await Promise.all([
+    getLunchBoxSchools({ activeOnly: true }),
+    prisma.lunchBoxMenu.findUnique({
+      where: { date: dateValue },
+      select: { items: true },
+    }),
+  ]);
   const counts = await prisma.lunchBoxCount.findMany({
     where: {
-      date: parseLunchBoxDateValue(date),
+      date: dateValue,
       schoolId: { in: schools.map((school) => school.id) },
     },
     select: {
@@ -96,6 +104,7 @@ export async function getLunchBoxCountGrid({
 
   return {
     date,
+    menuItems: normalizeLunchBoxMenuItems(menu?.items ?? []),
     rows,
   };
 }
@@ -107,39 +116,56 @@ export async function getLunchBoxCountMonth({
 }): Promise<LunchBoxCountMonth> {
   const normalizedMonth = normalizeLunchBoxMonth(month);
   const { endDate, startDate } = getLunchBoxCalendarRange(normalizedMonth);
-  const counts = await prisma.lunchBoxCount.findMany({
-    where: {
-      date: {
-        gte: parseLunchBoxDateValue(startDate),
-        lt: parseLunchBoxDateValue(endDate),
-      },
-      school: {
-        active: true,
-      },
-    },
-    orderBy: [
-      { date: "asc" },
-      { school: { order: "asc" } },
-      { school: { name: "asc" } },
-    ],
-    select: {
-      date: true,
-      class1Count: true,
-      class2Count: true,
-      class3Count: true,
-      class4Count: true,
-      linkedCount: true,
-      preservationCount: true,
-      deliveryDriverCount: true,
-      school: {
-        select: {
-          id: true,
-          name: true,
-          type: true,
+  const startDateValue = parseLunchBoxDateValue(startDate);
+  const endDateValue = parseLunchBoxDateValue(endDate);
+  const [counts, menus] = await Promise.all([
+    prisma.lunchBoxCount.findMany({
+      where: {
+        date: {
+          gte: startDateValue,
+          lt: endDateValue,
+        },
+        school: {
+          active: true,
         },
       },
-    },
-  });
+      orderBy: [
+        { date: "asc" },
+        { school: { order: "asc" } },
+        { school: { name: "asc" } },
+      ],
+      select: {
+        date: true,
+        class1Count: true,
+        class2Count: true,
+        class3Count: true,
+        class4Count: true,
+        linkedCount: true,
+        preservationCount: true,
+        deliveryDriverCount: true,
+        school: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    }),
+    prisma.lunchBoxMenu.findMany({
+      where: {
+        date: {
+          gte: startDateValue,
+          lt: endDateValue,
+        },
+      },
+      orderBy: { date: "asc" },
+      select: {
+        date: true,
+        items: true,
+      },
+    }),
+  ]);
   const days: Record<string, LunchBoxCountMonthDay> = {};
 
   for (const count of counts) {
@@ -152,6 +178,7 @@ export async function getLunchBoxCountMonth({
     const date = formatLunchBoxDateValue(count.date);
     const day = (days[date] ??= {
       date,
+      menuItems: [],
       totalCount: 0,
       schools: [],
     });
@@ -163,6 +190,18 @@ export async function getLunchBoxCountMonth({
       schoolType: normalizeLunchBoxSchoolType(count.school.type),
       total,
     });
+  }
+
+  for (const menu of menus) {
+    const date = formatLunchBoxDateValue(menu.date);
+    const day = (days[date] ??= {
+      date,
+      menuItems: [],
+      totalCount: 0,
+      schools: [],
+    });
+
+    day.menuItems = normalizeLunchBoxMenuItems(menu.items);
   }
 
   return {

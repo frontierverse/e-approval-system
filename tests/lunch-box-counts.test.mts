@@ -13,6 +13,7 @@ import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-manageme
 import {
   createLunchBoxCalendarDays,
   formatLunchBoxDateLabel,
+  formatLunchBoxMenuItems,
   formatLunchBoxMonthLabel,
   getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
@@ -25,6 +26,7 @@ import {
   normalizeLunchBoxCountChangeLogPage,
   normalizeLunchBoxCountValue,
   normalizeLunchBoxDeliveryDriverCountForSave,
+  normalizeLunchBoxMenuItems,
   normalizeLunchBoxPreservationCountForSave,
   normalizeLunchBoxSchoolName,
   normalizeLunchBoxMonth,
@@ -51,6 +53,14 @@ const lunchBoxPageSource = readFileSync(
 
 const grid: LunchBoxCountGridData = {
   date: "2026-07-29",
+  menuItems: [
+    "잡곡밥",
+    "콩나물국",
+    "순살닭갈비",
+    "너비아니구이",
+    "호박나물",
+    "배추김치",
+  ],
   rows: [
     {
       schoolId: "school-001",
@@ -111,6 +121,27 @@ describe("lunch box counts", () => {
     assert.equal(normalizeLunchBoxCountValue(3.7), 3);
     assert.equal(normalizeLunchBoxCountValue("abc"), 0);
     assert.equal(normalizeLunchBoxCountValue(undefined), 0);
+  });
+
+  test("removes allergen markers and recipe stars from menu item names", () => {
+    assert.deepEqual(
+      normalizeLunchBoxMenuItems([
+        "칠리새우볶음⑤⑥⑨⑫",
+        "(병아리)콩조림⑤⑥",
+        "양념깻잎지⑤⑥ ★",
+        "  열무김치(배추김치)⑨  ",
+      ]),
+      [
+        "칠리새우볶음",
+        "(병아리)콩조림",
+        "양념깻잎지",
+        "열무김치(배추김치)",
+      ],
+    );
+    assert.equal(
+      formatLunchBoxMenuItems(["잡곡밥", "감자된장국"]),
+      "잡곡밥, 감자된장국",
+    );
   });
 
   test("parses detailed count changes without inventing legacy fields", () => {
@@ -276,7 +307,7 @@ describe("lunch box counts", () => {
       }),
     );
 
-    assert.match(html, /일자별 도시락 개수/);
+    assert.match(html, /일자별 도시락 현황/);
     assert.match(html, /영만초/);
     assert.match(html, /초등학교/);
     assert.match(html, /동남초 병설유치원/);
@@ -337,7 +368,7 @@ describe("lunch box counts", () => {
   test("renders an empty state when no schools are registered", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxCountGrid, {
-        initialGrid: { date: "2026-07-29", rows: [] },
+        initialGrid: { date: "2026-07-29", menuItems: [], rows: [] },
         loadGrid,
         saveCounts,
         today: "2026-07-29",
@@ -351,6 +382,7 @@ describe("lunch box counts", () => {
   test("keeps a large school grid inside an independently scrolling region", () => {
     const busyGrid: LunchBoxCountGridData = {
       date: "2026-07-29",
+      menuItems: grid.menuItems,
       rows: Array.from({ length: 41 }, (_, index) => ({
         schoolId: `school-${index + 1}`,
         schoolName: `학교 ${index + 1}`,
@@ -498,6 +530,7 @@ describe("lunch box calendar", () => {
       days: {
         "2026-07-29": {
           date: "2026-07-29",
+          menuItems: grid.menuItems,
           totalCount: 57,
           schools: [
             {
@@ -534,6 +567,7 @@ describe("lunch box calendar", () => {
     assert.match(html, />47</);
     assert.match(html, />10</);
     assert.match(html, /57개/);
+    assert.match(html, /잡곡밥, 콩나물국, 순살닭갈비/);
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-06"/);
     assert.match(html, /href="\/work-schedule\/lunch-boxes\?month=2026-08"/);
     assert.match(html, /2026년 7월 29일 도시락 개수 입력|2026\.07\.29\.\(수\) 도시락 개수 입력/);
@@ -545,6 +579,7 @@ describe("lunch box calendar", () => {
       days: {
         "2026-08-03": {
           date: "2026-08-03",
+          menuItems: [],
           totalCount: 37,
           schools: [
             {
@@ -596,6 +631,7 @@ describe("lunch box calendar", () => {
       days: {
         "2026-07-29": {
           date: "2026-07-29",
+          menuItems: grid.menuItems,
           totalCount: 150,
           schools: Array.from({ length: 5 }, (_, index) => ({
             schoolId: `school-${index + 1}`,

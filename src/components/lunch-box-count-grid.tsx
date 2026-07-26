@@ -6,6 +6,7 @@ import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
+  formatLunchBoxMenuItems,
   getLunchBoxCountTotal,
   getLunchBoxPreservationClassLabel,
   getLunchBoxSchoolTypeLabel,
@@ -101,6 +102,10 @@ export function LunchBoxCountGrid({
         0,
       ),
     [edits, grid.rows],
+  );
+  const menuLabel = useMemo(
+    () => formatLunchBoxMenuItems(grid.menuItems),
+    [grid.menuItems],
   );
 
   useEffect(() => {
@@ -217,12 +222,18 @@ export function LunchBoxCountGrid({
       <div className="flex shrink-0 flex-col gap-3 border-b border-[#eef1f5] px-3 py-3 sm:px-5 sm:py-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-[#16181d]">
-            일자별 도시락 개수
+            일자별 도시락 현황
           </h2>
           <p className="mt-1 text-xs leading-5 tabular-nums text-[#697386] sm:text-sm">
             {formatLunchBoxDateLabel(grid.date)} 기준 · 총계 {grandTotal}개 ·
             보존식 {preservationTotal}개 · 배송기사 {deliveryDriverTotal}개 포함
           </p>
+          {menuLabel ? (
+            <p className="mt-1.5 max-w-4xl text-xs leading-5 text-[#566174] sm:text-sm">
+              <span className="mr-1.5 font-semibold text-[#196b69]">식단</span>
+              {menuLabel}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:flex-nowrap">

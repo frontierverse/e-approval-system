@@ -5,6 +5,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PageSizes, type PDFFont, type PDFPage, rgb } from "pdf-lib";
 import {
+  formatLunchBoxMenuItems,
   getLunchBoxCountTotal,
   getLunchBoxSchoolTypeLabel,
   isLunchBoxDate,
@@ -52,7 +53,9 @@ const generatedAtFontSize = 7.5;
 const summaryHeight = 30;
 const summaryFontSize = 8.5;
 const summaryValueFontSize = 10;
-const tableTopOffset = 144;
+const menuHeight = 32;
+const menuFontSize = 8.5;
+const tableTopOffset = 184;
 const tableHeaderHeight = 28;
 const tableFontSize = 8.5;
 const tableLineHeight = 10.5;
@@ -107,7 +110,7 @@ export async function createLunchBoxCountPdf({
   const pages = rowPages.length > 0 ? rowPages : [[]];
 
   pdf.setTitle(`${formatDeliveryDate(grid.date)} 도시락 납품 현황`);
-  pdf.setSubject("학교별 도시락·보존식·배송기사 납품 개수");
+  pdf.setSubject("날짜별 식단과 학교별 도시락·보존식·배송기사 납품 개수");
   pdf.setCreator("바자울 사내 시스템");
   pdf.setProducer("바자울 사내 시스템");
   pdf.setCreationDate(generatedAt);
@@ -120,6 +123,7 @@ export async function createLunchBoxCountPdf({
       date: grid.date,
       font,
       generatedAt,
+      menuItems: grid.menuItems,
       page,
       pageCount: pages.length,
       pageNumber: pageIndex + 1,
@@ -167,6 +171,7 @@ function drawPage({
   date,
   font,
   generatedAt,
+  menuItems,
   page,
   pageCount,
   pageNumber,
@@ -177,6 +182,7 @@ function drawPage({
   date: string;
   font: PDFFont;
   generatedAt: Date;
+  menuItems: string[];
   page: PDFPage;
   pageCount: number;
   pageNumber: number;
@@ -223,6 +229,12 @@ function drawPage({
     color: accentColor,
   });
 
+  drawMenu(page, font, {
+    menuItems,
+    tableWidth,
+    tableX,
+    y: tableTop + summaryHeight + 18,
+  });
   drawSummary(page, font, {
     schoolCount,
     tableWidth,
@@ -265,6 +277,69 @@ function drawPage({
     pageNumber,
     tableX,
     tableWidth,
+  });
+}
+
+function drawMenu(
+  page: PDFPage,
+  font: PDFFont,
+  {
+    menuItems,
+    tableWidth,
+    tableX,
+    y,
+  }: {
+    menuItems: string[];
+    tableWidth: number;
+    tableX: number;
+    y: number;
+  },
+) {
+  const menuLabel = formatLunchBoxMenuItems(menuItems);
+  const text = menuLabel || "등록된 식단이 없습니다.";
+  const lines = wrapText(
+    font,
+    text,
+    menuFontSize,
+    tableWidth - 64,
+    2,
+  );
+  const lineHeight = 10;
+  const blockHeight = lines.length * lineHeight;
+  const startY = y + (menuHeight + blockHeight) / 2 - menuFontSize;
+
+  page.drawRectangle({
+    x: tableX,
+    y,
+    width: tableWidth,
+    height: menuHeight,
+    color: accentBackgroundColor,
+    borderColor,
+    borderWidth: 0.6,
+  });
+  page.drawRectangle({
+    x: tableX,
+    y,
+    width: 3,
+    height: menuHeight,
+    color: accentColor,
+  });
+  page.drawText("식단", {
+    x: tableX + 14,
+    y: y + 11,
+    size: menuFontSize,
+    font,
+    color: accentColor,
+  });
+
+  lines.forEach((line, index) => {
+    page.drawText(line, {
+      x: tableX + 50,
+      y: startY - index * lineHeight,
+      size: menuFontSize,
+      font,
+      color: menuLabel ? bodyTextColor : mutedTextColor,
+    });
   });
 }
 

@@ -1,0 +1,181 @@
+-- Correct the 2026 summer lunch-box schedule from:
+-- 돌봄 지원사업(건강도시락) 일자별 공급표(병설유치원 포함)(2차 260724).xlsx
+--
+-- In the source workbook, each elementary school's class-1 quantity includes
+-- one preserved meal. Store that meal separately by subtracting one from
+-- class1Count and setting preservationCount to one on every active service day.
+-- Kindergarten rows and delivery-driver meals are intentionally left unchanged.
+
+UPDATE "LunchBoxCount" AS count
+SET
+  "class1Count" = 0,
+  "class2Count" = 0,
+  "class3Count" = 0,
+  "class4Count" = 0,
+  "linkedCount" = 0,
+  "preservationCount" = 0,
+  "updatedAt" = CURRENT_TIMESTAMP
+FROM "LunchBoxSchool" AS school
+WHERE count."schoolId" = school."id"
+  AND school."type" = 'elementary'
+  AND school."name" IN (
+    '가온초',
+    '계문초',
+    '고현초',
+    '궁동초',
+    '남창초',
+    '남초',
+    '동남초',
+    '동북초',
+    '동산초',
+    '동초',
+    '마한초',
+    '모현초',
+    '백제초',
+    '부송초',
+    '부천초',
+    '북일초',
+    '북초',
+    '삼성초',
+    '서초',
+    '석암초',
+    '송학초',
+    '신동초',
+    '신흥초',
+    '어양초',
+    '영등초',
+    '영만초',
+    '옥야초',
+    '이리초',
+    '익산초',
+    '중앙초',
+    '팔봉초',
+    '한벌초'
+  )
+  AND count."date" IN (
+    DATE '2026-07-16',
+    DATE '2026-07-20',
+    DATE '2026-07-21',
+    DATE '2026-07-22',
+    DATE '2026-07-23',
+    DATE '2026-07-24',
+    DATE '2026-07-27',
+    DATE '2026-07-28',
+    DATE '2026-07-29',
+    DATE '2026-07-30',
+    DATE '2026-07-31',
+    DATE '2026-08-03',
+    DATE '2026-08-04',
+    DATE '2026-08-05',
+    DATE '2026-08-06',
+    DATE '2026-08-07',
+    DATE '2026-08-10',
+    DATE '2026-08-11',
+    DATE '2026-08-12',
+    DATE '2026-08-13',
+    DATE '2026-08-14',
+    DATE '2026-08-18',
+    DATE '2026-08-19',
+    DATE '2026-08-20',
+    DATE '2026-08-21',
+    DATE '2026-08-24',
+    DATE '2026-08-25',
+    DATE '2026-08-26',
+    DATE '2026-08-27',
+    DATE '2026-08-28',
+    DATE '2026-08-31'
+  );
+
+WITH schedule(
+  "schoolName",
+  "class1Count",
+  "class2Count",
+  "class3Count",
+  "class4Count",
+  "linkedCount",
+  "dates"
+) AS (
+  VALUES
+    ('가온초', 18, 18, 16, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14']::DATE[]),
+    ('계문초', 9, 0, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07']::DATE[]),
+    ('고현초', 12, 12, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14']::DATE[]),
+    ('궁동초', 19, 21, 0, 0, 11, ARRAY[DATE '2026-07-28', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21', DATE '2026-08-24']::DATE[]),
+    ('남창초', 18, 0, 0, 0, 0, ARRAY[DATE '2026-07-20', DATE '2026-07-21', DATE '2026-07-22', DATE '2026-07-23', DATE '2026-07-24', DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18']::DATE[]),
+    ('남초', 15, 0, 0, 0, 0, ARRAY[DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07']::DATE[]),
+    ('동남초', 17, 17, 0, 0, 14, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('동북초', 22, 0, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21', DATE '2026-08-24']::DATE[]),
+    ('동산초', 14, 12, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19']::DATE[]),
+    ('동초', 14, 17, 0, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-19']::DATE[]),
+    ('마한초', 18, 18, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14']::DATE[]),
+    ('모현초', 19, 20, 18, 20, 0, ARRAY[DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14']::DATE[]),
+    ('백제초', 12, 11, 0, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21']::DATE[]),
+    ('부송초', 20, 15, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('부천초', 19, 19, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18']::DATE[]),
+    ('북일초', 15, 0, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19']::DATE[]),
+    ('북초', 16, 0, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12']::DATE[]),
+    ('삼성초', 15, 0, 0, 0, 0, ARRAY[DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21']::DATE[]),
+    ('서초', 20, 20, 0, 0, 0, ARRAY[DATE '2026-07-28', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21', DATE '2026-08-24', DATE '2026-08-25']::DATE[]),
+    ('석암초', 13, 0, 0, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('송학초', 18, 18, 17, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19']::DATE[]),
+    ('신동초', 20, 0, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-20', DATE '2026-08-21']::DATE[]),
+    ('신흥초', 20, 0, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12']::DATE[]),
+    ('어양초', 22, 22, 0, 0, 0, ARRAY[DATE '2026-07-27', DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13']::DATE[]),
+    ('영등초', 21, 21, 0, 0, 20, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('영만초', 15, 15, 14, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14']::DATE[]),
+    ('옥야초', 12, 0, 0, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('이리초', 22, 22, 19, 0, 21, ARRAY[DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20', DATE '2026-08-21', DATE '2026-08-24', DATE '2026-08-25', DATE '2026-08-26', DATE '2026-08-27', DATE '2026-08-28', DATE '2026-08-31']::DATE[]),
+    ('익산초', 22, 22, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18']::DATE[]),
+    ('중앙초', 16, 0, 0, 0, 0, ARRAY[DATE '2026-07-28', DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19']::DATE[]),
+    ('팔봉초', 14, 17, 0, 0, 0, ARRAY[DATE '2026-07-29', DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19', DATE '2026-08-20']::DATE[]),
+    ('한벌초', 18, 16, 0, 0, 0, ARRAY[DATE '2026-07-30', DATE '2026-07-31', DATE '2026-08-03', DATE '2026-08-04', DATE '2026-08-05', DATE '2026-08-06', DATE '2026-08-07', DATE '2026-08-10', DATE '2026-08-11', DATE '2026-08-12', DATE '2026-08-13', DATE '2026-08-14', DATE '2026-08-18', DATE '2026-08-19']::DATE[])
+),
+expected AS (
+  SELECT
+    schedule."schoolName",
+    schedule."class1Count",
+    schedule."class2Count",
+    schedule."class3Count",
+    schedule."class4Count",
+    schedule."linkedCount",
+    service_date."date"
+  FROM schedule
+  CROSS JOIN LATERAL unnest(schedule."dates") AS service_date("date")
+)
+INSERT INTO "LunchBoxCount" (
+  "id",
+  "schoolId",
+  "date",
+  "class1Count",
+  "class2Count",
+  "class3Count",
+  "class4Count",
+  "linkedCount",
+  "preservationCount",
+  "createdAt",
+  "updatedAt"
+)
+SELECT
+  'lbc-2026-' || substr(md5(school."id" || expected."date"::TEXT), 1, 24),
+  school."id",
+  expected."date",
+  expected."class1Count",
+  expected."class2Count",
+  expected."class3Count",
+  expected."class4Count",
+  expected."linkedCount",
+  1,
+  CURRENT_TIMESTAMP,
+  CURRENT_TIMESTAMP
+FROM expected
+JOIN "LunchBoxSchool" AS school
+  ON school."name" = expected."schoolName"
+ AND school."type" = 'elementary'
+ON CONFLICT ("schoolId", "date")
+DO UPDATE SET
+  "class1Count" = EXCLUDED."class1Count",
+  "class2Count" = EXCLUDED."class2Count",
+  "class3Count" = EXCLUDED."class3Count",
+  "class4Count" = EXCLUDED."class4Count",
+  "linkedCount" = EXCLUDED."linkedCount",
+  "preservationCount" = EXCLUDED."preservationCount",
+  "updatedAt" = CURRENT_TIMESTAMP;

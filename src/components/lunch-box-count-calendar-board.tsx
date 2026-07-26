@@ -13,6 +13,7 @@ import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   createLunchBoxCalendarDays,
   formatLunchBoxDateLabel,
+  formatLunchBoxMenuItems,
   formatLunchBoxMonthLabel,
   getLunchBoxCountTotal,
   getLunchBoxCurrentMonth,
@@ -182,13 +183,14 @@ function LunchBoxCountCalendarBoardContent({
       });
       const nextDays = { ...currentDays };
 
-      if (schools.length === 0) {
+      if (schools.length === 0 && grid.menuItems.length === 0) {
         delete nextDays[grid.date];
         return nextDays;
       }
 
       const day: LunchBoxCountMonthDay = {
         date: grid.date,
+        menuItems: grid.menuItems,
         totalCount: schools.reduce((sum, school) => sum + school.total, 0),
         schools,
       };
@@ -208,8 +210,8 @@ function LunchBoxCountCalendarBoardContent({
             </h2>
             <p className="mt-1 text-sm text-[#697386]">
               월 총계 {monthTotal.toLocaleString("ko-KR")}개
-              (보존식·배송기사 포함) · 날짜를 누르면 학교별 개수를 입력할 수
-              있습니다.
+              (보존식·배송기사 포함) · 날짜를 누르면 식단과 학교별 개수를
+              확인할 수 있습니다.
             </p>
           </div>
 
@@ -248,6 +250,9 @@ function LunchBoxCountCalendarBoardContent({
 
             {calendarDays.map((day) => {
               const dayData = days[day.date];
+              const menuLabel = formatLunchBoxMenuItems(
+                dayData?.menuItems ?? [],
+              );
               const visibleSchools =
                 dayData?.schools.slice(0, calendarSchoolPreviewLimit) ?? [];
               const hiddenSchoolCount = Math.max(
@@ -285,15 +290,27 @@ function LunchBoxCountCalendarBoardContent({
                     >
                       {day.day}
                     </span>
-                    {dayData ? (
+                    {dayData && dayData.totalCount > 0 ? (
                       <span className="mt-1 inline-flex shrink-0 items-center rounded-full bg-[#eef7f6] px-2 py-0.5 text-xs font-semibold text-[#196b69]">
                         {dayData.totalCount.toLocaleString("ko-KR")}개
                       </span>
                     ) : null}
                   </div>
 
-                  {dayData ? (
-                    <ul className="mt-2 space-y-1">
+                  {menuLabel ? (
+                    <p
+                      className="mt-1.5 truncate rounded-sm bg-[#f7f9fc] px-1.5 py-1 text-[11px] text-[#566174]"
+                      title={menuLabel}
+                    >
+                      <span className="mr-1 font-semibold text-[#196b69]">
+                        식단
+                      </span>
+                      {menuLabel}
+                    </p>
+                  ) : null}
+
+                  {dayData && dayData.schools.length > 0 ? (
+                    <ul className={menuLabel ? "mt-1.5 space-y-1" : "mt-2 space-y-1"}>
                       {visibleSchools.map((school) => (
                         <li
                           key={school.schoolId}
@@ -322,7 +339,7 @@ function LunchBoxCountCalendarBoardContent({
       {selectedDate ? (
         <AppModal
           className="max-w-7xl"
-          label={`${formatLunchBoxDateLabel(selectedDate)} 도시락 개수 입력`}
+          label={`${formatLunchBoxDateLabel(selectedDate)} 도시락 현황`}
           mobileFullscreen
           onClose={closeDayModal}
         >
@@ -377,7 +394,7 @@ function LunchBoxCountGridError({
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#eef1f5] px-3 py-3 sm:px-5 sm:py-4">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-[#16181d]">
-            일자별 도시락 개수
+            일자별 도시락 현황
           </h2>
           <p className="mt-1 text-xs tabular-nums text-[#697386] sm:text-sm">
             {formatLunchBoxDateLabel(date)} 기준
@@ -420,6 +437,7 @@ function LunchBoxCountGridSkeleton({
         <div aria-hidden="true" className="min-w-0 flex-1">
           <div className="h-5 w-36 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
           <div className="mt-2 h-4 w-full max-w-64 rounded bg-[#edf1f5] motion-safe:animate-pulse" />
+          <div className="mt-2 h-4 w-full max-w-xl rounded bg-[#edf1f5] motion-safe:animate-pulse" />
         </div>
         <button
           type="button"

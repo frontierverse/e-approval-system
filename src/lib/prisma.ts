@@ -28,6 +28,7 @@ const requiredPrismaDelegates = [
   "staffLeaveLedger",
   "loginHistory",
   "lunchBoxCount",
+  "lunchBoxMenu",
   "lunchBoxSchool",
 ] as const;
 

@@ -32,6 +32,8 @@ export const lunchBoxPreservationClasses = [1, 2, 3, 4] as const;
 export const lunchBoxCountChangeLogPageSize = 10;
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+const lunchBoxMenuMarkerPattern =
+  /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳★]/gu;
 
 export const lunchBoxCalendarWeekdays = [
   { value: 0, label: "일" },
@@ -79,6 +81,7 @@ export type LunchBoxCountRow = LunchBoxCountValues & {
 
 export type LunchBoxCountGrid = {
   date: string;
+  menuItems: string[];
   rows: LunchBoxCountRow[];
 };
 
@@ -95,6 +98,7 @@ export type LunchBoxCountMonthDaySchool = {
 
 export type LunchBoxCountMonthDay = {
   date: string;
+  menuItems: string[];
   totalCount: number;
   schools: LunchBoxCountMonthDaySchool[];
 };
@@ -244,6 +248,21 @@ export function normalizeLunchBoxCountValue(value: unknown): number {
   }
 
   return Math.floor(parsed);
+}
+
+export function normalizeLunchBoxMenuItems(values: readonly unknown[]) {
+  return values.flatMap((value) => {
+    const item = String(value ?? "")
+      .replace(lunchBoxMenuMarkerPattern, "")
+      .replace(/\s+/gu, " ")
+      .trim();
+
+    return item ? [item] : [];
+  });
+}
+
+export function formatLunchBoxMenuItems(values: readonly unknown[]) {
+  return normalizeLunchBoxMenuItems(values).join(", ");
 }
 
 export function parseLunchBoxCountChangeDetail(
