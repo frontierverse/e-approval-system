@@ -705,6 +705,7 @@ model AuditLog {
   @@index([documentId])
   @@index([action])
   @@index([createdAt])
+  @@index([action, targetType, createdAt, id])
 }
 
 model LoginHistory {

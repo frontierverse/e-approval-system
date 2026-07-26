@@ -7,7 +7,10 @@ import {
   type LunchBoxCountGrid,
   type LunchBoxCountRow,
 } from "../src/lib/lunch-box-counts-core.ts";
-import { createLunchBoxStatusPdf } from "../src/lib/lunch-box-status-pdf.ts";
+import {
+  createLunchBoxStatusPdf,
+  createLunchBoxWeeklyStatusPdf,
+} from "../src/lib/lunch-box-status-pdf.ts";
 
 const july27ElementaryCounts = [
   22, 22, 20, 20, 20, 18, 17, 17, 16, 15, 14, 12, 12, 9,
@@ -122,7 +125,8 @@ describe("lunch box status PDF", () => {
       /식기\|\s*\|\s*미니 집게 4, 주걱 1, 스탠 국자 1, 검정 소스 국자 1, 스탠 배식스푼 1/,
     );
     assert.doesNotMatch(text, /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/u);
-    assert.match(text, /배송기사\|0개/);
+    assert.doesNotMatch(text, /배송기사\|0개/);
+    assert.match(text, /배송기사\|\s*\|보존식\|9개/);
     assert.match(text, /보존식\|9개/);
     assert.match(text, /병설도시락\|23개/);
     assert.match(text, /배식\|234인/);
@@ -133,6 +137,75 @@ describe("lunch box status PDF", () => {
     }
 
     assert.equal(text.match(/16인/g)?.length, 1);
+  });
+
+  test("keeps a non-zero delivery-driver count visible", async () => {
+    const buffer = await createLunchBoxStatusPdf({
+      generatedAt: new Date("2026-07-26T09:00:00.000Z"),
+      grid: {
+        ...july27Grid,
+        rows: july27Grid.rows.map((row, index) =>
+          index === 0 ? { ...row, deliveryDriverCount: 3 } : row,
+        ),
+      },
+    });
+    const text = await extractPdfText(buffer);
+
+    assert.match(text, /배송기사\|3개/);
+  });
+
+  test("creates one status page per supplied date in a weekly PDF", async () => {
+    const dates = [
+      "2026-07-20",
+      "2026-07-21",
+      "2026-07-22",
+      "2026-07-23",
+      "2026-07-24",
+    ];
+    const grids = dates.map((date, index) => ({
+      ...july27Grid,
+      date,
+      menuItems: [`주간 식단 ${index + 1}`],
+    }));
+    const buffer = await createLunchBoxWeeklyStatusPdf({
+      generatedAt: new Date("2026-07-26T09:00:00.000Z"),
+      grids,
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const pageTexts = await extractPdfPageTexts(buffer);
+
+    assert.equal(pdf.getPageCount(), dates.length);
+    assert.equal(
+      pdf.getTitle(),
+      "7월 20일~7월 24일 초등 및 병설 방학도시락 현황표",
+    );
+
+    pdf.getPages().forEach((page) => {
+      assertAlmostEqual(page.getWidth(), PageSizes.A4[1]);
+      assertAlmostEqual(page.getHeight(), PageSizes.A4[0]);
+    });
+
+    dates.forEach((date, index) => {
+      const [, month, day] = date.split("-");
+
+      assert.match(
+        pageTexts[index],
+        new RegExp(
+          `${Number(month)}월 ${Number(day)}일 초등 및 병설 방학도시락 현황표`,
+        ),
+      );
+      assert.match(pageTexts[index], new RegExp(`주간 식단 ${index + 1}`));
+    });
+  });
+
+  test("rejects a weekly PDF without printable dates", async () => {
+    await assert.rejects(
+      createLunchBoxWeeklyStatusPdf({
+        generatedAt: new Date("2026-07-26T09:00:00.000Z"),
+        grids: [],
+      }),
+      /인쇄할 도시락 현황표가 없습니다/,
+    );
   });
 });
 
@@ -194,24 +267,29 @@ function assertAlmostEqual(
 }
 
 async function extractPdfText(buffer: Uint8Array) {
+  return (await extractPdfPageTexts(buffer)).join("|");
+}
+
+async function extractPdfPageTexts(buffer: Uint8Array) {
   const loadingTask = getDocument({ data: new Uint8Array(buffer) });
   const pdf = await loadingTask.promise;
-  const texts: string[] = [];
+  const pageTexts: string[] = [];
 
   try {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
 
-      texts.push(
-        ...content.items
+      pageTexts.push(
+        content.items
           .map((item) => ("str" in item ? item.str : ""))
-          .filter(Boolean),
+          .filter(Boolean)
+          .join("|"),
       );
     }
   } finally {
     await loadingTask.destroy();
   }
 
-  return texts.join("|");
+  return pageTexts;
 }

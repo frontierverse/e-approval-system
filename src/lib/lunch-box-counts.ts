@@ -8,13 +8,16 @@ import {
   getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
   lunchBoxCountChangeLogPageSize,
+  lunchBoxDailyCheckHistoryPageSize,
   normalizeLunchBoxMenuItems,
   normalizeLunchBoxPreservationClass,
   normalizeLunchBoxMonth,
   normalizeLunchBoxSchoolType,
   parseLunchBoxCountChangeDetail,
+  parseLunchBoxDailyCheckHistoryDetail,
   parseLunchBoxDateValue,
   type LunchBoxCountChangeLogPage,
+  type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
   type LunchBoxCountGrid,
   type LunchBoxCountMonth,
@@ -68,6 +71,76 @@ export async function getLunchBoxDailySchoolChecklist({
   date: string;
 }): Promise<LunchBoxDailySchoolChecklistData> {
   return getLunchBoxCountGridData({ date });
+}
+
+export async function getLunchBoxDailyCheckHistoryPage({
+  date,
+  page,
+}: {
+  date: string;
+  page: number;
+}): Promise<LunchBoxDailyCheckHistoryPage> {
+  const pageSize = lunchBoxDailyCheckHistoryPageSize;
+  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const where: Prisma.AuditLogWhereInput = {
+    action: AuditAction.UPDATE_LUNCH_BOX_COUNT,
+    targetType: "LunchBoxDailySchoolCheck",
+    metadata: {
+      path: ["date"],
+      equals: date,
+    },
+  };
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const normalizedPage = Math.min(requestedPage, totalPages);
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (normalizedPage - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      message: true,
+      metadata: true,
+      createdAt: true,
+      actor: {
+        select: {
+          id: true,
+          name: true,
+          profileImageStorageKey: true,
+          profileImageUpdatedAt: true,
+          department: {
+            select: { name: true },
+          },
+          position: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  return {
+    logs: logs.map((log) => ({
+      id: log.id,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+      actor: {
+        id: log.actor.id,
+        name: log.actor.name,
+        departmentName: log.actor.department.name,
+        positionName: log.actor.position.name,
+        profileImageStorageKey: log.actor.profileImageStorageKey,
+        profileImageUpdatedAt:
+          log.actor.profileImageUpdatedAt?.toISOString() ?? null,
+      },
+      ...parseLunchBoxDailyCheckHistoryDetail(log.metadata, date),
+    })),
+    page: normalizedPage,
+    pageSize,
+    total,
+    totalPages,
+  };
 }
 
 async function getLunchBoxCountGridData({

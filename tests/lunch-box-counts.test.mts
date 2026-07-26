@@ -12,7 +12,11 @@ import {
   createLunchBoxCountChangeLogHref,
   LunchBoxCountChangeLog,
 } from "../src/components/lunch-box-count-change-log.tsx";
-import { LunchBoxCountGrid } from "../src/components/lunch-box-count-grid.tsx";
+import {
+  LunchBoxCountGrid,
+  LunchBoxStatusPrintDialog,
+} from "../src/components/lunch-box-count-grid.tsx";
+import { LunchBoxDailyCheckHistory } from "../src/components/lunch-box-daily-check-history.tsx";
 import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-management-skeleton.tsx";
 import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-school-checklist.tsx";
 import {
@@ -31,15 +35,19 @@ import {
   formatLunchBoxDateLabel,
   formatLunchBoxMenuItems,
   formatLunchBoxMonthLabel,
+  getLunchBoxCalendarWeekDates,
   getLunchBoxCalendarRange,
   getLunchBoxCountTotal,
   getLunchBoxCurrentMonth,
   getLunchBoxMonthRange,
+  hasLunchBoxStatusData,
   hasLunchBoxCountChanges,
   isLunchBoxDate,
   isLunchBoxMonth,
   lunchBoxCountChangeLogPageSize,
+  lunchBoxDailyCheckHistoryPageSize,
   normalizeLunchBoxCountChangeLogPage,
+  normalizeLunchBoxDailyCheckHistoryPage,
   normalizeLunchBoxCountValue,
   normalizeLunchBoxDeliveryDriverCountForSave,
   normalizeLunchBoxMenuItems,
@@ -47,6 +55,7 @@ import {
   normalizeLunchBoxSchoolName,
   normalizeLunchBoxMonth,
   parseLunchBoxCountChangeDetail,
+  parseLunchBoxDailyCheckHistoryDetail,
   resolveLunchBoxDisplayedChecklistIds,
   resolveLunchBoxPreservationClassForUpdate,
   setLunchBoxChecklistIdChecked,
@@ -55,6 +64,7 @@ import {
   type LunchBoxCountGrid as LunchBoxCountGridData,
   type LunchBoxCountChangeLogPage,
   type LunchBoxCountMonth,
+  type LunchBoxDailyCheckHistoryPage,
 } from "../src/lib/lunch-box-counts-core.ts";
 import {
   createLunchBoxRealtimeSyncCoordinator,
@@ -77,6 +87,17 @@ const lunchBoxDailyChecklistSource = readFileSync(
     "../src/components/lunch-box-daily-school-checklist.tsx",
     import.meta.url,
   ),
+  "utf8",
+);
+const lunchBoxDailyCheckHistorySource = readFileSync(
+  new URL(
+    "../src/components/lunch-box-daily-check-history.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxCountsSource = readFileSync(
+  new URL("../src/lib/lunch-box-counts.ts", import.meta.url),
   "utf8",
 );
 const lunchBoxActionsSource = readFileSync(
@@ -107,6 +128,13 @@ const lunchBoxCheckEligibilityMigrationSource = readFileSync(
 const lunchBoxRealtimeMigrationSource = readFileSync(
   new URL(
     "../prisma/migrations-postgresql/20260726153000_enable_lunch_box_realtime/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxCheckHistoryIndexMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260726160000_index_lunch_box_check_history/migration.sql",
     import.meta.url,
   ),
   "utf8",
@@ -234,6 +262,21 @@ async function loadDailyChecklist() {
       checkedSchoolIds: [],
       grid,
     },
+  };
+}
+
+const emptyDailyCheckHistoryPage: LunchBoxDailyCheckHistoryPage = {
+  logs: [],
+  page: 1,
+  pageSize: lunchBoxDailyCheckHistoryPageSize,
+  total: 0,
+  totalPages: 1,
+};
+
+async function loadDailyCheckHistory() {
+  return {
+    ok: true as const,
+    data: emptyDailyCheckHistoryPage,
   };
 }
 
@@ -378,6 +421,58 @@ describe("lunch box counts", () => {
     assert.equal(normalizeLunchBoxCountChangeLogPage(["3", "4"]), 3);
   });
 
+  test("parses daily check history and normalizes its ten-item pages", () => {
+    assert.deepEqual(
+      parseLunchBoxDailyCheckHistoryDetail({
+        date: "2026-07-29",
+        nextChecked: true,
+        schoolId: " school-001 ",
+        schoolName: " 영만초 ",
+      }),
+      {
+        date: "2026-07-29",
+        isChecked: true,
+        schools: [{ schoolId: "school-001", schoolName: "영만초" }],
+      },
+    );
+    assert.deepEqual(
+      parseLunchBoxDailyCheckHistoryDetail({
+        changeType: "lunchBoxDailySchoolCheck.clear",
+        date: "2026-07-29",
+        schools: [
+          { schoolId: "school-001", schoolName: "영만초" },
+          null,
+          { schoolId: "school-002", schoolName: "동남초" },
+        ],
+      }),
+      {
+        date: "2026-07-29",
+        isChecked: false,
+        schools: [
+          { schoolId: "school-001", schoolName: "영만초" },
+          { schoolId: "school-002", schoolName: "동남초" },
+        ],
+      },
+    );
+    assert.deepEqual(
+      parseLunchBoxDailyCheckHistoryDetail(
+        {
+          date: "bad",
+          nextChecked: "false",
+          schoolId: "",
+          schoolName: "   ",
+        },
+        "2026-07-30",
+      ),
+      { date: "2026-07-30", isChecked: null, schools: [] },
+    );
+    assert.equal(lunchBoxDailyCheckHistoryPageSize, 10);
+    assert.equal(normalizeLunchBoxDailyCheckHistoryPage(undefined), 1);
+    assert.equal(normalizeLunchBoxDailyCheckHistoryPage("0"), 1);
+    assert.equal(normalizeLunchBoxDailyCheckHistoryPage("2.5"), 1);
+    assert.equal(normalizeLunchBoxDailyCheckHistoryPage(["3", "4"]), 3);
+  });
+
   test("does not create a history entry when an empty row is saved as zero", () => {
     const zeroCounts = {
       preservationCount: 0,
@@ -466,6 +561,70 @@ describe("lunch box counts", () => {
     assert.equal(shiftLunchBoxDate("2026-08-01", -1), "2026-07-31");
   });
 
+  test("creates the Sunday-to-Saturday dates containing a selected date", () => {
+    assert.deepEqual(getLunchBoxCalendarWeekDates("2026-07-20"), [
+      "2026-07-19",
+      "2026-07-20",
+      "2026-07-21",
+      "2026-07-22",
+      "2026-07-23",
+      "2026-07-24",
+      "2026-07-25",
+    ]);
+    assert.deepEqual(getLunchBoxCalendarWeekDates("2026-07-19"), [
+      "2026-07-19",
+      "2026-07-20",
+      "2026-07-21",
+      "2026-07-22",
+      "2026-07-23",
+      "2026-07-24",
+      "2026-07-25",
+    ]);
+    assert.deepEqual(getLunchBoxCalendarWeekDates("2027-01-01"), [
+      "2026-12-27",
+      "2026-12-28",
+      "2026-12-29",
+      "2026-12-30",
+      "2026-12-31",
+      "2027-01-01",
+      "2027-01-02",
+    ]);
+    assert.deepEqual(getLunchBoxCalendarWeekDates("bad-date"), []);
+  });
+
+  test("prints status pages only for dates with counts or a menu", () => {
+    const emptyGrid: LunchBoxCountGridData = {
+      date: "2026-07-19",
+      menuItems: [],
+      rows: grid.rows.map((row) => ({
+        ...row,
+        class1Count: 0,
+        class2Count: 0,
+        class3Count: 0,
+        class4Count: 0,
+        linkedCount: 0,
+        preservationCount: 0,
+        deliveryDriverCount: 0,
+      })),
+    };
+
+    assert.equal(
+      hasLunchBoxStatusData({
+        ...grid,
+        menuItems: [],
+      }),
+      true,
+    );
+    assert.equal(
+      hasLunchBoxStatusData({
+        ...emptyGrid,
+        menuItems: ["잡곡밥"],
+      }),
+      true,
+    );
+    assert.equal(hasLunchBoxStatusData(emptyGrid), false);
+  });
+
   test("formats a date label with the Korean weekday", () => {
     assert.equal(formatLunchBoxDateLabel("2026-07-29"), "2026.07.29.(수)");
   });
@@ -509,16 +668,14 @@ describe("lunch box counts", () => {
       html,
       /href="\/work-schedule\/lunch-boxes\/print\?date=2026-07-29"/,
     );
-    assert.match(
-      html,
-      /href="\/work-schedule\/lunch-boxes\/status-print\?date=2026-07-29"/,
-    );
+    assert.doesNotMatch(html, /status-print\?date=2026-07-29/);
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noreferrer"/);
     assert.match(
       html,
-      /PDF \uC778\uC1C4<\/a><a[^>]*>\uD604\uD669\uD45C \uC778\uC1C4<\/a><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
+      /PDF \uC778\uC1C4<\/a><button[^>]*aria-haspopup="dialog"[^>]*>\uD604\uD669\uD45C \uC778\uC1C4<\/button><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
     );
+    assert.match(html, /aria-expanded="false"/);
     assert.match(
       html,
       /data-modal-initial-focus[^>]*class="[^"]*bg-\[#b42318\][^"]*"[^>]*>\uB2EB\uAE30<\/button>/,
@@ -542,6 +699,35 @@ describe("lunch box counts", () => {
       html,
       /<input[^>]*class="[^"]*h-11 w-14[^"]*sm:w-16[^"]*"/,
     );
+  });
+
+  test("renders daily and weekly status-print choices in a dialog", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxStatusPrintDialog, {
+        date: "2026-07-20",
+        onClose: () => {},
+      }),
+    );
+
+    assert.match(html, /role="dialog"/);
+    assert.match(html, /aria-modal="true"/);
+    assert.match(html, /7월 20일 현황표 인쇄/);
+    assert.match(html, /7월 20일만 인쇄/);
+    assert.match(html, /일주일치 인쇄/);
+    assert.match(html, /실제 공급일을 날짜별 한 페이지로 묶습니다/);
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\/status-print\?date=2026-07-20"/,
+    );
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\/status-print\?date=2026-07-20&amp;period=week"/,
+    );
+    assert.equal((html.match(/target="_blank"/g) ?? []).length, 2);
+    assert.equal((html.match(/rel="noreferrer"/g) ?? []).length, 2);
+    assert.match(html, /<a[^>]*data-modal-initial-focus/);
+    assert.match(html, /sm:grid-cols-2/);
+    assert.match(html, /min-h-16/);
   });
 
   test("renders an empty state when no schools are registered", () => {
@@ -961,6 +1147,115 @@ describe("lunch box count change log", () => {
     assert.doesNotMatch(html, /도시락 변경 기록 페이지/);
   });
 
+  test("renders daily check and uncheck history with actor and second-level time", () => {
+    const historyPage: LunchBoxDailyCheckHistoryPage = {
+      logs: [
+        {
+          id: "check-log-001",
+          date: "2026-07-29",
+          isChecked: true,
+          schools: [{ schoolId: "school-001", schoolName: "영만초" }],
+          message: null,
+          createdAt: "2026-07-20T05:30:45.000Z",
+          actor: {
+            id: "user-001",
+            name: "김담당",
+            departmentName: "생활복지팀",
+            positionName: "생활지도원",
+            profileImageStorageKey: null,
+            profileImageUpdatedAt: null,
+          },
+        },
+        {
+          id: "check-log-002",
+          date: "2026-07-29",
+          isChecked: false,
+          schools: [
+            {
+              schoolId: "school-002",
+              schoolName: "동남초 병설유치원",
+            },
+          ],
+          message: null,
+          createdAt: "2026-07-19T15:00:00.000Z",
+          actor: {
+            id: "user-002",
+            name: "이담당",
+            departmentName: "급식지원팀",
+            positionName: "팀원",
+            profileImageStorageKey: null,
+            profileImageUpdatedAt: null,
+          },
+        },
+      ],
+      page: 2,
+      pageSize: 10,
+      total: 21,
+      totalPages: 3,
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(LunchBoxDailyCheckHistory, {
+        error: "",
+        historyPage,
+        isPending: false,
+        onPageChange: () => undefined,
+        onRetry: () => undefined,
+      }),
+    );
+
+    assert.match(html, /변경 기록/);
+    assert.match(html, /21건 중 11-20건 표시/);
+    assert.match(html, /최신 변경순 · 페이지당 10건/);
+    assert.match(html, /14:30:45/);
+    assert.match(html, /00:00:00/);
+    assert.match(html, />체크</);
+    assert.match(html, /체크 해제/);
+    assert.match(html, /영만초/);
+    assert.match(html, /동남초 병설유치원/);
+    assert.match(html, /김담당/);
+    assert.match(html, /생활복지팀/);
+    assert.match(html, /생활지도원/);
+    assert.match(html, /2 \/ 3 페이지/);
+    assert.match(
+      html,
+      /aria-label="날짜별 학교 체크 변경 기록 페이지"/,
+    );
+    assert.match(html, />이전</);
+    assert.match(html, />다음</);
+  });
+
+  test("provides empty and recoverable error states for daily check history", () => {
+    const emptyHtml = renderToStaticMarkup(
+      React.createElement(LunchBoxDailyCheckHistory, {
+        error: "",
+        historyPage: emptyDailyCheckHistoryPage,
+        isPending: false,
+        onPageChange: () => undefined,
+        onRetry: () => undefined,
+      }),
+    );
+    const errorHtml = renderToStaticMarkup(
+      React.createElement(LunchBoxDailyCheckHistory, {
+        error: "체크 변경 기록을 불러오지 못했습니다.",
+        historyPage: emptyDailyCheckHistoryPage,
+        isPending: false,
+        onPageChange: () => undefined,
+        onRetry: () => undefined,
+      }),
+    );
+
+    assert.match(
+      emptyHtml,
+      /아직 기록된 학교 체크 변경 내역이 없습니다/,
+    );
+    assert.doesNotMatch(
+      emptyHtml,
+      /aria-label="날짜별 학교 체크 변경 기록 페이지"/,
+    );
+    assert.match(errorHtml, /role="alert"/);
+    assert.match(errorHtml, /다시 시도/);
+  });
+
   test("labels preservation counts with their assigned class", () => {
     assert.equal(formatLunchBoxPreservationChipLabel(1, 2), "보존식 1(2반)");
     assert.equal(
@@ -1066,6 +1361,35 @@ describe("lunch box count change log", () => {
     );
   });
 
+  test("stores and pages detailed daily check audit logs", () => {
+    assert.match(
+      prismaSchemaSource,
+      /@@index\(\[action, targetType, createdAt, id\]\)/,
+    );
+    assert.match(
+      lunchBoxCheckHistoryIndexMigrationSource,
+      /CREATE INDEX "AuditLog_action_targetType_createdAt_id_idx"[\s\S]*?ON "AuditLog"\("action", "targetType", "createdAt", "id"\)/,
+    );
+    assert.match(
+      lunchBoxCountsSource,
+      /targetType: "LunchBoxDailySchoolCheck"[\s\S]*?path: \["date"\][\s\S]*?equals: date/,
+    );
+    assert.match(
+      lunchBoxCountsSource,
+      /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*?take: pageSize/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /if \(updatedCount\)[\s\S]*?auditLog\.create\([\s\S]*?nextChecked: isChecked,[\s\S]*?previousChecked: !isChecked,[\s\S]*?createdAt: changedAt/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /clearLunchBoxDailySchoolChecksAction[\s\S]*?auditLog\.createMany\([\s\S]*?clearedCounts\.map\([\s\S]*?targetId: count\.id,[\s\S]*?nextChecked: false,[\s\S]*?previousChecked: true,[\s\S]*?createdAt: clearedAt/,
+    );
+    assert.match(lunchBoxDailyCheckHistorySource, /second: "2-digit"/);
+    assert.match(lunchBoxDailyCheckHistorySource, /hourCycle: "h23"/);
+  });
+
   test("streams authenticated realtime invalidations without exposing database access", () => {
     assert.match(
       lunchBoxRealtimeMigrationSource,
@@ -1131,6 +1455,18 @@ describe("lunch box count change log", () => {
     assert.match(
       lunchBoxDailyChecklistSource,
       /if \(!loadedNextDate\) \{\s*void requestCanonicalSync\(activeDateRef\.current\)/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /Promise\.allSettled\(\[\s*loadChecklist\(nextDate\),\s*loadCheckHistory\(nextDate, 1\)/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /void requestCanonicalSync\(date\);\s*void requestCheckHistorySync\(date\)/,
+    );
+    assert.match(
+      lunchBoxDailyChecklistSource,
+      /await requestCanonicalSync\(activeDate\);[\s\S]*?void requestCheckHistorySync\(activeDate\)/,
     );
   });
 
@@ -1353,10 +1689,12 @@ describe("lunch box count change log", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxDailySchoolChecklist, {
         clearChecks: clearDailySchoolChecks,
+        initialCheckHistoryPage: emptyDailyCheckHistoryPage,
         initialChecklist: {
           checkedSchoolIds: ["preservation-school"],
           grid: dailyGrid,
         },
+        loadCheckHistory: loadDailyCheckHistory,
         loadChecklist: loadDailyChecklist,
         setSchoolCheck: setDailySchoolCheck,
         today: "2026-07-29",
@@ -1390,6 +1728,7 @@ describe("lunch box count change log", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxDailySchoolChecklist, {
         clearChecks: clearDailySchoolChecks,
+        initialCheckHistoryPage: emptyDailyCheckHistoryPage,
         initialChecklist: {
           checkedSchoolIds: [],
           grid: {
@@ -1407,6 +1746,7 @@ describe("lunch box count change log", () => {
             })),
           },
         },
+        loadCheckHistory: loadDailyCheckHistory,
         loadChecklist: loadDailyChecklist,
         setSchoolCheck: setDailySchoolCheck,
         today: "2026-07-26",

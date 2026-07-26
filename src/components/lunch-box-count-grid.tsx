@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -72,6 +80,7 @@ export function LunchBoxCountGrid({
   const [edits, setEdits] = useState<Record<string, LunchBoxCountValues>>({});
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isStatusPrintDialogOpen, setIsStatusPrintDialogOpen] = useState(false);
   const [isLoadPending, startLoadTransition] = useTransition();
   const [isSavePending, startSaveTransition] = useTransition();
   const loadRequestIdRef = useRef(0);
@@ -282,52 +291,45 @@ export function LunchBoxCountGrid({
             ) : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               {editedCount > 0 || isPending ? (
-                <>
-                  <button
-                    type="button"
-                    disabled
-                    title={
-                      editedCount > 0
-                        ? "변경사항을 저장한 후 인쇄할 수 있습니다."
-                        : "날짜를 불러온 후 인쇄할 수 있습니다."
-                    }
-                    className={pdfButtonClassName}
-                  >
-                    PDF 인쇄
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    title={
-                      editedCount > 0
-                        ? "변경사항을 저장한 후 인쇄할 수 있습니다."
-                        : "날짜를 불러온 후 인쇄할 수 있습니다."
-                    }
-                    className={pdfButtonClassName}
-                  >
-                    현황표 인쇄
-                  </button>
-                </>
+                <button
+                  type="button"
+                  disabled
+                  title={
+                    editedCount > 0
+                      ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                      : "날짜를 불러온 후 인쇄할 수 있습니다."
+                  }
+                  className={pdfButtonClassName}
+                >
+                  PDF 인쇄
+                </button>
               ) : (
-                <>
-                  <Link
-                    href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={pdfButtonClassName}
-                  >
-                    PDF 인쇄
-                  </Link>
-                  <Link
-                    href={`/work-schedule/lunch-boxes/status-print?date=${grid.date}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={pdfButtonClassName}
-                  >
-                    현황표 인쇄
-                  </Link>
-                </>
+                <Link
+                  href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={pdfButtonClassName}
+                >
+                  PDF 인쇄
+                </Link>
               )}
+              <button
+                type="button"
+                aria-expanded={isStatusPrintDialogOpen}
+                aria-haspopup="dialog"
+                disabled={editedCount > 0 || isPending}
+                title={
+                  editedCount > 0
+                    ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                    : isPending
+                      ? "날짜를 불러온 후 인쇄할 수 있습니다."
+                      : undefined
+                }
+                onClick={() => setIsStatusPrintDialogOpen(true)}
+                className={pdfButtonClassName}
+              >
+                현황표 인쇄
+              </button>
               {onClose ? (
                 <button
                   type="button"
@@ -516,8 +518,113 @@ export function LunchBoxCountGrid({
           </footer>
         </>
       )}
+
+      {isStatusPrintDialogOpen ? (
+        <LunchBoxStatusPrintDialog
+          date={grid.date}
+          onClose={() => setIsStatusPrintDialogOpen(false)}
+        />
+      ) : null}
     </section>
   );
+}
+
+export function LunchBoxStatusPrintDialog({
+  date,
+  onClose,
+}: {
+  date: string;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dateLabel = formatLunchBoxPrintDateLabel(date);
+  const dailyHref = `/work-schedule/lunch-boxes/status-print?date=${date}`;
+
+  return (
+    <AppModal
+      className="max-w-lg"
+      describedBy={descriptionId}
+      labelledBy={titleId}
+      onClose={onClose}
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
+        <div className="min-w-0">
+          <h3
+            id={titleId}
+            className="break-words text-lg font-semibold leading-tight text-[var(--foreground)]"
+          >
+            {dateLabel} 현황표 인쇄
+          </h3>
+          <p
+            id={descriptionId}
+            className="mt-2 text-sm leading-5 text-[var(--text-muted)]"
+          >
+            인쇄할 기간을 선택하세요. 일주일치는 해당 주의 실제 공급일을
+            날짜별 한 페이지로 묶습니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="현황표 인쇄 선택 닫기"
+          onClick={onClose}
+          className={buttonClass(
+            buttonStyles.base,
+            buttonStyles.neutral,
+            "h-11 shrink-0 px-3 text-sm",
+          )}
+        >
+          닫기
+        </button>
+      </div>
+
+      <div className="grid gap-3 px-5 py-5 sm:grid-cols-2">
+        <Link
+          data-modal-initial-focus
+          href={dailyHref}
+          target="_blank"
+          rel="noreferrer"
+          onClick={onClose}
+          className={buttonClass(
+            buttonStyles.base,
+            buttonStyles.neutral,
+            "min-h-16 min-w-0 whitespace-normal px-4 py-3 text-center text-sm",
+          )}
+        >
+          <span>
+            <span className="block">{dateLabel}만 인쇄</span>
+            <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">
+              현황표 1페이지
+            </span>
+          </span>
+        </Link>
+        <Link
+          href={`${dailyHref}&period=week`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={onClose}
+          className={buttonClass(
+            buttonStyles.base,
+            buttonStyles.save,
+            "min-h-16 min-w-0 whitespace-normal px-4 py-3 text-center text-sm",
+          )}
+        >
+          <span>
+            <span className="block">일주일치 인쇄</span>
+            <span className="mt-1 block text-xs font-normal text-white/85">
+              공급일별 1페이지씩 묶음
+            </span>
+          </span>
+        </Link>
+      </div>
+    </AppModal>
+  );
+}
+
+function formatLunchBoxPrintDateLabel(date: string) {
+  const [, month, day] = date.split("-");
+
+  return `${Number(month)}월 ${Number(day)}일`;
 }
 
 function pickCountValues(

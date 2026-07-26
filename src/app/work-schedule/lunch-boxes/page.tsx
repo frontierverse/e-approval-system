@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   clearLunchBoxDailySchoolChecksAction,
   getLunchBoxCountGridAction,
+  getLunchBoxDailyCheckHistoryPageAction,
   getLunchBoxDailySchoolChecklistAction,
   saveLunchBoxCountsAction,
   setLunchBoxDailySchoolCheckAction,
@@ -17,6 +18,7 @@ import { requireUser } from "@/lib/auth";
 import {
   getLunchBoxCountChangeLogPage,
   getLunchBoxCountMonth,
+  getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
   getLunchBoxFixedCountList,
   getLunchBoxSchools,
@@ -25,6 +27,7 @@ import {
   getLunchBoxCountToday,
   isLunchBoxDate,
   normalizeLunchBoxCountChangeLogPage,
+  normalizeLunchBoxDailyCheckHistoryPage,
   normalizeLunchBoxMonth,
 } from "@/lib/lunch-box-counts-core";
 
@@ -39,6 +42,7 @@ type LunchBoxManagementTab =
   | "schools";
 
 type LunchBoxManagementSearchParams = {
+  checkLogPage?: string | string[];
   date?: string | string[];
   logPage?: string | string[];
   month?: string;
@@ -74,7 +78,10 @@ export default async function WorkScheduleLunchBoxesPage({
         {activeTab === "schools" ? (
           <LunchBoxSchoolPanel />
         ) : activeTab === "dailySchoolList" ? (
-          <LunchBoxDailySchoolChecklistPanel date={params.date} />
+          <LunchBoxDailySchoolChecklistPanel
+            checkLogPage={params.checkLogPage}
+            date={params.date}
+          />
         ) : activeTab === "schoolList" ? (
           <LunchBoxSchoolChecklistPanel />
         ) : (
@@ -124,22 +131,34 @@ async function LunchBoxSchoolChecklistPanel() {
 }
 
 async function LunchBoxDailySchoolChecklistPanel({
+  checkLogPage,
   date,
 }: {
+  checkLogPage: string | string[] | undefined;
   date: string | string[] | undefined;
 }) {
   const today = getLunchBoxCountToday();
   const requestedDate = Array.isArray(date) ? date[0] : date;
   const selectedDate =
     requestedDate && isLunchBoxDate(requestedDate) ? requestedDate : today;
-  const initialChecklist = await getLunchBoxDailySchoolChecklist({
-    date: selectedDate,
-  });
+  const selectedCheckLogPage =
+    normalizeLunchBoxDailyCheckHistoryPage(checkLogPage);
+  const [initialChecklist, initialCheckHistoryPage] = await Promise.all([
+    getLunchBoxDailySchoolChecklist({
+      date: selectedDate,
+    }),
+    getLunchBoxDailyCheckHistoryPage({
+      date: selectedDate,
+      page: selectedCheckLogPage,
+    }),
+  ]);
 
   return (
     <LunchBoxDailySchoolChecklist
       clearChecks={clearLunchBoxDailySchoolChecksAction}
+      initialCheckHistoryPage={initialCheckHistoryPage}
       initialChecklist={initialChecklist}
+      loadCheckHistory={getLunchBoxDailyCheckHistoryPageAction}
       loadChecklist={getLunchBoxDailySchoolChecklistAction}
       setSchoolCheck={setLunchBoxDailySchoolCheckAction}
       today={today}

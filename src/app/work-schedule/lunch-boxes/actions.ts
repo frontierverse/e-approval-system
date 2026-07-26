@@ -7,6 +7,7 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import {
   getLunchBoxCountGrid,
+  getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
@@ -26,6 +27,7 @@ import {
   type LunchBoxActionResult,
   type LunchBoxCountGrid,
   type LunchBoxCountRowInput,
+  type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
   type LunchBoxSchool,
   type LunchBoxSchoolFormState,
@@ -80,6 +82,25 @@ export async function getLunchBoxDailySchoolChecklistAction(
   return {
     ok: true,
     data: await getLunchBoxDailySchoolChecklist({ date }),
+  };
+}
+
+export async function getLunchBoxDailyCheckHistoryPageAction(
+  date: string,
+  page: number,
+): Promise<LunchBoxActionResult<LunchBoxDailyCheckHistoryPage>> {
+  await requireUser();
+
+  if (!isLunchBoxDate(date)) {
+    return {
+      ok: false,
+      error: "날짜를 다시 선택하세요.",
+    };
+  }
+
+  return {
+    ok: true,
+    data: await getLunchBoxDailyCheckHistoryPage({ date, page }),
   };
 }
 
@@ -172,6 +193,8 @@ export async function setLunchBoxDailySchoolCheckAction(
     });
 
     if (updatedCount) {
+      const changedAt = new Date();
+
       await tx.auditLog.create({
         data: {
           actorId: user.id,
@@ -191,6 +214,7 @@ export async function setLunchBoxDailySchoolCheckAction(
             schoolName: updatedCount.school.name,
             source: "lunch-box-daily-school-checklist",
           },
+          createdAt: changedAt,
         },
       });
 
@@ -326,25 +350,27 @@ export async function clearLunchBoxDailySchoolChecksAction(
       return;
     }
 
-    await tx.auditLog.create({
-      data: {
+    const clearedAt = new Date();
+
+    await tx.auditLog.createMany({
+      data: clearedCounts.map((count) => ({
         actorId: user.id,
         ...auditRequestData,
         action: AuditAction.UPDATE_LUNCH_BOX_COUNT,
         targetType: "LunchBoxDailySchoolCheck",
-        targetId: date,
-        message: `${date} 학교 준비 체크 ${clearedCounts.length}건을 모두 해제했습니다.`,
+        targetId: count.id,
+        message: `${date} ${count.school.name} 준비 상태를 미완료로 표시했습니다.`,
         metadata: {
           changeType: "lunchBoxDailySchoolCheck.clear",
           date,
-          schools: clearedCounts.map((count) => ({
-            countId: count.id,
-            schoolId: count.schoolId,
-            schoolName: count.school.name,
-          })),
+          nextChecked: false,
+          previousChecked: true,
+          schoolId: count.schoolId,
+          schoolName: count.school.name,
           source: "lunch-box-daily-school-checklist",
         },
-      },
+        createdAt: clearedAt,
+      })),
     });
   });
 

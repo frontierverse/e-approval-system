@@ -9,6 +9,7 @@ import {
   useTransition,
 } from "react";
 import { DatePickerInput } from "@/components/date-picker-input";
+import { LunchBoxDailyCheckHistory } from "@/components/lunch-box-daily-check-history";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   formatLunchBoxDateLabel,
@@ -25,6 +26,7 @@ import {
   splitLunchBoxChecklistColumns,
   type LunchBoxActionResult,
   type LunchBoxCountRow,
+  type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
   type LunchBoxServingCountField,
 } from "@/lib/lunch-box-counts-core";
@@ -40,7 +42,12 @@ type LunchBoxDailySchoolChecklistProps = {
   ) => Promise<
     LunchBoxActionResult<{ checkedSchoolIds: string[]; date: string }>
   >;
+  initialCheckHistoryPage: LunchBoxDailyCheckHistoryPage;
   initialChecklist: LunchBoxDailySchoolChecklistData;
+  loadCheckHistory: (
+    date: string,
+    page: number,
+  ) => Promise<LunchBoxActionResult<LunchBoxDailyCheckHistoryPage>>;
   loadChecklist: (
     date: string,
   ) => Promise<LunchBoxActionResult<LunchBoxDailySchoolChecklistData>>;
@@ -129,7 +136,9 @@ export function LunchBoxDailySchoolChecklist(
 
 function LunchBoxDailySchoolChecklistContent({
   clearChecks,
+  initialCheckHistoryPage,
   initialChecklist,
+  loadCheckHistory,
   loadChecklist,
   setSchoolCheck,
   today,
@@ -138,6 +147,11 @@ function LunchBoxDailySchoolChecklistContent({
   const [canonicalCheckedSchoolIds, setCanonicalCheckedSchoolIds] = useState(
     initialChecklist.checkedSchoolIds,
   );
+  const [checkHistoryPage, setCheckHistoryPage] = useState(
+    initialCheckHistoryPage,
+  );
+  const [checkHistoryError, setCheckHistoryError] = useState("");
+  const [isCheckHistoryPending, setIsCheckHistoryPending] = useState(false);
   const [error, setError] = useState("");
   const [pendingDate, setPendingDate] = useState<string | null>(null);
   const [pendingCheckStates, setPendingCheckStates] = useState<
@@ -151,6 +165,8 @@ function LunchBoxDailySchoolChecklistContent({
   const [realtimeSyncFailed, setRealtimeSyncFailed] = useState(false);
   const [isLoadPending, startLoadTransition] = useTransition();
   const activeDateRef = useRef(initialChecklist.grid.date);
+  const checkHistoryPageRef = useRef(initialCheckHistoryPage.page);
+  const checkHistoryRequestIdRef = useRef(0);
   const isMountedRef = useRef(true);
   const loadRequestIdRef = useRef(0);
   const pendingDateRef = useRef<string | null>(null);
@@ -267,9 +283,90 @@ function LunchBoxDailySchoolChecklistContent({
     [loadChecklist],
   );
 
+  const requestCheckHistoryPage = useCallback(
+    async ({
+      date,
+      page,
+      showPending = false,
+    }: {
+      date: string;
+      page: number;
+      showPending?: boolean;
+    }) => {
+      if (
+        !isMountedRef.current ||
+        pendingDateRef.current !== null ||
+        activeDateRef.current !== date
+      ) {
+        return false;
+      }
+
+      const requestId = ++checkHistoryRequestIdRef.current;
+
+      if (showPending) {
+        setCheckHistoryError("");
+        setIsCheckHistoryPending(true);
+      }
+
+      try {
+        const result = await loadCheckHistory(date, page);
+
+        if (
+          !isMountedRef.current ||
+          activeDateRef.current !== date ||
+          requestId !== checkHistoryRequestIdRef.current
+        ) {
+          return false;
+        }
+
+        if (!result.ok) {
+          setCheckHistoryError(result.error);
+          return false;
+        }
+
+        checkHistoryPageRef.current = result.data.page;
+        setCheckHistoryPage(result.data);
+        setCheckHistoryError("");
+        return true;
+      } catch {
+        if (
+          isMountedRef.current &&
+          activeDateRef.current === date &&
+          requestId === checkHistoryRequestIdRef.current
+        ) {
+          setCheckHistoryError(
+            "체크 변경 기록을 불러오지 못했습니다. 다시 시도하세요.",
+          );
+        }
+
+        return false;
+      } finally {
+        if (
+          isMountedRef.current &&
+          requestId === checkHistoryRequestIdRef.current
+        ) {
+          setIsCheckHistoryPending(false);
+        }
+      }
+    },
+    [loadCheckHistory],
+  );
+
+  const requestCheckHistorySync = useCallback(
+    (date: string) =>
+      requestCheckHistoryPage({
+        date,
+        page: checkHistoryPageRef.current,
+      }),
+    [requestCheckHistoryPage],
+  );
+
   useEffect(() => {
-    syncDailyChecklistDateInHistory(grid.date);
-  }, [grid.date]);
+    syncDailyChecklistStateInHistory(
+      grid.date,
+      checkHistoryPage.page,
+    );
+  }, [checkHistoryPage.page, grid.date]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -278,6 +375,7 @@ function LunchBoxDailySchoolChecklistContent({
     return () => {
       isMountedRef.current = false;
       activeDateRef.current = "";
+      checkHistoryRequestIdRef.current += 1;
       loadRequestIdRef.current += 1;
     };
   }, []);
@@ -351,6 +449,7 @@ function LunchBoxDailySchoolChecklistContent({
       changeDebounceTimer = window.setTimeout(() => {
         changeDebounceTimer = undefined;
         void requestCanonicalSync(date);
+        void requestCheckHistorySync(date);
       }, delay);
     }
 
@@ -466,7 +565,7 @@ function LunchBoxDailySchoolChecklistContent({
         handleVisibilityChange,
       );
     };
-  }, [grid.date, requestCanonicalSync]);
+  }, [grid.date, requestCanonicalSync, requestCheckHistorySync]);
 
   function loadDate(nextDate: string) {
     if (
@@ -483,16 +582,30 @@ function LunchBoxDailySchoolChecklistContent({
     pendingDateRef.current = nextDate;
     setPendingDate(nextDate);
     const requestId = ++loadRequestIdRef.current;
+    const historyRequestId = ++checkHistoryRequestIdRef.current;
+
+    setCheckHistoryError("");
+    setIsCheckHistoryPending(true);
 
     startLoadTransition(async () => {
       let loadedNextDate = false;
 
       try {
-        const result = await loadChecklist(nextDate);
+        const [checklistResult, historyResult] = await Promise.allSettled([
+          loadChecklist(nextDate),
+          loadCheckHistory(nextDate, 1),
+        ]);
 
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
+
+        if (checklistResult.status === "rejected") {
+          setError("학교 목록을 불러오지 못했습니다. 다시 시도하세요.");
+          return;
+        }
+
+        const result = checklistResult.value;
 
         if (!result.ok) {
           setError(result.error);
@@ -513,6 +626,39 @@ function LunchBoxDailySchoolChecklistContent({
         );
         setRealtimeConnectionStatus("connecting");
         setRealtimeSyncFailed(false);
+
+        if (historyRequestId === checkHistoryRequestIdRef.current) {
+          if (historyResult.status === "fulfilled") {
+            if (historyResult.value.ok) {
+              checkHistoryPageRef.current = historyResult.value.data.page;
+              setCheckHistoryPage(historyResult.value.data);
+              setCheckHistoryError("");
+            } else {
+              checkHistoryPageRef.current = 1;
+              setCheckHistoryPage({
+                logs: [],
+                page: 1,
+                pageSize: checkHistoryPage.pageSize,
+                total: 0,
+                totalPages: 1,
+              });
+              setCheckHistoryError(historyResult.value.error);
+            }
+          } else {
+            checkHistoryPageRef.current = 1;
+            setCheckHistoryPage({
+              logs: [],
+              page: 1,
+              pageSize: checkHistoryPage.pageSize,
+              total: 0,
+              totalPages: 1,
+            });
+            setCheckHistoryError(
+              "체크 변경 기록을 불러오지 못했습니다. 다시 시도하세요.",
+            );
+          }
+        }
+
         loadedNextDate = true;
       } catch {
         if (requestId === loadRequestIdRef.current) {
@@ -526,6 +672,13 @@ function LunchBoxDailySchoolChecklistContent({
           if (!loadedNextDate) {
             void requestCanonicalSync(activeDateRef.current);
           }
+        }
+
+        if (
+          isMountedRef.current &&
+          historyRequestId === checkHistoryRequestIdRef.current
+        ) {
+          setIsCheckHistoryPending(false);
         }
       }
     });
@@ -579,10 +732,11 @@ function LunchBoxDailySchoolChecklistContent({
         await requestCanonicalSync(activeDate);
       } catch {
         setRealtimeSyncFailed(true);
-      } finally {
-        pendingCheckStatesRef.current.delete(schoolId);
-        setPendingCheckStates(new Map(pendingCheckStatesRef.current));
       }
+
+      void requestCheckHistorySync(activeDate);
+      pendingCheckStatesRef.current.delete(schoolId);
+      setPendingCheckStates(new Map(pendingCheckStatesRef.current));
     }
   }
 
@@ -626,171 +780,206 @@ function LunchBoxDailySchoolChecklistContent({
         await requestCanonicalSync(activeDate);
       } catch {
         setRealtimeSyncFailed(true);
-      } finally {
-        isClearPendingRef.current = false;
-        setIsClearPending(false);
       }
+
+      void requestCheckHistorySync(activeDate);
+      isClearPendingRef.current = false;
+      setIsClearPending(false);
     }
   }
 
+  function handleCheckHistoryPageChange(nextPage: number) {
+    if (
+      nextPage < 1 ||
+      nextPage > checkHistoryPage.totalPages ||
+      nextPage === checkHistoryPage.page
+    ) {
+      return;
+    }
+
+    void requestCheckHistoryPage({
+      date: grid.date,
+      page: nextPage,
+      showPending: true,
+    });
+  }
+
+  function handleCheckHistoryRetry() {
+    void requestCheckHistoryPage({
+      date: grid.date,
+      page: checkHistoryPage.page,
+      showPending: true,
+    });
+  }
+
   return (
-    <section
-      aria-busy={isLoading || isClearPending || undefined}
-      aria-label={`${dateLabel} 날짜별 학교 체크 목록`}
-      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm"
-    >
-      <div className="flex flex-col gap-2 border-b border-[#eef1f5] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 className="text-sm font-semibold text-[#16181d]">
-              날짜별 학교 목록
-            </h2>
-            <p className="text-xs leading-5 tabular-nums text-[#697386]">
-              {dateLabel} · {rows.length}개교 · 총 {totalCount}개 · 보존식{" "}
-              {preservationTotal}개
-            </p>
-            {rows.length > 0 ? (
+    <>
+      <section
+        aria-busy={isLoading || isClearPending || undefined}
+        aria-label={`${dateLabel} 날짜별 학교 체크 목록`}
+        className="overflow-hidden rounded-md border border-[#d9dee7] bg-white shadow-sm"
+      >
+        <div className="flex flex-col gap-2 border-b border-[#eef1f5] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h2 className="text-sm font-semibold text-[#16181d]">
+                날짜별 학교 목록
+              </h2>
+              <p className="text-xs leading-5 tabular-nums text-[#697386]">
+                {dateLabel} · {rows.length}개교 · 총 {totalCount}개 · 보존식{" "}
+                {preservationTotal}개
+              </p>
+              {rows.length > 0 ? (
+                <p
+                  aria-live="polite"
+                  className="text-xs font-semibold tabular-nums text-[#196b69]"
+                >
+                  체크 {checkedCount}/{rows.length}
+                  {remainingCount === 0
+                    ? " (완료)"
+                    : ` (남은 ${remainingCount})`}
+                </p>
+              ) : null}
               <p
                 aria-live="polite"
-                className="text-xs font-semibold tabular-nums text-[#196b69]"
+                className={`text-xs font-medium ${realtimeStatusClassName}`}
               >
-                체크 {checkedCount}/{rows.length}
-                {remainingCount === 0
-                  ? " (완료)"
-                  : ` (남은 ${remainingCount})`}
+                {realtimeStatusLabel}
               </p>
-            ) : null}
-            <p
-              aria-live="polite"
-              className={`text-xs font-medium ${realtimeStatusClassName}`}
-            >
-              {realtimeStatusLabel}
+            </div>
+            <p className="mt-0.5 text-xs leading-5 text-[#697386]">
+              수량이 등록된 학교만 표시하며 체크·해제는 접속 중인 모든
+              직원 화면에 실시간 반영됩니다.
             </p>
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-[#697386]">
-            수량이 등록된 학교만 표시하며 체크·해제는 접속 중인 모든
-            직원 화면에 실시간 반영됩니다.
-          </p>
-        </div>
 
-        <div className="flex w-full flex-col gap-1.5 lg:w-auto">
-          <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-2 sm:grid-cols-[auto_10.5rem_auto]">
-            <button
-              type="button"
-              disabled={hasInteractionPending}
-              onClick={() => loadDate(shiftLunchBoxDate(grid.date, -1))}
-              className={navButtonClassName}
-            >
-              전날
-            </button>
-            <DatePickerInput
-              aria-label="학교 목록 날짜"
-              value={grid.date}
-              disabled={hasInteractionPending}
-              onChange={(event) => {
-                if (event.target.value) {
-                  loadDate(event.target.value);
-                }
-              }}
-              className="h-11 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-2 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] sm:px-3"
-            />
-            <button
-              type="button"
-              disabled={hasInteractionPending}
-              onClick={() => loadDate(shiftLunchBoxDate(grid.date, 1))}
-              className={navButtonClassName}
-            >
-              다음날
-            </button>
-          </div>
+          <div className="flex w-full flex-col gap-1.5 lg:w-auto">
+            <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-2 sm:grid-cols-[auto_10.5rem_auto]">
+              <button
+                type="button"
+                disabled={hasInteractionPending}
+                onClick={() => loadDate(shiftLunchBoxDate(grid.date, -1))}
+                className={navButtonClassName}
+              >
+                전날
+              </button>
+              <DatePickerInput
+                aria-label="학교 목록 날짜"
+                value={grid.date}
+                disabled={hasInteractionPending}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    loadDate(event.target.value);
+                  }
+                }}
+                className="h-11 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-2 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] sm:px-3"
+              />
+              <button
+                type="button"
+                disabled={hasInteractionPending}
+                onClick={() => loadDate(shiftLunchBoxDate(grid.date, 1))}
+                className={navButtonClassName}
+              >
+                다음날
+              </button>
+            </div>
 
-          <div className="flex min-h-5 items-center justify-between gap-2">
-            <p
-              aria-live="polite"
-              className="text-xs font-medium tabular-nums text-[#697386]"
-            >
-              {pendingDate
-                ? `${formatLunchBoxDateLabel(pendingDate)} 불러오는 중`
-                : isClearPending
-                  ? "이 날짜의 체크를 해제하는 중"
-                  : hasCheckSavePending
-                    ? `체크 상태 ${pendingSchoolIds.size}건 저장 중`
-                    : ""}
-            </p>
-            <div className="flex shrink-0 items-center gap-2">
-              {grid.date !== today ? (
-                <button
-                  type="button"
-                  disabled={hasInteractionPending}
-                  onClick={() => loadDate(today)}
-                  className={secondaryButtonClassName}
-                >
-                  오늘
-                </button>
-              ) : null}
-              {rows.length > 0 ? (
-                <button
-                  type="button"
-                  disabled={hasInteractionPending || checkedCount === 0}
-                  onClick={handleClearChecks}
-                  className={secondaryButtonClassName}
-                >
-                  {isClearPending ? "해제 중" : "이 날짜 체크 해제"}
-                </button>
-              ) : null}
+            <div className="flex min-h-5 items-center justify-between gap-2">
+              <p
+                aria-live="polite"
+                className="text-xs font-medium tabular-nums text-[#697386]"
+              >
+                {pendingDate
+                  ? `${formatLunchBoxDateLabel(pendingDate)} 불러오는 중`
+                  : isClearPending
+                    ? "이 날짜의 체크를 해제하는 중"
+                    : hasCheckSavePending
+                      ? `체크 상태 ${pendingSchoolIds.size}건 저장 중`
+                      : ""}
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                {grid.date !== today ? (
+                  <button
+                    type="button"
+                    disabled={hasInteractionPending}
+                    onClick={() => loadDate(today)}
+                    className={secondaryButtonClassName}
+                  >
+                    오늘
+                  </button>
+                ) : null}
+                {rows.length > 0 ? (
+                  <button
+                    type="button"
+                    disabled={hasInteractionPending || checkedCount === 0}
+                    onClick={handleClearChecks}
+                    className={secondaryButtonClassName}
+                  >
+                    {isClearPending ? "해제 중" : "이 날짜 체크 해제"}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {error ? (
-        <p
-          role="alert"
-          className="border-b border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f] sm:px-4"
-        >
-          {error}
-        </p>
-      ) : null}
-
-      {rows.length === 0 ? (
-        <LunchBoxDailyChecklistEmptyState dateLabel={dateLabel} />
-      ) : (
-        <>
-          <ul
-            className={[
-              "divide-y divide-[#eef1f5] xl:hidden",
-              isLoading || isClearPending ? "opacity-60" : "",
-            ].join(" ")}
+        {error ? (
+          <p
+            role="alert"
+            className="border-b border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f] sm:px-4"
           >
-            {rows.map((row) => (
-              <LunchBoxDailyChecklistChipRow
-                dateLabel={dateLabel}
-                disabled={
-                  isLoading ||
-                  isClearPending ||
-                  pendingSchoolIds.has(row.schoolId)
-                }
-                isChecked={checkedIdSet.has(row.schoolId)}
-                key={row.schoolId}
-                onToggle={handleToggle}
-                row={row}
-              />
-            ))}
-          </ul>
+            {error}
+          </p>
+        ) : null}
 
-          <LunchBoxDailyChecklistColumns
-            checkedIdSet={checkedIdSet}
-            dateLabel={dateLabel}
-            disabled={isLoading || isClearPending}
-            hasDeliveryDriver={hasDeliveryDriver}
-            onToggle={handleToggle}
-            pendingSchoolIds={pendingSchoolIds}
-            rows={rows}
-            visibleServingFields={visibleServingFields}
-          />
-        </>
-      )}
-    </section>
+        {rows.length === 0 ? (
+          <LunchBoxDailyChecklistEmptyState dateLabel={dateLabel} />
+        ) : (
+          <>
+            <ul
+              className={[
+                "divide-y divide-[#eef1f5] xl:hidden",
+                isLoading || isClearPending ? "opacity-60" : "",
+              ].join(" ")}
+            >
+              {rows.map((row) => (
+                <LunchBoxDailyChecklistChipRow
+                  dateLabel={dateLabel}
+                  disabled={
+                    isLoading ||
+                    isClearPending ||
+                    pendingSchoolIds.has(row.schoolId)
+                  }
+                  isChecked={checkedIdSet.has(row.schoolId)}
+                  key={row.schoolId}
+                  onToggle={handleToggle}
+                  row={row}
+                />
+              ))}
+            </ul>
+
+            <LunchBoxDailyChecklistColumns
+              checkedIdSet={checkedIdSet}
+              dateLabel={dateLabel}
+              disabled={isLoading || isClearPending}
+              hasDeliveryDriver={hasDeliveryDriver}
+              onToggle={handleToggle}
+              pendingSchoolIds={pendingSchoolIds}
+              rows={rows}
+              visibleServingFields={visibleServingFields}
+            />
+          </>
+        )}
+      </section>
+
+      <LunchBoxDailyCheckHistory
+        error={checkHistoryError}
+        historyPage={checkHistoryPage}
+        isPending={isCheckHistoryPending}
+        onPageChange={handleCheckHistoryPageChange}
+        onRetry={handleCheckHistoryRetry}
+      />
+    </>
   );
 }
 
@@ -1066,10 +1255,21 @@ function LunchBoxDailyChecklistEmptyState({
   );
 }
 
-function syncDailyChecklistDateInHistory(date: string) {
+function syncDailyChecklistStateInHistory(date: string, checkLogPage: number) {
   const url = new URL(window.location.href);
 
   url.searchParams.set("tab", "daily-school-list");
   url.searchParams.set("date", date);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+
+  if (checkLogPage > 1) {
+    url.searchParams.set("checkLogPage", String(checkLogPage));
+  } else {
+    url.searchParams.delete("checkLogPage");
+  }
+
+  window.history.replaceState(
+    null,
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
 }

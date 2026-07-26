@@ -20,7 +20,13 @@ type LunchBoxStatusPdfInput = {
   grid: LunchBoxCountGrid;
 };
 
+type LunchBoxWeeklyStatusPdfInput = {
+  generatedAt: Date;
+  grids: LunchBoxCountGrid[];
+};
+
 type StatusMetric = {
+  blankWhenZero?: boolean;
   label: string;
   unit: "개" | "인";
   value: number;
@@ -61,8 +67,31 @@ export async function createLunchBoxStatusPdf({
   generatedAt,
   grid,
 }: LunchBoxStatusPdfInput) {
-  if (!isLunchBoxDate(grid.date)) {
-    throw new Error("도시락 현황표 인쇄 날짜가 올바르지 않습니다.");
+  return createLunchBoxStatusPdfDocument({
+    generatedAt,
+    grids: [grid],
+  });
+}
+
+export async function createLunchBoxWeeklyStatusPdf({
+  generatedAt,
+  grids,
+}: LunchBoxWeeklyStatusPdfInput) {
+  return createLunchBoxStatusPdfDocument({ generatedAt, grids });
+}
+
+async function createLunchBoxStatusPdfDocument({
+  generatedAt,
+  grids,
+}: LunchBoxWeeklyStatusPdfInput) {
+  if (grids.length === 0) {
+    throw new Error("인쇄할 도시락 현황표가 없습니다.");
+  }
+
+  for (const grid of grids) {
+    if (!isLunchBoxDate(grid.date)) {
+      throw new Error("도시락 현황표 인쇄 날짜가 올바르지 않습니다.");
+    }
   }
 
   const pdf = await PDFDocument.create();
@@ -70,50 +99,53 @@ export async function createLunchBoxStatusPdf({
   const font = await pdf.embedFont(await readFile(koreanFontPath), {
     subset: false,
   });
-  const page = pdf.addPage(landscapeA4);
-  const summary = createLunchBoxStatusSummary(grid.rows);
-  const title = formatStatusTitle(grid.date);
-  const menu = formatLunchBoxMenuItems(grid.menuItems);
-
-  pdf.setTitle(title);
+  pdf.setTitle(formatStatusDocumentTitle(grids));
   pdf.setSubject("초등학교 및 병설유치원 방학도시락 일자별 현황표");
   pdf.setCreator("바자울 사내 시스템");
   pdf.setProducer("바자울 사내 시스템");
   pdf.setCreationDate(generatedAt);
   pdf.setModificationDate(generatedAt);
 
-  drawStatusSheet(page, font, {
-    groupDistribution: summary.groupDistribution,
-    menu,
-    metrics: [
-      {
-        label: "배송기사",
-        unit: "개",
-        value: summary.deliveryDriverCount,
-      },
-      {
-        label: "보존식",
-        unit: "개",
-        value: summary.preservationCount,
-      },
-      {
-        label: "병설도시락",
-        unit: "개",
-        value: summary.kindergartenCount,
-      },
-      {
-        label: "배식",
-        unit: "인",
-        value: summary.elementaryServingCount,
-      },
-      {
-        label: "전체",
-        unit: "인",
-        value: summary.totalCount,
-      },
-    ],
-    title,
-  });
+  for (const grid of grids) {
+    const page = pdf.addPage(landscapeA4);
+    const summary = createLunchBoxStatusSummary(grid.rows);
+    const title = formatStatusTitle(grid.date);
+    const menu = formatLunchBoxMenuItems(grid.menuItems);
+
+    drawStatusSheet(page, font, {
+      groupDistribution: summary.groupDistribution,
+      menu,
+      metrics: [
+        {
+          blankWhenZero: true,
+          label: "배송기사",
+          unit: "개",
+          value: summary.deliveryDriverCount,
+        },
+        {
+          label: "보존식",
+          unit: "개",
+          value: summary.preservationCount,
+        },
+        {
+          label: "병설도시락",
+          unit: "개",
+          value: summary.kindergartenCount,
+        },
+        {
+          label: "배식",
+          unit: "인",
+          value: summary.elementaryServingCount,
+        },
+        {
+          label: "전체",
+          unit: "인",
+          value: summary.totalCount,
+        },
+      ],
+      title,
+    });
+  }
 
   return pdf.save();
 }
@@ -232,6 +264,10 @@ function drawStatusSheet(
 
   metrics.forEach((metric, index) => {
     const width = summaryWidths[index];
+    const displayValue =
+      metric.blankWhenZero && metric.value === 0
+        ? ""
+        : `${formatCount(metric.value)}${metric.unit}`;
 
     drawCenteredText(page, font, metric.label, {
       color: ink,
@@ -242,11 +278,8 @@ function drawStatusSheet(
       y: summaryHeaderY,
       width,
     });
-    drawCenteredText(
-      page,
-      font,
-      `${formatCount(metric.value)}${metric.unit}`,
-      {
+    if (displayValue) {
+      drawCenteredText(page, font, displayValue, {
         color: ink,
         height: summaryValueHeight,
         maxWidth: width - 14,
@@ -254,8 +287,8 @@ function drawStatusSheet(
         x: summaryX,
         y: summaryValueY,
         width,
-      },
-    );
+      });
+    }
     summaryX += width;
   });
 
@@ -453,6 +486,19 @@ function formatStatusTitle(date: string) {
   const [, month, day] = date.split("-");
 
   return `${Number(month)}월 ${Number(day)}일 초등 및 병설 방학도시락 현황표`;
+}
+
+function formatStatusDocumentTitle(grids: LunchBoxCountGrid[]) {
+  if (grids.length === 1) {
+    return formatStatusTitle(grids[0].date);
+  }
+
+  const firstDate = grids[0].date;
+  const lastDate = grids[grids.length - 1].date;
+  const [, firstMonth, firstDay] = firstDate.split("-");
+  const [, lastMonth, lastDay] = lastDate.split("-");
+
+  return `${Number(firstMonth)}월 ${Number(firstDay)}일~${Number(lastMonth)}월 ${Number(lastDay)}일 초등 및 병설 방학도시락 현황표`;
 }
 
 function formatCount(value: number) {

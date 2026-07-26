@@ -38,6 +38,7 @@ export const lunchBoxServingCountFields = [
 
 export const lunchBoxPreservationClasses = [1, 2, 3, 4] as const;
 export const lunchBoxCountChangeLogPageSize = 10;
+export const lunchBoxDailyCheckHistoryPageSize = 10;
 
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const lunchBoxMenuMarkerPattern =
@@ -213,6 +214,36 @@ export type LunchBoxCountChangeLog = LunchBoxCountChangeDetail & {
 
 export type LunchBoxCountChangeLogPage = {
   logs: LunchBoxCountChangeLog[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type LunchBoxDailyCheckHistorySchool = {
+  schoolId: string;
+  schoolName: string;
+};
+
+export type LunchBoxDailyCheckHistoryLog = {
+  id: string;
+  date: string;
+  isChecked: boolean | null;
+  schools: LunchBoxDailyCheckHistorySchool[];
+  message: string | null;
+  createdAt: string;
+  actor: {
+    id: string;
+    name: string;
+    departmentName: string;
+    positionName: string;
+    profileImageStorageKey: string | null;
+    profileImageUpdatedAt: string | null;
+  };
+};
+
+export type LunchBoxDailyCheckHistoryPage = {
+  logs: LunchBoxDailyCheckHistoryLog[];
   page: number;
   pageSize: number;
   total: number;
@@ -405,6 +436,81 @@ export function parseLunchBoxCountChangeDetail(
   return { date, schools };
 }
 
+export function parseLunchBoxDailyCheckHistoryDetail(
+  metadata: unknown,
+  fallbackDate = "",
+) {
+  const metadataRecord = getLunchBoxMetadataRecord(metadata);
+  const metadataDate = metadataRecord?.date;
+  const date =
+    typeof metadataDate === "string" && isLunchBoxDate(metadataDate)
+      ? metadataDate
+      : isLunchBoxDate(fallbackDate)
+        ? fallbackDate
+        : "";
+  const isChecked =
+    typeof metadataRecord?.nextChecked === "boolean"
+      ? metadataRecord.nextChecked
+      : metadataRecord?.changeType === "lunchBoxDailySchoolCheck.clear"
+        ? false
+        : null;
+  const directSchoolId =
+    typeof metadataRecord?.schoolId === "string"
+      ? metadataRecord.schoolId.trim()
+      : "";
+  const directSchoolName =
+    typeof metadataRecord?.schoolName === "string"
+      ? metadataRecord.schoolName.trim()
+      : "";
+  const directSchool =
+    directSchoolId || directSchoolName
+      ? [
+          {
+            schoolId: directSchoolId,
+            schoolName: directSchoolName || "학교명 미상",
+          },
+        ]
+      : [];
+  const aggregateSchools = Array.isArray(metadataRecord?.schools)
+    ? metadataRecord.schools.flatMap((schoolValue) => {
+        const schoolRecord = getLunchBoxMetadataRecord(schoolValue);
+
+        if (!schoolRecord) {
+          return [];
+        }
+
+        const schoolId =
+          typeof schoolRecord.schoolId === "string"
+            ? schoolRecord.schoolId.trim()
+            : "";
+        const schoolName =
+          typeof schoolRecord.schoolName === "string" &&
+          schoolRecord.schoolName.trim()
+            ? schoolRecord.schoolName.trim()
+            : "";
+
+        return schoolId || schoolName
+          ? [
+              {
+                schoolId,
+                schoolName: schoolName || "학교명 미상",
+              },
+            ]
+          : [];
+      })
+    : [];
+  const schools = Array.from(
+    new Map(
+      [...directSchool, ...aggregateSchools].map((school) => [
+        `${school.schoolId}\u0000${school.schoolName}`,
+        school,
+      ]),
+    ).values(),
+  );
+
+  return { date, isChecked, schools };
+}
+
 export function normalizeLunchBoxPreservationCountForSave(
   values: { preservationCount?: unknown },
   previousCount: number,
@@ -425,6 +531,13 @@ export function normalizeLunchBoxDeliveryDriverCountForSave(
 
 export function getLunchBoxCountTotal(values: LunchBoxCountValues): number {
   return lunchBoxCountFields.reduce((sum, field) => sum + values[field], 0);
+}
+
+export function hasLunchBoxStatusData(grid: LunchBoxCountGrid) {
+  return (
+    grid.menuItems.length > 0 ||
+    grid.rows.some((row) => getLunchBoxCountTotal(row) > 0)
+  );
 }
 
 export function createLunchBoxStatusSummary(
@@ -841,6 +954,21 @@ export function shiftLunchBoxDate(value: string, days: number) {
   return formatLunchBoxDateValue(date);
 }
 
+export function getLunchBoxCalendarWeekDates(value: string) {
+  if (!isLunchBoxDate(value)) {
+    return [];
+  }
+
+  const startDate = shiftLunchBoxDate(
+    value,
+    -parseLunchBoxDateValue(value).getUTCDay(),
+  );
+
+  return Array.from({ length: 7 }, (_, index) =>
+    shiftLunchBoxDate(startDate, index),
+  );
+}
+
 export function formatLunchBoxDateLabel(value: string) {
   if (!isLunchBoxDate(value)) {
     return value;
@@ -869,6 +997,14 @@ export function normalizeLunchBoxMonth(value: string | undefined) {
 }
 
 export function normalizeLunchBoxCountChangeLogPage(
+  value: string | string[] | undefined,
+) {
+  const parsed = Number(Array.isArray(value) ? value[0] : value);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function normalizeLunchBoxDailyCheckHistoryPage(
   value: string | string[] | undefined,
 ) {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
