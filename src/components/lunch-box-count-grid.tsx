@@ -282,27 +282,51 @@ export function LunchBoxCountGrid({
             ) : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               {editedCount > 0 || isPending ? (
-                <button
-                  type="button"
-                  disabled
-                  title={
-                    editedCount > 0
-                      ? "변경사항을 저장한 후 인쇄할 수 있습니다."
-                      : "날짜를 불러온 후 인쇄할 수 있습니다."
-                  }
-                  className={pdfButtonClassName}
-                >
-                  PDF 인쇄
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled
+                    title={
+                      editedCount > 0
+                        ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                        : "날짜를 불러온 후 인쇄할 수 있습니다."
+                    }
+                    className={pdfButtonClassName}
+                  >
+                    PDF 인쇄
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    title={
+                      editedCount > 0
+                        ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                        : "날짜를 불러온 후 인쇄할 수 있습니다."
+                    }
+                    className={pdfButtonClassName}
+                  >
+                    현황표 인쇄
+                  </button>
+                </>
               ) : (
-                <Link
-                  href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={pdfButtonClassName}
-                >
-                  PDF 인쇄
-                </Link>
+                <>
+                  <Link
+                    href={`/work-schedule/lunch-boxes/print?date=${grid.date}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={pdfButtonClassName}
+                  >
+                    PDF 인쇄
+                  </Link>
+                  <Link
+                    href={`/work-schedule/lunch-boxes/status-print?date=${grid.date}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={pdfButtonClassName}
+                  >
+                    현황표 인쇄
+                  </Link>
+                </>
               )}
               {onClose ? (
                 <button

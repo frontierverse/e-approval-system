@@ -85,6 +85,20 @@ export type LunchBoxCountGrid = {
   rows: LunchBoxCountRow[];
 };
 
+export type LunchBoxStatusCountGroup = {
+  groupCount: number;
+  personCount: number;
+};
+
+export type LunchBoxStatusSummary = {
+  deliveryDriverCount: number;
+  elementaryServingCount: number;
+  groupDistribution: LunchBoxStatusCountGroup[];
+  kindergartenCount: number;
+  preservationCount: number;
+  totalCount: number;
+};
+
 export type LunchBoxCountRowInput = LunchBoxCountValues & {
   schoolId: string;
 };
@@ -353,6 +367,64 @@ export function normalizeLunchBoxDeliveryDriverCountForSave(
 
 export function getLunchBoxCountTotal(values: LunchBoxCountValues): number {
   return lunchBoxCountFields.reduce((sum, field) => sum + values[field], 0);
+}
+
+export function createLunchBoxStatusSummary(
+  rows: readonly LunchBoxCountRow[],
+): LunchBoxStatusSummary {
+  const groupCounts = new Map<number, number>();
+  let deliveryDriverCount = 0;
+  let elementaryServingCount = 0;
+  let kindergartenCount = 0;
+  let preservationCount = 0;
+
+  for (const row of rows) {
+    deliveryDriverCount += row.deliveryDriverCount;
+    preservationCount += row.preservationCount;
+
+    const servingCounts = [
+      row.class1Count,
+      row.class2Count,
+      row.class3Count,
+      row.class4Count,
+      row.linkedCount,
+    ];
+    const schoolServingCount = servingCounts.reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+
+    if (row.schoolType === "kindergarten") {
+      kindergartenCount += schoolServingCount;
+      continue;
+    }
+
+    elementaryServingCount += schoolServingCount;
+
+    for (const personCount of servingCounts) {
+      if (personCount < 1) {
+        continue;
+      }
+
+      groupCounts.set(personCount, (groupCounts.get(personCount) ?? 0) + 1);
+    }
+  }
+
+  return {
+    deliveryDriverCount,
+    elementaryServingCount,
+    groupDistribution: Array.from(
+      groupCounts,
+      ([personCount, groupCount]) => ({ groupCount, personCount }),
+    ).sort((left, right) => right.personCount - left.personCount),
+    kindergartenCount,
+    preservationCount,
+    totalCount:
+      deliveryDriverCount +
+      elementaryServingCount +
+      kindergartenCount +
+      preservationCount,
+  };
 }
 
 export function hasLunchBoxCountChanges(

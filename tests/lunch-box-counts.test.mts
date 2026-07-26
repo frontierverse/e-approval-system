@@ -335,11 +335,15 @@ describe("lunch box counts", () => {
       html,
       /href="\/work-schedule\/lunch-boxes\/print\?date=2026-07-29"/,
     );
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\/status-print\?date=2026-07-29"/,
+    );
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noreferrer"/);
     assert.match(
       html,
-      /PDF \uC778\uC1C4<\/a><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
+      /PDF \uC778\uC1C4<\/a><a[^>]*>\uD604\uD669\uD45C \uC778\uC1C4<\/a><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
     );
     assert.match(
       html,
@@ -350,6 +354,7 @@ describe("lunch box counts", () => {
       /class="[^"]*bg-\[#3b5f7f\][^"]*"[^>]*>PDF 인쇄<\/a>/,
     );
     assert.match(html, />PDF 인쇄</);
+    assert.match(html, />현황표 인쇄</);
     assert.match(html, /표를 좌우로 밀어 반별 개수를 입력하세요./);
     assert.match(
       html,
