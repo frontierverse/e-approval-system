@@ -24,6 +24,7 @@ import {
   type LunchBoxCountMonthDay,
   type LunchBoxCountRow,
   type LunchBoxFixedCountList,
+  type LunchBoxSchoolChecklistData,
   type LunchBoxSchool,
 } from "@/lib/lunch-box-counts-core";
 
@@ -235,6 +236,21 @@ export async function getLunchBoxFixedCountList(): Promise<LunchBoxFixedCountLis
     })),
     schools,
   });
+}
+
+export async function getLunchBoxSchoolChecklist(): Promise<LunchBoxSchoolChecklistData> {
+  const checks = await prisma.lunchBoxSchoolCheck.findMany({
+    where: {
+      school: { active: true },
+    },
+    select: {
+      schoolId: true,
+    },
+  });
+
+  return {
+    checkedSchoolIds: checks.map((check) => check.schoolId),
+  };
 }
 
 export async function getLunchBoxCountMonth({

@@ -9,6 +9,7 @@ import {
   getLunchBoxCountGrid,
   getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
+  getLunchBoxSchoolChecklist,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
 import {
@@ -29,6 +30,7 @@ import {
   type LunchBoxCountRowInput,
   type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
+  type LunchBoxSchoolChecklistData,
   type LunchBoxSchool,
   type LunchBoxSchoolFormState,
 } from "@/lib/lunch-box-counts-core";
@@ -82,6 +84,235 @@ export async function getLunchBoxDailySchoolChecklistAction(
   return {
     ok: true,
     data: await getLunchBoxDailySchoolChecklist({ date }),
+  };
+}
+
+export async function getLunchBoxSchoolChecklistAction(): Promise<
+  LunchBoxActionResult<LunchBoxSchoolChecklistData>
+> {
+  await requireUser();
+
+  return {
+    ok: true,
+    data: await getLunchBoxSchoolChecklist(),
+  };
+}
+
+export async function setLunchBoxSchoolCheckAction(
+  schoolId: string,
+  isChecked: boolean,
+): Promise<
+  LunchBoxActionResult<{
+    isChecked: boolean;
+    schoolId: string;
+  }>
+> {
+  const user = await requireUser();
+
+  if (
+    typeof schoolId !== "string" ||
+    schoolId.trim().length === 0 ||
+    schoolId.length > maxLunchBoxSchoolIdLength
+  ) {
+    return {
+      ok: false,
+      error: "학교를 다시 선택하세요.",
+    };
+  }
+
+  if (typeof isChecked !== "boolean") {
+    return {
+      ok: false,
+      error: "체크 상태를 다시 선택하세요.",
+    };
+  }
+
+  const normalizedSchoolId = schoolId.trim();
+  const auditRequestData = await getCurrentAuditLogRequestData();
+  const mutationResult = await prisma.$transaction(async (tx) => {
+    const [lockedSchool] = await tx.$queryRaw<
+      Array<{ active: boolean; id: string; name: string }>
+    >`
+      SELECT "id", "name", "active"
+      FROM "LunchBoxSchool"
+      WHERE "id" = ${normalizedSchoolId}
+      FOR UPDATE
+    `;
+
+    if (!lockedSchool?.active) {
+      return { kind: "unavailable" as const };
+    }
+
+    const hasAssignedCount = await tx.lunchBoxCount.findFirst({
+      where: {
+        schoolId: normalizedSchoolId,
+        OR: lunchBoxPositiveCountFilters,
+      },
+      select: { id: true },
+    });
+
+    if (!hasAssignedCount) {
+      return { kind: "unavailable" as const };
+    }
+
+    const currentCheck = await tx.lunchBoxSchoolCheck.findUnique({
+      where: { schoolId: normalizedSchoolId },
+      select: { id: true },
+    });
+
+    if ((isChecked && currentCheck) || (!isChecked && !currentCheck)) {
+      return {
+        kind: "current" as const,
+        schoolId: normalizedSchoolId,
+      };
+    }
+
+    const changedAt = new Date();
+
+    if (isChecked) {
+      const createdCheck = await tx.lunchBoxSchoolCheck.create({
+        data: {
+          schoolId: normalizedSchoolId,
+          checkedAt: changedAt,
+          checkedById: user.id,
+        },
+        select: { id: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.UPDATE_LUNCH_BOX_COUNT,
+          targetType: "LunchBoxSchoolCheck",
+          targetId: createdCheck.id,
+          message: `${lockedSchool.name} 전체 학교 목록 준비 상태를 완료로 표시했습니다.`,
+          metadata: {
+            changeType: "lunchBoxSchoolCheck.set",
+            nextChecked: true,
+            previousChecked: false,
+            schoolId: normalizedSchoolId,
+            schoolName: lockedSchool.name,
+            source: "lunch-box-school-checklist",
+          },
+          createdAt: changedAt,
+        },
+      });
+    } else {
+      if (!currentCheck) {
+        throw new Error("체크 해제할 준비 완료 상태를 찾을 수 없습니다.");
+      }
+
+      await tx.lunchBoxSchoolCheck.delete({
+        where: { id: currentCheck.id },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.UPDATE_LUNCH_BOX_COUNT,
+          targetType: "LunchBoxSchoolCheck",
+          targetId: currentCheck.id,
+          message: `${lockedSchool.name} 전체 학교 목록 준비 상태를 미완료로 표시했습니다.`,
+          metadata: {
+            changeType: "lunchBoxSchoolCheck.set",
+            nextChecked: false,
+            previousChecked: true,
+            schoolId: normalizedSchoolId,
+            schoolName: lockedSchool.name,
+            source: "lunch-box-school-checklist",
+          },
+          createdAt: changedAt,
+        },
+      });
+    }
+
+    return {
+      kind: "changed" as const,
+      schoolId: normalizedSchoolId,
+    };
+  });
+
+  if (mutationResult.kind === "unavailable") {
+    return {
+      ok: false,
+      error: "도시락 수량이 등록된 활성 학교를 찾을 수 없습니다.",
+    };
+  }
+
+  revalidatePath(lunchBoxManagementPath);
+
+  return {
+    ok: true,
+    data: {
+      isChecked,
+      schoolId: mutationResult.schoolId,
+    },
+  };
+}
+
+export async function clearLunchBoxSchoolChecksAction(): Promise<
+  LunchBoxActionResult<{ checkedSchoolIds: string[] }>
+> {
+  const user = await requireUser();
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  await prisma.$transaction(async (tx) => {
+    const checks = await tx.lunchBoxSchoolCheck.findMany({
+      select: {
+        id: true,
+        schoolId: true,
+        school: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (checks.length === 0) {
+      return;
+    }
+
+    const clearedAt = new Date();
+
+    await tx.lunchBoxSchoolCheck.deleteMany({
+      where: {
+        id: {
+          in: checks.map((check) => check.id),
+        },
+      },
+    });
+
+    await tx.auditLog.createMany({
+      data: checks.map((check) => ({
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_LUNCH_BOX_COUNT,
+        targetType: "LunchBoxSchoolCheck",
+        targetId: check.id,
+        message: `${check.school.name} 전체 학교 목록 준비 상태를 미완료로 표시했습니다.`,
+        metadata: {
+          changeType: "lunchBoxSchoolCheck.clear",
+          nextChecked: false,
+          previousChecked: true,
+          schoolId: check.schoolId,
+          schoolName: check.school.name,
+          source: "lunch-box-school-checklist",
+        },
+        createdAt: clearedAt,
+      })),
+    });
+  });
+
+  revalidatePath(lunchBoxManagementPath);
+
+  return {
+    ok: true,
+    data: {
+      checkedSchoolIds: [],
+    },
   };
 }
 

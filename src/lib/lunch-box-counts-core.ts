@@ -99,6 +99,10 @@ export type LunchBoxDailySchoolChecklistData = {
   grid: LunchBoxCountGrid;
 };
 
+export type LunchBoxSchoolChecklistData = {
+  checkedSchoolIds: string[];
+};
+
 export type LunchBoxStatusCountGroup = {
   groupCount: number;
   personCount: number;

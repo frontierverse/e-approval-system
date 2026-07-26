@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   clearLunchBoxDailySchoolChecksAction,
+  clearLunchBoxSchoolChecksAction,
   getLunchBoxCountGridAction,
   getLunchBoxDailyCheckHistoryPageAction,
   getLunchBoxDailySchoolChecklistAction,
+  getLunchBoxSchoolChecklistAction,
   saveLunchBoxCountsAction,
   setLunchBoxDailySchoolCheckAction,
+  setLunchBoxSchoolCheckAction,
 } from "@/app/work-schedule/lunch-boxes/actions";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
 import { LunchBoxCountChangeLog } from "@/components/lunch-box-count-change-log";
@@ -21,6 +24,7 @@ import {
   getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
   getLunchBoxFixedCountList,
+  getLunchBoxSchoolChecklist,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
 import {
@@ -125,9 +129,20 @@ async function LunchBoxCountPanel({
 }
 
 async function LunchBoxSchoolChecklistPanel() {
-  const fixedCountList = await getLunchBoxFixedCountList();
+  const [fixedCountList, initialChecklist] = await Promise.all([
+    getLunchBoxFixedCountList(),
+    getLunchBoxSchoolChecklist(),
+  ]);
 
-  return <LunchBoxSchoolChecklist fixedCountList={fixedCountList} />;
+  return (
+    <LunchBoxSchoolChecklist
+      clearChecks={clearLunchBoxSchoolChecksAction}
+      fixedCountList={fixedCountList}
+      initialChecklist={initialChecklist}
+      loadChecklist={getLunchBoxSchoolChecklistAction}
+      setSchoolCheck={setLunchBoxSchoolCheckAction}
+    />
+  );
 }
 
 async function LunchBoxDailySchoolChecklistPanel({

@@ -19,10 +19,7 @@ import {
 import { LunchBoxDailyCheckHistory } from "../src/components/lunch-box-daily-check-history.tsx";
 import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-management-skeleton.tsx";
 import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-school-checklist.tsx";
-import {
-  lunchBoxChecklistStorageKey,
-  LunchBoxSchoolChecklist,
-} from "../src/components/lunch-box-school-checklist.tsx";
+import { LunchBoxSchoolChecklist } from "../src/components/lunch-box-school-checklist.tsx";
 import {
   createLunchBoxCalendarDays,
   createLunchBoxFixedCountList,
@@ -31,7 +28,6 @@ import {
   formatLunchBoxShortDateLabel,
   normalizeLunchBoxChecklistIds,
   splitLunchBoxChecklistColumns,
-  toggleLunchBoxChecklistId,
   formatLunchBoxDateLabel,
   formatLunchBoxMenuItems,
   formatLunchBoxMonthLabel,
@@ -89,6 +85,13 @@ const lunchBoxDailyChecklistSource = readFileSync(
   ),
   "utf8",
 );
+const lunchBoxSchoolChecklistSource = readFileSync(
+  new URL(
+    "../src/components/lunch-box-school-checklist.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const lunchBoxDailyCheckHistorySource = readFileSync(
   new URL(
     "../src/components/lunch-box-daily-check-history.tsx",
@@ -142,6 +145,20 @@ const lunchBoxCheckHistoryIndexMigrationSource = readFileSync(
 const lunchBoxRealtimeRouteSource = readFileSync(
   new URL(
     "../src/app/api/lunch-boxes/checks/stream/route.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxSchoolRealtimeRouteSource = readFileSync(
+  new URL(
+    "../src/app/api/lunch-boxes/school-checks/stream/route.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxSchoolCheckMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260727100000_add_lunch_box_school_checks/migration.sql",
     import.meta.url,
   ),
   "utf8",
@@ -301,6 +318,34 @@ async function clearDailySchoolChecks(date: string) {
     data: {
       checkedSchoolIds: [],
       date,
+    },
+  };
+}
+
+async function loadSchoolChecklist() {
+  return {
+    ok: true as const,
+    data: {
+      checkedSchoolIds: [],
+    },
+  };
+}
+
+async function setSchoolCheck(schoolId: string, isChecked: boolean) {
+  return {
+    ok: true as const,
+    data: {
+      schoolId,
+      isChecked,
+    },
+  };
+}
+
+async function clearSchoolChecks() {
+  return {
+    ok: true as const,
+    data: {
+      checkedSchoolIds: [],
     },
   };
 }
@@ -1265,19 +1310,7 @@ describe("lunch box count change log", () => {
     assert.equal(formatLunchBoxPreservationChipLabel(0, 1), null);
   });
 
-  test("tracks checked schools without leaking stale ids", () => {
-    assert.equal(
-      lunchBoxChecklistStorageKey,
-      "lunch-box-school-checklist:fixed",
-    );
-    assert.deepEqual(
-      toggleLunchBoxChecklistId(["school-001"], "school-002"),
-      ["school-001", "school-002"],
-    );
-    assert.deepEqual(
-      toggleLunchBoxChecklistId(["school-001", "school-002"], "school-001"),
-      ["school-002"],
-    );
+  test("filters fixed-list checks to displayed schools", () => {
     assert.deepEqual(
       normalizeLunchBoxChecklistIds(
         ["school-001", "school-001", "removed-school", 7, null],
@@ -1626,6 +1659,58 @@ describe("lunch box count change log", () => {
     );
   });
 
+  test("persists fixed school-list checks in the database with realtime sync", () => {
+    assert.match(prismaSchemaSource, /model LunchBoxSchoolCheck/);
+    assert.match(prismaSchemaSource, /schoolId\s+String\s+@unique/);
+    assert.match(
+      prismaSchemaSource,
+      /@relation\("LunchBoxSchoolCheckChecker"[\s\S]*?onDelete: SetNull\)/,
+    );
+    assert.match(
+      lunchBoxSchoolCheckMigrationSource,
+      /CREATE TABLE "LunchBoxSchoolCheck"/,
+    );
+    assert.match(
+      lunchBoxSchoolCheckMigrationSource,
+      /ADD TABLE public\."LunchBoxSchoolCheck"/,
+    );
+    assert.match(
+      lunchBoxCountsSource,
+      /getLunchBoxSchoolChecklist[\s\S]*?prisma\.lunchBoxSchoolCheck\.findMany/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxSchoolCheckAction[\s\S]*?requireUser\(\)/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxSchoolCheckAction[\s\S]*?FOR UPDATE/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function setLunchBoxSchoolCheckAction[\s\S]*?targetType: "LunchBoxSchoolCheck"/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /function clearLunchBoxSchoolChecksAction[\s\S]*?lunchBoxSchoolCheck\.deleteMany/,
+    );
+    assert.match(lunchBoxSchoolRealtimeRouteSource, /getSessionUserId\(\)/);
+    assert.match(
+      lunchBoxSchoolRealtimeRouteSource,
+      /"postgres_changes"[\s\S]*?table: "LunchBoxSchoolCheck"/,
+    );
+    assert.doesNotMatch(lunchBoxSchoolChecklistSource, /localStorage/);
+    assert.doesNotMatch(lunchBoxSchoolChecklistSource, /useSyncExternalStore/);
+    assert.match(
+      lunchBoxSchoolChecklistSource,
+      /new EventSource\("\/api\/lunch-boxes\/school-checks\/stream"\)/,
+    );
+    assert.match(
+      lunchBoxSchoolChecklistSource,
+      /체크·해제는 접속 중인 모든\s*직원 화면에 실시간 반영됩니다/,
+    );
+  });
+
   test("adds a daily school-list tab to the right of the fixed list", () => {
     const fixedListTabIndex = lunchBoxPageSource.indexOf(
       'label="도시락 학교 목록"',
@@ -1922,13 +2007,21 @@ describe("lunch box count change log", () => {
 
   test("renders every school at once with counts next to each name", () => {
     const html = renderToStaticMarkup(
-      React.createElement(LunchBoxSchoolChecklist, { fixedCountList }),
+      React.createElement(LunchBoxSchoolChecklist, {
+        clearChecks: clearSchoolChecks,
+        fixedCountList,
+        initialChecklist: { checkedSchoolIds: ["school-001"] },
+        loadChecklist: loadSchoolChecklist,
+        setSchoolCheck,
+      }),
     );
 
     assert.match(html, /도시락 학교 목록/);
     assert.match(html, /보존식 1\(1반\)/);
-    assert.match(html, /체크 0\/2/);
+    assert.match(html, /체크 1\/2/);
     assert.match(html, /type="checkbox"/);
+    assert.match(html, /checked=""/);
+    assert.match(html, /실시간 연결 중/);
     // 날짜 이동 없이 전체를 한 번에 보여준다.
     assert.doesNotMatch(html, /전날/);
     assert.doesNotMatch(html, /다음날/);
@@ -1975,6 +2068,7 @@ describe("lunch box count change log", () => {
   test("shows an empty checklist state when no count is registered", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxSchoolChecklist, {
+        clearChecks: clearSchoolChecks,
         fixedCountList: {
           hasDeliveryDriver: false,
           idleSchoolNames: [],
@@ -1984,6 +2078,9 @@ describe("lunch box count change log", () => {
           varyingSchoolNames: [],
           visibleServingFields: [],
         },
+        initialChecklist: { checkedSchoolIds: [] },
+        loadChecklist: loadSchoolChecklist,
+        setSchoolCheck,
       }),
     );
 

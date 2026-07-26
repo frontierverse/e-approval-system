@@ -134,6 +134,7 @@ model User {
   youthDischargeExtensions YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
   cafeComplianceNotes  CafeComplianceNote[]  @relation("CafeComplianceNoteCreator")
   checkedLunchBoxCounts LunchBoxCount[] @relation("LunchBoxCountChecker")
+  checkedLunchBoxSchools LunchBoxSchoolCheck[] @relation("LunchBoxSchoolCheckChecker")
 
   @@index([departmentId])
   @@index([positionId])
@@ -642,9 +643,23 @@ model LunchBoxSchool {
   updatedAt         DateTime @updatedAt
 
   counts LunchBoxCount[]
+  checklistCheck LunchBoxSchoolCheck?
 
   @@unique([name])
   @@index([type])
+}
+
+model LunchBoxSchoolCheck {
+  id          String         @id @default(cuid())
+  schoolId    String         @unique
+  school      LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  checkedAt   DateTime
+  checkedById String?
+  checkedBy   User?          @relation("LunchBoxSchoolCheckChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([checkedById])
 }
 
 model LunchBoxCount {
