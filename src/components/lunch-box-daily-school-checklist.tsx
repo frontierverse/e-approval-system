@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -12,18 +13,19 @@ import { DatePickerInput } from "@/components/date-picker-input";
 import { LunchBoxDailyCheckHistory } from "@/components/lunch-box-daily-check-history";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
+  createLunchBoxDailyChecklistView,
   formatLunchBoxDateLabel,
   formatLunchBoxPreservationCellTitle,
   formatLunchBoxPreservationChipLabel,
   getLunchBoxCountTotal,
   getLunchBoxSchoolTypeLabel,
   lunchBoxCountFieldLabels,
+  lunchBoxDailyChecklistShortFieldLabels,
   lunchBoxServingCountFields,
   normalizeLunchBoxChecklistIds,
   resolveLunchBoxDisplayedChecklistIds,
   setLunchBoxChecklistIdChecked,
   shiftLunchBoxDate,
-  splitLunchBoxChecklistColumns,
   type LunchBoxActionResult,
   type LunchBoxCountRow,
   type LunchBoxDailyCheckHistoryPage,
@@ -72,7 +74,6 @@ type RealtimeConnectionStatus =
   | "offline"
   | "paused"
   | "reconnecting";
-export const lunchBoxDailyChecklistColumnCount = 3;
 
 const realtimeChangeDebounceMs = 75;
 const realtimeFallbackSyncIntervalMs = 5_000;
@@ -94,6 +95,11 @@ const secondaryButtonClassName = buttonClass(
   buttonStyles.cancel,
   "h-11 shrink-0 px-3 text-xs",
 );
+const pdfButtonClassName = buttonClass(
+  buttonStyles.base,
+  buttonStyles.save,
+  "h-11 shrink-0 px-3 text-xs",
+);
 const checkedRowClassName = [
   "hover:bg-[#eef7f6]",
   "has-[:checked]:bg-[#e8f5ed] has-[:checked]:hover:bg-[#e8f5ed]",
@@ -111,13 +117,6 @@ const tableRowClassName = [
 ].join(" ");
 const tableHeadClassName =
   "border-b border-[#e2e7ed] pb-1 text-[11px] font-semibold whitespace-nowrap text-[#697386]";
-const tableHeadShortLabels: Record<LunchBoxServingCountField, string> = {
-  class1Count: "1반",
-  class2Count: "2반",
-  class3Count: "3반",
-  class4Count: "4반",
-  linkedCount: "연계",
-};
 const numericCellClassName =
   "px-1 text-right text-[13px] leading-4 tabular-nums text-[#16181d]";
 const chipClassName =
@@ -176,56 +175,62 @@ function LunchBoxDailySchoolChecklistContent({
     createLunchBoxRealtimeSyncCoordinator(initialChecklist.grid.date),
   );
 
-  const rows = useMemo(
-    () => grid.rows.filter((row) => getLunchBoxCountTotal(row) > 0),
-    [grid.rows],
-  );
-  const visibleServingFields = useMemo(
+  const canonicalChecklistView = useMemo(
     () =>
-      lunchBoxServingCountFields.filter((field) =>
-        rows.some((row) => row[field] > 0),
-      ),
-    [rows],
-  );
-  const hasDeliveryDriver = useMemo(
-    () => rows.some((row) => row.deliveryDriverCount > 0),
-    [rows],
-  );
-  const totalCount = useMemo(
-    () => rows.reduce((sum, row) => sum + getLunchBoxCountTotal(row), 0),
-    [rows],
-  );
-  const preservationTotal = useMemo(
-    () => rows.reduce((sum, row) => sum + row.preservationCount, 0),
-    [rows],
+      createLunchBoxDailyChecklistView({
+        checkedSchoolIds: canonicalCheckedSchoolIds,
+        grid,
+      }),
+    [canonicalCheckedSchoolIds, grid],
   );
   const checkedIds = useMemo(
     () =>
       resolveLunchBoxDisplayedChecklistIds({
-        canonicalCheckedIds: canonicalCheckedSchoolIds,
+        canonicalCheckedIds: canonicalChecklistView.checkedSchoolIds,
         clearPending: isClearPending,
         pendingChecks: pendingCheckStates,
-        rows,
+        rows: canonicalChecklistView.rows,
       }),
     [
-      canonicalCheckedSchoolIds,
+      canonicalChecklistView,
       isClearPending,
       pendingCheckStates,
-      rows,
     ],
   );
+  const checklistView = useMemo(
+    () =>
+      createLunchBoxDailyChecklistView({
+        checkedSchoolIds: checkedIds,
+        grid,
+      }),
+    [checkedIds, grid],
+  );
+  const {
+    checkedCount,
+    columns,
+    dateLabel,
+    hasDeliveryDriver,
+    progressLabel,
+    rows,
+    summaryLabel,
+    visibleServingFields,
+  } = checklistView;
   const checkedIdSet = useMemo(() => new Set(checkedIds), [checkedIds]);
   const pendingSchoolIds = useMemo(
     () => new Set(pendingCheckStates.keys()),
     [pendingCheckStates],
   );
-  const checkedCount = checkedIds.length;
-  const remainingCount = rows.length - checkedCount;
   const isLoading = isLoadPending || pendingDate !== null;
   const hasCheckSavePending = pendingCheckStates.size > 0;
   const hasInteractionPending =
     isLoading || hasCheckSavePending || isClearPending;
-  const dateLabel = formatLunchBoxDateLabel(grid.date);
+  const interactionStatusLabel = pendingDate
+    ? `${formatLunchBoxDateLabel(pendingDate)} 불러오는 중`
+    : isClearPending
+      ? "이 날짜의 체크를 해제하는 중"
+      : hasCheckSavePending
+        ? `체크 상태 ${pendingSchoolIds.size}건 저장 중`
+        : "";
   const realtimeStatusLabel = realtimeSyncFailed
     ? "최신 상태 동기화 재시도 중"
     : realtimeStatusLabels[realtimeConnectionStatus];
@@ -826,18 +831,14 @@ function LunchBoxDailySchoolChecklistContent({
                 날짜별 학교 목록
               </h2>
               <p className="text-xs leading-5 tabular-nums text-[#697386]">
-                {dateLabel} · {rows.length}개교 · 총 {totalCount}개 · 보존식{" "}
-                {preservationTotal}개
+                {summaryLabel}
               </p>
-              {rows.length > 0 ? (
+              {progressLabel ? (
                 <p
                   aria-live="polite"
                   className="text-xs font-semibold tabular-nums text-[#196b69]"
                 >
-                  체크 {checkedCount}/{rows.length}
-                  {remainingCount === 0
-                    ? " (완료)"
-                    : ` (남은 ${remainingCount})`}
+                  {progressLabel}
                 </p>
               ) : null}
               <p
@@ -884,20 +885,36 @@ function LunchBoxDailySchoolChecklistContent({
               </button>
             </div>
 
-            <div className="flex min-h-5 items-center justify-between gap-2">
-              <p
-                aria-live="polite"
-                className="text-xs font-medium tabular-nums text-[#697386]"
-              >
-                {pendingDate
-                  ? `${formatLunchBoxDateLabel(pendingDate)} 불러오는 중`
-                  : isClearPending
-                    ? "이 날짜의 체크를 해제하는 중"
-                    : hasCheckSavePending
-                      ? `체크 상태 ${pendingSchoolIds.size}건 저장 중`
-                      : ""}
-              </p>
+            <div className="flex min-h-5 flex-wrap items-center justify-end gap-2">
+              {interactionStatusLabel ? (
+                <p
+                  aria-live="polite"
+                  className="mr-auto min-w-0 basis-full text-xs font-medium tabular-nums text-[#697386] sm:basis-auto"
+                >
+                  {interactionStatusLabel}
+                </p>
+              ) : null}
               <div className="flex shrink-0 items-center gap-2">
+                {hasInteractionPending ? (
+                  <button
+                    type="button"
+                    disabled
+                    title="최신 체크 상태 저장 후 인쇄할 수 있습니다."
+                    className={pdfButtonClassName}
+                  >
+                    PDF 인쇄
+                  </button>
+                ) : (
+                  <Link
+                    aria-label={`${dateLabel} 날짜별 학교 목록 PDF 인쇄`}
+                    href={`/work-schedule/lunch-boxes/daily-school-print?date=${grid.date}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={pdfButtonClassName}
+                  >
+                    PDF 인쇄
+                  </Link>
+                )}
                 {grid.date !== today ? (
                   <button
                     type="button"
@@ -960,12 +977,12 @@ function LunchBoxDailySchoolChecklistContent({
 
             <LunchBoxDailyChecklistColumns
               checkedIdSet={checkedIdSet}
+              columns={columns}
               dateLabel={dateLabel}
               disabled={isLoading || isClearPending}
               hasDeliveryDriver={hasDeliveryDriver}
               onToggle={handleToggle}
               pendingSchoolIds={pendingSchoolIds}
-              rows={rows}
               visibleServingFields={visibleServingFields}
             />
           </>
@@ -985,28 +1002,23 @@ function LunchBoxDailySchoolChecklistContent({
 
 function LunchBoxDailyChecklistColumns({
   checkedIdSet,
+  columns,
   dateLabel,
   disabled,
   hasDeliveryDriver,
   onToggle,
   pendingSchoolIds,
-  rows,
   visibleServingFields,
 }: {
   checkedIdSet: Set<string>;
+  columns: LunchBoxCountRow[][];
   dateLabel: string;
   disabled: boolean;
   hasDeliveryDriver: boolean;
   onToggle: ToggleHandler;
   pendingSchoolIds: Set<string>;
-  rows: LunchBoxCountRow[];
   visibleServingFields: LunchBoxServingCountField[];
 }) {
-  const columns = splitLunchBoxChecklistColumns(
-    rows,
-    lunchBoxDailyChecklistColumnCount,
-  );
-
   return (
     <div
       className={[
@@ -1042,7 +1054,7 @@ function LunchBoxDailyChecklistColumns({
                   scope="col"
                   title={lunchBoxCountFieldLabels[field]}
                 >
-                  {tableHeadShortLabels[field]}
+                  {lunchBoxDailyChecklistShortFieldLabels[field]}
                 </th>
               ))}
               {hasDeliveryDriver ? (

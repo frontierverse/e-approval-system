@@ -22,6 +22,7 @@ import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-
 import { LunchBoxSchoolChecklist } from "../src/components/lunch-box-school-checklist.tsx";
 import {
   createLunchBoxCalendarDays,
+  createLunchBoxDailyChecklistView,
   createLunchBoxFixedCountList,
   formatLunchBoxPreservationCellTitle,
   formatLunchBoxPreservationChipLabel,
@@ -1796,6 +1797,20 @@ describe("lunch box count change log", () => {
     assert.match(html, /aria-label="학교 목록 날짜"/);
     assert.match(html, />전날</);
     assert.match(html, />다음날</);
+    assert.match(
+      html,
+      /href="\/work-schedule\/lunch-boxes\/daily-school-print\?date=2026-07-29"/,
+    );
+    assert.match(
+      html,
+      /aria-label="2026\.07\.29\.\(수\) 날짜별 학교 목록 PDF 인쇄"/,
+    );
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /rel="noreferrer"/);
+    assert.match(
+      html,
+      /class="[^"]*bg-\[#3b5f7f\][^"]*h-11[^"]*"[^>]*>PDF 인쇄<\/a>/,
+    );
     assert.match(html, /type="checkbox"/);
     assert.match(html, /checked=""/);
     assert.match(
@@ -1806,6 +1821,113 @@ describe("lunch box count change log", () => {
     assert.match(
       html,
       /aria-label="보존식만있는초 2026\.07\.29\.\(수\) 준비 완료"/,
+    );
+  });
+
+  test("shares the daily checklist rows, dynamic columns, totals, and checks", () => {
+    const createDailyRow = (
+      schoolId: string,
+      schoolName: string,
+      values: Partial<LunchBoxCountGridData["rows"][number]> = {},
+    ): LunchBoxCountGridData["rows"][number] => ({
+      class1Count: 0,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      deliveryDriverCount: 0,
+      linkedCount: 0,
+      preservationClass: null,
+      preservationCount: 0,
+      schoolId,
+      schoolName,
+      schoolType: "elementary",
+      ...values,
+    });
+    const view = createLunchBoxDailyChecklistView({
+      checkedSchoolIds: [
+        "preservation-school",
+        "stale-school",
+        "preservation-school",
+      ],
+      grid: {
+        date: "2026-07-29",
+        menuItems: [],
+        rows: [
+          createDailyRow("zero-school", "수량없는초"),
+          createDailyRow("preservation-school", "보존식만있는초", {
+            preservationClass: 2,
+            preservationCount: 1,
+          }),
+          createDailyRow("driver-school", "기사도시락만있는초", {
+            deliveryDriverCount: 1,
+          }),
+          createDailyRow("class-school", "2반도시락초", {
+            class2Count: 7,
+          }),
+        ],
+      },
+    });
+
+    assert.deepEqual(
+      view.rows.map((row) => row.schoolId),
+      ["preservation-school", "driver-school", "class-school"],
+    );
+    assert.deepEqual(view.checkedSchoolIds, ["preservation-school"]);
+    assert.deepEqual(view.visibleServingFields, ["class2Count"]);
+    assert.deepEqual(
+      view.columns.map((column) => column.map((row) => row.schoolId)),
+      [
+        ["preservation-school"],
+        ["driver-school"],
+        ["class-school"],
+      ],
+    );
+    assert.equal(view.hasDeliveryDriver, true);
+    assert.equal(view.totalCount, 9);
+    assert.equal(view.preservationTotal, 1);
+    assert.equal(
+      view.summaryLabel,
+      "2026.07.29.(수) · 3개교 · 총 9개 · 보존식 1개",
+    );
+    assert.equal(view.progressLabel, "체크 1/3 (남은 2)");
+  });
+
+  test("keeps the original order while splitting 41 schools into 14, 14, and 13", () => {
+    const view = createLunchBoxDailyChecklistView({
+      checkedSchoolIds: [],
+      grid: {
+        date: "2026-07-29",
+        menuItems: [],
+        rows: Array.from({ length: 41 }, (_, index) => ({
+          class1Count: 1,
+          class2Count: 0,
+          class3Count: 0,
+          class4Count: 0,
+          deliveryDriverCount: 0,
+          linkedCount: 0,
+          preservationClass: null,
+          preservationCount: 0,
+          schoolId: `school-${index + 1}`,
+          schoolName: `학교 ${index + 1}`,
+          schoolType: "elementary" as const,
+        })),
+      },
+    });
+
+    assert.deepEqual(
+      view.columns.map((column) => column.length),
+      [14, 14, 13],
+    );
+    assert.deepEqual(
+      view.columns.map((column) => [
+        column[0].schoolId,
+        column[column.length - 1].schoolId,
+      ]),
+      [
+        ["school-1", "school-14"],
+        ["school-15", "school-28"],
+        ["school-29", "school-41"],
+      ],
     );
   });
 

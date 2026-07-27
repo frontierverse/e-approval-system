@@ -36,6 +36,18 @@ export const lunchBoxServingCountFields = [
   "linkedCount",
 ] as const;
 
+export const lunchBoxDailyChecklistColumnCount = 3;
+export const lunchBoxDailyChecklistShortFieldLabels: Record<
+  (typeof lunchBoxServingCountFields)[number],
+  string
+> = {
+  class1Count: "1반",
+  class2Count: "2반",
+  class3Count: "3반",
+  class4Count: "4반",
+  linkedCount: "연계",
+};
+
 export const lunchBoxPreservationClasses = [1, 2, 3, 4] as const;
 export const lunchBoxCountChangeLogPageSize = 10;
 export const lunchBoxDailyCheckHistoryPageSize = 10;
@@ -97,6 +109,21 @@ export type LunchBoxCountGrid = {
 export type LunchBoxDailySchoolChecklistData = {
   checkedSchoolIds: string[];
   grid: LunchBoxCountGrid;
+};
+
+export type LunchBoxDailyChecklistView = {
+  checkedCount: number;
+  checkedSchoolIds: string[];
+  columns: LunchBoxCountRow[][];
+  dateLabel: string;
+  hasDeliveryDriver: boolean;
+  preservationTotal: number;
+  progressLabel: string | null;
+  remainingCount: number;
+  rows: LunchBoxCountRow[];
+  summaryLabel: string;
+  totalCount: number;
+  visibleServingFields: LunchBoxServingCountField[];
 };
 
 export type LunchBoxSchoolChecklistData = {
@@ -798,6 +825,55 @@ export function splitLunchBoxChecklistColumns<Row>(
   }
 
   return columns.length > 0 ? columns : [[]];
+}
+
+export function createLunchBoxDailyChecklistView({
+  checkedSchoolIds,
+  grid,
+}: LunchBoxDailySchoolChecklistData): LunchBoxDailyChecklistView {
+  const rows = grid.rows.filter((row) => getLunchBoxCountTotal(row) > 0);
+  const normalizedCheckedSchoolIds = normalizeLunchBoxChecklistIds(
+    checkedSchoolIds,
+    rows,
+  );
+  const checkedCount = normalizedCheckedSchoolIds.length;
+  const remainingCount = rows.length - checkedCount;
+  const totalCount = rows.reduce(
+    (sum, row) => sum + getLunchBoxCountTotal(row),
+    0,
+  );
+  const preservationTotal = rows.reduce(
+    (sum, row) => sum + row.preservationCount,
+    0,
+  );
+  const dateLabel = formatLunchBoxDateLabel(grid.date);
+
+  return {
+    checkedCount,
+    checkedSchoolIds: normalizedCheckedSchoolIds,
+    columns: splitLunchBoxChecklistColumns(
+      rows,
+      lunchBoxDailyChecklistColumnCount,
+    ),
+    dateLabel,
+    hasDeliveryDriver: rows.some((row) => row.deliveryDriverCount > 0),
+    preservationTotal,
+    progressLabel:
+      rows.length === 0
+        ? null
+        : `체크 ${checkedCount}/${rows.length}${
+            remainingCount === 0
+              ? " (완료)"
+              : ` (남은 ${remainingCount})`
+          }`,
+    remainingCount,
+    rows,
+    summaryLabel: `${dateLabel} · ${rows.length}개교 · 총 ${totalCount}개 · 보존식 ${preservationTotal}개`,
+    totalCount,
+    visibleServingFields: lunchBoxServingCountFields.filter((field) =>
+      rows.some((row) => row[field] > 0),
+    ),
+  };
 }
 
 export function formatLunchBoxPreservationCellTitle(
