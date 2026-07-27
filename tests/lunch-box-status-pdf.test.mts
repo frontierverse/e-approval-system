@@ -37,15 +37,23 @@ const july27Grid: LunchBoxCountGrid = {
       }),
     ),
     createRow({
-      class1Count: 9,
-      schoolId: "kindergarten-1",
-      schoolName: "병설유치원 1",
+      class1Count: 8,
+      schoolId: "dongnam-kindergarten",
+      schoolName: "동남초 병설유치원",
       schoolType: "kindergarten",
     }),
     createRow({
-      class1Count: 14,
-      schoolId: "kindergarten-2",
-      schoolName: "병설유치원 2",
+      class1Count: 11,
+      preservationClass: null,
+      preservationCount: 1,
+      schoolId: "bucheon-kindergarten",
+      schoolName: "부천초 병설유치원",
+      schoolType: "kindergarten",
+    }),
+    createRow({
+      class1Count: 3,
+      schoolId: "buk-kindergarten",
+      schoolName: "북초 병설유치원",
       schoolType: "kindergarten",
     }),
   ],
@@ -96,8 +104,8 @@ describe("lunch box status PDF", () => {
         { groupCount: 2, personCount: 12 },
         { groupCount: 1, personCount: 9 },
       ],
-      kindergartenCount: 23,
-      preservationCount: 9,
+      kindergartenCount: 22,
+      preservationCount: 10,
       totalCount: 266,
     });
   });
@@ -126,9 +134,9 @@ describe("lunch box status PDF", () => {
     );
     assert.doesNotMatch(text, /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/u);
     assert.doesNotMatch(text, /배송기사\|0개/);
-    assert.match(text, /배송기사\|\s*\|보존식\|9개/);
-    assert.match(text, /보존식\|9개/);
-    assert.match(text, /병설도시락\|23개/);
+    assert.match(text, /배송기사\|\s*\|보존식\|10개/);
+    assert.match(text, /보존식\|10개/);
+    assert.match(text, /병설도시락\|22개/);
     assert.match(text, /배식\|234인/);
     assert.match(text, /전체\|266인/);
 
@@ -216,6 +224,7 @@ function createRow({
   class4Count = 0,
   deliveryDriverCount = 0,
   linkedCount = 0,
+  preservationClass,
   preservationCount = 0,
   schoolId,
   schoolName,
@@ -229,6 +238,7 @@ function createRow({
     | "class4Count"
     | "deliveryDriverCount"
     | "linkedCount"
+    | "preservationClass"
     | "preservationCount"
   >
 > &
@@ -243,7 +253,12 @@ function createRow({
     class4Count,
     deliveryDriverCount,
     linkedCount,
-    preservationClass: preservationCount > 0 ? 1 : null,
+    preservationClass:
+      preservationClass === undefined
+        ? preservationCount > 0
+          ? 1
+          : null
+        : preservationClass,
     preservationCount,
     schoolId,
     schoolName,
