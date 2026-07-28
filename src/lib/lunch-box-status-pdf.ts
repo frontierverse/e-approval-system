@@ -138,6 +138,11 @@ async function createLunchBoxStatusPdfDocument({
           value: summary.elementaryServingCount,
         },
         {
+          label: "남초 도시락",
+          unit: "개",
+          value: summary.namchoLunchBoxCount,
+        },
+        {
           label: "전체",
           unit: "인",
           value: summary.totalCount,
@@ -259,7 +264,7 @@ function drawStatusSheet(
     width: contentWidth - menuLabelWidth,
   });
 
-  const summaryWidths = createSummaryWidths(contentWidth);
+  const summaryWidths = createSummaryWidths(contentWidth, metrics.length);
   let summaryX = contentX;
 
   metrics.forEach((metric, index) => {
@@ -371,16 +376,17 @@ function drawStatusSheet(
   });
 }
 
-function createSummaryWidths(contentWidth: number) {
+function createSummaryWidths(contentWidth: number, metricCount: number) {
+  if (metricCount <= 1) {
+    return [contentWidth];
+  }
+
   const remainingWidth = contentWidth - menuLabelWidth;
-  const standardWidth = remainingWidth / 4;
+  const standardWidth = remainingWidth / (metricCount - 1);
 
   return [
     menuLabelWidth,
-    standardWidth,
-    standardWidth,
-    standardWidth,
-    standardWidth,
+    ...Array.from({ length: metricCount - 1 }, () => standardWidth),
   ];
 }
 

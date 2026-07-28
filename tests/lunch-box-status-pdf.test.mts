@@ -84,8 +84,44 @@ describe("lunch box status PDF", () => {
       elementaryServingCount: 10,
       groupDistribution: [{ groupCount: 1, personCount: 10 }],
       kindergartenCount: 7,
+      namchoLunchBoxCount: 0,
       preservationCount: 1,
       totalCount: 21,
+    });
+  });
+
+  test("separates Namcho from serving while preserving other counts", () => {
+    const rows = [
+      createRow({
+        class1Count: 17,
+        preservationCount: 2,
+        schoolId: "dongnam-elementary",
+        schoolName: "동남초",
+        schoolType: "elementary",
+      }),
+      createRow({
+        class1Count: 15,
+        preservationCount: 1,
+        schoolId: "namcho-elementary",
+        schoolName: "남초",
+        schoolType: "elementary",
+      }),
+      createRow({
+        class1Count: 7,
+        schoolId: "dongnam-kindergarten",
+        schoolName: "동남초 병설유치원",
+        schoolType: "kindergarten",
+      }),
+    ];
+
+    assert.deepEqual(createLunchBoxStatusSummary(rows), {
+      deliveryDriverCount: 0,
+      elementaryServingCount: 17,
+      groupDistribution: [{ groupCount: 1, personCount: 17 }],
+      kindergartenCount: 7,
+      namchoLunchBoxCount: 15,
+      preservationCount: 3,
+      totalCount: 42,
     });
   });
 
@@ -105,6 +141,7 @@ describe("lunch box status PDF", () => {
         { groupCount: 1, personCount: 9 },
       ],
       kindergartenCount: 22,
+      namchoLunchBoxCount: 0,
       preservationCount: 10,
       totalCount: 266,
     });
@@ -138,6 +175,7 @@ describe("lunch box status PDF", () => {
     assert.match(text, /보존식\|10개/);
     assert.match(text, /병설도시락\|22개/);
     assert.match(text, /배식\|234인/);
+    assert.match(text, /남초 도시락\|0개/);
     assert.match(text, /전체\|266인/);
 
     for (const personCount of [22, 20, 18, 17, 16, 15, 14, 12, 9]) {
@@ -145,6 +183,39 @@ describe("lunch box status PDF", () => {
     }
 
     assert.equal(text.match(/16인/g)?.length, 1);
+  });
+
+  test("prints Namcho beside serving and keeps preservation in the total", async () => {
+    const buffer = await createLunchBoxStatusPdf({
+      generatedAt: new Date("2026-07-26T09:00:00.000Z"),
+      grid: {
+        date: "2026-07-28",
+        menuItems: ["잡곡밥"],
+        rows: [
+          createRow({
+            class1Count: 10,
+            preservationCount: 1,
+            schoolId: "elementary",
+            schoolName: "일반초",
+            schoolType: "elementary",
+          }),
+          createRow({
+            class1Count: 15,
+            preservationCount: 1,
+            schoolId: "namcho",
+            schoolName: "남초",
+            schoolType: "elementary",
+          }),
+        ],
+      },
+    });
+    const text = await extractPdfText(buffer);
+
+    assert.match(text, /보존식\|2개/);
+    assert.match(text, /배식\|10인/);
+    assert.match(text, /남초 도시락\|15개/);
+    assert.match(text, /전체\|27인/);
+    assert.doesNotMatch(text, /15인/);
   });
 
   test("keeps a non-zero delivery-driver count visible", async () => {

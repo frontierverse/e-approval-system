@@ -55,6 +55,7 @@ export const lunchBoxDailyCheckHistoryPageSize = 10;
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const lunchBoxMenuMarkerPattern =
   /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳★]/gu;
+const separateLunchBoxStatusSchoolName = "남초";
 
 export const lunchBoxCalendarWeekdays = [
   { value: 0, label: "일" },
@@ -140,6 +141,7 @@ export type LunchBoxStatusSummary = {
   elementaryServingCount: number;
   groupDistribution: LunchBoxStatusCountGroup[];
   kindergartenCount: number;
+  namchoLunchBoxCount: number;
   preservationCount: number;
   totalCount: number;
 };
@@ -578,6 +580,7 @@ export function createLunchBoxStatusSummary(
   let deliveryDriverCount = 0;
   let elementaryServingCount = 0;
   let kindergartenCount = 0;
+  let namchoLunchBoxCount = 0;
   let preservationCount = 0;
 
   for (const row of rows) {
@@ -601,6 +604,15 @@ export function createLunchBoxStatusSummary(
       continue;
     }
 
+    if (
+      row.schoolType === "elementary" &&
+      normalizeLunchBoxSchoolName(row.schoolName) ===
+        separateLunchBoxStatusSchoolName
+    ) {
+      namchoLunchBoxCount += schoolServingCount;
+      continue;
+    }
+
     elementaryServingCount += schoolServingCount;
 
     for (const personCount of servingCounts) {
@@ -620,11 +632,13 @@ export function createLunchBoxStatusSummary(
       ([personCount, groupCount]) => ({ groupCount, personCount }),
     ).sort((left, right) => right.personCount - left.personCount),
     kindergartenCount,
+    namchoLunchBoxCount,
     preservationCount,
     totalCount:
       deliveryDriverCount +
       elementaryServingCount +
       kindergartenCount +
+      namchoLunchBoxCount +
       preservationCount,
   };
 }
