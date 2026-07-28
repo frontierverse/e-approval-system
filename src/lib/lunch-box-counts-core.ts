@@ -582,10 +582,12 @@ export function createLunchBoxStatusSummary(
   let kindergartenCount = 0;
   let namchoLunchBoxCount = 0;
   let preservationCount = 0;
+  let totalCount = 0;
 
   for (const row of rows) {
     deliveryDriverCount += row.deliveryDriverCount;
     preservationCount += row.preservationCount;
+    totalCount += getLunchBoxCountTotal(row);
 
     const servingCounts = [
       row.class1Count,
@@ -609,7 +611,7 @@ export function createLunchBoxStatusSummary(
       normalizeLunchBoxSchoolName(row.schoolName) ===
         separateLunchBoxStatusSchoolName
     ) {
-      namchoLunchBoxCount += schoolServingCount;
+      namchoLunchBoxCount += schoolServingCount + row.preservationCount;
       continue;
     }
 
@@ -634,12 +636,7 @@ export function createLunchBoxStatusSummary(
     kindergartenCount,
     namchoLunchBoxCount,
     preservationCount,
-    totalCount:
-      deliveryDriverCount +
-      elementaryServingCount +
-      kindergartenCount +
-      namchoLunchBoxCount +
-      preservationCount,
+    totalCount,
   };
 }
 

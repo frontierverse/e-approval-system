@@ -100,7 +100,7 @@ describe("lunch box status PDF", () => {
         schoolType: "elementary",
       }),
       createRow({
-        class1Count: 15,
+        class1Count: 14,
         preservationCount: 1,
         schoolId: "namcho-elementary",
         schoolName: "남초",
@@ -121,7 +121,7 @@ describe("lunch box status PDF", () => {
       kindergartenCount: 7,
       namchoLunchBoxCount: 15,
       preservationCount: 3,
-      totalCount: 42,
+      totalCount: 41,
     });
   });
 
@@ -200,7 +200,7 @@ describe("lunch box status PDF", () => {
             schoolType: "elementary",
           }),
           createRow({
-            class1Count: 15,
+            class1Count: 14,
             preservationCount: 1,
             schoolId: "namcho",
             schoolName: "남초",
@@ -214,7 +214,7 @@ describe("lunch box status PDF", () => {
     assert.match(text, /보존식\|2개/);
     assert.match(text, /배식\|10인/);
     assert.match(text, /남초 도시락\|15개/);
-    assert.match(text, /전체\|27인/);
+    assert.match(text, /전체\|26인/);
     assert.doesNotMatch(text, /15인/);
   });
 
