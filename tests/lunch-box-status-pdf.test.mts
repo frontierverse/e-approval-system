@@ -119,7 +119,7 @@ describe("lunch box status PDF", () => {
       elementaryServingCount: 17,
       groupDistribution: [{ groupCount: 1, personCount: 17 }],
       kindergartenCount: 7,
-      namchoLunchBoxCount: 14,
+      namchoLunchBoxCount: 15,
       preservationCount: 3,
       totalCount: 41,
     });
@@ -147,7 +147,7 @@ describe("lunch box status PDF", () => {
         totalCount: beforeAugust3.totalCount,
       },
       {
-        namchoLunchBoxCount: 15,
+        namchoLunchBoxCount: 16,
         preservationCount: 1,
         totalCount: 16,
       },
@@ -159,7 +159,7 @@ describe("lunch box status PDF", () => {
         totalCount: fromAugust3.totalCount,
       },
       {
-        namchoLunchBoxCount: 14,
+        namchoLunchBoxCount: 15,
         preservationCount: 1,
         totalCount: 15,
       },
@@ -226,37 +226,49 @@ describe("lunch box status PDF", () => {
     assert.equal(text.match(/16인/g)?.length, 1);
   });
 
-  test("prints Namcho beside serving and keeps preservation in the total", async () => {
-    const buffer = await createLunchBoxStatusPdf({
-      generatedAt: new Date("2026-07-26T09:00:00.000Z"),
-      grid: {
-        date: "2026-07-28",
-        menuItems: ["잡곡밥"],
-        rows: [
-          createRow({
-            class1Count: 10,
-            preservationCount: 1,
-            schoolId: "elementary",
-            schoolName: "일반초",
-            schoolType: "elementary",
-          }),
-          createRow({
-            class1Count: 14,
-            preservationCount: 1,
-            schoolId: "namcho",
-            schoolName: "남초",
-            schoolType: "elementary",
-          }),
-        ],
-      },
-    });
-    const text = await extractPdfText(buffer);
+  test("prints Namcho totals before and after August 3 without double-counting preservation", async () => {
+    const createStatusText = async (date: string, namchoServingCount: number) => {
+      const buffer = await createLunchBoxStatusPdf({
+        generatedAt: new Date("2026-07-26T09:00:00.000Z"),
+        grid: {
+          date,
+          menuItems: ["잡곡밥"],
+          rows: [
+            createRow({
+              class1Count: 10,
+              preservationCount: 1,
+              schoolId: "elementary",
+              schoolName: "일반초",
+              schoolType: "elementary",
+            }),
+            createRow({
+              class1Count: namchoServingCount,
+              preservationCount: 1,
+              schoolId: "namcho",
+              schoolName: "남초",
+              schoolType: "elementary",
+            }),
+          ],
+        },
+      });
 
-    assert.match(text, /보존식\|2개/);
-    assert.match(text, /배식\|10인/);
-    assert.match(text, /남초 도시락\|14개/);
-    assert.match(text, /전체\|26인/);
-    assert.doesNotMatch(text, /15인/);
+      return extractPdfText(buffer);
+    };
+
+    const beforeAugust3 = await createStatusText("2026-07-28", 15);
+    const fromAugust3 = await createStatusText("2026-08-03", 14);
+
+    assert.match(beforeAugust3, /보존식\|2개/);
+    assert.match(beforeAugust3, /배식\|10인/);
+    assert.match(beforeAugust3, /남초 도시락\|16개/);
+    assert.match(beforeAugust3, /전체\|27인/);
+    assert.doesNotMatch(beforeAugust3, /15인/);
+
+    assert.match(fromAugust3, /보존식\|2개/);
+    assert.match(fromAugust3, /배식\|10인/);
+    assert.match(fromAugust3, /남초 도시락\|15개/);
+    assert.match(fromAugust3, /전체\|26인/);
+    assert.doesNotMatch(fromAugust3, /14인/);
   });
 
   test("keeps a non-zero delivery-driver count visible", async () => {
