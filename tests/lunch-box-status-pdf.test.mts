@@ -119,10 +119,51 @@ describe("lunch box status PDF", () => {
       elementaryServingCount: 17,
       groupDistribution: [{ groupCount: 1, personCount: 17 }],
       kindergartenCount: 7,
-      namchoLunchBoxCount: 15,
+      namchoLunchBoxCount: 14,
       preservationCount: 3,
       totalCount: 41,
     });
+  });
+
+  test("keeps Namcho preservation separate before and after August 3", () => {
+    const createNamchoSummary = (class1Count: number) =>
+      createLunchBoxStatusSummary([
+        createRow({
+          class1Count,
+          preservationCount: 1,
+          schoolId: "namcho",
+          schoolName: "남초",
+          schoolType: "elementary",
+        }),
+      ]);
+
+    const beforeAugust3 = createNamchoSummary(15);
+    const fromAugust3 = createNamchoSummary(14);
+
+    assert.deepEqual(
+      {
+        namchoLunchBoxCount: beforeAugust3.namchoLunchBoxCount,
+        preservationCount: beforeAugust3.preservationCount,
+        totalCount: beforeAugust3.totalCount,
+      },
+      {
+        namchoLunchBoxCount: 15,
+        preservationCount: 1,
+        totalCount: 16,
+      },
+    );
+    assert.deepEqual(
+      {
+        namchoLunchBoxCount: fromAugust3.namchoLunchBoxCount,
+        preservationCount: fromAugust3.preservationCount,
+        totalCount: fromAugust3.totalCount,
+      },
+      {
+        namchoLunchBoxCount: 14,
+        preservationCount: 1,
+        totalCount: 15,
+      },
+    );
   });
 
   test("reproduces the corrected July 27 totals and group distribution", () => {
@@ -213,7 +254,7 @@ describe("lunch box status PDF", () => {
 
     assert.match(text, /보존식\|2개/);
     assert.match(text, /배식\|10인/);
-    assert.match(text, /남초 도시락\|15개/);
+    assert.match(text, /남초 도시락\|14개/);
     assert.match(text, /전체\|26인/);
     assert.doesNotMatch(text, /15인/);
   });
