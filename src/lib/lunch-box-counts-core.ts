@@ -611,7 +611,7 @@ export function createLunchBoxStatusSummary(
       normalizeLunchBoxSchoolName(row.schoolName) ===
         separateLunchBoxStatusSchoolName
     ) {
-      namchoLunchBoxCount += schoolServingCount + row.preservationCount;
+      namchoLunchBoxCount += schoolServingCount;
       continue;
     }
 

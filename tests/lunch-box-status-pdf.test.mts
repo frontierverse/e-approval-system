@@ -119,7 +119,7 @@ describe("lunch box status PDF", () => {
       elementaryServingCount: 17,
       groupDistribution: [{ groupCount: 1, personCount: 17 }],
       kindergartenCount: 7,
-      namchoLunchBoxCount: 15,
+      namchoLunchBoxCount: 14,
       preservationCount: 3,
       totalCount: 41,
     });
@@ -147,7 +147,7 @@ describe("lunch box status PDF", () => {
         totalCount: beforeAugust3.totalCount,
       },
       {
-        namchoLunchBoxCount: 16,
+        namchoLunchBoxCount: 15,
         preservationCount: 1,
         totalCount: 16,
       },
@@ -159,7 +159,7 @@ describe("lunch box status PDF", () => {
         totalCount: fromAugust3.totalCount,
       },
       {
-        namchoLunchBoxCount: 15,
+        namchoLunchBoxCount: 14,
         preservationCount: 1,
         totalCount: 15,
       },
@@ -226,7 +226,7 @@ describe("lunch box status PDF", () => {
     assert.equal(text.match(/16인/g)?.length, 1);
   });
 
-  test("prints Namcho totals before and after August 3 without double-counting preservation", async () => {
+  test("prints Namcho serving counts before and after August 3 with preservation separate", async () => {
     const createStatusText = async (date: string, namchoServingCount: number) => {
       const buffer = await createLunchBoxStatusPdf({
         generatedAt: new Date("2026-07-26T09:00:00.000Z"),
@@ -260,13 +260,13 @@ describe("lunch box status PDF", () => {
 
     assert.match(beforeAugust3, /보존식\|2개/);
     assert.match(beforeAugust3, /배식\|10인/);
-    assert.match(beforeAugust3, /남초 도시락\|16개/);
+    assert.match(beforeAugust3, /남초 도시락\|15개/);
     assert.match(beforeAugust3, /전체\|27인/);
     assert.doesNotMatch(beforeAugust3, /15인/);
 
     assert.match(fromAugust3, /보존식\|2개/);
     assert.match(fromAugust3, /배식\|10인/);
-    assert.match(fromAugust3, /남초 도시락\|15개/);
+    assert.match(fromAugust3, /남초 도시락\|14개/);
     assert.match(fromAugust3, /전체\|26인/);
     assert.doesNotMatch(fromAugust3, /14인/);
   });
