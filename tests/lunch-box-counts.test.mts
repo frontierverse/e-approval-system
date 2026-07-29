@@ -2147,18 +2147,32 @@ describe("lunch box count change log", () => {
     assert.match(html, />다음날</);
     assert.match(
       html,
-      /href="\/work-schedule\/lunch-boxes\/daily-school-print\?date=2026-07-29"/,
+      /href="\/work-schedule\/lunch-boxes\/daily-school-print\?date=2026-07-29&amp;orientation=portrait"/,
     );
     assert.match(
       html,
-      /aria-label="2026\.07\.29\.\(수\) 날짜별 학교 목록 PDF 인쇄"/,
+      /href="\/work-schedule\/lunch-boxes\/daily-school-print\?date=2026-07-29&amp;orientation=landscape"/,
+    );
+    assert.match(
+      html,
+      /aria-label="2026\.07\.29\.\(수\) 날짜별 학교 목록 세로 인쇄 PDF"/,
+    );
+    assert.match(
+      html,
+      /aria-label="2026\.07\.29\.\(수\) 날짜별 학교 목록 가로 인쇄 PDF"/,
     );
     assert.match(html, /target="_blank"/);
     assert.match(html, /rel="noreferrer"/);
     assert.match(
       html,
-      /class="[^"]*bg-\[#3b5f7f\][^"]*h-11[^"]*"[^>]*>PDF 인쇄<\/a>/,
+      /class="[^"]*bg-\[#3b5f7f\][^"]*h-11[^"]*"[^>]*>세로 인쇄<\/a>/,
     );
+    assert.match(
+      html,
+      /class="[^"]*bg-\[#3b5f7f\][^"]*h-11[^"]*"[^>]*>가로 인쇄<\/a>/,
+    );
+    assert.ok(html.indexOf(">세로 인쇄</a>") < html.indexOf(">가로 인쇄</a>"));
+    assert.match(html, /flex min-w-0 flex-wrap items-center justify-end/);
     assert.match(html, /type="checkbox"/);
     assert.match(html, /checked=""/);
     assert.match(

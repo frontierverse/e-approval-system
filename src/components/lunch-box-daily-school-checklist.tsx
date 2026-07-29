@@ -894,26 +894,49 @@ function LunchBoxDailySchoolChecklistContent({
                   {interactionStatusLabel}
                 </p>
               ) : null}
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 {hasInteractionPending ? (
-                  <button
-                    type="button"
-                    disabled
-                    title="최신 체크 상태 저장 후 인쇄할 수 있습니다."
-                    className={pdfButtonClassName}
-                  >
-                    PDF 인쇄
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled
+                      title="최신 체크 상태 저장 후 인쇄할 수 있습니다."
+                      className={pdfButtonClassName}
+                    >
+                      세로 인쇄
+                    </button>
+                    <button
+                      type="button"
+                      disabled
+                      title="최신 체크 상태 저장 후 인쇄할 수 있습니다."
+                      className={pdfButtonClassName}
+                    >
+                      가로 인쇄
+                    </button>
+                  </>
                 ) : (
-                  <Link
-                    aria-label={`${dateLabel} 날짜별 학교 목록 PDF 인쇄`}
-                    href={`/work-schedule/lunch-boxes/daily-school-print?date=${grid.date}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={pdfButtonClassName}
-                  >
-                    PDF 인쇄
-                  </Link>
+                  <>
+                    <Link
+                      aria-label={`${dateLabel} 날짜별 학교 목록 세로 인쇄 PDF`}
+                      href={`/work-schedule/lunch-boxes/daily-school-print?date=${grid.date}&orientation=portrait`}
+                      prefetch={false}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={pdfButtonClassName}
+                    >
+                      세로 인쇄
+                    </Link>
+                    <Link
+                      aria-label={`${dateLabel} 날짜별 학교 목록 가로 인쇄 PDF`}
+                      href={`/work-schedule/lunch-boxes/daily-school-print?date=${grid.date}&orientation=landscape`}
+                      prefetch={false}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={pdfButtonClassName}
+                    >
+                      가로 인쇄
+                    </Link>
+                  </>
                 )}
                 {grid.date !== today ? (
                   <button

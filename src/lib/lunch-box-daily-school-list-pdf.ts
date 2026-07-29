@@ -16,6 +16,7 @@ import {
   getLunchBoxCountTotal,
   isLunchBoxDate,
   lunchBoxDailyChecklistShortFieldLabels,
+  lunchBoxServingCountFields,
   type LunchBoxCountRow,
   type LunchBoxDailyChecklistView,
   type LunchBoxDailySchoolChecklistData,
@@ -24,9 +25,14 @@ import {
   type LunchBoxServingOrderItem,
 } from "@/lib/lunch-box-counts-core";
 
+export type LunchBoxDailySchoolListPdfOrientation =
+  | "landscape"
+  | "portrait";
+
 type LunchBoxDailySchoolListPdfInput = {
   checklist: LunchBoxDailySchoolChecklistData;
   generatedAt: Date;
+  orientation?: LunchBoxDailySchoolListPdfOrientation;
 };
 
 type TableColumnKey =
@@ -44,7 +50,12 @@ type TableColumn = {
   width: number;
 };
 
-type ServingOrderColumnKey = "rank" | "schoolName" | "label" | "count";
+type ServingOrderColumnKey =
+  | "rank"
+  | "schoolName"
+  | "label"
+  | "preservation"
+  | "count";
 
 type ServingOrderColumn = {
   align: "center" | "left" | "right";
@@ -63,12 +74,24 @@ type ServingOrderPage = {
   servingItems: RankedServingOrderItem[];
 };
 
+type DailySchoolPdfLayout = {
+  checklistColumnCount: number;
+  orientation: LunchBoxDailySchoolListPdfOrientation;
+  packingWidth: number;
+  pageSize: [number, number];
+  separateServingCalculation: boolean;
+  servingColumnCount: number;
+  servingRowsPerColumn: number;
+  servingTableTopOffset: number;
+};
+
 const koreanFontPath = path.join(
   process.cwd(),
   "public",
   "fonts",
   "NanumGothic-Regular.ttf",
 );
+const portraitA4: [number, number] = [PageSizes.A4[0], PageSizes.A4[1]];
 const landscapeA4: [number, number] = [PageSizes.A4[1], PageSizes.A4[0]];
 const pageMarginX = 24;
 const pageBottom = 28;
@@ -84,12 +107,8 @@ const cellPaddingY = 2.2;
 const titleFontSize = 14.5;
 const summaryFontSize = 8.5;
 const pageNumberFontSize = 7;
-const servingOrderColumnCount = 3;
-const servingOrderRowsPerColumn = 25;
 const servingOrderTableGap = 7;
 const servingOrderSectionGap = 14;
-const servingOrderPackingWidth = 190;
-const servingOrderTableTopOffset = 88;
 const servingOrderTableHeaderHeight = 18;
 const servingOrderRowHeight = 18;
 const servingOrderSectionFontSize = 9;
@@ -102,32 +121,71 @@ const packingSectionColor = rgb(0.18, 0.31, 0.49);
 const checkedRowColor = rgb(0.91, 0.96, 0.93);
 const borderColor = rgb(0.89, 0.91, 0.94);
 const strongBorderColor = rgb(0.81, 0.84, 0.88);
+const landscapeLayout: DailySchoolPdfLayout = {
+  checklistColumnCount: 3,
+  orientation: "landscape",
+  packingWidth: 190,
+  pageSize: landscapeA4,
+  separateServingCalculation: false,
+  servingColumnCount: 3,
+  servingRowsPerColumn: 25,
+  servingTableTopOffset: 88,
+};
+const portraitLayout: DailySchoolPdfLayout = {
+  checklistColumnCount: 2,
+  orientation: "portrait",
+  packingWidth: 170,
+  pageSize: portraitA4,
+  separateServingCalculation: true,
+  servingColumnCount: 2,
+  servingRowsPerColumn: 38,
+  servingTableTopOffset: 102,
+};
 
 export async function createLunchBoxDailySchoolListPdf({
   checklist,
   generatedAt,
+  orientation = "landscape",
 }: LunchBoxDailySchoolListPdfInput) {
   if (!isLunchBoxDate(checklist.grid.date)) {
     throw new Error("날짜별 학교 목록 인쇄 날짜가 올바르지 않습니다.");
   }
 
   const view = createLunchBoxDailyChecklistView(checklist);
+  const layout =
+    orientation === "portrait" ? portraitLayout : landscapeLayout;
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(await readFile(koreanFontPath), {
     subset: false,
   });
-  const tableWidth = getTableWidth();
+  const tableWidth = getTableWidth(
+    layout.pageSize[0],
+    layout.checklistColumnCount,
+  );
   const tableColumns = createTableColumns(tableWidth, view);
   const pageColumns =
     view.rows.length === 0
       ? [[[]]]
-      : paginateColumns(font, view.columns, tableColumns);
+      : layout.orientation === "portrait"
+        ? paginatePortraitColumns(
+            font,
+            view.rows,
+            tableColumns,
+            layout.pageSize[1],
+            layout.checklistColumnCount,
+          )
+        : paginateColumns(
+            font,
+            view.columns,
+            tableColumns,
+            layout.pageSize[1],
+          );
   const servingOrderGroups = createLunchBoxServingOrderGroups(view.rows);
   const servingOrderPages =
     view.rows.length === 0
       ? []
-      : paginateServingOrderGroups(servingOrderGroups);
+      : paginateServingOrderGroups(servingOrderGroups, layout);
   const pageCount = pageColumns.length + servingOrderPages.length;
 
   pdf.setTitle(`${view.dateLabel} 날짜별 학교 목록`);
@@ -140,7 +198,7 @@ export async function createLunchBoxDailySchoolListPdf({
   pdf.setModificationDate(generatedAt);
 
   pageColumns.forEach((columns, pageIndex) => {
-    const page = pdf.addPage(landscapeA4);
+    const page = pdf.addPage(layout.pageSize);
 
     drawPage({
       columns,
@@ -155,11 +213,12 @@ export async function createLunchBoxDailySchoolListPdf({
   });
 
   servingOrderPages.forEach((servingOrderPage, pageIndex) => {
-    const page = pdf.addPage(landscapeA4);
+    const page = pdf.addPage(layout.pageSize);
 
     drawServingOrderPage({
       font,
       groups: servingOrderGroups,
+      layout,
       page,
       pageCount,
       pageNumber: pageColumns.length + pageIndex + 1,
@@ -256,6 +315,7 @@ function drawPage({
 function drawServingOrderPage({
   font,
   groups,
+  layout,
   page,
   pageCount,
   pageNumber,
@@ -264,6 +324,7 @@ function drawServingOrderPage({
 }: {
   font: PDFFont;
   groups: LunchBoxServingOrderGroups;
+  layout: DailySchoolPdfLayout;
   page: PDFPage;
   pageCount: number;
   pageNumber: number;
@@ -273,23 +334,25 @@ function drawServingOrderPage({
   const { height, width } = page.getSize();
   const innerWidth = width - pageMarginX * 2;
   const servingSectionWidth =
-    innerWidth - servingOrderSectionGap - servingOrderPackingWidth;
+    innerWidth - servingOrderSectionGap - layout.packingWidth;
   const servingTableWidth =
     (servingSectionWidth -
-      servingOrderTableGap * (servingOrderColumnCount - 1)) /
-    servingOrderColumnCount;
+      servingOrderTableGap * (layout.servingColumnCount - 1)) /
+    layout.servingColumnCount;
   const packingSectionX =
     pageMarginX + servingSectionWidth + servingOrderSectionGap;
-  const tableTop = height - servingOrderTableTopOffset;
-  const sectionLabelY = height - 76;
+  const tableTop = height - layout.servingTableTopOffset;
+  const sectionLabelY =
+    height - (layout.separateServingCalculation ? 90 : 76);
   const servingColumns = splitServingOrderColumns(
     servingOrderPage.servingItems,
-    servingOrderColumnCount,
+    layout.servingColumnCount,
   );
+  const preservationTargetKeys = createPreservationTargetKeys(view.rows);
   const servingTableColumns =
     createServingOrderTableColumns(servingTableWidth);
   const packingTableColumns = createServingOrderTableColumns(
-    servingOrderPackingWidth,
+    layout.packingWidth,
   );
   const servingTotal = groups.servingItems.reduce(
     (sum, item) => sum + item.count,
@@ -298,6 +361,39 @@ function drawServingOrderPage({
   const packingTotal = groups.packingItems.reduce(
     (sum, item) => sum + item.count,
     0,
+  );
+  const deliveryDriverTotal = view.rows.reduce(
+    (sum, row) => sum + row.deliveryDriverCount,
+    0,
+  );
+  const servingCalculation = [
+    `총 ${view.totalCount}개`,
+    `보존식 ${view.preservationTotal}개`,
+    `도시락 포장 ${packingTotal}개`,
+    ...(deliveryDriverTotal > 0
+      ? [`배송기사 ${deliveryDriverTotal}개`]
+      : []),
+  ].join(" - ");
+  const servingSummary =
+    `배식 목록 · ${groups.servingItems.length}개 반 / ${servingTotal}개`;
+  const servingSectionLabel = layout.separateServingCalculation
+    ? servingSummary
+    : `${servingSummary} (${servingCalculation})`;
+  const servingSectionLabelFontSize = fitFontSize(
+    font,
+    servingSectionLabel,
+    servingSectionWidth - 4,
+    servingOrderSectionFontSize,
+    6.5,
+  );
+  const packingSectionLabel =
+    `도시락 포장 목록 · ${groups.packingItems.length}건 / ${packingTotal}개`;
+  const packingSectionLabelFontSize = fitFontSize(
+    font,
+    packingSectionLabel,
+    layout.packingWidth - 4,
+    servingOrderSectionFontSize,
+    6.5,
   );
 
   page.drawText("대용량 보냉백 배치 순서", {
@@ -318,26 +414,39 @@ function drawServingOrderPage({
     },
   );
 
-  page.drawText(
-    `배식 목록 · ${groups.servingItems.length}개 반 / ${servingTotal}개`,
-    {
+  if (layout.separateServingCalculation) {
+    const calculationLabel = `${servingTotal}개 (${servingCalculation})`;
+    const calculationFontSize = fitFontSize(
+      font,
+      calculationLabel,
+      innerWidth,
+      7.8,
+      6.5,
+    );
+
+    page.drawText(calculationLabel, {
       x: pageMarginX,
-      y: sectionLabelY,
-      size: servingOrderSectionFontSize,
+      y: height - 70,
+      size: calculationFontSize,
       font,
       color: accentColor,
-    },
-  );
-  page.drawText(
-    `도시락 포장 목록 · ${groups.packingItems.length}건 / ${packingTotal}개`,
-    {
-      x: packingSectionX,
-      y: sectionLabelY,
-      size: servingOrderSectionFontSize,
-      font,
-      color: packingSectionColor,
-    },
-  );
+    });
+  }
+
+  page.drawText(servingSectionLabel, {
+    x: pageMarginX,
+    y: sectionLabelY,
+    size: servingSectionLabelFontSize,
+    font,
+    color: accentColor,
+  });
+  page.drawText(packingSectionLabel, {
+    x: packingSectionX,
+    y: sectionLabelY,
+    size: packingSectionLabelFontSize,
+    font,
+    color: packingSectionColor,
+  });
 
   page.drawLine({
     start: {
@@ -358,6 +467,7 @@ function drawServingOrderPage({
       columnIndex * (servingTableWidth + servingOrderTableGap);
 
     drawServingOrderTable(page, font, items, servingTableColumns, {
+      preservationTargetKeys,
       tableTop,
       tableWidth: servingTableWidth,
       x,
@@ -370,8 +480,9 @@ function drawServingOrderPage({
     servingOrderPage.packingItems,
     packingTableColumns,
     {
+      preservationTargetKeys,
       tableTop,
-      tableWidth: servingOrderPackingWidth,
+      tableWidth: layout.packingWidth,
       x: packingSectionX,
     },
   );
@@ -396,7 +507,7 @@ function drawServingOrderPage({
       "남초·병설 포장 항목이 없습니다.",
       {
         tableTop,
-        width: servingOrderPackingWidth,
+        width: layout.packingWidth,
         x: packingSectionX,
       },
     );
@@ -411,10 +522,12 @@ function drawServingOrderTable(
   items: RankedServingOrderItem[],
   columns: ServingOrderColumn[],
   {
+    preservationTargetKeys,
     tableTop,
     tableWidth,
     x,
   }: {
+    preservationTargetKeys: ReadonlySet<string>;
     tableTop: number;
     tableWidth: number;
     x: number;
@@ -435,6 +548,9 @@ function drawServingOrderTable(
 
     for (const column of columns) {
       drawServingOrderCell(page, font, rankedItem, column, {
+        showPreservation: preservationTargetKeys.has(
+          getPreservationTargetKey(rankedItem.item),
+        ),
         x: cellX,
         y,
       });
@@ -495,30 +611,45 @@ function drawServingOrderCell(
   { item, rank }: RankedServingOrderItem,
   column: ServingOrderColumn,
   {
+    showPreservation,
     x,
     y,
   }: {
+    showPreservation: boolean;
     x: number;
     y: number;
   },
 ) {
-  const text =
-    column.key === "rank"
-      ? String(rank)
-      : column.key === "schoolName"
-        ? item.schoolName
-        : column.key === "label"
-          ? item.label
-          : `${item.count}개`;
+  let text: string;
+
+  switch (column.key) {
+    case "rank":
+      text = String(rank);
+      break;
+    case "schoolName":
+      text = item.schoolName;
+      break;
+    case "label":
+      text = item.label;
+      break;
+    case "preservation":
+      text = showPreservation ? "보존" : "";
+      break;
+    case "count":
+      text = `${item.count}개`;
+      break;
+  }
 
   drawCompactSingleLineText(page, font, text, {
     align: column.align,
     color:
-      column.key === "count"
-        ? bodyTextColor
-        : column.key === "rank"
-          ? mutedTextColor
-          : bodyTextColor,
+      column.key === "preservation" && showPreservation
+        ? accentColor
+        : column.key === "count"
+          ? bodyTextColor
+          : column.key === "rank"
+            ? mutedTextColor
+            : bodyTextColor,
     fontSize: servingOrderBodyFontSize,
     height: servingOrderRowHeight,
     minFontSize: 5.2,
@@ -957,9 +1088,10 @@ function drawCompactSingleLineText(
 function createServingOrderTableColumns(
   tableWidth: number,
 ): ServingOrderColumn[] {
-  const rankWidth = 17;
-  const labelWidth = 28;
-  const countWidth = 34;
+  const rankWidth = 15;
+  const labelWidth = 25;
+  const preservationWidth = 28;
+  const countWidth = 31;
 
   return [
     {
@@ -971,13 +1103,24 @@ function createServingOrderTableColumns(
     {
       key: "schoolName",
       label: "학교",
-      width: tableWidth - rankWidth - labelWidth - countWidth,
+      width:
+        tableWidth -
+        rankWidth -
+        labelWidth -
+        preservationWidth -
+        countWidth,
       align: "left",
     },
     {
       key: "label",
       label: "반",
       width: labelWidth,
+      align: "center",
+    },
+    {
+      key: "preservation",
+      label: "보존",
+      width: preservationWidth,
       align: "center",
     },
     {
@@ -989,12 +1132,51 @@ function createServingOrderTableColumns(
   ];
 }
 
+function createPreservationTargetKeys(
+  rows: readonly LunchBoxCountRow[],
+): Set<string> {
+  const targetKeys = new Set<string>();
+
+  for (const row of rows) {
+    if (row.preservationCount < 1) {
+      continue;
+    }
+
+    const assignedField = row.preservationClass
+      ? (`class${row.preservationClass}Count` as LunchBoxServingCountField)
+      : null;
+    const targetField =
+      assignedField && row[assignedField] > 0
+        ? assignedField
+        : lunchBoxServingCountFields.find((field) => row[field] > 0);
+
+    if (targetField) {
+      targetKeys.add(
+        getPreservationTargetKey({
+          field: targetField,
+          schoolId: row.schoolId,
+        }),
+      );
+    }
+  }
+
+  return targetKeys;
+}
+
+function getPreservationTargetKey({
+  field,
+  schoolId,
+}: Pick<LunchBoxServingOrderItem, "field" | "schoolId">) {
+  return `${schoolId}\u0000${field}`;
+}
+
 function paginateServingOrderGroups(
   groups: LunchBoxServingOrderGroups,
+  layout: DailySchoolPdfLayout,
 ): ServingOrderPage[] {
   const servingPageCapacity =
-    servingOrderRowsPerColumn * servingOrderColumnCount;
-  const packingPageCapacity = servingOrderRowsPerColumn;
+    layout.servingRowsPerColumn * layout.servingColumnCount;
+  const packingPageCapacity = layout.servingRowsPerColumn;
   const pageCount = Math.max(
     1,
     Math.ceil(groups.servingItems.length / servingPageCapacity),
@@ -1098,8 +1280,9 @@ function paginateColumns(
   font: PDFFont,
   columns: LunchBoxCountRow[][],
   tableColumns: TableColumn[],
+  pageHeight: number,
 ) {
-  const tableTop = landscapeA4[1] - tableTopOffset;
+  const tableTop = pageHeight - tableTopOffset;
   const availableHeight = tableTop - tableHeaderHeight - pageBottom;
   const offsets = columns.map(() => 0);
   const pages: LunchBoxCountRow[][][] = [];
@@ -1131,6 +1314,102 @@ function paginateColumns(
   }
 
   return pages;
+}
+
+function paginatePortraitColumns(
+  font: PDFFont,
+  rows: readonly LunchBoxCountRow[],
+  tableColumns: TableColumn[],
+  pageHeight: number,
+  columnCount: number,
+) {
+  const tableTop = pageHeight - tableTopOffset;
+  const availableHeight = tableTop - tableHeaderHeight - pageBottom;
+  const pages: LunchBoxCountRow[][][] = [];
+  let offset = 0;
+
+  while (offset < rows.length) {
+    const pageStart = offset;
+    const initiallyFilledColumns: LunchBoxCountRow[][] = [];
+
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+      const columnRows: LunchBoxCountRow[] = [];
+      let height = 0;
+
+      while (offset < rows.length) {
+        const row = rows[offset];
+        const rowHeight = getRowHeight(font, row, tableColumns);
+
+        if (columnRows.length > 0 && height + rowHeight > availableHeight) {
+          break;
+        }
+
+        columnRows.push(row);
+        height += rowHeight;
+        offset += 1;
+      }
+
+      initiallyFilledColumns.push(columnRows);
+    }
+
+    const pageRows = rows.slice(pageStart, offset);
+    pages.push(
+      columnCount === 2
+        ? balancePortraitPageColumns(
+            font,
+            pageRows,
+            tableColumns,
+            availableHeight,
+            initiallyFilledColumns,
+          )
+        : initiallyFilledColumns,
+    );
+  }
+
+  return pages;
+}
+
+function balancePortraitPageColumns(
+  font: PDFFont,
+  rows: readonly LunchBoxCountRow[],
+  tableColumns: TableColumn[],
+  availableHeight: number,
+  fallbackColumns: LunchBoxCountRow[][],
+) {
+  if (rows.length < 2) {
+    return [Array.from(rows), []];
+  }
+
+  const rowHeights = rows.map((row) =>
+    getRowHeight(font, row, tableColumns),
+  );
+  const totalHeight = rowHeights.reduce((sum, height) => sum + height, 0);
+  let firstColumnHeight = 0;
+  let bestSplit = -1;
+  let smallestDifference = Number.POSITIVE_INFINITY;
+
+  for (let split = 1; split < rows.length; split += 1) {
+    firstColumnHeight += rowHeights[split - 1];
+    const secondColumnHeight = totalHeight - firstColumnHeight;
+
+    if (
+      firstColumnHeight > availableHeight ||
+      secondColumnHeight > availableHeight
+    ) {
+      continue;
+    }
+
+    const difference = Math.abs(firstColumnHeight - secondColumnHeight);
+
+    if (difference < smallestDifference) {
+      bestSplit = split;
+      smallestDifference = difference;
+    }
+  }
+
+  return bestSplit > 0
+    ? [Array.from(rows.slice(0, bestSplit)), Array.from(rows.slice(bestSplit))]
+    : fallbackColumns;
 }
 
 function getRowHeight(
@@ -1174,12 +1453,12 @@ function getCellValue(row: LunchBoxCountRow, key: TableColumnKey) {
   return row[key] > 0 ? String(row[key]) : "-";
 }
 
-function getTableWidth() {
+function getTableWidth(pageWidth: number, columnCount: number) {
   return (
-    (landscapeA4[0] -
+    (pageWidth -
       pageMarginX * 2 -
-      tableGap * 2) /
-    3
+      tableGap * (columnCount - 1)) /
+    columnCount
   );
 }
 

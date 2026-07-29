@@ -109,11 +109,18 @@ describe("lunch box daily school-list PDF", () => {
     );
     assert.deepEqual(view.checkedSchoolIds, ["school-1", "school-15"]);
     assert.match(secondPageText, /대용량 보냉백 배치 순서/);
-    assert.match(secondPageText, /배식 목록/);
+    assert.match(
+      secondPageText,
+      /배식 목록 · 45개 반 \/ 64개 \(총 67개 - 보존식 2개 - 도시락 포장 0개 - 배송기사 1개\)/,
+    );
     assert.match(secondPageText, /도시락 포장 목록/);
     assert.match(secondPageText, /학교 01/);
     assert.match(secondPageText, /1반/);
     assert.match(secondPageText, /10개/);
+    assert.equal(
+      secondPageItems.filter((item) => item.str === "보존").length,
+      6,
+    );
     assert.match(secondPageText, /남초·병설 포장 항목이 없습니다/);
     assert.match(text, /1 \/ 2/);
     assert.match(secondPageText, /2 \/ 2/);
@@ -136,6 +143,111 @@ describe("lunch box daily school-list PDF", () => {
     }
   });
 
+  test("creates a portrait checklist and serving-order variant", async () => {
+    const checklist: LunchBoxDailySchoolChecklistData = {
+      checkedSchoolIds: ["regular"],
+      grid: {
+        date: "2026-07-30",
+        menuItems: [],
+        rows: [
+          createRow({
+            class1Count: 20,
+            class2Count: 10,
+            deliveryDriverCount: 2,
+            preservationClass: 2,
+            preservationCount: 1,
+            schoolId: "regular",
+            schoolName: "일반초",
+          }),
+          createRow({
+            class1Count: 5,
+            preservationCount: 1,
+            schoolId: "kindergarten",
+            schoolName: "일반초 병설유치원",
+            schoolType: "kindergarten",
+          }),
+        ],
+      },
+    };
+    const buffer = await createLunchBoxDailySchoolListPdf({
+      checklist,
+      generatedAt: new Date("2026-07-27T01:00:00.000Z"),
+      orientation: "portrait",
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const [checklistPage, servingOrderPage] = pdf.getPages();
+    const items = await extractPdfTextItems(buffer);
+    const firstPageItems = items.filter((item) => item.pageNumber === 1);
+    const secondPageItems = items.filter((item) => item.pageNumber === 2);
+    const secondPageText = secondPageItems
+      .map((item) => item.str)
+      .join("|");
+
+    assert.equal(pdf.getPageCount(), 2);
+    assertAlmostEqual(checklistPage.getWidth(), PageSizes.A4[0]);
+    assertAlmostEqual(checklistPage.getHeight(), PageSizes.A4[1]);
+    assertAlmostEqual(servingOrderPage.getWidth(), PageSizes.A4[0]);
+    assertAlmostEqual(servingOrderPage.getHeight(), PageSizes.A4[1]);
+    assert.equal(
+      firstPageItems.filter((item) => item.str === "학교").length,
+      2,
+    );
+    assert.match(secondPageText, /배식 목록 · 2개 반 \/ 30개/);
+    assert.match(
+      secondPageText,
+      /30개 \(총 39개 - 보존식 2개 - 도시락 포장 5개 - 배송기사 2개\)/,
+    );
+    assert.match(secondPageText, /도시락 포장 목록 · 1건 \/ 5개/);
+    assert.equal(
+      secondPageItems.filter((item) => item.str === "보존").length,
+      5,
+    );
+    assert.match(secondPageText, /2 \/ 2/);
+  });
+
+  test("keeps portrait school order across the two-column page boundary", async () => {
+    const rows = Array.from({ length: 73 }, (_, index) =>
+      createRow({
+        class1Count: 1,
+        schoolId: `portrait-${index + 1}`,
+        schoolName: `세로학교 ${String(index + 1).padStart(2, "0")}`,
+      }),
+    );
+    const buffer = await createLunchBoxDailySchoolListPdf({
+      checklist: {
+        checkedSchoolIds: [],
+        grid: {
+          date: "2026-08-03",
+          menuItems: [],
+          rows,
+        },
+      },
+      generatedAt: new Date("2026-07-27T01:00:00.000Z"),
+      orientation: "portrait",
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const items = await extractPdfTextItems(buffer);
+    const firstPageText = items
+      .filter((item) => item.pageNumber === 1)
+      .map((item) => item.str)
+      .join("|");
+    const secondPageText = items
+      .filter((item) => item.pageNumber === 2)
+      .map((item) => item.str)
+      .join("|");
+    const thirdPageText = items
+      .filter((item) => item.pageNumber === 3)
+      .map((item) => item.str)
+      .join("|");
+
+    assert.equal(pdf.getPageCount(), 3);
+    assert.match(firstPageText, /세로학교 01/);
+    assert.match(firstPageText, /세로학교 72/);
+    assert.doesNotMatch(firstPageText, /세로학교 73/);
+    assert.match(secondPageText, /세로학교 73/);
+    assert.match(thirdPageText, /대용량 보냉백 배치 순서/);
+  });
+
   test("sorts classes by serving count and isolates Namcho and kindergartens in the packing list", async () => {
     const checklist: LunchBoxDailySchoolChecklistData = {
       checkedSchoolIds: [],
@@ -146,6 +258,8 @@ describe("lunch box daily school-list PDF", () => {
           createRow({
             class1Count: 12,
             class2Count: 30,
+            preservationClass: 2,
+            preservationCount: 2,
             schoolId: "regular-a",
             schoolName: "일반A초",
           }),
@@ -162,18 +276,21 @@ describe("lunch box daily school-list PDF", () => {
           }),
           createRow({
             class1Count: 45,
+            preservationClass: 1,
+            preservationCount: 3,
             schoolId: "namcho",
             schoolName: "이리남초",
           }),
           createRow({
             class1Count: 50,
+            preservationCount: 4,
             schoolId: "kindergarten",
             schoolName: "모현초 병설유치원",
             schoolType: "kindergarten",
           }),
           createRow({
             deliveryDriverCount: 900,
-            preservationCount: 800,
+            preservationCount: 791,
             schoolId: "non-serving",
             schoolName: "배식없는초",
           }),
@@ -203,11 +320,17 @@ describe("lunch box daily school-list PDF", () => {
     const packingSectionBoundary = PageSizes.A4[1] * 0.7;
 
     assert.equal(pdf.getPageCount(), 2);
-    assert.match(secondPageText, /배식 목록 · 5개 반 \/ 120개/);
+    assert.match(
+      secondPageText,
+      /배식 목록 · 5개 반 \/ 120개 \(총 1915개 - 보존식 800개 - 도시락 포장 95개 - 배송기사 900개\)/,
+    );
     assert.match(secondPageText, /도시락 포장 목록 · 2건 \/ 95개/);
     assert.match(secondPageText, /연계형/);
     assert.doesNotMatch(secondPageText, /배식없는초/);
-    assert.doesNotMatch(secondPageText, /보존식|배송기사|기사/);
+    assert.equal(
+      secondPageItems.filter((item) => item.str === "보존").length,
+      7,
+    );
     assert.deepEqual(orderedCounts, [
       "40개",
       "30개",
@@ -246,21 +369,31 @@ describe("lunch box daily school-list PDF", () => {
         }),
       ),
     ];
-    const buffer = await createLunchBoxDailySchoolListPdf({
-      checklist: {
-        checkedSchoolIds: [],
-        grid: {
-          date: "2026-08-03",
-          menuItems: [],
-          rows: [...regularRows, ...packingRows],
-        },
+    const checklist: LunchBoxDailySchoolChecklistData = {
+      checkedSchoolIds: [],
+      grid: {
+        date: "2026-08-03",
+        menuItems: [],
+        rows: [...regularRows, ...packingRows],
       },
+    };
+    const buffer = await createLunchBoxDailySchoolListPdf({
+      checklist,
       generatedAt: new Date("2026-07-27T01:00:00.000Z"),
     });
+    const portraitBuffer = await createLunchBoxDailySchoolListPdf({
+      checklist,
+      generatedAt: new Date("2026-07-27T01:00:00.000Z"),
+      orientation: "portrait",
+    });
     const pdf = await PDFDocument.load(buffer);
+    const portraitPdf = await PDFDocument.load(portraitBuffer);
     const secondPageItems = (await extractPdfTextItems(buffer)).filter(
       (item) => item.pageNumber === 2,
     );
+    const portraitSecondPageItems = (
+      await extractPdfTextItems(portraitBuffer)
+    ).filter((item) => item.pageNumber === 2);
     const secondPageText = secondPageItems
       .map((item) => item.str)
       .join("|");
@@ -269,10 +402,33 @@ describe("lunch box daily school-list PDF", () => {
     );
 
     assert.equal(pdf.getPageCount(), 2);
-    assert.match(secondPageText, /배식 목록 · 62개 반 \/ 930개/);
+    assert.equal(portraitPdf.getPageCount(), 2);
+    assertAlmostEqual(portraitPdf.getPage(0).getWidth(), PageSizes.A4[0]);
+    assertAlmostEqual(portraitPdf.getPage(0).getHeight(), PageSizes.A4[1]);
+    assert.match(
+      secondPageText,
+      /배식 목록 · 62개 반 \/ 930개 \(총 989개 - 보존식 0개 - 도시락 포장 59개\)/,
+    );
     assert.match(secondPageText, /도시락 포장 목록 · 7건 \/ 59개/);
+    assert.equal(
+      secondPageItems.filter((item) => item.str === "보존").length,
+      4,
+    );
     assert.equal(lastSchoolItems.length, 2);
     assert.ok(Math.min(...lastSchoolItems.map((item) => item.y)) > 35);
+    assert.equal(
+      portraitSecondPageItems.filter(
+        (item) => item.str === "피크학교 31초",
+      ).length,
+      2,
+    );
+    assert.ok(
+      Math.min(
+        ...portraitSecondPageItems
+          .filter((item) => item.str === "피크학교 31초")
+          .map((item) => item.y),
+      ) > 35,
+    );
     assert.match(secondPageText, /2 \/ 2/);
   });
 
@@ -322,6 +478,16 @@ describe("lunch box daily school-list PDF", () => {
       dailySchoolPrintRouteSource,
       /createLunchBoxDailySchoolListPdf/,
     );
+    assert.match(
+      dailySchoolPrintRouteSource,
+      /searchParams\.get\("orientation"\)/,
+    );
+    assert.match(
+      dailySchoolPrintRouteSource,
+      /value === "portrait" \? "portrait" : "landscape"/,
+    );
+    assert.match(dailySchoolPrintRouteSource, /orientation,/);
+    assert.match(dailySchoolPrintRouteSource, /orientationSuffix/);
     assert.match(dailySchoolPrintRouteSource, /"Cache-Control": "no-store"/);
     assert.match(
       dailySchoolPrintRouteSource,
