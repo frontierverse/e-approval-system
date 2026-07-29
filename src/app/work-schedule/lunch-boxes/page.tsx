@@ -11,6 +11,7 @@ import {
   setLunchBoxDailySchoolCheckAction,
   setLunchBoxSchoolCheckAction,
 } from "@/app/work-schedule/lunch-boxes/actions";
+import { LunchBoxChartBoard } from "@/components/lunch-box-chart-board";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
 import { LunchBoxCountChangeLog } from "@/components/lunch-box-count-change-log";
 import { LunchBoxDailySchoolChecklist } from "@/components/lunch-box-daily-school-checklist";
@@ -20,6 +21,7 @@ import { PageTitle } from "@/components/page-title";
 import { requireUser } from "@/lib/auth";
 import {
   getLunchBoxCountChangeLogPage,
+  getLunchBoxChartData,
   getLunchBoxCountMonth,
   getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
@@ -43,6 +45,7 @@ type LunchBoxManagementTab =
   | "counts"
   | "schoolList"
   | "dailySchoolList"
+  | "charts"
   | "schools";
 
 type LunchBoxManagementSearchParams = {
@@ -62,13 +65,15 @@ export default async function WorkScheduleLunchBoxesPage({
 
   const params = await searchParams;
   const activeTab = getSelectedLunchBoxTab(params.tab);
-  const isChecklistTab =
-    activeTab === "schoolList" || activeTab === "dailySchoolList";
+  const isCompactTab =
+    activeTab === "schoolList" ||
+    activeTab === "dailySchoolList" ||
+    activeTab === "charts";
 
   return (
     <>
-      {/* 체크 목록은 첫 행이 바로 보이도록 제목 영역을 압축한다. */}
-      {isChecklistTab ? (
+      {/* 체크 목록과 차트가 바로 보이도록 제목 영역을 압축한다. */}
+      {isCompactTab ? (
         <PageTitle compact title="도시락 현황" />
       ) : (
         <PageTitle
@@ -78,9 +83,11 @@ export default async function WorkScheduleLunchBoxesPage({
       )}
       <LunchBoxManagementTabs activeTab={activeTab} />
 
-      <div className={isChecklistTab ? "mt-3" : "mt-4"}>
+      <div className={isCompactTab ? "mt-3" : "mt-4"}>
         {activeTab === "schools" ? (
           <LunchBoxSchoolPanel />
+        ) : activeTab === "charts" ? (
+          <LunchBoxChartPanel />
         ) : activeTab === "dailySchoolList" ? (
           <LunchBoxDailySchoolChecklistPanel
             checkLogPage={params.checkLogPage}
@@ -187,6 +194,12 @@ async function LunchBoxSchoolPanel() {
   return <LunchBoxSchoolList schools={schools} />;
 }
 
+async function LunchBoxChartPanel() {
+  const chartData = await getLunchBoxChartData();
+
+  return <LunchBoxChartBoard chartData={chartData} />;
+}
+
 function LunchBoxManagementTabs({
   activeTab,
 }: {
@@ -209,6 +222,11 @@ function LunchBoxManagementTabs({
           active={activeTab === "dailySchoolList"}
           href="/work-schedule/lunch-boxes?tab=daily-school-list"
           label="날짜별 학교 목록"
+        />
+        <LunchBoxManagementTabLink
+          active={activeTab === "charts"}
+          href="/work-schedule/lunch-boxes?tab=charts"
+          label="차트 관리"
         />
         <LunchBoxManagementTabLink
           active={activeTab === "schools"}
@@ -261,6 +279,10 @@ function getSelectedLunchBoxTab(
 
   if (value === "daily-school-list") {
     return "dailySchoolList";
+  }
+
+  if (value === "charts") {
+    return "charts";
   }
 
   return value === "school-list" ? "schoolList" : "counts";

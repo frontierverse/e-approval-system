@@ -19,7 +19,7 @@ const dailySchoolPrintRouteSource = readFileSync(
 );
 
 describe("lunch box daily school-list PDF", () => {
-  test("reproduces the live three-column checklist on one A4 landscape page", async () => {
+  test("keeps the live three-column checklist on page one and appends the serving order", async () => {
     const rows = Array.from({ length: 41 }, (_, index) =>
       createRow({
         class1Count: index === 0 ? 10 : 1,
@@ -58,21 +58,33 @@ describe("lunch box daily school-list PDF", () => {
       generatedAt: new Date("2026-07-27T01:00:00.000Z"),
     });
     const pdf = await PDFDocument.load(buffer);
-    const [page] = pdf.getPages();
+    const [page, servingOrderPage] = pdf.getPages();
     const items = await extractPdfTextItems(buffer);
-    const text = items.map((item) => item.str).join("|");
-    const compactText = items.map((item) => item.str.trim()).join("");
-    const schoolHeaders = items.filter((item) => item.str === "학교");
-    const firstColumnSchool = findTextItem(items, "학교 01");
-    const secondColumnSchool = findTextItem(items, "학교 15");
-    const thirdColumnSchool = findTextItem(items, "학교 29");
+    const firstPageItems = items.filter((item) => item.pageNumber === 1);
+    const secondPageItems = items.filter((item) => item.pageNumber === 2);
+    const text = firstPageItems.map((item) => item.str).join("|");
+    const secondPageText = secondPageItems
+      .map((item) => item.str)
+      .join("|");
+    const compactText = firstPageItems
+      .map((item) => item.str.trim())
+      .join("");
+    const schoolHeaders = firstPageItems.filter(
+      (item) => item.str === "학교",
+    );
+    const firstColumnSchool = findTextItem(firstPageItems, "학교 01");
+    const secondColumnSchool = findTextItem(firstPageItems, "학교 15");
+    const thirdColumnSchool = findTextItem(firstPageItems, "학교 29");
 
     assert.equal(readPdfHeader(buffer), "%PDF");
-    assert.equal(pdf.getPageCount(), 1);
+    assert.equal(pdf.getPageCount(), 2);
     assertAlmostEqual(page.getWidth(), PageSizes.A4[1]);
     assertAlmostEqual(page.getHeight(), PageSizes.A4[0]);
+    assertAlmostEqual(servingOrderPage.getWidth(), PageSizes.A4[1]);
+    assertAlmostEqual(servingOrderPage.getHeight(), PageSizes.A4[0]);
     assert.equal(pdf.getTitle(), "2026.07.29.(수) 날짜별 학교 목록");
     assert.match(text, /날짜별 학교 목록/);
+    assert.doesNotMatch(text, /대용량 보냉백 배치 순서/);
     assert.match(
       text,
       new RegExp(escapeRegExp(view.summaryLabel)),
@@ -96,6 +108,15 @@ describe("lunch box daily school-list PDF", () => {
       [14, 14, 13],
     );
     assert.deepEqual(view.checkedSchoolIds, ["school-1", "school-15"]);
+    assert.match(secondPageText, /대용량 보냉백 배치 순서/);
+    assert.match(secondPageText, /배식 목록/);
+    assert.match(secondPageText, /도시락 포장 목록/);
+    assert.match(secondPageText, /학교 01/);
+    assert.match(secondPageText, /1반/);
+    assert.match(secondPageText, /10개/);
+    assert.match(secondPageText, /남초·병설 포장 항목이 없습니다/);
+    assert.match(text, /1 \/ 2/);
+    assert.match(secondPageText, /2 \/ 2/);
 
     for (const header of [
       "보존식",
@@ -108,11 +129,151 @@ describe("lunch box daily school-list PDF", () => {
       "합계",
     ]) {
       assert.equal(
-        items.filter((item) => item.str === header).length,
+        firstPageItems.filter((item) => item.str === header).length,
         3,
         `${header} 헤더는 3단마다 한 번씩 있어야 합니다.`,
       );
     }
+  });
+
+  test("sorts classes by serving count and isolates Namcho and kindergartens in the packing list", async () => {
+    const checklist: LunchBoxDailySchoolChecklistData = {
+      checkedSchoolIds: [],
+      grid: {
+        date: "2026-08-03",
+        menuItems: [],
+        rows: [
+          createRow({
+            class1Count: 12,
+            class2Count: 30,
+            schoolId: "regular-a",
+            schoolName: "일반A초",
+          }),
+          createRow({
+            class1Count: 40,
+            schoolId: "dongnam",
+            schoolName: "동남초",
+          }),
+          createRow({
+            class3Count: 30,
+            linkedCount: 8,
+            schoolId: "regular-b",
+            schoolName: "일반B초",
+          }),
+          createRow({
+            class1Count: 45,
+            schoolId: "namcho",
+            schoolName: "이리남초",
+          }),
+          createRow({
+            class1Count: 50,
+            schoolId: "kindergarten",
+            schoolName: "모현초 병설유치원",
+            schoolType: "kindergarten",
+          }),
+          createRow({
+            deliveryDriverCount: 900,
+            preservationCount: 800,
+            schoolId: "non-serving",
+            schoolName: "배식없는초",
+          }),
+        ],
+      },
+    };
+    const buffer = await createLunchBoxDailySchoolListPdf({
+      checklist,
+      generatedAt: new Date("2026-07-27T01:00:00.000Z"),
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const secondPageItems = (await extractPdfTextItems(buffer)).filter(
+      (item) => item.pageNumber === 2,
+    );
+    const secondPageText = secondPageItems
+      .map((item) => item.str)
+      .join("|");
+    const orderedCounts = secondPageItems
+      .filter((item) => /^(?:50|45|40|30|12|8)개$/.test(item.str))
+      .map((item) => item.str);
+    const dongnamItem = findTextItem(secondPageItems, "동남초");
+    const namchoItem = findTextItem(secondPageItems, "이리남초");
+    const kindergartenItem = findTextItem(
+      secondPageItems,
+      "모현초 병설유치원",
+    );
+    const packingSectionBoundary = PageSizes.A4[1] * 0.7;
+
+    assert.equal(pdf.getPageCount(), 2);
+    assert.match(secondPageText, /배식 목록 · 5개 반 \/ 120개/);
+    assert.match(secondPageText, /도시락 포장 목록 · 2건 \/ 95개/);
+    assert.match(secondPageText, /연계형/);
+    assert.doesNotMatch(secondPageText, /배식없는초/);
+    assert.doesNotMatch(secondPageText, /보존식|배송기사|기사/);
+    assert.deepEqual(orderedCounts, [
+      "40개",
+      "30개",
+      "30개",
+      "12개",
+      "8개",
+      "50개",
+      "45개",
+    ]);
+    assert.ok(dongnamItem.x < packingSectionBoundary);
+    assert.ok(namchoItem.x > packingSectionBoundary);
+    assert.ok(kindergartenItem.x > packingSectionBoundary);
+  });
+
+  test("fits the peak operating volume on the second landscape page", async () => {
+    const regularRows = Array.from({ length: 31 }, (_, index) =>
+      createRow({
+        class1Count: 20,
+        class2Count: 10,
+        schoolId: `peak-regular-${index + 1}`,
+        schoolName: `피크학교 ${String(index + 1).padStart(2, "0")}초`,
+      }),
+    );
+    const packingRows = [
+      createRow({
+        class1Count: 14,
+        schoolId: "peak-namcho",
+        schoolName: "남초",
+      }),
+      ...Array.from({ length: 6 }, (_, index) =>
+        createRow({
+          class1Count: 5 + index,
+          schoolId: `peak-kindergarten-${index + 1}`,
+          schoolName: `피크학교 ${index + 1}초 병설유치원`,
+          schoolType: "kindergarten",
+        }),
+      ),
+    ];
+    const buffer = await createLunchBoxDailySchoolListPdf({
+      checklist: {
+        checkedSchoolIds: [],
+        grid: {
+          date: "2026-08-03",
+          menuItems: [],
+          rows: [...regularRows, ...packingRows],
+        },
+      },
+      generatedAt: new Date("2026-07-27T01:00:00.000Z"),
+    });
+    const pdf = await PDFDocument.load(buffer);
+    const secondPageItems = (await extractPdfTextItems(buffer)).filter(
+      (item) => item.pageNumber === 2,
+    );
+    const secondPageText = secondPageItems
+      .map((item) => item.str)
+      .join("|");
+    const lastSchoolItems = secondPageItems.filter(
+      (item) => item.str === "피크학교 31초",
+    );
+
+    assert.equal(pdf.getPageCount(), 2);
+    assert.match(secondPageText, /배식 목록 · 62개 반 \/ 930개/);
+    assert.match(secondPageText, /도시락 포장 목록 · 7건 \/ 59개/);
+    assert.equal(lastSchoolItems.length, 2);
+    assert.ok(Math.min(...lastSchoolItems.map((item) => item.y)) > 35);
+    assert.match(secondPageText, /2 \/ 2/);
   });
 
   test("creates the same compact empty state for a date without schools", async () => {
@@ -184,6 +345,7 @@ function createRow({
   preservationCount = 0,
   schoolId,
   schoolName,
+  schoolType = "elementary",
 }: Partial<
   Pick<
     LunchBoxCountRow,
@@ -195,6 +357,7 @@ function createRow({
     | "linkedCount"
     | "preservationClass"
     | "preservationCount"
+    | "schoolType"
   >
 > &
   Pick<LunchBoxCountRow, "schoolId" | "schoolName">): LunchBoxCountRow {
@@ -209,7 +372,7 @@ function createRow({
     preservationCount,
     schoolId,
     schoolName,
-    schoolType: "elementary",
+    schoolType,
   };
 }
 
@@ -247,6 +410,7 @@ async function extractPdfTextItems(buffer: Uint8Array) {
   const pdf = await loadingTask.promise;
   const items: Array<{
     height: number;
+    pageNumber: number;
     str: string;
     width: number;
     x: number;
@@ -265,6 +429,7 @@ async function extractPdfTextItems(buffer: Uint8Array) {
 
         items.push({
           height: item.height,
+          pageNumber,
           str: item.str,
           width: item.width,
           x: item.transform[4],

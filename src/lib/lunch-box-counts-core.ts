@@ -55,7 +55,7 @@ export const lunchBoxDailyCheckHistoryPageSize = 10;
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 const lunchBoxMenuMarkerPattern =
   /[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳★]/gu;
-const separateLunchBoxStatusSchoolName = "남초";
+const lunchBoxPackingSchoolName = "남초";
 
 export const lunchBoxCalendarWeekdays = [
   { value: 0, label: "일" },
@@ -153,6 +153,19 @@ export type LunchBoxCountRowInput = LunchBoxCountValues & {
 export type LunchBoxServingCountField =
   (typeof lunchBoxServingCountFields)[number];
 
+export type LunchBoxServingOrderItem = {
+  count: number;
+  field: LunchBoxServingCountField;
+  label: string;
+  schoolId: string;
+  schoolName: string;
+};
+
+export type LunchBoxServingOrderGroups = {
+  servingItems: LunchBoxServingOrderItem[];
+  packingItems: LunchBoxServingOrderItem[];
+};
+
 export type LunchBoxChecklistChip = {
   field: LunchBoxServingCountField;
   label: string;
@@ -212,6 +225,35 @@ export type LunchBoxCountMonthDay = {
 export type LunchBoxCountMonth = {
   month: string;
   days: Record<string, LunchBoxCountMonthDay>;
+};
+
+export type LunchBoxChartRow = LunchBoxCountValues & {
+  date: string;
+  schoolId: string;
+  schoolName: string;
+  schoolOrder: number;
+  schoolType: LunchBoxSchoolType;
+};
+
+export type LunchBoxChartPoint = {
+  date: string;
+  preservationCount: number;
+  totalCount: number;
+};
+
+export type LunchBoxChartSchoolSeries = {
+  points: LunchBoxChartPoint[];
+  schoolId: string;
+  schoolName: string;
+  schoolType: LunchBoxSchoolType;
+};
+
+export type LunchBoxChartData = {
+  dailySeries: LunchBoxChartPoint[];
+  endDate: string | null;
+  schoolSeries: LunchBoxChartSchoolSeries[];
+  serviceDates: string[];
+  startDate: string | null;
 };
 
 export type LunchBoxCountFieldChange = {
@@ -332,6 +374,16 @@ export function normalizeLunchBoxSchoolName(value: unknown) {
   }
 
   return name.replace(/^(?:이리|익산)/, "").trim();
+}
+
+export function isLunchBoxPackingSchool(
+  row: Pick<LunchBoxCountRow, "schoolName" | "schoolType">,
+) {
+  return (
+    row.schoolType === "kindergarten" ||
+    (row.schoolType === "elementary" &&
+      normalizeLunchBoxSchoolName(row.schoolName) === lunchBoxPackingSchoolName)
+  );
 }
 
 export function isLunchBoxPreservationClassValue(
@@ -566,6 +618,177 @@ export function getLunchBoxCountTotal(values: LunchBoxCountValues): number {
   return lunchBoxCountFields.reduce((sum, field) => sum + values[field], 0);
 }
 
+export function getLunchBoxChartCount(
+  point: Pick<LunchBoxChartPoint, "preservationCount" | "totalCount">,
+  includePreservation: boolean,
+) {
+  return includePreservation
+    ? point.totalCount
+    : point.totalCount - point.preservationCount;
+}
+
+export function createLunchBoxChartData(
+  rows: readonly LunchBoxChartRow[],
+): LunchBoxChartData {
+  type ChartPointCounts = Pick<
+    LunchBoxChartPoint,
+    "preservationCount" | "totalCount"
+  >;
+  type SchoolBucket = Omit<LunchBoxChartSchoolSeries, "points"> & {
+    pointsByDate: Map<string, ChartPointCounts>;
+    schoolOrder: number;
+  };
+
+  const dailyCountsByDate = new Map<string, ChartPointCounts>();
+  const schoolsById = new Map<string, SchoolBucket>();
+
+  for (const row of rows) {
+    if (!isLunchBoxDate(row.date)) {
+      continue;
+    }
+
+    const weekday = parseLunchBoxDateValue(row.date).getUTCDay();
+
+    if (weekday === 0 || weekday === 6) {
+      continue;
+    }
+
+    const totalCount = getLunchBoxCountTotal(row);
+
+    if (totalCount < 1) {
+      continue;
+    }
+
+    const dailyCounts = dailyCountsByDate.get(row.date);
+
+    if (dailyCounts) {
+      dailyCounts.totalCount += totalCount;
+      dailyCounts.preservationCount += row.preservationCount;
+    } else {
+      dailyCountsByDate.set(row.date, {
+        preservationCount: row.preservationCount,
+        totalCount,
+      });
+    }
+
+    let school = schoolsById.get(row.schoolId);
+
+    if (!school) {
+      school = {
+        pointsByDate: new Map(),
+        schoolId: row.schoolId,
+        schoolName: row.schoolName,
+        schoolOrder: row.schoolOrder,
+        schoolType: row.schoolType,
+      };
+      schoolsById.set(row.schoolId, school);
+    }
+
+    const schoolPoint = school.pointsByDate.get(row.date);
+
+    if (schoolPoint) {
+      schoolPoint.totalCount += totalCount;
+      schoolPoint.preservationCount += row.preservationCount;
+    } else {
+      school.pointsByDate.set(row.date, {
+        preservationCount: row.preservationCount,
+        totalCount,
+      });
+    }
+  }
+
+  const serviceDates = Array.from(dailyCountsByDate.keys()).sort();
+  const dailySeries = serviceDates.map((date) => ({
+    date,
+    ...dailyCountsByDate.get(date)!,
+  }));
+  const schoolSeries = Array.from(schoolsById.values())
+    .sort(
+      (left, right) =>
+        left.schoolOrder - right.schoolOrder ||
+        left.schoolName.localeCompare(right.schoolName, "ko-KR") ||
+        left.schoolId.localeCompare(right.schoolId),
+    )
+    .map(
+      ({
+        pointsByDate,
+        schoolId,
+        schoolName,
+        schoolType,
+      }): LunchBoxChartSchoolSeries => ({
+        points: serviceDates.map((date) => ({
+          date,
+          preservationCount:
+            pointsByDate.get(date)?.preservationCount ?? 0,
+          totalCount: pointsByDate.get(date)?.totalCount ?? 0,
+        })),
+        schoolId,
+        schoolName,
+        schoolType,
+      }),
+    );
+
+  return {
+    dailySeries,
+    endDate: serviceDates.at(-1) ?? null,
+    schoolSeries,
+    serviceDates,
+    startDate: serviceDates[0] ?? null,
+  };
+}
+
+export function createLunchBoxServingOrderGroups(
+  rows: readonly LunchBoxCountRow[],
+): LunchBoxServingOrderGroups {
+  type IndexedItem = {
+    item: LunchBoxServingOrderItem;
+    sourceIndex: number;
+  };
+
+  const servingItems: IndexedItem[] = [];
+  const packingItems: IndexedItem[] = [];
+
+  rows.forEach((row, rowIndex) => {
+    const targetItems = isLunchBoxPackingSchool(row)
+      ? packingItems
+      : servingItems;
+
+    lunchBoxServingCountFields.forEach((field, fieldIndex) => {
+      const count = row[field];
+
+      if (count <= 0) {
+        return;
+      }
+
+      targetItems.push({
+        item: {
+          count,
+          field,
+          label: lunchBoxCountFieldLabels[field],
+          schoolId: row.schoolId,
+          schoolName: row.schoolName,
+        },
+        sourceIndex:
+          rowIndex * lunchBoxServingCountFields.length + fieldIndex,
+      });
+    });
+  });
+
+  const sortItems = (items: IndexedItem[]) =>
+    items
+      .sort(
+        (left, right) =>
+          right.item.count - left.item.count ||
+          left.sourceIndex - right.sourceIndex,
+      )
+      .map(({ item }) => item);
+
+  return {
+    servingItems: sortItems(servingItems),
+    packingItems: sortItems(packingItems),
+  };
+}
+
 export function hasLunchBoxStatusData(grid: LunchBoxCountGrid) {
   return (
     grid.menuItems.length > 0 ||
@@ -601,17 +824,13 @@ export function createLunchBoxStatusSummary(
       0,
     );
 
-    if (row.schoolType === "kindergarten") {
-      kindergartenCount += schoolServingCount;
-      continue;
-    }
+    if (isLunchBoxPackingSchool(row)) {
+      if (row.schoolType === "kindergarten") {
+        kindergartenCount += schoolServingCount;
+      } else {
+        namchoLunchBoxCount += schoolServingCount;
+      }
 
-    if (
-      row.schoolType === "elementary" &&
-      normalizeLunchBoxSchoolName(row.schoolName) ===
-        separateLunchBoxStatusSchoolName
-    ) {
-      namchoLunchBoxCount += schoolServingCount;
       continue;
     }
 

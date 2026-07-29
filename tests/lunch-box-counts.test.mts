@@ -22,8 +22,10 @@ import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-
 import { LunchBoxSchoolChecklist } from "../src/components/lunch-box-school-checklist.tsx";
 import {
   createLunchBoxCalendarDays,
+  createLunchBoxChartData,
   createLunchBoxDailyChecklistView,
   createLunchBoxFixedCountList,
+  createLunchBoxServingOrderGroups,
   formatLunchBoxPreservationCellTitle,
   formatLunchBoxPreservationChipLabel,
   formatLunchBoxShortDateLabel,
@@ -34,6 +36,7 @@ import {
   formatLunchBoxMonthLabel,
   getLunchBoxCalendarWeekDates,
   getLunchBoxCalendarRange,
+  getLunchBoxChartCount,
   getLunchBoxCountTotal,
   getLunchBoxCurrentMonth,
   getLunchBoxMonthRange,
@@ -41,6 +44,7 @@ import {
   hasLunchBoxCountChanges,
   isLunchBoxDate,
   isLunchBoxMonth,
+  isLunchBoxPackingSchool,
   lunchBoxCountChangeLogPageSize,
   lunchBoxDailyCheckHistoryPageSize,
   normalizeLunchBoxCountChangeLogPage,
@@ -58,6 +62,7 @@ import {
   setLunchBoxChecklistIdChecked,
   shiftLunchBoxDate,
   shiftLunchBoxMonth,
+  type LunchBoxChartRow,
   type LunchBoxCountGrid as LunchBoxCountGridData,
   type LunchBoxCountChangeLogPage,
   type LunchBoxCountMonth,
@@ -378,6 +383,199 @@ describe("lunch box counts", () => {
     );
   });
 
+  test("builds contiguous service-day chart series and keeps preservation-only points", () => {
+    const createChartRow = (
+      values: Partial<LunchBoxChartRow> = {},
+    ): LunchBoxChartRow => ({
+      class1Count: 0,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      date: "2026-07-16",
+      deliveryDriverCount: 0,
+      linkedCount: 0,
+      preservationCount: 0,
+      schoolId: "school-a",
+      schoolName: "가학교",
+      schoolOrder: 1,
+      schoolType: "elementary",
+      ...values,
+    });
+    const chartData = createLunchBoxChartData([
+      createChartRow({
+        class1Count: 5,
+        date: "2026-07-20",
+        deliveryDriverCount: 1,
+      }),
+      createChartRow({
+        date: "2026-07-17",
+        preservationCount: 2,
+        schoolId: "school-b",
+        schoolName: "나학교",
+        schoolOrder: 0,
+        schoolType: "kindergarten",
+      }),
+      createChartRow({
+        class1Count: 10,
+        deliveryDriverCount: 2,
+        preservationCount: 1,
+      }),
+      createChartRow({
+        class1Count: 3,
+        date: "2026-07-20",
+        preservationCount: 1,
+        schoolId: "school-b",
+        schoolName: "나학교",
+        schoolOrder: 0,
+        schoolType: "kindergarten",
+      }),
+      createChartRow({
+        class1Count: 100,
+        date: "2026-07-19",
+        schoolId: "weekend-school",
+        schoolName: "주말학교",
+        schoolOrder: -1,
+      }),
+      createChartRow({
+        date: "2026-08-31",
+        schoolId: "zero-school",
+        schoolName: "수량없는학교",
+        schoolOrder: -2,
+      }),
+      createChartRow({
+        class1Count: 100,
+        date: "not-a-date",
+      }),
+    ]);
+
+    assert.deepEqual(chartData.serviceDates, [
+      "2026-07-16",
+      "2026-07-17",
+      "2026-07-20",
+    ]);
+    assert.equal(chartData.startDate, "2026-07-16");
+    assert.equal(chartData.endDate, "2026-07-20");
+    assert.deepEqual(chartData.dailySeries, [
+      {
+        date: "2026-07-16",
+        preservationCount: 1,
+        totalCount: 13,
+      },
+      {
+        date: "2026-07-17",
+        preservationCount: 2,
+        totalCount: 2,
+      },
+      {
+        date: "2026-07-20",
+        preservationCount: 1,
+        totalCount: 10,
+      },
+    ]);
+    assert.deepEqual(
+      chartData.schoolSeries.map((series) => series.schoolId),
+      ["school-b", "school-a"],
+    );
+    assert.deepEqual(chartData.schoolSeries[0].points, [
+      {
+        date: "2026-07-16",
+        preservationCount: 0,
+        totalCount: 0,
+      },
+      {
+        date: "2026-07-17",
+        preservationCount: 2,
+        totalCount: 2,
+      },
+      {
+        date: "2026-07-20",
+        preservationCount: 1,
+        totalCount: 4,
+      },
+    ]);
+    assert.deepEqual(chartData.schoolSeries[1].points, [
+      {
+        date: "2026-07-16",
+        preservationCount: 1,
+        totalCount: 13,
+      },
+      {
+        date: "2026-07-17",
+        preservationCount: 0,
+        totalCount: 0,
+      },
+      {
+        date: "2026-07-20",
+        preservationCount: 0,
+        totalCount: 6,
+      },
+    ]);
+
+    assert.equal(getLunchBoxChartCount(chartData.dailySeries[0], true), 13);
+    assert.equal(getLunchBoxChartCount(chartData.dailySeries[0], false), 12);
+    assert.equal(
+      getLunchBoxChartCount(chartData.schoolSeries[0].points[1], false),
+      0,
+    );
+    assert.equal(
+      getLunchBoxChartCount(chartData.schoolSeries[1].points[2], false),
+      6,
+      "보존식을 제외해도 배송기사 수량은 유지해야 합니다.",
+    );
+  });
+
+  test("returns an empty chart model when no weekday has a positive count", () => {
+    const emptyChart = createLunchBoxChartData([
+      {
+        class1Count: 10,
+        class2Count: 0,
+        class3Count: 0,
+        class4Count: 0,
+        date: "2026-07-18",
+        deliveryDriverCount: 0,
+        linkedCount: 0,
+        preservationCount: 0,
+        schoolId: "weekend-school",
+        schoolName: "주말학교",
+        schoolOrder: 0,
+        schoolType: "elementary",
+      },
+    ]);
+
+    assert.deepEqual(emptyChart, {
+      dailySeries: [],
+      endDate: null,
+      schoolSeries: [],
+      serviceDates: [],
+      startDate: null,
+    });
+  });
+
+  test("loads every stored school count for historical chart aggregation", () => {
+    const chartQuerySource = lunchBoxCountsSource.match(
+      /export async function getLunchBoxChartData[\s\S]*?(?=export async function getLunchBoxSchoolChecklist)/,
+    )?.[0];
+
+    assert.ok(chartQuerySource);
+    assert.doesNotMatch(chartQuerySource, /school: \{ active: true \}/);
+    assert.match(
+      chartQuerySource,
+      /orderBy: \[\s*\{ date: "asc" \},\s*\{ school: \{ order: "asc" \} \},\s*\{ school: \{ name: "asc" \} \},\s*\]/,
+    );
+    assert.doesNotMatch(chartQuerySource, /\bgte:|\blte:|\blt:|\bgt:/);
+    for (const field of [
+      "class1Count",
+      "class2Count",
+      "class3Count",
+      "class4Count",
+      "linkedCount",
+      "preservationCount",
+      "deliveryDriverCount",
+    ]) {
+      assert.match(chartQuerySource, new RegExp(`${field}: true`));
+    }
+  });
+
   test("normalizes count values against negative, decimal, and non-numeric input", () => {
     assert.equal(normalizeLunchBoxCountValue("12"), 12);
     assert.equal(normalizeLunchBoxCountValue(-5), 0);
@@ -594,6 +792,156 @@ describe("lunch box counts", () => {
     );
     assert.equal(normalizeLunchBoxSchoolName("이리초"), "이리초");
     assert.equal(normalizeLunchBoxSchoolName("익산초"), "익산초");
+  });
+
+  test("classifies Namcho and kindergartens as packing schools without matching Dongnamcho", () => {
+    assert.equal(
+      isLunchBoxPackingSchool({
+        schoolName: "남초",
+        schoolType: "elementary",
+      }),
+      true,
+    );
+    assert.equal(
+      isLunchBoxPackingSchool({
+        schoolName: "이리남초",
+        schoolType: "elementary",
+      }),
+      true,
+    );
+    assert.equal(
+      isLunchBoxPackingSchool({
+        schoolName: "동남초",
+        schoolType: "elementary",
+      }),
+      false,
+    );
+    assert.equal(
+      isLunchBoxPackingSchool({
+        schoolName: "이름에 병설 표기가 없는 유치원",
+        schoolType: "kindergarten",
+      }),
+      true,
+    );
+  });
+
+  test("orders serving and packing class items by count with stable row and field ties", () => {
+    const createRow = (
+      schoolId: string,
+      schoolName: string,
+      values: Partial<LunchBoxCountGridData["rows"][number]> = {},
+    ): LunchBoxCountGridData["rows"][number] => ({
+      class1Count: 0,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      deliveryDriverCount: 0,
+      linkedCount: 0,
+      preservationClass: null,
+      preservationCount: 0,
+      schoolId,
+      schoolName,
+      schoolType: "elementary",
+      ...values,
+    });
+    const groups = createLunchBoxServingOrderGroups([
+      createRow("school-a", "일반초 A", {
+        class1Count: 20,
+        class2Count: 30,
+        class3Count: 30,
+        deliveryDriverCount: 500,
+        preservationCount: 500,
+      }),
+      createRow("dongnam", "동남초", {
+        class1Count: 40,
+      }),
+      createRow("school-b", "일반초 B", {
+        class1Count: 30,
+        linkedCount: 10,
+      }),
+      createRow("non-serving", "배식 없는 초", {
+        deliveryDriverCount: 999,
+        preservationCount: 999,
+      }),
+      createRow("namcho", "남초", {
+        class1Count: 60,
+      }),
+      createRow("legacy-namcho", "이리남초", {
+        class2Count: 50,
+      }),
+      createRow("kindergarten", "햇살유치원", {
+        class1Count: 55,
+        schoolType: "kindergarten",
+      }),
+    ]);
+
+    assert.deepEqual(groups.servingItems, [
+      {
+        count: 40,
+        field: "class1Count",
+        label: "1반",
+        schoolId: "dongnam",
+        schoolName: "동남초",
+      },
+      {
+        count: 30,
+        field: "class2Count",
+        label: "2반",
+        schoolId: "school-a",
+        schoolName: "일반초 A",
+      },
+      {
+        count: 30,
+        field: "class3Count",
+        label: "3반",
+        schoolId: "school-a",
+        schoolName: "일반초 A",
+      },
+      {
+        count: 30,
+        field: "class1Count",
+        label: "1반",
+        schoolId: "school-b",
+        schoolName: "일반초 B",
+      },
+      {
+        count: 20,
+        field: "class1Count",
+        label: "1반",
+        schoolId: "school-a",
+        schoolName: "일반초 A",
+      },
+      {
+        count: 10,
+        field: "linkedCount",
+        label: "연계형",
+        schoolId: "school-b",
+        schoolName: "일반초 B",
+      },
+    ]);
+    assert.deepEqual(groups.packingItems, [
+      {
+        count: 60,
+        field: "class1Count",
+        label: "1반",
+        schoolId: "namcho",
+        schoolName: "남초",
+      },
+      {
+        count: 55,
+        field: "class1Count",
+        label: "1반",
+        schoolId: "kindergarten",
+        schoolName: "햇살유치원",
+      },
+      {
+        count: 50,
+        field: "class2Count",
+        label: "2반",
+        schoolId: "legacy-namcho",
+        schoolName: "이리남초",
+      },
+    ]);
   });
 
   test("validates calendar dates", () => {

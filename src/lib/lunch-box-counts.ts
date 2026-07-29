@@ -3,6 +3,7 @@ import "server-only";
 import { AuditAction, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  createLunchBoxChartData,
   createLunchBoxFixedCountList,
   formatLunchBoxDateValue,
   getLunchBoxCalendarRange,
@@ -17,6 +18,7 @@ import {
   parseLunchBoxDailyCheckHistoryDetail,
   parseLunchBoxDateValue,
   type LunchBoxCountChangeLogPage,
+  type LunchBoxChartData,
   type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
   type LunchBoxCountGrid,
@@ -236,6 +238,52 @@ export async function getLunchBoxFixedCountList(): Promise<LunchBoxFixedCountLis
     })),
     schools,
   });
+}
+
+export async function getLunchBoxChartData(): Promise<LunchBoxChartData> {
+  // Keep historical totals stable even after a school is deactivated.
+  const counts = await prisma.lunchBoxCount.findMany({
+    orderBy: [
+      { date: "asc" },
+      { school: { order: "asc" } },
+      { school: { name: "asc" } },
+    ],
+    select: {
+      date: true,
+      class1Count: true,
+      class2Count: true,
+      class3Count: true,
+      class4Count: true,
+      linkedCount: true,
+      preservationCount: true,
+      deliveryDriverCount: true,
+      school: {
+        select: {
+          id: true,
+          name: true,
+          order: true,
+          type: true,
+        },
+      },
+    },
+  });
+
+  return createLunchBoxChartData(
+    counts.map((count) => ({
+      class1Count: count.class1Count,
+      class2Count: count.class2Count,
+      class3Count: count.class3Count,
+      class4Count: count.class4Count,
+      date: formatLunchBoxDateValue(count.date),
+      deliveryDriverCount: count.deliveryDriverCount,
+      linkedCount: count.linkedCount,
+      preservationCount: count.preservationCount,
+      schoolId: count.school.id,
+      schoolName: count.school.name,
+      schoolOrder: count.school.order,
+      schoolType: normalizeLunchBoxSchoolType(count.school.type),
+    })),
+  );
 }
 
 export async function getLunchBoxSchoolChecklist(): Promise<LunchBoxSchoolChecklistData> {
