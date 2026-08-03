@@ -107,6 +107,14 @@ export type LunchBoxCountGrid = {
   rows: LunchBoxCountRow[];
 };
 
+export type LunchBoxCountRealtimeMergeResult = {
+  conflictingFieldCount: number;
+  conflictingSchoolCount: number;
+  edits: Record<string, LunchBoxCountValues>;
+  grid: LunchBoxCountGrid;
+  unavailableSchoolCount: number;
+};
+
 export type LunchBoxDailySchoolChecklistData = {
   checkedSchoolIds: string[];
   grid: LunchBoxCountGrid;
@@ -1201,6 +1209,95 @@ export function hasLunchBoxCountChanges(
   return lunchBoxCountFields.some(
     (field) => (previous?.[field] ?? 0) !== next[field],
   );
+}
+
+export function mergeLunchBoxCountRealtimeGrid({
+  currentGrid,
+  edits,
+  nextGrid,
+}: {
+  currentGrid: LunchBoxCountGrid;
+  edits: Record<string, LunchBoxCountValues>;
+  nextGrid: LunchBoxCountGrid;
+}): LunchBoxCountRealtimeMergeResult {
+  const currentRowsBySchoolId = new Map(
+    currentGrid.rows.map((row) => [row.schoolId, row]),
+  );
+  const nextRowsBySchoolId = new Map(
+    nextGrid.rows.map((row) => [row.schoolId, row]),
+  );
+  const mergedRows = [...nextGrid.rows];
+  const nextEdits: Record<string, LunchBoxCountValues> = {};
+  const conflictingSchoolIds = new Set<string>();
+  let conflictingFieldCount = 0;
+  let unavailableSchoolCount = 0;
+
+  for (const [schoolId, localValues] of Object.entries(edits)) {
+    const currentRow = currentRowsBySchoolId.get(schoolId);
+    const nextRow = nextRowsBySchoolId.get(schoolId);
+
+    if (!currentRow) {
+      continue;
+    }
+
+    if (!nextRow) {
+      const locallyEditedFieldCount = lunchBoxCountFields.filter(
+        (field) => localValues[field] !== currentRow[field],
+      ).length;
+
+      nextEdits[schoolId] = localValues;
+      mergedRows.push(currentRow);
+      conflictingFieldCount += Math.max(1, locallyEditedFieldCount);
+      conflictingSchoolIds.add(schoolId);
+      unavailableSchoolCount += 1;
+      continue;
+    }
+
+    const mergedValues = lunchBoxCountFields.reduce(
+      (values, field) => {
+        const isLocallyEdited = localValues[field] !== currentRow[field];
+
+        if (!isLocallyEdited) {
+          return values;
+        }
+
+        if (
+          nextRow[field] !== currentRow[field] &&
+          nextRow[field] !== localValues[field]
+        ) {
+          conflictingFieldCount += 1;
+          conflictingSchoolIds.add(schoolId);
+        }
+
+        values[field] = localValues[field];
+        return values;
+      },
+      {
+        class1Count: nextRow.class1Count,
+        class2Count: nextRow.class2Count,
+        class3Count: nextRow.class3Count,
+        class4Count: nextRow.class4Count,
+        linkedCount: nextRow.linkedCount,
+        preservationCount: nextRow.preservationCount,
+        deliveryDriverCount: nextRow.deliveryDriverCount,
+      },
+    );
+
+    if (hasLunchBoxCountChanges(nextRow, mergedValues)) {
+      nextEdits[schoolId] = mergedValues;
+    }
+  }
+
+  return {
+    conflictingFieldCount,
+    conflictingSchoolCount: conflictingSchoolIds.size,
+    edits: nextEdits,
+    grid: {
+      ...nextGrid,
+      rows: mergedRows,
+    },
+    unavailableSchoolCount,
+  };
 }
 
 export function isLunchBoxDate(value: string) {

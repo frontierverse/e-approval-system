@@ -47,6 +47,7 @@ import {
   isLunchBoxPackingSchool,
   lunchBoxCountChangeLogPageSize,
   lunchBoxDailyCheckHistoryPageSize,
+  mergeLunchBoxCountRealtimeGrid,
   normalizeLunchBoxCountChangeLogPage,
   normalizeLunchBoxDailyCheckHistoryPage,
   normalizeLunchBoxCountValue,
@@ -76,6 +77,20 @@ import {
 const lunchBoxCalendarBoardSource = readFileSync(
   new URL(
     "../src/components/lunch-box-count-calendar-board.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxCountGridSource = readFileSync(
+  new URL(
+    "../src/components/lunch-box-count-grid.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const lunchBoxCountRealtimeHookSource = readFileSync(
+  new URL(
+    "../src/hooks/use-lunch-box-realtime-sync.ts",
     import.meta.url,
   ),
   "utf8",
@@ -272,6 +287,18 @@ const fixedCountList = createLunchBoxFixedCountList({
 
 async function loadGrid() {
   return { ok: true as const, data: { grid } };
+}
+
+async function loadMonth() {
+  return {
+    ok: true as const,
+    data: {
+      monthData: {
+        month: "2026-07",
+        days: {},
+      },
+    },
+  };
 }
 
 async function saveCounts() {
@@ -738,6 +765,109 @@ describe("lunch box counts", () => {
     );
   });
 
+  test("merges remote count changes without overwriting local fields", () => {
+    const currentRow = grid.rows[0];
+    assert.ok(currentRow);
+    const localValues = {
+      preservationCount: currentRow.preservationCount,
+      deliveryDriverCount: currentRow.deliveryDriverCount,
+      class1Count: 20,
+      class2Count: currentRow.class2Count,
+      class3Count: currentRow.class3Count,
+      class4Count: currentRow.class4Count,
+      linkedCount: currentRow.linkedCount,
+    };
+    const nextGrid = {
+      ...grid,
+      rows: grid.rows.map((row) =>
+        row.schoolId === currentRow.schoolId
+          ? { ...row, class2Count: 17 }
+          : row,
+      ),
+    };
+    const result = mergeLunchBoxCountRealtimeGrid({
+      currentGrid: grid,
+      edits: { [currentRow.schoolId]: localValues },
+      nextGrid,
+    });
+
+    assert.equal(result.conflictingFieldCount, 0);
+    assert.equal(result.conflictingSchoolCount, 0);
+    assert.equal(result.edits[currentRow.schoolId]?.class1Count, 20);
+    assert.equal(result.edits[currentRow.schoolId]?.class2Count, 17);
+    assert.equal(
+      result.grid.rows.find(
+        (row) => row.schoolId === currentRow.schoolId,
+      )?.class2Count,
+      17,
+    );
+  });
+
+  test("detects same-field realtime conflicts and preserves the local input", () => {
+    const currentRow = grid.rows[0];
+    assert.ok(currentRow);
+    const localValues = {
+      preservationCount: currentRow.preservationCount,
+      deliveryDriverCount: currentRow.deliveryDriverCount,
+      class1Count: 20,
+      class2Count: currentRow.class2Count,
+      class3Count: currentRow.class3Count,
+      class4Count: currentRow.class4Count,
+      linkedCount: currentRow.linkedCount,
+    };
+    const nextGrid = {
+      ...grid,
+      rows: grid.rows.map((row) =>
+        row.schoolId === currentRow.schoolId
+          ? { ...row, class1Count: 18 }
+          : row,
+      ),
+    };
+    const result = mergeLunchBoxCountRealtimeGrid({
+      currentGrid: grid,
+      edits: { [currentRow.schoolId]: localValues },
+      nextGrid,
+    });
+
+    assert.equal(result.conflictingFieldCount, 1);
+    assert.equal(result.conflictingSchoolCount, 1);
+    assert.equal(result.edits[currentRow.schoolId]?.class1Count, 20);
+  });
+
+  test("keeps edited rows visible when their remote school becomes unavailable", () => {
+    const currentRow = grid.rows[0];
+    assert.ok(currentRow);
+    const localValues = {
+      preservationCount: currentRow.preservationCount,
+      deliveryDriverCount: currentRow.deliveryDriverCount,
+      class1Count: 20,
+      class2Count: currentRow.class2Count,
+      class3Count: currentRow.class3Count,
+      class4Count: currentRow.class4Count,
+      linkedCount: currentRow.linkedCount,
+    };
+    const result = mergeLunchBoxCountRealtimeGrid({
+      currentGrid: grid,
+      edits: { [currentRow.schoolId]: localValues },
+      nextGrid: {
+        ...grid,
+        rows: grid.rows.filter(
+          (row) => row.schoolId !== currentRow.schoolId,
+        ),
+      },
+    });
+
+    assert.equal(result.unavailableSchoolCount, 1);
+    assert.equal(result.conflictingSchoolCount, 1);
+    assert.equal(
+      result.grid.rows.some(
+        (row) => row.schoolId === currentRow.schoolId,
+      ),
+      true,
+    );
+    assert.deepEqual(result.edits[currentRow.schoolId], localValues);
+  });
+
   test("preserves stored preservation counts for older partial save payloads", () => {
     assert.equal(normalizeLunchBoxPreservationCountForSave({}, 1), 1);
     assert.equal(
@@ -1035,6 +1165,7 @@ describe("lunch box counts", () => {
     );
 
     assert.match(html, /일자별 도시락 현황/);
+    assert.match(html, /실시간 연결 중/);
     assert.match(html, /영만초/);
     assert.match(html, /초등학교/);
     assert.match(html, /동남초 병설유치원/);
@@ -1311,6 +1442,7 @@ describe("lunch box calendar", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxCountCalendarBoard, {
         loadGrid,
+        loadMonth,
         monthData,
         saveCounts,
         selectedMonth: "2026-07",
@@ -1320,6 +1452,7 @@ describe("lunch box calendar", () => {
 
     assert.match(html, /2026년 7월/);
     assert.match(html, /월 총계 57개/);
+    assert.match(html, /실시간 연결 중/);
     assert.match(html, /보존식·배송기사 포함/);
     assert.match(html, /영만초/);
     assert.match(html, /동남초 병설유치원/);
@@ -1354,6 +1487,7 @@ describe("lunch box calendar", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxCountCalendarBoard, {
         loadGrid,
+        loadMonth,
         monthData,
         saveCounts,
         selectedMonth: "2026-07",
@@ -1371,6 +1505,7 @@ describe("lunch box calendar", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxCountCalendarBoard, {
         loadGrid,
+        loadMonth,
         monthData: { month: "2026-07", days: {} },
         saveCounts,
         selectedMonth: "2026-07",
@@ -1404,6 +1539,7 @@ describe("lunch box calendar", () => {
     const html = renderToStaticMarkup(
       React.createElement(LunchBoxCountCalendarBoard, {
         loadGrid,
+        loadMonth,
         monthData,
         saveCounts,
         selectedMonth: "2026-07",
@@ -1805,6 +1941,53 @@ describe("lunch box count change log", () => {
     assert.doesNotMatch(
       lunchBoxDailyChecklistSource,
       /SUPABASE_SERVICE_ROLE_KEY/,
+    );
+  });
+
+  test("syncs the count calendar and open date editor from canonical realtime data", () => {
+    assert.match(
+      lunchBoxRealtimeRouteSource,
+      /isLunchBoxMonth\(requestedMonth\)[\s\S]*?date=in\.\([\s\S]*?createLunchBoxCalendarDays/,
+    );
+    assert.match(
+      lunchBoxActionsSource,
+      /getLunchBoxCountMonthAction[\s\S]*?requireUser\(\)[\s\S]*?isLunchBoxMonth\(month\)[\s\S]*?getLunchBoxCountMonth/,
+    );
+    assert.match(
+      lunchBoxPageSource,
+      /loadMonth=\{getLunchBoxCountMonthAction\}/,
+    );
+    assert.match(
+      lunchBoxCalendarBoardSource,
+      /useLunchBoxRealtimeSync<LunchBoxCountMonth>[\s\S]*?month=\$\{encodeURIComponent\(selectedMonth\)\}[\s\S]*?loadMonth\(selectedMonth\)[\s\S]*?setDays\(nextMonthData\.days\)/,
+    );
+    assert.match(
+      lunchBoxCountGridSource,
+      /useLunchBoxRealtimeSync<LunchBoxCountGridData>[\s\S]*?date=\$\{encodeURIComponent\(grid\.date\)\}[\s\S]*?mergeLunchBoxCountRealtimeGrid/,
+    );
+    assert.match(
+      lunchBoxCountGridSource,
+      /다른 직원이 수정 중인[\s\S]*?내 입력 유지[\s\S]*?최신값 적용/,
+    );
+    assert.match(
+      lunchBoxCountGridSource,
+      /rows\.length === 0 \|\| realtimeConflict[\s\S]*?Boolean\(realtimeConflict\)/,
+    );
+    assert.match(
+      lunchBoxCountGridSource,
+      /setRealtimeConflict\(\(currentConflict\)[\s\S]*?Object\.keys\(mergeResult\.edits\)\.length === 0[\s\S]*?currentConflict/,
+    );
+    assert.match(
+      lunchBoxCountRealtimeHookSource,
+      /new EventSource\(streamUrl\)[\s\S]*?addEventListener\("change"[\s\S]*?visibilitychange/,
+    );
+    assert.match(
+      lunchBoxCountRealtimeHookSource,
+      /realtimeFallbackSyncIntervalMs[\s\S]*?setInterval\([\s\S]*?!isRealtimeReady/,
+    );
+    assert.match(
+      lunchBoxCountRealtimeHookSource,
+      /document\.visibilityState === "hidden"[\s\S]*?!navigator\.onLine[\s\S]*?realtimeSyncRetryMs/,
     );
   });
 

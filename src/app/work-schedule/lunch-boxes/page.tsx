@@ -4,6 +4,7 @@ import {
   clearLunchBoxDailySchoolChecksAction,
   clearLunchBoxSchoolChecksAction,
   getLunchBoxCountGridAction,
+  getLunchBoxCountMonthAction,
   getLunchBoxDailyCheckHistoryPageAction,
   getLunchBoxDailySchoolChecklistAction,
   getLunchBoxSchoolChecklistAction,
@@ -122,6 +123,7 @@ async function LunchBoxCountPanel({
     <>
       <LunchBoxCountCalendarBoard
         loadGrid={getLunchBoxCountGridAction}
+        loadMonth={getLunchBoxCountMonthAction}
         monthData={monthData}
         saveCounts={saveLunchBoxCountsAction}
         selectedMonth={selectedMonth}

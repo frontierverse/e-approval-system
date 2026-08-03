@@ -7,6 +7,7 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import {
   getLunchBoxCountGrid,
+  getLunchBoxCountMonth,
   getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
   getLunchBoxSchoolChecklist,
@@ -16,6 +17,7 @@ import {
   getLunchBoxCountTotal,
   hasLunchBoxCountChanges,
   isLunchBoxDate,
+  isLunchBoxMonth,
   isLunchBoxPreservationClassValue,
   isLunchBoxSchoolType,
   normalizeLunchBoxCountValue,
@@ -27,6 +29,7 @@ import {
   resolveLunchBoxPreservationClassForUpdate,
   type LunchBoxActionResult,
   type LunchBoxCountGrid,
+  type LunchBoxCountMonth,
   type LunchBoxCountRowInput,
   type LunchBoxDailyCheckHistoryPage,
   type LunchBoxDailySchoolChecklistData,
@@ -65,6 +68,26 @@ export async function getLunchBoxCountGridAction(
     ok: true,
     data: {
       grid: await getLunchBoxCountGrid({ date }),
+    },
+  };
+}
+
+export async function getLunchBoxCountMonthAction(
+  month: string,
+): Promise<LunchBoxActionResult<{ monthData: LunchBoxCountMonth }>> {
+  await requireUser();
+
+  if (!isLunchBoxMonth(month)) {
+    return {
+      ok: false,
+      error: "월을 다시 선택하세요.",
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      monthData: await getLunchBoxCountMonth({ month }),
     },
   };
 }

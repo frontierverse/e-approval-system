@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { UserStatus } from "@/generated/prisma/client";
-import { isLunchBoxDate } from "@/lib/lunch-box-counts-core";
+import {
+  createLunchBoxCalendarDays,
+  isLunchBoxDate,
+  isLunchBoxMonth,
+} from "@/lib/lunch-box-counts-core";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
 import { getSupabaseRealtimeServerClient } from "@/lib/supabase-realtime-server";
@@ -14,12 +18,28 @@ const heartbeatIntervalMs = 20_000;
 const reconnectBeforeFunctionTimeoutMs = 240_000;
 
 export async function GET(request: NextRequest) {
-  const date = request.nextUrl.searchParams.get("date") ?? "";
+  const requestedDate = request.nextUrl.searchParams.get("date") ?? "";
+  const requestedMonth = request.nextUrl.searchParams.get("month") ?? "";
+  const date = isLunchBoxDate(requestedDate) ? requestedDate : null;
+  const month = isLunchBoxMonth(requestedMonth) ? requestedMonth : null;
 
-  if (!isLunchBoxDate(date)) {
-    return new Response("Invalid date.", { status: 400 });
+  if ((date ? 1 : 0) + (month ? 1 : 0) !== 1) {
+    return new Response("Provide one valid date or month.", { status: 400 });
   }
 
+  const scope = date
+    ? {
+        filter: `date=eq.${date}`,
+        key: `date:${date}`,
+        payload: { date },
+      }
+    : {
+        filter: `date=in.(${createLunchBoxCalendarDays(month ?? "")
+          .map((day) => day.date)
+          .join(",")})`,
+        key: `month:${month}`,
+        payload: { month },
+      };
   const userId = await getSessionUserId();
   const activeUser = userId
     ? await prisma.user.findFirst({
@@ -51,7 +71,7 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
   const channel = supabase.channel(
-    `lunch-box-checks:${date}:${randomUUID()}`,
+    `lunch-box-counts:${scope.key}:${randomUUID()}`,
   );
   let closed = false;
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -123,12 +143,12 @@ export async function GET(request: NextRequest) {
           "postgres_changes",
           {
             event: "*",
-            filter: `date=eq.${date}`,
+            filter: scope.filter,
             schema: "public",
             table: "LunchBoxCount",
           },
           () => {
-            sendEvent("change", { date });
+            sendEvent("change", scope.payload);
           },
         )
         .subscribe((status, error) => {
@@ -137,7 +157,7 @@ export async function GET(request: NextRequest) {
           }
 
           if (status === "SUBSCRIBED") {
-            sendEvent("ready", { date });
+            sendEvent("ready", scope.payload);
             return;
           }
 
@@ -147,14 +167,14 @@ export async function GET(request: NextRequest) {
             status === "CLOSED"
           ) {
             console.error("[lunch-box-realtime] Channel disconnected.", {
-              date,
               message:
                 error instanceof Error
                   ? error.message
                   : "No channel error detail.",
+              scope: scope.key,
               status,
             });
-            sendEvent("reconnect", { date });
+            sendEvent("reconnect", scope.payload);
             setTimeout(() => void closeStream(), 0);
           }
         });
@@ -163,7 +183,7 @@ export async function GET(request: NextRequest) {
         enqueue(`: heartbeat ${Date.now()}\n\n`);
       }, heartbeatIntervalMs);
       reconnectTimer = setTimeout(() => {
-        sendEvent("reconnect", { date });
+        sendEvent("reconnect", scope.payload);
         setTimeout(() => void closeStream(), 0);
       }, reconnectBeforeFunctionTimeoutMs);
     },

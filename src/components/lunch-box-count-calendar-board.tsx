@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AppModal } from "@/components/app-modal";
 import { LunchBoxCountGrid } from "@/components/lunch-box-count-grid";
+import { useLunchBoxRealtimeSync } from "@/hooks/use-lunch-box-realtime-sync";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   createLunchBoxCalendarDays,
@@ -30,6 +31,9 @@ type LunchBoxCountCalendarBoardProps = {
   loadGrid: (
     date: string,
   ) => Promise<LunchBoxActionResult<{ grid: LunchBoxCountGridData }>>;
+  loadMonth: (
+    month: string,
+  ) => Promise<LunchBoxActionResult<{ monthData: LunchBoxCountMonth }>>;
   monthData: LunchBoxCountMonth;
   saveCounts: (
     date: string,
@@ -61,6 +65,7 @@ export function LunchBoxCountCalendarBoard(
 
 function LunchBoxCountCalendarBoardContent({
   loadGrid,
+  loadMonth,
   monthData,
   saveCounts,
   selectedMonth,
@@ -93,6 +98,32 @@ function LunchBoxCountCalendarBoardContent({
   const previousMonth = shiftLunchBoxMonth(selectedMonth, -1);
   const nextMonth = shiftLunchBoxMonth(selectedMonth, 1);
   const currentMonth = getLunchBoxCurrentMonth();
+  const monthRealtime = useLunchBoxRealtimeSync<LunchBoxCountMonth>({
+    scopeKey: selectedMonth,
+    streamUrl: `/api/lunch-boxes/checks/stream?month=${encodeURIComponent(selectedMonth)}`,
+    load: async () => {
+      try {
+        const result = await loadMonth(selectedMonth);
+
+        return result.ok
+          ? { ok: true as const, data: result.data.monthData }
+          : { ok: false as const };
+      } catch {
+        return { ok: false as const };
+      }
+    },
+    apply: (nextMonthData) => {
+      setDays(nextMonthData.days);
+    },
+  });
+  const realtimeStatusClassName =
+    monthRealtime.connectionStatus === "connected" &&
+    !monthRealtime.syncFailed
+      ? "text-[#22633a]"
+      : monthRealtime.connectionStatus === "connecting" ||
+          monthRealtime.connectionStatus === "paused"
+        ? "text-[#697386]"
+        : "text-[#7a5200]";
 
   function openDayModal(date: string) {
     setSelectedDate(date);
@@ -211,7 +242,13 @@ function LunchBoxCountCalendarBoardContent({
             <p className="mt-1 text-sm text-[#697386]">
               월 총계 {monthTotal.toLocaleString("ko-KR")}개
               (보존식·배송기사 포함) · 날짜를 누르면 식단과 학교별 개수를
-              확인할 수 있습니다.
+              확인할 수 있습니다.{" "}
+              <span
+                aria-live="polite"
+                className={`whitespace-nowrap font-medium ${realtimeStatusClassName}`}
+              >
+                · {monthRealtime.statusLabel}
+              </span>
             </p>
           </div>
 

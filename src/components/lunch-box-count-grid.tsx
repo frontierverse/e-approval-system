@@ -12,6 +12,7 @@ import {
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
 import { EmptyState } from "@/components/empty-state";
+import { useLunchBoxRealtimeSync } from "@/hooks/use-lunch-box-realtime-sync";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   formatLunchBoxMenuItems,
@@ -21,6 +22,7 @@ import {
   formatLunchBoxDateLabel,
   lunchBoxCountFields,
   lunchBoxCountFieldLabels,
+  mergeLunchBoxCountRealtimeGrid,
   shiftLunchBoxDate,
   type LunchBoxActionResult,
   type LunchBoxCountGrid as LunchBoxCountGridData,
@@ -80,10 +82,18 @@ export function LunchBoxCountGrid({
   const [edits, setEdits] = useState<Record<string, LunchBoxCountValues>>({});
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [realtimeConflict, setRealtimeConflict] = useState<{
+    fieldCount: number;
+    schoolCount: number;
+    unavailableSchoolCount: number;
+  } | null>(null);
   const [isStatusPrintDialogOpen, setIsStatusPrintDialogOpen] = useState(false);
   const [isLoadPending, startLoadTransition] = useTransition();
   const [isSavePending, startSaveTransition] = useTransition();
   const loadRequestIdRef = useRef(0);
+  const gridRef = useRef(grid);
+  const editsRef = useRef(edits);
+  const latestCanonicalGridRef = useRef(grid);
 
   const editedCount = Object.keys(edits).length;
   const grandTotal = useMemo(
@@ -116,6 +126,59 @@ export function LunchBoxCountGrid({
     () => formatLunchBoxMenuItems(grid.menuItems),
     [grid.menuItems],
   );
+  const gridRealtime = useLunchBoxRealtimeSync<LunchBoxCountGridData>({
+    scopeKey: grid.date,
+    streamUrl: `/api/lunch-boxes/checks/stream?date=${encodeURIComponent(grid.date)}`,
+    load: async () => {
+      try {
+        const result = await loadGrid(grid.date);
+
+        return result.ok
+          ? { ok: true as const, data: result.data.grid }
+          : { ok: false as const };
+      } catch {
+        return { ok: false as const };
+      }
+    },
+    apply: (nextGrid) => {
+      const currentEdits = editsRef.current;
+      latestCanonicalGridRef.current = nextGrid;
+      const mergeResult = mergeLunchBoxCountRealtimeGrid({
+        currentGrid: gridRef.current,
+        edits: currentEdits,
+        nextGrid,
+      });
+
+      gridRef.current = mergeResult.grid;
+      editsRef.current = mergeResult.edits;
+      setGrid(mergeResult.grid);
+      setEdits(mergeResult.edits);
+      onGridLoaded?.(mergeResult.grid);
+
+      if (mergeResult.conflictingFieldCount > 0) {
+        setSuccessMessage("");
+        setRealtimeConflict({
+          fieldCount: mergeResult.conflictingFieldCount,
+          schoolCount: mergeResult.conflictingSchoolCount,
+          unavailableSchoolCount: mergeResult.unavailableSchoolCount,
+        });
+      } else {
+        setRealtimeConflict((currentConflict) =>
+          Object.keys(mergeResult.edits).length === 0
+            ? null
+            : currentConflict,
+        );
+      }
+    },
+  });
+  const realtimeStatusClassName =
+    gridRealtime.connectionStatus === "connected" &&
+    !gridRealtime.syncFailed
+      ? "text-[#22633a]"
+      : gridRealtime.connectionStatus === "connecting" ||
+          gridRealtime.connectionStatus === "paused"
+        ? "text-[#697386]"
+        : "text-[#7a5200]";
 
   useEffect(() => {
     onDirtyChange?.(editedCount > 0);
@@ -154,8 +217,12 @@ export function LunchBoxCountGrid({
         return;
       }
 
+      gridRef.current = result.data.grid;
+      latestCanonicalGridRef.current = result.data.grid;
+      editsRef.current = {};
       setGrid(result.data.grid);
       setEdits({});
+      setRealtimeConflict(null);
       onGridLoaded?.(result.data.grid);
     });
   }
@@ -185,13 +252,16 @@ export function LunchBoxCountGrid({
       ) {
         const nextEdits = { ...current };
         delete nextEdits[schoolId];
+        editsRef.current = nextEdits;
         return nextEdits;
       }
 
-      return {
+      const nextEdits = {
         ...current,
         [schoolId]: nextValues,
       };
+      editsRef.current = nextEdits;
+      return nextEdits;
     });
   }
 
@@ -201,7 +271,7 @@ export function LunchBoxCountGrid({
       ...values,
     }));
 
-    if (rows.length === 0) {
+    if (rows.length === 0 || realtimeConflict) {
       return;
     }
 
@@ -214,11 +284,43 @@ export function LunchBoxCountGrid({
         return;
       }
 
+      gridRef.current = result.data.grid;
+      latestCanonicalGridRef.current = result.data.grid;
+      editsRef.current = {};
       setGrid(result.data.grid);
       setEdits({});
+      setRealtimeConflict(null);
       setSuccessMessage(`${rows.length}개교 개수를 저장했습니다.`);
       onGridSaved?.(result.data.grid);
     });
+  }
+
+  function keepLocalValuesAfterConflict() {
+    if (realtimeConflict?.unavailableSchoolCount) {
+      return;
+    }
+
+    setRealtimeConflict(null);
+    setSuccessMessage(
+      "현재 입력값을 유지합니다. 저장하면 해당 값이 최종 반영됩니다.",
+    );
+  }
+
+  function applyLatestValuesAfterConflict() {
+    if (
+      !window.confirm(
+        "입력 중인 변경사항을 취소하고 다른 직원이 저장한 최신값을 적용할까요?",
+      )
+    ) {
+      return;
+    }
+
+    editsRef.current = {};
+    gridRef.current = latestCanonicalGridRef.current;
+    setEdits({});
+    setGrid(latestCanonicalGridRef.current);
+    setRealtimeConflict(null);
+    setSuccessMessage("다른 직원이 저장한 최신값을 적용했습니다.");
   }
 
   const isPending = isLoadPending || isSavePending;
@@ -235,7 +337,13 @@ export function LunchBoxCountGrid({
           </h2>
           <p className="mt-1 text-xs leading-5 tabular-nums text-[#697386] sm:text-sm">
             {formatLunchBoxDateLabel(grid.date)} 기준 · 총계 {grandTotal}개 ·
-            보존식 {preservationTotal}개 · 배송기사 {deliveryDriverTotal}개 포함
+            보존식 {preservationTotal}개 · 배송기사 {deliveryDriverTotal}개 포함{" "}
+            <span
+              aria-live="polite"
+              className={`whitespace-nowrap font-medium ${realtimeStatusClassName}`}
+            >
+              · {gridRealtime.statusLabel}
+            </span>
           </p>
           {menuLabel ? (
             <p className="mt-1.5 max-w-4xl text-xs leading-5 text-[#566174] sm:text-sm">
@@ -358,6 +466,44 @@ export function LunchBoxCountGrid({
         >
           {error}
         </p>
+      ) : null}
+      {realtimeConflict ? (
+        <div
+          className="mx-3 mt-3 flex shrink-0 flex-col gap-2 rounded-md border border-[#f0d28a] bg-[#fff8e8] px-3 py-2 text-sm text-[#7a5200] sm:mx-5 sm:mt-4 sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <p className="min-w-0 leading-5">
+            {realtimeConflict.unavailableSchoolCount > 0
+              ? `다른 직원이 편집 중인 ${realtimeConflict.unavailableSchoolCount.toLocaleString("ko-KR")}개교의 학교 상태를 변경했습니다. 현재 입력은 보존했으며 최신값을 적용해야 계속할 수 있습니다.`
+              : `다른 직원이 수정 중인 ${realtimeConflict.schoolCount.toLocaleString("ko-KR")}개교의 같은 수량 ${realtimeConflict.fieldCount.toLocaleString("ko-KR")}건을 변경했습니다. 현재 입력은 유지했으며 확인 전까지 저장되지 않습니다.`}
+          </p>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {realtimeConflict.unavailableSchoolCount === 0 ? (
+              <button
+                type="button"
+                className={buttonClass(
+                  buttonStyles.base,
+                  buttonStyles.neutral,
+                  "h-11 px-3 text-sm",
+                )}
+                onClick={keepLocalValuesAfterConflict}
+              >
+                내 입력 유지
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={buttonClass(
+                buttonStyles.base,
+                buttonStyles.danger,
+                "h-11 px-3 text-sm",
+              )}
+              onClick={applyLatestValuesAfterConflict}
+            >
+              최신값 적용
+            </button>
+          </div>
+        </div>
       ) : null}
       {successMessage ? (
         <p
@@ -499,13 +645,22 @@ export function LunchBoxCountGrid({
 
           <footer className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-[#eef1f5] px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:justify-between sm:px-5 sm:py-4">
             <p className="min-w-0 text-xs leading-5 text-[#697386] sm:text-sm">
-              {editedCount > 0
+              {realtimeConflict
+                ? "다른 직원의 변경사항을 확인하세요."
+                : editedCount > 0
                 ? `${editedCount}개교 수정 중 (저장 전)`
                 : "변경 사항이 없습니다."}
             </p>
             <button
               type="button"
-              disabled={isPending || editedCount === 0}
+              disabled={
+                isPending || editedCount === 0 || Boolean(realtimeConflict)
+              }
+              title={
+                realtimeConflict
+                  ? "다른 직원의 변경사항을 먼저 확인하세요."
+                  : undefined
+              }
               onClick={handleSave}
               className={buttonClass(
                 buttonStyles.base,
