@@ -69,6 +69,25 @@ type RankedServingOrderItem = {
   rank: number;
 };
 
+type CoolerBagServingTableNumber = 1 | 2 | 3 | 4;
+type CoolerBagTablePlacementDirection =
+  | "bottom-to-top"
+  | "top-to-bottom";
+
+type CoolerBagServingTableAssignment = {
+  capacity: number;
+  items: RankedServingOrderItem[];
+  note: string | null;
+  placementDirection: CoolerBagTablePlacementDirection;
+  tableNumber: CoolerBagServingTableNumber;
+};
+
+export type LunchBoxCoolerBagTableLayout = {
+  overflowItems: RankedServingOrderItem[];
+  packingItems: RankedServingOrderItem[];
+  servingTables: CoolerBagServingTableAssignment[];
+};
+
 type ServingOrderPage = {
   packingItems: RankedServingOrderItem[];
   servingItems: RankedServingOrderItem[];
@@ -114,6 +133,11 @@ const servingOrderRowHeight = 18;
 const servingOrderSectionFontSize = 9;
 const servingOrderBodyFontSize = 7.1;
 const servingOrderHeaderFontSize = 6.8;
+const coolerBagLayoutTopOffset = 88;
+const coolerBagLayoutMinFontSize = 4.1;
+const coolerBagLayoutBodyFontSize = 6.6;
+const coolerBagLayoutHeaderFontSize = 7.2;
+const coolerBagLayoutTableHeaderHeight = 18;
 const bodyTextColor = rgb(0.09, 0.1, 0.12);
 const mutedTextColor = rgb(0.41, 0.45, 0.51);
 const accentColor = rgb(0.06, 0.33, 0.32);
@@ -121,6 +145,55 @@ const packingSectionColor = rgb(0.18, 0.31, 0.49);
 const checkedRowColor = rgb(0.91, 0.96, 0.93);
 const borderColor = rgb(0.89, 0.91, 0.94);
 const strongBorderColor = rgb(0.81, 0.84, 0.88);
+const coolerBagLayoutBackgroundColor = rgb(0.985, 0.99, 0.995);
+const coolerBagTableFillColor = rgb(0.965, 0.975, 0.985);
+const coolerBagTableHeaderColor = rgb(0.91, 0.94, 0.96);
+const coolerBagPackingHeaderColor = rgb(0.9, 0.93, 0.97);
+const coolerBagFirstItemColor = rgb(0.88, 0.95, 0.92);
+const coolerBagAlternateItemColor = rgb(0.98, 0.985, 0.99);
+const coolerBagOverflowColor = rgb(0.68, 0.22, 0.14);
+const coolerBagOverflowFillColor = rgb(0.99, 0.94, 0.92);
+const coolerBagServingTableDefinitions = [
+  {
+    capacity: 19,
+    note: null,
+    placementDirection: "bottom-to-top",
+    tableNumber: 1,
+  },
+  {
+    capacity: 19,
+    note: null,
+    placementDirection: "top-to-bottom",
+    tableNumber: 2,
+  },
+  {
+    capacity: 7,
+    note: "선반 포함",
+    placementDirection: "bottom-to-top",
+    tableNumber: 4,
+  },
+  {
+    capacity: 16,
+    note: "의자 포함",
+    placementDirection: "bottom-to-top",
+    tableNumber: 3,
+  },
+] as const satisfies readonly {
+  capacity: number;
+  note: string | null;
+  placementDirection: CoolerBagTablePlacementDirection;
+  tableNumber: CoolerBagServingTableNumber;
+}[];
+const coolerBagTableRects: Record<
+  CoolerBagServingTableNumber | 5,
+  { height: number; width: number; x: number; y: number }
+> = {
+  1: { x: 0.74, y: 0.075, width: 0.18, height: 0.775 },
+  2: { x: 0.49, y: 0.05, width: 0.17, height: 0.8 },
+  3: { x: 0.28, y: 0.36, width: 0.16, height: 0.49 },
+  4: { x: 0.285, y: 0.05, width: 0.155, height: 0.24 },
+  5: { x: 0.055, y: 0.05, width: 0.17, height: 0.43 },
+};
 const landscapeLayout: DailySchoolPdfLayout = {
   checklistColumnCount: 3,
   orientation: "landscape",
@@ -186,7 +259,14 @@ export async function createLunchBoxDailySchoolListPdf({
     view.rows.length === 0
       ? []
       : paginateServingOrderGroups(servingOrderGroups, layout);
-  const pageCount = pageColumns.length + servingOrderPages.length;
+  const coolerBagTableLayout = createLunchBoxCoolerBagTableLayout(
+    servingOrderGroups,
+  );
+  const coolerBagLayoutPageCount = view.rows.length > 0 ? 1 : 0;
+  const pageCount =
+    pageColumns.length +
+    servingOrderPages.length +
+    coolerBagLayoutPageCount;
 
   pdf.setTitle(`${view.dateLabel} 날짜별 학교 목록`);
   pdf.setSubject(
@@ -227,7 +307,578 @@ export async function createLunchBoxDailySchoolListPdf({
     });
   });
 
+  if (coolerBagLayoutPageCount > 0) {
+    const page = pdf.addPage(layout.pageSize);
+
+    drawCoolerBagTableLayoutPage({
+      coolerBagTableLayout,
+      font,
+      page,
+      pageCount,
+      pageNumber: pageCount,
+      view,
+    });
+  }
+
   return pdf.save();
+}
+
+export function createLunchBoxCoolerBagTableLayout(
+  groups: LunchBoxServingOrderGroups,
+): LunchBoxCoolerBagTableLayout {
+  let servingOffset = 0;
+  const servingTables = coolerBagServingTableDefinitions.map(
+    ({ capacity, note, placementDirection, tableNumber }) => {
+      const items = groups.servingItems
+        .slice(servingOffset, servingOffset + capacity)
+        .map((item, index) => ({
+          item,
+          rank: servingOffset + index + 1,
+        }));
+
+      servingOffset += capacity;
+
+      return {
+        capacity,
+        items,
+        note,
+        placementDirection,
+        tableNumber,
+      };
+    },
+  );
+
+  return {
+    overflowItems: groups.servingItems
+      .slice(servingOffset)
+      .map((item, index) => ({
+        item,
+        rank: servingOffset + index + 1,
+      })),
+    packingItems: groups.packingItems.map((item, index) => ({
+      item,
+      rank: index + 1,
+    })),
+    servingTables,
+  };
+}
+
+function drawCoolerBagTableLayoutPage({
+  coolerBagTableLayout,
+  font,
+  page,
+  pageCount,
+  pageNumber,
+  view,
+}: {
+  coolerBagTableLayout: LunchBoxCoolerBagTableLayout;
+  font: PDFFont;
+  page: PDFPage;
+  pageCount: number;
+  pageNumber: number;
+  view: LunchBoxDailyChecklistView;
+}) {
+  const { height, width } = page.getSize();
+  const diagramWidth = width - pageMarginX * 2;
+  const availableDiagramHeight =
+    height - coolerBagLayoutTopOffset - pageBottom;
+  const diagramHeight = Math.min(
+    availableDiagramHeight,
+    diagramWidth / 1.55,
+  );
+  const diagramX = pageMarginX;
+  const diagramY = height - coolerBagLayoutTopOffset - diagramHeight;
+  const servingItemCount = coolerBagTableLayout.servingTables.reduce(
+    (sum, table) => sum + table.items.length,
+    0,
+  );
+  const servingCapacity = coolerBagServingTableDefinitions.reduce(
+    (sum, table) => sum + table.capacity,
+    0,
+  );
+  const summaryLabel =
+    `${view.dateLabel} · 초등학교 ${
+      servingItemCount + coolerBagTableLayout.overflowItems.length
+    }개 반 · 1~4번 배치 ${servingItemCount}/${servingCapacity} · ` +
+    `병설·남초 ${coolerBagTableLayout.packingItems.length}개`;
+  const placementRule =
+    "배치 순서 1 → 2 → 4 → 3번 · 1·3·4번 아래→위 · 2번 위→아래 · 5번은 병설 + 남초";
+
+  page.drawText("보냉백 테이블 배치도", {
+    x: pageMarginX,
+    y: height - 34,
+    size: titleFontSize,
+    font,
+    color: bodyTextColor,
+  });
+  drawFittedTextLine(page, font, summaryLabel, {
+    color: mutedTextColor,
+    fontSize: summaryFontSize,
+    maxWidth: diagramWidth,
+    minFontSize: 6.2,
+    x: pageMarginX,
+    y: height - 52,
+  });
+  drawFittedTextLine(page, font, placementRule, {
+    color: accentColor,
+    fontSize: 7.8,
+    maxWidth: diagramWidth,
+    minFontSize: 5.8,
+    x: pageMarginX,
+    y: height - 69,
+  });
+
+  page.drawRectangle({
+    x: diagramX,
+    y: diagramY,
+    width: diagramWidth,
+    height: diagramHeight,
+    color: coolerBagLayoutBackgroundColor,
+    borderColor,
+    borderWidth: 0.7,
+  });
+
+  for (const table of coolerBagTableLayout.servingTables) {
+    const rect = resolveCoolerBagTableRect(
+      table.tableNumber,
+      diagramX,
+      diagramY,
+      diagramWidth,
+      diagramHeight,
+    );
+    const noteSuffix = table.note ? ` · ${table.note}` : "";
+
+    drawCoolerBagServingTable(page, font, table.items, {
+      capacity: table.capacity,
+      headerLabel:
+        `${table.tableNumber}번 테이블 · ${table.items.length}/${table.capacity}` +
+        noteSuffix,
+      highlightFirstItem: table.tableNumber === 1,
+      placementDirection: table.placementDirection,
+      rect,
+    });
+  }
+
+  const packingRect = resolveCoolerBagTableRect(
+    5,
+    diagramX,
+    diagramY,
+    diagramWidth,
+    diagramHeight,
+  );
+
+  drawCoolerBagPackingTable(
+    page,
+    font,
+    coolerBagTableLayout.packingItems,
+    {
+      headerLabel:
+        `5번 테이블 · 병설 + 남초 · ${coolerBagTableLayout.packingItems.length}개`,
+      rect: packingRect,
+    },
+  );
+  drawCoolerBagEntrance(page, font, {
+    diagramHeight,
+    diagramWidth,
+    diagramX,
+    diagramY,
+  });
+
+  if (coolerBagTableLayout.overflowItems.length > 0) {
+    drawCoolerBagOverflowWarning(
+      page,
+      font,
+      coolerBagTableLayout.overflowItems,
+      {
+        diagramHeight,
+        diagramWidth,
+        diagramX,
+        diagramY,
+      },
+    );
+  }
+
+  drawPageNumber(page, font, pageNumber, pageCount);
+}
+
+function drawCoolerBagServingTable(
+  page: PDFPage,
+  font: PDFFont,
+  items: readonly RankedServingOrderItem[],
+  {
+    capacity,
+    headerLabel,
+    highlightFirstItem,
+    placementDirection,
+    rect,
+  }: {
+    capacity: number;
+    headerLabel: string;
+    highlightFirstItem: boolean;
+    placementDirection: CoolerBagTablePlacementDirection;
+    rect: { height: number; width: number; x: number; y: number };
+  },
+) {
+  drawCoolerBagTableFrame(page, font, {
+    headerColor: coolerBagTableHeaderColor,
+    headerLabel,
+    rect,
+  });
+
+  const contentHeight = rect.height - coolerBagLayoutTableHeaderHeight;
+  const slotHeight = contentHeight / capacity;
+
+  items.forEach((rankedItem, itemIndex) => {
+    const slotIndex =
+      placementDirection === "top-to-bottom"
+        ? capacity - itemIndex - 1
+        : itemIndex;
+    const y = rect.y + slotIndex * slotHeight;
+
+    page.drawRectangle({
+      x: rect.x,
+      y,
+      width: rect.width,
+      height: slotHeight,
+      color:
+        highlightFirstItem && itemIndex === 0
+          ? coolerBagFirstItemColor
+          : slotIndex % 2 === 1
+            ? coolerBagAlternateItemColor
+            : coolerBagTableFillColor,
+    });
+    drawCompactSingleLineText(
+      page,
+      font,
+      formatCoolerBagLayoutItem(rankedItem),
+      {
+        align: "left",
+        color:
+          highlightFirstItem && itemIndex === 0
+            ? accentColor
+            : bodyTextColor,
+        fontSize: coolerBagLayoutBodyFontSize,
+        height: slotHeight,
+        minFontSize: coolerBagLayoutMinFontSize,
+        width: rect.width,
+        x: rect.x,
+        y,
+      },
+    );
+  });
+
+  for (let boundaryIndex = 1; boundaryIndex < capacity; boundaryIndex += 1) {
+    const y = rect.y + boundaryIndex * slotHeight;
+
+    page.drawLine({
+      start: { x: rect.x, y },
+      end: { x: rect.x + rect.width, y },
+      color: borderColor,
+      thickness: 0.35,
+    });
+  }
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    borderColor: strongBorderColor,
+    borderWidth: 0.9,
+  });
+}
+
+function drawCoolerBagPackingTable(
+  page: PDFPage,
+  font: PDFFont,
+  items: readonly RankedServingOrderItem[],
+  {
+    headerLabel,
+    rect,
+  }: {
+    headerLabel: string;
+    rect: { height: number; width: number; x: number; y: number };
+  },
+) {
+  drawCoolerBagTableFrame(page, font, {
+    headerColor: coolerBagPackingHeaderColor,
+    headerLabel,
+    rect,
+  });
+
+  const contentHeight = rect.height - coolerBagLayoutTableHeaderHeight;
+
+  if (items.length === 0) {
+    drawCompactSingleLineText(page, font, "배치 항목 없음", {
+      align: "center",
+      color: mutedTextColor,
+      fontSize: 7,
+      height: contentHeight,
+      minFontSize: 5.5,
+      width: rect.width,
+      x: rect.x,
+      y: rect.y,
+    });
+  } else {
+    const visualSlotCount = Math.max(10, items.length);
+    const slotHeight = contentHeight / visualSlotCount;
+
+    items.forEach((rankedItem, itemIndex) => {
+      const y = rect.y + itemIndex * slotHeight;
+
+      if (itemIndex % 2 === 1) {
+        page.drawRectangle({
+          x: rect.x,
+          y,
+          width: rect.width,
+          height: slotHeight,
+          color: coolerBagAlternateItemColor,
+        });
+      }
+      drawCompactSingleLineText(
+        page,
+        font,
+        formatCoolerBagLayoutItem(rankedItem),
+        {
+          align: "left",
+          color: packingSectionColor,
+          fontSize: coolerBagLayoutBodyFontSize,
+          height: slotHeight,
+          minFontSize: coolerBagLayoutMinFontSize,
+          width: rect.width,
+          x: rect.x,
+          y,
+        },
+      );
+
+      if (itemIndex > 0) {
+        page.drawLine({
+          start: { x: rect.x, y },
+          end: { x: rect.x + rect.width, y },
+          color: borderColor,
+          thickness: 0.35,
+        });
+      }
+    });
+  }
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    borderColor: strongBorderColor,
+    borderWidth: 0.9,
+  });
+}
+
+function drawCoolerBagTableFrame(
+  page: PDFPage,
+  font: PDFFont,
+  {
+    headerColor,
+    headerLabel,
+    rect,
+  }: {
+    headerColor: ReturnType<typeof rgb>;
+    headerLabel: string;
+    rect: { height: number; width: number; x: number; y: number };
+  },
+) {
+  const headerY =
+    rect.y + rect.height - coolerBagLayoutTableHeaderHeight;
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    color: coolerBagTableFillColor,
+  });
+  page.drawRectangle({
+    x: rect.x,
+    y: headerY,
+    width: rect.width,
+    height: coolerBagLayoutTableHeaderHeight,
+    color: headerColor,
+  });
+  drawCompactSingleLineText(page, font, headerLabel, {
+    align: "center",
+    color: bodyTextColor,
+    fontSize: coolerBagLayoutHeaderFontSize,
+    height: coolerBagLayoutTableHeaderHeight,
+    minFontSize: 4.5,
+    width: rect.width,
+    x: rect.x,
+    y: headerY,
+  });
+  page.drawLine({
+    start: { x: rect.x, y: headerY },
+    end: { x: rect.x + rect.width, y: headerY },
+    color: strongBorderColor,
+    thickness: 0.65,
+  });
+}
+
+function drawCoolerBagEntrance(
+  page: PDFPage,
+  font: PDFFont,
+  {
+    diagramHeight,
+    diagramWidth,
+    diagramX,
+    diagramY,
+  }: {
+    diagramHeight: number;
+    diagramWidth: number;
+    diagramX: number;
+    diagramY: number;
+  },
+) {
+  const tableRect = resolveCoolerBagTableRect(
+    1,
+    diagramX,
+    diagramY,
+    diagramWidth,
+    diagramHeight,
+  );
+  const centerX = tableRect.x + tableRect.width / 2;
+  const label = "출입구";
+  const fontSize = 8.2;
+  const labelWidth = font.widthOfTextAtSize(label, fontSize);
+  const labelY = diagramY + diagramHeight * 0.012;
+  const arrowStartY = labelY + 13;
+  const arrowEndY = tableRect.y - 3;
+
+  page.drawText(label, {
+    x: centerX - labelWidth / 2,
+    y: labelY,
+    size: fontSize,
+    font,
+    color: accentColor,
+  });
+  page.drawLine({
+    start: { x: centerX, y: arrowStartY },
+    end: { x: centerX, y: arrowEndY },
+    color: accentColor,
+    thickness: 1.15,
+  });
+  page.drawLine({
+    start: { x: centerX, y: arrowEndY },
+    end: { x: centerX - 3.4, y: arrowEndY - 4.2 },
+    color: accentColor,
+    thickness: 1.15,
+  });
+  page.drawLine({
+    start: { x: centerX, y: arrowEndY },
+    end: { x: centerX + 3.4, y: arrowEndY - 4.2 },
+    color: accentColor,
+    thickness: 1.15,
+  });
+}
+
+function drawCoolerBagOverflowWarning(
+  page: PDFPage,
+  font: PDFFont,
+  items: readonly RankedServingOrderItem[],
+  {
+    diagramHeight,
+    diagramWidth,
+    diagramX,
+    diagramY,
+  }: {
+    diagramHeight: number;
+    diagramWidth: number;
+    diagramX: number;
+    diagramY: number;
+  },
+) {
+  const warningX = diagramX + diagramWidth * 0.035;
+  const warningY = diagramY + diagramHeight * 0.855;
+  const warningWidth = diagramWidth * 0.89;
+  const warningHeight = Math.max(23, diagramHeight * 0.075);
+  const itemLabels = items
+    .slice(0, 3)
+    .map((item) => formatCoolerBagLayoutItem(item))
+    .join(" · ");
+  const remainingLabel =
+    items.length > 3 ? ` 외 ${items.length - 3}개` : "";
+  const warningLabel =
+    `테이블 용량 초과 ${items.length}개 - 추가 배치 필요: ` +
+    `${itemLabels}${remainingLabel}`;
+
+  page.drawRectangle({
+    x: warningX,
+    y: warningY,
+    width: warningWidth,
+    height: warningHeight,
+    color: coolerBagOverflowFillColor,
+    borderColor: coolerBagOverflowColor,
+    borderWidth: 0.8,
+  });
+  drawCompactSingleLineText(page, font, warningLabel, {
+    align: "left",
+    color: coolerBagOverflowColor,
+    fontSize: 7.3,
+    height: warningHeight,
+    minFontSize: 4.5,
+    width: warningWidth,
+    x: warningX,
+    y: warningY,
+  });
+}
+
+function resolveCoolerBagTableRect(
+  tableNumber: CoolerBagServingTableNumber | 5,
+  diagramX: number,
+  diagramY: number,
+  diagramWidth: number,
+  diagramHeight: number,
+) {
+  const rect = coolerBagTableRects[tableNumber];
+
+  return {
+    x: diagramX + rect.x * diagramWidth,
+    y: diagramY + rect.y * diagramHeight,
+    width: rect.width * diagramWidth,
+    height: rect.height * diagramHeight,
+  };
+}
+
+function formatCoolerBagLayoutItem({
+  item,
+  rank,
+}: RankedServingOrderItem) {
+  return `${rank}. ${item.schoolName} ${item.label} ${item.count}명`;
+}
+
+function drawFittedTextLine(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  {
+    color,
+    fontSize,
+    maxWidth,
+    minFontSize,
+    x,
+    y,
+  }: {
+    color: ReturnType<typeof rgb>;
+    fontSize: number;
+    maxWidth: number;
+    minFontSize: number;
+    x: number;
+    y: number;
+  },
+) {
+  page.drawText(text, {
+    x,
+    y,
+    size: fitFontSize(font, text, maxWidth, fontSize, minFontSize),
+    font,
+    color,
+  });
 }
 
 function drawPage({
