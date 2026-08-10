@@ -159,8 +159,9 @@ const coolerBagLayoutMinFontSize = 4.1;
 const coolerBagLayoutBodyFontSize = 6.6;
 const coolerBagLayoutHeaderFontSize = 7.2;
 const coolerBagLayoutTableHeaderHeight = 18;
-const coolerBagSchoolGroupStripeWidth = 5.5;
+const coolerBagSchoolGroupTagWidth = 19;
 const bodyTextColor = rgb(0.09, 0.1, 0.12);
+const inverseTextColor = rgb(1, 1, 1);
 const mutedTextColor = rgb(0.41, 0.45, 0.51);
 const accentColor = rgb(0.06, 0.33, 0.32);
 const packingSectionColor = rgb(0.18, 0.31, 0.49);
@@ -175,6 +176,8 @@ const coolerBagFirstItemColor = rgb(0.88, 0.95, 0.92);
 const coolerBagAlternateItemColor = rgb(0.98, 0.985, 0.99);
 const coolerBagOverflowColor = rgb(0.68, 0.22, 0.14);
 const coolerBagOverflowFillColor = rgb(0.99, 0.94, 0.92);
+const coolerBagSchoolGroupDarkTextNumbers: ReadonlySet<CoolerBagSchoolGroupNumber> =
+  new Set([2, 3, 5, 8]);
 const coolerBagSchoolGroupDefinitions = [
   {
     backgroundColor: rgb(0.651, 0.812, 0.906),
@@ -516,7 +519,7 @@ export function drawLunchBoxCoolerBagTableLayoutPage({
     `병설·남초 ${coolerBagTableLayout.packingItems.length}개`;
   const placementRule =
     (variant === "school-groups"
-      ? "같은 색은 같은 학교 그룹 · "
+      ? "같은 G번호와 색은 같은 학교 그룹 · "
       : "") +
     "배치 순서 1 → 2 → 4 → 3번 · 1·3·4번 아래→위 · 2번 위→아래 · " +
     (variant === "school-groups"
@@ -691,8 +694,9 @@ function drawCoolerBagServingTable(
             ? coolerBagAlternateItemColor
             : coolerBagTableFillColor),
     });
-    const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+    const groupTagWidth = drawCoolerBagSchoolGroupTag(
       page,
+      font,
       schoolGroup,
       {
         height: slotHeight,
@@ -714,8 +718,8 @@ function drawCoolerBagServingTable(
         fontSize: coolerBagLayoutBodyFontSize,
         height: slotHeight,
         minFontSize: coolerBagLayoutMinFontSize,
-        width: rect.width - groupStripeWidth,
-        x: rect.x + groupStripeWidth,
+        width: rect.width - groupTagWidth,
+        x: rect.x + groupTagWidth,
         y,
       },
     );
@@ -796,8 +800,9 @@ function drawCoolerBagPackingTable(
             schoolGroup?.backgroundColor ?? coolerBagAlternateItemColor,
         });
       }
-      const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+      const groupTagWidth = drawCoolerBagSchoolGroupTag(
         page,
+        font,
         schoolGroup,
         {
           height: slotHeight,
@@ -816,8 +821,8 @@ function drawCoolerBagPackingTable(
           fontSize: coolerBagLayoutBodyFontSize,
           height: slotHeight,
           minFontSize: coolerBagLayoutMinFontSize,
-          width: rect.width - groupStripeWidth,
-          x: rect.x + groupStripeWidth,
+          width: rect.width - groupTagWidth,
+          x: rect.x + groupTagWidth,
           y,
         },
       );
@@ -952,8 +957,9 @@ function drawCoolerBagSchoolGroupLegend(
       height: rowHeight,
       color: group.backgroundColor,
     });
-    const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+    const groupTagWidth = drawCoolerBagSchoolGroupTag(
       page,
+      font,
       group,
       {
         height: rowHeight,
@@ -972,8 +978,8 @@ function drawCoolerBagSchoolGroupLegend(
         fontSize: 5.9,
         height: rowHeight,
         minFontSize: 4.4,
-        width: width - groupStripeWidth,
-        x: x + groupStripeWidth,
+        width: width - groupTagWidth,
+        x: x + groupTagWidth,
         y: rowY,
       },
     );
@@ -998,8 +1004,9 @@ function drawCoolerBagSchoolGroupLegend(
   });
 }
 
-function drawCoolerBagSchoolGroupStripe(
+function drawCoolerBagSchoolGroupTag(
   page: PDFPage,
+  font: PDFFont,
   group: CoolerBagSchoolGroupDefinition | null,
   {
     height,
@@ -1017,17 +1024,29 @@ function drawCoolerBagSchoolGroupStripe(
     return 0;
   }
 
-  const stripeWidth = Math.min(
-    coolerBagSchoolGroupStripeWidth,
-    rowWidth * 0.22,
+  const tagWidth = Math.min(
+    coolerBagSchoolGroupTagWidth,
+    rowWidth * 0.25,
   );
 
   page.drawRectangle({
     x,
     y,
-    width: stripeWidth,
+    width: tagWidth,
     height,
     color: group.borderColor,
+  });
+  drawCompactSingleLineText(page, font, `G${group.groupNumber}`, {
+    align: "center",
+    color: coolerBagSchoolGroupDarkTextNumbers.has(group.groupNumber)
+      ? bodyTextColor
+      : inverseTextColor,
+    fontSize: 6.2,
+    height,
+    minFontSize: 4.6,
+    width: tagWidth,
+    x,
+    y,
   });
   page.drawRectangle({
     x,
@@ -1038,7 +1057,7 @@ function drawCoolerBagSchoolGroupStripe(
     borderWidth: 0.55,
   });
 
-  return stripeWidth;
+  return tagWidth;
 }
 
 function drawCoolerBagEntrance(

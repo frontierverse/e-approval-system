@@ -32,7 +32,7 @@ const july27Grid: LunchBoxCountGrid = {
         class1Count: count,
         preservationCount: index < 9 ? 1 : 0,
         schoolId: `elementary-${index + 1}`,
-        schoolName: `초등학교 ${index + 1}`,
+        schoolName: index === 0 ? "영만초" : `초등학교 ${index + 1}`,
         schoolType: "elementary",
       }),
     ),
@@ -251,8 +251,17 @@ describe("lunch box status PDF", () => {
     assert.match(pageTexts[1], /1번 테이블/);
     assert.match(pageTexts[1], /5번 테이블 · 병설 \+ 남초 · 3개/);
     assert.match(pageTexts[1], /동남초 병설유치원 1반/);
+    assert.match(pageTexts[1], /같은 G번호와 색은 같은 학교 그룹/);
+    assert.match(pageTexts[1], /\|G9\|/);
+    assert.ok(
+      (pageTexts[1].match(/\|G1\|/g)?.length ?? 0) >= 2,
+      "G1은 색상표와 영만초 배치 행에 모두 표시되어야 합니다.",
+    );
+    assert.ok(
+      (pageTexts[1].match(/\|G8\|/g)?.length ?? 0) >= 2,
+      "G8은 색상표와 동남초 배치 행에 모두 표시되어야 합니다.",
+    );
     assert.match(pageTexts[1], /5번은 1번 오른쪽\(병설 \+ 남초\)/);
-    assert.doesNotMatch(pageTexts[1], /\|G[1-9]\|/);
     assert.doesNotMatch(pageTexts[1], /\|\d+\.\s/u);
     assert.doesNotMatch(pageTexts[1], /\d+명/u);
     assert.match(pageTexts[1], /2 \/ 2/);
@@ -384,7 +393,15 @@ describe("lunch box status PDF", () => {
       assert.match(layoutPageText, /영만·모현·가온/);
       assert.match(layoutPageText, /1번 테이블/);
       assert.match(layoutPageText, /동남초 병설유치원 1반/);
-      assert.doesNotMatch(layoutPageText, /\|G[1-9]\|/);
+      assert.match(layoutPageText, /\|G9\|/);
+      assert.ok(
+        (layoutPageText.match(/\|G1\|/g)?.length ?? 0) >= 2,
+        "주간 배치도에도 G1이 색상표와 영만초 행에 표시되어야 합니다.",
+      );
+      assert.ok(
+        (layoutPageText.match(/\|G8\|/g)?.length ?? 0) >= 2,
+        "주간 배치도에도 G8이 색상표와 동남초 행에 표시되어야 합니다.",
+      );
       assert.doesNotMatch(layoutPageText, /\|\d+\.\s/u);
       assert.doesNotMatch(layoutPageText, /\d+명/u);
       assert.match(
