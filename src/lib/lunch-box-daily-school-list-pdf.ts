@@ -17,6 +17,7 @@ import {
   isLunchBoxDate,
   lunchBoxDailyChecklistShortFieldLabels,
   lunchBoxServingCountFields,
+  normalizeLunchBoxSchoolName,
   type LunchBoxCountRow,
   type LunchBoxDailyChecklistView,
   type LunchBoxDailySchoolChecklistData,
@@ -28,6 +29,10 @@ import {
 export type LunchBoxDailySchoolListPdfOrientation =
   | "landscape"
   | "portrait";
+
+export type LunchBoxCoolerBagTableLayoutVariant =
+  | "plain"
+  | "school-groups";
 
 type LunchBoxDailySchoolListPdfInput = {
   checklist: LunchBoxDailySchoolChecklistData;
@@ -70,9 +75,18 @@ type RankedServingOrderItem = {
 };
 
 type CoolerBagServingTableNumber = 1 | 2 | 3 | 4;
+type CoolerBagSchoolGroupNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 type CoolerBagTablePlacementDirection =
   | "bottom-to-top"
   | "top-to-bottom";
+
+type CoolerBagSchoolGroupDefinition = {
+  backgroundColor: ReturnType<typeof rgb>;
+  borderColor: ReturnType<typeof rgb>;
+  groupNumber: CoolerBagSchoolGroupNumber;
+  legendLabel: string;
+  schoolNames: readonly string[];
+};
 
 type CoolerBagServingTableAssignment = {
   capacity: number;
@@ -138,6 +152,7 @@ const coolerBagLayoutMinFontSize = 4.1;
 const coolerBagLayoutBodyFontSize = 6.6;
 const coolerBagLayoutHeaderFontSize = 7.2;
 const coolerBagLayoutTableHeaderHeight = 18;
+const coolerBagSchoolGroupStripeWidth = 5.5;
 const bodyTextColor = rgb(0.09, 0.1, 0.12);
 const mutedTextColor = rgb(0.41, 0.45, 0.51);
 const accentColor = rgb(0.06, 0.33, 0.32);
@@ -153,6 +168,79 @@ const coolerBagFirstItemColor = rgb(0.88, 0.95, 0.92);
 const coolerBagAlternateItemColor = rgb(0.98, 0.985, 0.99);
 const coolerBagOverflowColor = rgb(0.68, 0.22, 0.14);
 const coolerBagOverflowFillColor = rgb(0.99, 0.94, 0.92);
+const coolerBagSchoolGroupDefinitions = [
+  {
+    backgroundColor: rgb(0.651, 0.812, 0.906),
+    borderColor: rgb(0, 0.467, 0.733),
+    groupNumber: 1,
+    legendLabel: "영만·모현·가온",
+    schoolNames: ["영만초", "모현초", "가온초"],
+  },
+  {
+    backgroundColor: rgb(0.976, 0.812, 0.722),
+    borderColor: rgb(0.933, 0.467, 0.2),
+    groupNumber: 2,
+    legendLabel: "영등·익산·동·신흥",
+    schoolNames: ["영등초", "익산초", "동초", "신흥초"],
+  },
+  {
+    backgroundColor: rgb(0.651, 0.859, 0.835),
+    borderColor: rgb(0, 0.6, 0.533),
+    groupNumber: 3,
+    legendLabel: "백제·마한·어양·삼성",
+    schoolNames: ["백제초", "백체초", "마한초", "어양초", "삼성초"],
+  },
+  {
+    backgroundColor: rgb(0.922, 0.686, 0.824),
+    borderColor: rgb(0.773, 0.106, 0.49),
+    groupNumber: 4,
+    legendLabel: "부천·석암",
+    schoolNames: ["부천초", "석암초"],
+  },
+  {
+    backgroundColor: rgb(0.722, 0.906, 0.976),
+    borderColor: rgb(0.2, 0.733, 0.933),
+    groupNumber: 5,
+    legendLabel: "팔봉·궁동·한벌",
+    schoolNames: ["팔봉초", "궁동초", "한벌초"],
+  },
+  {
+    backgroundColor: rgb(0.929, 0.722, 0.675),
+    borderColor: rgb(0.8, 0.2, 0.067),
+    groupNumber: 6,
+    legendLabel: "남창·서·중앙·송학",
+    schoolNames: ["남창초", "서초", "중앙초", "송학초"],
+  },
+  {
+    backgroundColor: rgb(0.804, 0.753, 0.863),
+    borderColor: rgb(0.435, 0.298, 0.608),
+    groupNumber: 7,
+    legendLabel: "북·동북·신동·북일",
+    schoolNames: ["북초", "동북초", "신동초", "북일초"],
+  },
+  {
+    backgroundColor: rgb(0.953, 0.882, 0.722),
+    borderColor: rgb(0.867, 0.667, 0.2),
+    groupNumber: 8,
+    legendLabel: "이리·동산·동남·옥야",
+    schoolNames: ["이리초", "동산초", "동남초", "옥야초"],
+  },
+  {
+    backgroundColor: rgb(0.769, 0.769, 0.769),
+    borderColor: rgb(0.333, 0.333, 0.333),
+    groupNumber: 9,
+    legendLabel: "계문·고현·남초",
+    schoolNames: ["계문초", "고현초", "남초"],
+  },
+] as const satisfies readonly CoolerBagSchoolGroupDefinition[];
+const coolerBagSchoolGroupByName = new Map<
+  string,
+  CoolerBagSchoolGroupDefinition
+>(
+  coolerBagSchoolGroupDefinitions.flatMap((group) =>
+    group.schoolNames.map((schoolName) => [schoolName, group] as const),
+  ),
+);
 const coolerBagServingTableDefinitions = [
   {
     capacity: 19,
@@ -310,13 +398,14 @@ export async function createLunchBoxDailySchoolListPdf({
   if (coolerBagLayoutPageCount > 0) {
     const page = pdf.addPage(layout.pageSize);
 
-    drawCoolerBagTableLayoutPage({
+    drawLunchBoxCoolerBagTableLayoutPage({
       coolerBagTableLayout,
+      dateLabel: view.dateLabel,
       font,
       page,
       pageCount,
       pageNumber: pageCount,
-      view,
+      variant: "plain",
     });
   }
 
@@ -363,20 +452,28 @@ export function createLunchBoxCoolerBagTableLayout(
   };
 }
 
-function drawCoolerBagTableLayoutPage({
+export function getLunchBoxCoolerBagSchoolGroupNumber(
+  schoolName: string,
+): CoolerBagSchoolGroupNumber | null {
+  return getCoolerBagSchoolGroupDefinition(schoolName)?.groupNumber ?? null;
+}
+
+export function drawLunchBoxCoolerBagTableLayoutPage({
   coolerBagTableLayout,
+  dateLabel,
   font,
   page,
   pageCount,
   pageNumber,
-  view,
+  variant,
 }: {
   coolerBagTableLayout: LunchBoxCoolerBagTableLayout;
+  dateLabel: string;
   font: PDFFont;
   page: PDFPage;
   pageCount: number;
   pageNumber: number;
-  view: LunchBoxDailyChecklistView;
+  variant: LunchBoxCoolerBagTableLayoutVariant;
 }) {
   const { height, width } = page.getSize();
   const diagramWidth = width - pageMarginX * 2;
@@ -397,14 +494,21 @@ function drawCoolerBagTableLayoutPage({
     0,
   );
   const summaryLabel =
-    `${view.dateLabel} · 초등학교 ${
+    `${dateLabel} · 초등학교 ${
       servingItemCount + coolerBagTableLayout.overflowItems.length
     }개 반 · 1~4번 배치 ${servingItemCount}/${servingCapacity} · ` +
     `병설·남초 ${coolerBagTableLayout.packingItems.length}개`;
   const placementRule =
+    (variant === "school-groups"
+      ? "같은 색은 같은 학교 그룹 · "
+      : "") +
     "배치 순서 1 → 2 → 4 → 3번 · 1·3·4번 아래→위 · 2번 위→아래 · 5번은 병설 + 남초";
+  const title =
+    variant === "school-groups"
+      ? "학교 그룹별 보냉백 테이블 배치도"
+      : "보냉백 테이블 배치도";
 
-  page.drawText("보냉백 테이블 배치도", {
+  page.drawText(title, {
     x: pageMarginX,
     y: height - 34,
     size: titleFontSize,
@@ -437,6 +541,14 @@ function drawCoolerBagTableLayoutPage({
     borderColor,
     borderWidth: 0.7,
   });
+  if (variant === "school-groups") {
+    drawCoolerBagSchoolGroupLegend(page, font, {
+      diagramHeight,
+      diagramWidth,
+      diagramX,
+      diagramY,
+    });
+  }
 
   for (const table of coolerBagTableLayout.servingTables) {
     const rect = resolveCoolerBagTableRect(
@@ -456,6 +568,7 @@ function drawCoolerBagTableLayoutPage({
       highlightFirstItem: table.tableNumber === 1,
       placementDirection: table.placementDirection,
       rect,
+      variant,
     });
   }
 
@@ -475,6 +588,7 @@ function drawCoolerBagTableLayoutPage({
       headerLabel:
         `5번 테이블 · 병설 + 남초 · ${coolerBagTableLayout.packingItems.length}개`,
       rect: packingRect,
+      variant,
     },
   );
   drawCoolerBagEntrance(page, font, {
@@ -495,6 +609,7 @@ function drawCoolerBagTableLayoutPage({
         diagramX,
         diagramY,
       },
+      variant,
     );
   }
 
@@ -511,12 +626,14 @@ function drawCoolerBagServingTable(
     highlightFirstItem,
     placementDirection,
     rect,
+    variant,
   }: {
     capacity: number;
     headerLabel: string;
     highlightFirstItem: boolean;
     placementDirection: CoolerBagTablePlacementDirection;
     rect: { height: number; width: number; x: number; y: number };
+    variant: LunchBoxCoolerBagTableLayoutVariant;
   },
 ) {
   drawCoolerBagTableFrame(page, font, {
@@ -534,6 +651,10 @@ function drawCoolerBagServingTable(
         ? capacity - itemIndex - 1
         : itemIndex;
     const y = rect.y + slotIndex * slotHeight;
+    const schoolGroup =
+      variant === "school-groups"
+        ? getCoolerBagSchoolGroupDefinition(rankedItem.item.schoolName)
+        : null;
 
     page.drawRectangle({
       x: rect.x,
@@ -541,16 +662,27 @@ function drawCoolerBagServingTable(
       width: rect.width,
       height: slotHeight,
       color:
-        highlightFirstItem && itemIndex === 0
+        schoolGroup?.backgroundColor ??
+        (highlightFirstItem && itemIndex === 0
           ? coolerBagFirstItemColor
           : slotIndex % 2 === 1
             ? coolerBagAlternateItemColor
-            : coolerBagTableFillColor,
+            : coolerBagTableFillColor),
     });
+    const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+      page,
+      schoolGroup,
+      {
+        height: slotHeight,
+        rowWidth: rect.width,
+        x: rect.x,
+        y,
+      },
+    );
     drawCompactSingleLineText(
       page,
       font,
-      formatCoolerBagLayoutItem(rankedItem),
+      formatCoolerBagLayoutItem(rankedItem, variant),
       {
         align: "left",
         color:
@@ -560,8 +692,8 @@ function drawCoolerBagServingTable(
         fontSize: coolerBagLayoutBodyFontSize,
         height: slotHeight,
         minFontSize: coolerBagLayoutMinFontSize,
-        width: rect.width,
-        x: rect.x,
+        width: rect.width - groupStripeWidth,
+        x: rect.x + groupStripeWidth,
         y,
       },
     );
@@ -595,9 +727,11 @@ function drawCoolerBagPackingTable(
   {
     headerLabel,
     rect,
+    variant,
   }: {
     headerLabel: string;
     rect: { height: number; width: number; x: number; y: number };
+    variant: LunchBoxCoolerBagTableLayoutVariant;
   },
 ) {
   drawCoolerBagTableFrame(page, font, {
@@ -625,28 +759,43 @@ function drawCoolerBagPackingTable(
 
     items.forEach((rankedItem, itemIndex) => {
       const y = rect.y + itemIndex * slotHeight;
+      const schoolGroup =
+        variant === "school-groups"
+          ? getCoolerBagSchoolGroupDefinition(rankedItem.item.schoolName)
+          : null;
 
-      if (itemIndex % 2 === 1) {
+      if (schoolGroup || itemIndex % 2 === 1) {
         page.drawRectangle({
           x: rect.x,
           y,
           width: rect.width,
           height: slotHeight,
-          color: coolerBagAlternateItemColor,
+          color:
+            schoolGroup?.backgroundColor ?? coolerBagAlternateItemColor,
         });
       }
+      const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+        page,
+        schoolGroup,
+        {
+          height: slotHeight,
+          rowWidth: rect.width,
+          x: rect.x,
+          y,
+        },
+      );
       drawCompactSingleLineText(
         page,
         font,
-        formatCoolerBagLayoutItem(rankedItem),
+        formatCoolerBagLayoutItem(rankedItem, variant),
         {
           align: "left",
-          color: packingSectionColor,
+          color: schoolGroup ? bodyTextColor : packingSectionColor,
           fontSize: coolerBagLayoutBodyFontSize,
           height: slotHeight,
           minFontSize: coolerBagLayoutMinFontSize,
-          width: rect.width,
-          x: rect.x,
+          width: rect.width - groupStripeWidth,
+          x: rect.x + groupStripeWidth,
           y,
         },
       );
@@ -718,6 +867,156 @@ function drawCoolerBagTableFrame(
     color: strongBorderColor,
     thickness: 0.65,
   });
+}
+
+function drawCoolerBagSchoolGroupLegend(
+  page: PDFPage,
+  font: PDFFont,
+  {
+    diagramHeight,
+    diagramWidth,
+    diagramX,
+    diagramY,
+  }: {
+    diagramHeight: number;
+    diagramWidth: number;
+    diagramX: number;
+    diagramY: number;
+  },
+) {
+  const x = diagramX + diagramWidth * 0.035;
+  const y = diagramY + diagramHeight * 0.505;
+  const width = diagramWidth * 0.19;
+  const height = diagramHeight * 0.335;
+  const headerHeight = 16;
+  const rowHeight =
+    (height - headerHeight) / coolerBagSchoolGroupDefinitions.length;
+
+  page.drawRectangle({
+    x,
+    y,
+    width,
+    height,
+    color: coolerBagTableFillColor,
+  });
+  page.drawRectangle({
+    x,
+    y: y + height - headerHeight,
+    width,
+    height: headerHeight,
+    color: coolerBagTableHeaderColor,
+  });
+  drawCompactSingleLineText(page, font, "학교 그룹 색상", {
+    align: "center",
+    color: bodyTextColor,
+    fontSize: 6.8,
+    height: headerHeight,
+    minFontSize: 5.2,
+    width,
+    x,
+    y: y + height - headerHeight,
+  });
+
+  coolerBagSchoolGroupDefinitions.forEach((group, groupIndex) => {
+    const rowY =
+      y +
+      (coolerBagSchoolGroupDefinitions.length - groupIndex - 1) *
+        rowHeight;
+
+    page.drawRectangle({
+      x,
+      y: rowY,
+      width,
+      height: rowHeight,
+      color: group.backgroundColor,
+    });
+    const groupStripeWidth = drawCoolerBagSchoolGroupStripe(
+      page,
+      group,
+      {
+        height: rowHeight,
+        rowWidth: width,
+        x,
+        y: rowY,
+      },
+    );
+    drawCompactSingleLineText(
+      page,
+      font,
+      group.legendLabel,
+      {
+        align: "left",
+        color: bodyTextColor,
+        fontSize: 5.9,
+        height: rowHeight,
+        minFontSize: 4.4,
+        width: width - groupStripeWidth,
+        x: x + groupStripeWidth,
+        y: rowY,
+      },
+    );
+
+    if (groupIndex > 0) {
+      page.drawLine({
+        start: { x, y: rowY },
+        end: { x: x + width, y: rowY },
+        color: borderColor,
+        thickness: 0.3,
+      });
+    }
+  });
+
+  page.drawRectangle({
+    x,
+    y,
+    width,
+    height,
+    borderColor: strongBorderColor,
+    borderWidth: 0.8,
+  });
+}
+
+function drawCoolerBagSchoolGroupStripe(
+  page: PDFPage,
+  group: CoolerBagSchoolGroupDefinition | null,
+  {
+    height,
+    rowWidth,
+    x,
+    y,
+  }: {
+    height: number;
+    rowWidth: number;
+    x: number;
+    y: number;
+  },
+) {
+  if (!group) {
+    return 0;
+  }
+
+  const stripeWidth = Math.min(
+    coolerBagSchoolGroupStripeWidth,
+    rowWidth * 0.22,
+  );
+
+  page.drawRectangle({
+    x,
+    y,
+    width: stripeWidth,
+    height,
+    color: group.borderColor,
+  });
+  page.drawRectangle({
+    x,
+    y,
+    width: rowWidth,
+    height,
+    borderColor: group.borderColor,
+    borderWidth: 0.55,
+  });
+
+  return stripeWidth;
 }
 
 function drawCoolerBagEntrance(
@@ -792,6 +1091,7 @@ function drawCoolerBagOverflowWarning(
     diagramX: number;
     diagramY: number;
   },
+  variant: LunchBoxCoolerBagTableLayoutVariant,
 ) {
   const warningX = diagramX + diagramWidth * 0.035;
   const warningY = diagramY + diagramHeight * 0.855;
@@ -799,7 +1099,7 @@ function drawCoolerBagOverflowWarning(
   const warningHeight = Math.max(23, diagramHeight * 0.075);
   const itemLabels = items
     .slice(0, 3)
-    .map((item) => formatCoolerBagLayoutItem(item))
+    .map((item) => formatCoolerBagLayoutItem(item, variant))
     .join(" · ");
   const remainingLabel =
     items.length > 3 ? ` 외 ${items.length - 3}개` : "";
@@ -845,10 +1145,24 @@ function resolveCoolerBagTableRect(
   };
 }
 
+function getCoolerBagSchoolGroupDefinition(
+  schoolName: string,
+): CoolerBagSchoolGroupDefinition | null {
+  const normalizedSchoolName = normalizeLunchBoxSchoolName(schoolName)
+    .replace(/\s*(?:병설유치원|병설)$/u, "")
+    .trim();
+
+  return coolerBagSchoolGroupByName.get(normalizedSchoolName) ?? null;
+}
+
 function formatCoolerBagLayoutItem({
   item,
   rank,
-}: RankedServingOrderItem) {
+}: RankedServingOrderItem, variant: LunchBoxCoolerBagTableLayoutVariant) {
+  if (variant === "school-groups") {
+    return `${item.schoolName} ${item.label}`;
+  }
+
   return `${rank}. ${item.schoolName} ${item.label} ${item.count}명`;
 }
 

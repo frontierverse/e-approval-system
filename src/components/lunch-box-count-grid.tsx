@@ -385,7 +385,7 @@ export function LunchBoxCountGrid({
               다음날
             </button>
           </div>
-          <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:justify-start">
             {grid.date !== today ? (
               <button
                 type="button"
@@ -397,7 +397,7 @@ export function LunchBoxCountGrid({
                 오늘
               </button>
             ) : null}
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
               {editedCount > 0 || isPending ? (
                 <button
                   type="button"
@@ -438,6 +438,32 @@ export function LunchBoxCountGrid({
               >
                 현황표 인쇄
               </button>
+              {editedCount > 0 || isPending || grid.menuItems.length === 0 ? (
+                <button
+                  type="button"
+                  disabled
+                  title={
+                    editedCount > 0
+                      ? "변경사항을 저장한 후 인쇄할 수 있습니다."
+                      : isPending
+                        ? "날짜를 불러온 후 인쇄할 수 있습니다."
+                        : "이 날짜에 등록된 메뉴가 없어 인쇄할 수 없습니다."
+                  }
+                  className={pdfButtonClassName}
+                >
+                  메뉴 재료 인쇄
+                </button>
+              ) : (
+                <Link
+                  href={`/work-schedule/lunch-boxes/menu-ingredients-print?date=${grid.date}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  prefetch={false}
+                  className={pdfButtonClassName}
+                >
+                  메뉴 재료 인쇄
+                </Link>
+              )}
               {onClose ? (
                 <button
                   type="button"
@@ -715,8 +741,8 @@ export function LunchBoxStatusPrintDialog({
             id={descriptionId}
             className="mt-2 text-sm leading-5 text-[var(--text-muted)]"
           >
-            인쇄할 기간을 선택하세요. 일주일치는 해당 주의 실제 공급일을
-            날짜별 한 페이지로 묶습니다.
+            인쇄할 기간을 선택하세요. 일주일치는 해당 주의 실제 공급일마다
+            현황표와 그룹 배치도를 두 페이지로 묶습니다.
           </p>
         </div>
         <button
@@ -749,7 +775,7 @@ export function LunchBoxStatusPrintDialog({
           <span>
             <span className="block">{dateLabel}만 인쇄</span>
             <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">
-              현황표 1페이지
+              현황표 + 그룹 배치도 2페이지
             </span>
           </span>
         </Link>
@@ -767,7 +793,7 @@ export function LunchBoxStatusPrintDialog({
           <span>
             <span className="block">일주일치 인쇄</span>
             <span className="mt-1 block text-xs font-normal text-white/85">
-              공급일별 1페이지씩 묶음
+              공급일별 현황표 + 배치도 2페이지씩
             </span>
           </span>
         </Link>

@@ -1194,11 +1194,20 @@ describe("lunch box counts", () => {
       /href="\/work-schedule\/lunch-boxes\/print\?date=2026-07-29"/,
     );
     assert.doesNotMatch(html, /status-print\?date=2026-07-29/);
-    assert.match(html, /target="_blank"/);
-    assert.match(html, /rel="noreferrer"/);
     assert.match(
       html,
-      /PDF \uC778\uC1C4<\/a><button[^>]*aria-haspopup="dialog"[^>]*>\uD604\uD669\uD45C \uC778\uC1C4<\/button><button[^>]*data-modal-initial-focus[^>]*>\uB2EB\uAE30<\/button>/,
+      /href="\/work-schedule\/lunch-boxes\/menu-ingredients-print\?date=2026-07-29"/,
+    );
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /rel="noreferrer"/);
+    assert.ok(
+      html.indexOf(">PDF 인쇄</a>") <
+        html.indexOf(">현황표 인쇄</button>") &&
+        html.indexOf(">현황표 인쇄</button>") <
+          html.indexOf(">메뉴 재료 인쇄</a>") &&
+        html.indexOf(">메뉴 재료 인쇄</a>") <
+          html.indexOf(">닫기</button>"),
+      "인쇄 작업은 PDF, 현황표, 메뉴 재료 순서로 표시되어야 합니다.",
     );
     assert.match(html, /aria-expanded="false"/);
     assert.match(
@@ -1211,6 +1220,8 @@ describe("lunch box counts", () => {
     );
     assert.match(html, />PDF 인쇄</);
     assert.match(html, />현황표 인쇄</);
+    assert.match(html, />메뉴 재료 인쇄</);
+    assert.match(html, /flex min-w-0 flex-wrap items-center justify-end gap-2/);
     assert.match(html, /표를 좌우로 밀어 반별 개수를 입력하세요./);
     assert.match(
       html,
@@ -1238,8 +1249,13 @@ describe("lunch box counts", () => {
     assert.match(html, /aria-modal="true"/);
     assert.match(html, /7월 20일 현황표 인쇄/);
     assert.match(html, /7월 20일만 인쇄/);
+    assert.match(html, /현황표 \+ 그룹 배치도 2페이지/);
     assert.match(html, /일주일치 인쇄/);
-    assert.match(html, /실제 공급일을 날짜별 한 페이지로 묶습니다/);
+    assert.match(
+      html,
+      /실제 공급일마다 현황표와 그룹 배치도를 두 페이지로 묶습니다/,
+    );
+    assert.match(html, /공급일별 현황표 \+ 배치도 2페이지씩/);
     assert.match(
       html,
       /href="\/work-schedule\/lunch-boxes\/status-print\?date=2026-07-20"/,
@@ -1267,6 +1283,10 @@ describe("lunch box counts", () => {
 
     assert.match(html, /등록된 학교가 없습니다/);
     assert.match(html, /학교 등록하기/);
+    assert.match(
+      html,
+      /disabled=""[^>]*title="이 날짜에 등록된 메뉴가 없어 인쇄할 수 없습니다\."[^>]*>메뉴 재료 인쇄<\/button>/,
+    );
   });
 
   test("keeps a large school grid inside an independently scrolling region", () => {

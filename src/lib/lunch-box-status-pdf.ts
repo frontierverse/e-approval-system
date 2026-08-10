@@ -9,11 +9,17 @@ import {
   rgb,
 } from "pdf-lib";
 import {
+  createLunchBoxServingOrderGroups,
   createLunchBoxStatusSummary,
+  formatLunchBoxDateLabel,
   formatLunchBoxMenuItems,
   isLunchBoxDate,
   type LunchBoxCountGrid,
 } from "@/lib/lunch-box-counts-core";
+import {
+  createLunchBoxCoolerBagTableLayout,
+  drawLunchBoxCoolerBagTableLayoutPage,
+} from "@/lib/lunch-box-daily-school-list-pdf";
 
 type LunchBoxStatusPdfInput = {
   generatedAt: Date;
@@ -24,6 +30,8 @@ type LunchBoxWeeklyStatusPdfInput = {
   generatedAt: Date;
   grids: LunchBoxCountGrid[];
 };
+
+type LunchBoxStatusLayoutPolicy = "after-each-date" | "none";
 
 type StatusMetric = {
   blankWhenZero?: boolean;
@@ -70,6 +78,7 @@ export async function createLunchBoxStatusPdf({
   return createLunchBoxStatusPdfDocument({
     generatedAt,
     grids: [grid],
+    layoutPolicy: "after-each-date",
   });
 }
 
@@ -77,13 +86,20 @@ export async function createLunchBoxWeeklyStatusPdf({
   generatedAt,
   grids,
 }: LunchBoxWeeklyStatusPdfInput) {
-  return createLunchBoxStatusPdfDocument({ generatedAt, grids });
+  return createLunchBoxStatusPdfDocument({
+    generatedAt,
+    grids,
+    layoutPolicy: "after-each-date",
+  });
 }
 
 async function createLunchBoxStatusPdfDocument({
   generatedAt,
   grids,
-}: LunchBoxWeeklyStatusPdfInput) {
+  layoutPolicy,
+}: LunchBoxWeeklyStatusPdfInput & {
+  layoutPolicy: LunchBoxStatusLayoutPolicy;
+}) {
   if (grids.length === 0) {
     throw new Error("인쇄할 도시락 현황표가 없습니다.");
   }
@@ -100,11 +116,19 @@ async function createLunchBoxStatusPdfDocument({
     subset: false,
   });
   pdf.setTitle(formatStatusDocumentTitle(grids));
-  pdf.setSubject("초등학교 및 병설유치원 방학도시락 일자별 현황표");
+  pdf.setSubject(
+    layoutPolicy === "after-each-date"
+      ? "초등학교 및 병설유치원 방학도시락 일자별 현황표 및 학교 그룹별 보냉백 배치도"
+      : "초등학교 및 병설유치원 방학도시락 일자별 현황표",
+  );
   pdf.setCreator("바자울 사내 시스템");
   pdf.setProducer("바자울 사내 시스템");
   pdf.setCreationDate(generatedAt);
   pdf.setModificationDate(generatedAt);
+
+  const pageCount =
+    grids.length * (layoutPolicy === "after-each-date" ? 2 : 1);
+  let pageNumber = 1;
 
   for (const grid of grids) {
     const page = pdf.addPage(landscapeA4);
@@ -150,6 +174,28 @@ async function createLunchBoxStatusPdfDocument({
       ],
       title,
     });
+
+    if (layoutPolicy === "after-each-date") {
+      drawStatusPageNumber(page, font, pageNumber, pageCount);
+      pageNumber += 1;
+
+      const layoutPage = pdf.addPage(landscapeA4);
+      const coolerBagTableLayout = createLunchBoxCoolerBagTableLayout(
+        createLunchBoxServingOrderGroups(grid.rows),
+      );
+
+      drawLunchBoxCoolerBagTableLayoutPage({
+        coolerBagTableLayout,
+        dateLabel: formatLunchBoxDateLabel(grid.date),
+        font,
+        page: layoutPage,
+        pageCount,
+        pageNumber,
+        variant: "school-groups",
+      });
+    }
+
+    pageNumber += 1;
   }
 
   return pdf.save();
@@ -373,6 +419,25 @@ function drawStatusSheet(
     height: contentTop - contentBottom,
     borderColor: ruleColor,
     borderWidth: outerBorderWidth,
+  });
+}
+
+function drawStatusPageNumber(
+  page: PDFPage,
+  font: PDFFont,
+  pageNumber: number,
+  pageCount: number,
+) {
+  const fontSize = 7;
+  const label = `${pageNumber} / ${pageCount}`;
+  const labelWidth = font.widthOfTextAtSize(label, fontSize);
+
+  page.drawText(label, {
+    x: page.getWidth() - 24 - labelWidth,
+    y: 12,
+    size: fontSize,
+    font,
+    color: mutedInk,
   });
 }
 

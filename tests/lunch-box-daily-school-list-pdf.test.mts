@@ -6,6 +6,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   createLunchBoxCoolerBagTableLayout,
   createLunchBoxDailySchoolListPdf,
+  getLunchBoxCoolerBagSchoolGroupNumber,
 } from "../src/lib/lunch-box-daily-school-list-pdf.ts";
 import {
   createLunchBoxDailyChecklistView,
@@ -139,6 +140,8 @@ describe("lunch box daily school-list PDF", () => {
     assert.match(thirdPageText, /4번 테이블 · 7\/7 · 선반 포함/);
     assert.match(thirdPageText, /5번 테이블 · 병설 \+ 남초 · 0개/);
     assert.match(thirdPageText, /출입구/);
+    assert.doesNotMatch(thirdPageText, /학교 그룹 색상/);
+    assert.doesNotMatch(thirdPageText, /\|G[1-9]\|/);
     assert.match(thirdPageText, /배치 순서 1 → 2 → 4 → 3번/);
     assert.match(thirdPageText, /2번 위→아래/);
     assert.match(thirdPageText, /1\. 학교 01 1반 10명/);
@@ -407,6 +410,8 @@ describe("lunch box daily school-list PDF", () => {
     assert.match(thirdPageText, /5번 테이블 · 병설 \+ 남초 · 2개/);
     assert.match(thirdPageText, /1\. 동남초 1반 40명/);
     assert.match(thirdPageText, /1\. 모현초 병설유치원 1반 50명/);
+    assert.doesNotMatch(thirdPageText, /학교 그룹 색상/);
+    assert.doesNotMatch(thirdPageText, /\|G[1-9]\|/);
   });
 
   test("fits the peak operating volume on the second landscape page", async () => {
@@ -618,6 +623,50 @@ describe("lunch box daily school-list PDF", () => {
     assert.equal(layout.servingTables[3].items.at(-1)?.item.count, 1);
     assert.equal(layout.packingItems.length, 10);
     assert.deepEqual(layout.overflowItems, []);
+  });
+
+  test("maps canonical, kindergarten, prefixed, and typo school names to nine color groups", () => {
+    const groupedSchoolNames: Array<
+      [groupNumber: number, schoolNames: string[]]
+    > = [
+      [1, ["영만초", "모현초", "가온초병설", "가온초 병설유치원"]],
+      [2, ["영등초", "익산초", "동초", "신흥초병설"]],
+      [
+        3,
+        [
+          "백체초",
+          "백제초",
+          "백제초병설",
+          "마한초 병설유치원",
+          "어양초",
+          "삼성초",
+        ],
+      ],
+      [4, ["부천초", "부천초병설", "석암초"]],
+      [5, ["팔봉초", "궁동초", "한벌초"]],
+      [6, ["남창초", "서초", "중앙초병설", "송학초 병설유치원"]],
+      [7, ["북초", "북초병설", "동북초", "신동초", "북일초"]],
+      [
+        8,
+        ["이리초", "동산초", "이리동남초병설", "동남초", "옥야초"],
+      ],
+      [9, ["계문초", "고현초", "이리남초", "남초"]],
+    ];
+
+    for (const [groupNumber, schoolNames] of groupedSchoolNames) {
+      for (const schoolName of schoolNames) {
+        assert.equal(
+          getLunchBoxCoolerBagSchoolGroupNumber(schoolName),
+          groupNumber,
+          `${schoolName}은(는) G${groupNumber}이어야 합니다.`,
+        );
+      }
+    }
+
+    assert.equal(
+      getLunchBoxCoolerBagSchoolGroupNumber("그룹미지정초"),
+      null,
+    );
   });
 
   test("creates the same compact empty state for a date without schools", async () => {

@@ -188,20 +188,26 @@ describe("lunch box status PDF", () => {
     });
   });
 
-  test("creates a single-page A4 landscape status sheet from live-grid data", async () => {
+  test("creates an A4 landscape status sheet followed by the grouped table layout", async () => {
     const buffer = await createLunchBoxStatusPdf({
       generatedAt: new Date("2026-07-26T09:00:00.000Z"),
       grid: july27Grid,
     });
     const pdf = await PDFDocument.load(buffer);
-    const [page] = pdf.getPages();
+    const [statusPage, layoutPage] = pdf.getPages();
+    const pageTexts = await extractPdfPageTexts(buffer);
     const text = await extractPdfText(buffer);
 
     assert.equal(readPdfHeader(buffer), "%PDF");
-    assert.equal(pdf.getPageCount(), 1);
-    assertAlmostEqual(page.getWidth(), PageSizes.A4[1]);
-    assertAlmostEqual(page.getHeight(), PageSizes.A4[0]);
-    assert.match(text, /7월 27일 초등 및 병설 방학도시락 현황표/);
+    assert.equal(pdf.getPageCount(), 2);
+    assertAlmostEqual(statusPage.getWidth(), PageSizes.A4[1]);
+    assertAlmostEqual(statusPage.getHeight(), PageSizes.A4[0]);
+    assertAlmostEqual(layoutPage.getWidth(), PageSizes.A4[1]);
+    assertAlmostEqual(layoutPage.getHeight(), PageSizes.A4[0]);
+    assert.match(
+      pageTexts[0],
+      /7월 27일 초등 및 병설 방학도시락 현황표/,
+    );
     assert.match(
       text,
       /잡곡밥, 감자된장국, 칠리새우볶음, \(병아리\)콩조림, 숙주나물, 열무김치\(배추김치\)/,
@@ -224,6 +230,21 @@ describe("lunch box status PDF", () => {
     }
 
     assert.equal(text.match(/16인/g)?.length, 1);
+    assert.match(pageTexts[0], /1 \/ 2/);
+    assert.match(
+      pageTexts[1],
+      /학교 그룹별 보냉백 테이블 배치도/,
+    );
+    assert.match(pageTexts[1], /학교 그룹 색상/);
+    assert.match(pageTexts[1], /영만·모현·가온/);
+    assert.match(pageTexts[1], /계문·고현·남초/);
+    assert.match(pageTexts[1], /1번 테이블/);
+    assert.match(pageTexts[1], /5번 테이블 · 병설 \+ 남초 · 3개/);
+    assert.match(pageTexts[1], /동남초 병설유치원 1반/);
+    assert.doesNotMatch(pageTexts[1], /\|G[1-9]\|/);
+    assert.doesNotMatch(pageTexts[1], /\|\d+\.\s/u);
+    assert.doesNotMatch(pageTexts[1], /\d+명/u);
+    assert.match(pageTexts[1], /2 \/ 2/);
   });
 
   test("prints Namcho serving counts before and after August 3 with preservation separate", async () => {
@@ -286,7 +307,7 @@ describe("lunch box status PDF", () => {
     assert.match(text, /배송기사\|3개/);
   });
 
-  test("creates one status page per supplied date in a weekly PDF", async () => {
+  test("pairs each weekly status page with its grouped table layout", async () => {
     const dates = [
       "2026-07-20",
       "2026-07-21",
@@ -306,11 +327,14 @@ describe("lunch box status PDF", () => {
     const pdf = await PDFDocument.load(buffer);
     const pageTexts = await extractPdfPageTexts(buffer);
 
-    assert.equal(pdf.getPageCount(), dates.length);
+    const pageCount = dates.length * 2;
+
+    assert.equal(pdf.getPageCount(), pageCount);
     assert.equal(
       pdf.getTitle(),
       "7월 20일~7월 24일 초등 및 병설 방학도시락 현황표",
     );
+    assert.match(pdf.getSubject() ?? "", /학교 그룹별 보냉백 배치도/);
 
     pdf.getPages().forEach((page) => {
       assertAlmostEqual(page.getWidth(), PageSizes.A4[1]);
@@ -319,14 +343,37 @@ describe("lunch box status PDF", () => {
 
     dates.forEach((date, index) => {
       const [, month, day] = date.split("-");
+      const statusPageNumber = index * 2 + 1;
+      const layoutPageNumber = statusPageNumber + 1;
+      const statusPageText = pageTexts[statusPageNumber - 1];
+      const layoutPageText = pageTexts[layoutPageNumber - 1];
 
       assert.match(
-        pageTexts[index],
+        statusPageText,
         new RegExp(
           `${Number(month)}월 ${Number(day)}일 초등 및 병설 방학도시락 현황표`,
         ),
       );
-      assert.match(pageTexts[index], new RegExp(`주간 식단 ${index + 1}`));
+      assert.match(statusPageText, new RegExp(`주간 식단 ${index + 1}`));
+      assert.match(
+        statusPageText,
+        new RegExp(`${statusPageNumber} \\/ ${pageCount}`),
+      );
+      assert.match(
+        layoutPageText,
+        /학교 그룹별 보냉백 테이블 배치도/,
+      );
+      assert.match(layoutPageText, /학교 그룹 색상/);
+      assert.match(layoutPageText, /영만·모현·가온/);
+      assert.match(layoutPageText, /1번 테이블/);
+      assert.match(layoutPageText, /동남초 병설유치원 1반/);
+      assert.doesNotMatch(layoutPageText, /\|G[1-9]\|/);
+      assert.doesNotMatch(layoutPageText, /\|\d+\.\s/u);
+      assert.doesNotMatch(layoutPageText, /\d+명/u);
+      assert.match(
+        layoutPageText,
+        new RegExp(`${layoutPageNumber} \\/ ${pageCount}`),
+      );
     });
   });
 
