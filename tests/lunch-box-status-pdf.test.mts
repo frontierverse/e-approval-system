@@ -196,7 +196,17 @@ describe("lunch box status PDF", () => {
     const pdf = await PDFDocument.load(buffer);
     const [statusPage, layoutPage] = pdf.getPages();
     const pageTexts = await extractPdfPageTexts(buffer);
+    const textItems = await extractPdfTextItems(buffer);
+    const layoutPageItems = textItems.filter(
+      (item) => item.pageNumber === 2,
+    );
     const text = await extractPdfText(buffer);
+    const firstTableHeader = layoutPageItems.find((item) =>
+      item.str.startsWith("1번 테이블"),
+    );
+    const packingTableHeader = layoutPageItems.find((item) =>
+      item.str.startsWith("5번 테이블"),
+    );
 
     assert.equal(readPdfHeader(buffer), "%PDF");
     assert.equal(pdf.getPageCount(), 2);
@@ -241,10 +251,17 @@ describe("lunch box status PDF", () => {
     assert.match(pageTexts[1], /1번 테이블/);
     assert.match(pageTexts[1], /5번 테이블 · 병설 \+ 남초 · 3개/);
     assert.match(pageTexts[1], /동남초 병설유치원 1반/);
+    assert.match(pageTexts[1], /5번은 1번 오른쪽\(병설 \+ 남초\)/);
     assert.doesNotMatch(pageTexts[1], /\|G[1-9]\|/);
     assert.doesNotMatch(pageTexts[1], /\|\d+\.\s/u);
     assert.doesNotMatch(pageTexts[1], /\d+명/u);
     assert.match(pageTexts[1], /2 \/ 2/);
+    assert.ok(firstTableHeader, "1번 테이블 헤더를 찾을 수 없습니다.");
+    assert.ok(packingTableHeader, "5번 테이블 헤더를 찾을 수 없습니다.");
+    assert.ok(
+      packingTableHeader.x > firstTableHeader.x,
+      "그룹 배치도의 5번 테이블은 1번 테이블 오른쪽에 있어야 합니다.",
+    );
   });
 
   test("prints Namcho serving counts before and after August 3 with preservation separate", async () => {
@@ -478,4 +495,37 @@ async function extractPdfPageTexts(buffer: Uint8Array) {
   }
 
   return pageTexts;
+}
+
+async function extractPdfTextItems(buffer: Uint8Array) {
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+  const pdf = await loadingTask.promise;
+  const items: Array<{
+    pageNumber: number;
+    str: string;
+    x: number;
+  }> = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+
+      for (const item of content.items) {
+        if (!("str" in item) || !item.str) {
+          continue;
+        }
+
+        items.push({
+          pageNumber,
+          str: item.str,
+          x: item.transform[4],
+        });
+      }
+    }
+  } finally {
+    await loadingTask.destroy();
+  }
+
+  return items;
 }

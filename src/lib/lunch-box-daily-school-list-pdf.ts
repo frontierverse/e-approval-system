@@ -80,6 +80,13 @@ type CoolerBagTablePlacementDirection =
   | "bottom-to-top"
   | "top-to-bottom";
 
+type CoolerBagTableRect = {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+
 type CoolerBagSchoolGroupDefinition = {
   backgroundColor: ReturnType<typeof rgb>;
   borderColor: ReturnType<typeof rgb>;
@@ -273,14 +280,23 @@ const coolerBagServingTableDefinitions = [
   tableNumber: CoolerBagServingTableNumber;
 }[];
 const coolerBagTableRects: Record<
-  CoolerBagServingTableNumber | 5,
-  { height: number; width: number; x: number; y: number }
+  LunchBoxCoolerBagTableLayoutVariant,
+  Record<CoolerBagServingTableNumber | 5, CoolerBagTableRect>
 > = {
-  1: { x: 0.74, y: 0.075, width: 0.18, height: 0.775 },
-  2: { x: 0.49, y: 0.05, width: 0.17, height: 0.8 },
-  3: { x: 0.28, y: 0.36, width: 0.16, height: 0.49 },
-  4: { x: 0.285, y: 0.05, width: 0.155, height: 0.24 },
-  5: { x: 0.055, y: 0.05, width: 0.17, height: 0.43 },
+  plain: {
+    1: { x: 0.74, y: 0.075, width: 0.18, height: 0.775 },
+    2: { x: 0.49, y: 0.05, width: 0.17, height: 0.8 },
+    3: { x: 0.28, y: 0.36, width: 0.16, height: 0.49 },
+    4: { x: 0.285, y: 0.05, width: 0.155, height: 0.24 },
+    5: { x: 0.055, y: 0.05, width: 0.17, height: 0.43 },
+  },
+  "school-groups": {
+    1: { x: 0.67, y: 0.075, width: 0.15, height: 0.775 },
+    2: { x: 0.49, y: 0.05, width: 0.17, height: 0.8 },
+    3: { x: 0.28, y: 0.36, width: 0.16, height: 0.49 },
+    4: { x: 0.285, y: 0.05, width: 0.155, height: 0.24 },
+    5: { x: 0.84, y: 0.075, width: 0.15, height: 0.43 },
+  },
 };
 const landscapeLayout: DailySchoolPdfLayout = {
   checklistColumnCount: 3,
@@ -502,7 +518,10 @@ export function drawLunchBoxCoolerBagTableLayoutPage({
     (variant === "school-groups"
       ? "같은 색은 같은 학교 그룹 · "
       : "") +
-    "배치 순서 1 → 2 → 4 → 3번 · 1·3·4번 아래→위 · 2번 위→아래 · 5번은 병설 + 남초";
+    "배치 순서 1 → 2 → 4 → 3번 · 1·3·4번 아래→위 · 2번 위→아래 · " +
+    (variant === "school-groups"
+      ? "5번은 1번 오른쪽(병설 + 남초)"
+      : "5번은 병설 + 남초");
   const title =
     variant === "school-groups"
       ? "학교 그룹별 보냉백 테이블 배치도"
@@ -557,6 +576,7 @@ export function drawLunchBoxCoolerBagTableLayoutPage({
       diagramY,
       diagramWidth,
       diagramHeight,
+      variant,
     );
     const noteSuffix = table.note ? ` · ${table.note}` : "";
 
@@ -578,6 +598,7 @@ export function drawLunchBoxCoolerBagTableLayoutPage({
     diagramY,
     diagramWidth,
     diagramHeight,
+    variant,
   );
 
   drawCoolerBagPackingTable(
@@ -596,6 +617,7 @@ export function drawLunchBoxCoolerBagTableLayoutPage({
     diagramWidth,
     diagramX,
     diagramY,
+    variant,
   });
 
   if (coolerBagTableLayout.overflowItems.length > 0) {
@@ -1027,11 +1049,13 @@ function drawCoolerBagEntrance(
     diagramWidth,
     diagramX,
     diagramY,
+    variant,
   }: {
     diagramHeight: number;
     diagramWidth: number;
     diagramX: number;
     diagramY: number;
+    variant: LunchBoxCoolerBagTableLayoutVariant;
   },
 ) {
   const tableRect = resolveCoolerBagTableRect(
@@ -1040,6 +1064,7 @@ function drawCoolerBagEntrance(
     diagramY,
     diagramWidth,
     diagramHeight,
+    variant,
   );
   const centerX = tableRect.x + tableRect.width / 2;
   const label = "출입구";
@@ -1134,8 +1159,9 @@ function resolveCoolerBagTableRect(
   diagramY: number,
   diagramWidth: number,
   diagramHeight: number,
+  variant: LunchBoxCoolerBagTableLayoutVariant,
 ) {
-  const rect = coolerBagTableRects[tableNumber];
+  const rect = coolerBagTableRects[variant][tableNumber];
 
   return {
     x: diagramX + rect.x * diagramWidth,

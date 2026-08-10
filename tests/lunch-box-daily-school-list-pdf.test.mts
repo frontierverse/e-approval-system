@@ -157,10 +157,22 @@ describe("lunch box daily school-list PDF", () => {
       thirdPageItems,
       /^19\./,
     );
+    const firstTableHeader = findTextItemMatching(
+      thirdPageItems,
+      /^1번 테이블/,
+    );
+    const packingTableHeader = findTextItemMatching(
+      thirdPageItems,
+      /^5번 테이블/,
+    );
 
     assert.ok(
       firstPlacedItem.y < nineteenthPlacedItem.y,
       "1번 테이블의 1순위는 출입구와 가까운 아래쪽이어야 합니다.",
+    );
+    assert.ok(
+      packingTableHeader.x < firstTableHeader.x,
+      "무색 배치도의 5번 테이블은 기존처럼 왼쪽에 있어야 합니다.",
     );
 
     for (const header of [
