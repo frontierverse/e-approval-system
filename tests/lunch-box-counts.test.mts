@@ -19,7 +19,7 @@ import {
 import { LunchBoxDailyCheckHistory } from "../src/components/lunch-box-daily-check-history.tsx";
 import { LunchBoxManagementSkeleton } from "../src/components/lunch-box-management-skeleton.tsx";
 import { LunchBoxDailySchoolChecklist } from "../src/components/lunch-box-daily-school-checklist.tsx";
-import { LunchBoxSchoolChecklist } from "../src/components/lunch-box-school-checklist.tsx";
+import { LunchBoxSchoolChecklistContent } from "../src/components/lunch-box-school-checklist.tsx";
 import {
   createLunchBoxCalendarDays,
   createLunchBoxChartData,
@@ -1944,6 +1944,10 @@ describe("lunch box count change log", () => {
     );
     assert.match(
       lunchBoxRealtimeRouteSource,
+      /table: "LunchBoxCount"[\s\S]*?"postgres_changes"[\s\S]*?table: "LunchBoxSchool"[\s\S]*?sendEvent\("change", scope\.payload\)/,
+    );
+    assert.match(
+      lunchBoxRealtimeRouteSource,
       /"Content-Type": "text\/event-stream; charset=utf-8"/,
     );
     assert.match(
@@ -2228,7 +2232,15 @@ describe("lunch box count change log", () => {
     );
     assert.match(
       lunchBoxCountsSource,
-      /getLunchBoxSchoolChecklist[\s\S]*?prisma\.lunchBoxSchoolCheck\.findMany/,
+      /getLunchBoxSchoolChecklistWithClient[\s\S]*?client\.lunchBoxSchoolCheck\.findMany/,
+    );
+    assert.match(
+      lunchBoxCountsSource,
+      /getLunchBoxSchoolChecklistPanelData[\s\S]*?prisma\.\$transaction[\s\S]*?getLunchBoxFixedCountListWithClient\(tx\)[\s\S]*?getLunchBoxSchoolChecklistWithClient\(tx\)[\s\S]*?TransactionIsolationLevel\.RepeatableRead/,
+    );
+    assert.match(
+      lunchBoxPageSource,
+      /LunchBoxSchoolChecklistPanel[\s\S]*?getLunchBoxSchoolChecklistPanelData\(\)/,
     );
     assert.match(
       lunchBoxActionsSource,
@@ -2259,7 +2271,7 @@ describe("lunch box count change log", () => {
     );
     assert.match(
       lunchBoxSchoolChecklistSource,
-      /체크·해제는 접속 중인 모든\s*직원 화면에 실시간 반영됩니다/,
+      /수량·체크 변경은 접속 중인 모든\s*직원 화면에 실시간 반영됩니다/,
     );
   });
 
@@ -2613,18 +2625,116 @@ describe("lunch box count change log", () => {
     assert.equal(first.supplyDayCount, 3);
     assert.equal(first.firstDate, "2026-07-29");
     assert.equal(first.lastDate, "2026-07-31");
+    assert.equal(first.currentCountStartDate, "2026-07-29");
     assert.equal(first.total, 32);
     assert.equal(first.varianceNote, null);
-    // 최빈값(보존식 0인 2일)을 기준으로 삼고 예외를 note로 남긴다.
+    // 마지막 공급일까지 이어지는 최신 수량과 그 적용 시작일을 표시한다.
     assert.equal(second.preservationCount, 0);
+    assert.equal(second.currentCountStartDate, "2026-08-03");
     assert.equal(second.supplyDayCount, 3);
-    assert.equal(second.varianceNote, "3일 중 2일 기준 · 다른 수량 1종");
+    assert.equal(
+      second.varianceNote,
+      "전체 3일 중 최신 수량 2일 · 이전 수량 1종",
+    );
     assert.deepEqual(fixedList.visibleServingFields, [
       "class1Count",
       "class2Count",
     ]);
     assert.equal(fixedList.hasDeliveryDriver, false);
     assert.equal(fixedList.totalCount, 41);
+  });
+
+  test("uses the latest configured quantities even when an older value occurs more often", () => {
+    const iriSchool = {
+      id: "iri-elementary",
+      name: "이리초",
+      preservationClass: 1 as const,
+      type: "elementary" as const,
+      order: 0,
+      active: true,
+    };
+    const previousCount = (date: string) => ({
+      schoolId: iriSchool.id,
+      date,
+      class1Count: 22,
+      class2Count: 22,
+      class3Count: 19,
+      class4Count: 0,
+      linkedCount: 20,
+      preservationCount: 1,
+      deliveryDriverCount: 0,
+    });
+    const latestCount = {
+      schoolId: iriSchool.id,
+      date: "2026-08-24",
+      class1Count: 22,
+      class2Count: 20,
+      class3Count: 21,
+      class4Count: 0,
+      linkedCount: 19,
+      preservationCount: 1,
+      deliveryDriverCount: 0,
+    };
+    const fixedList = createLunchBoxFixedCountList({
+      // 입력 순서와 무관하게 날짜상 마지막 수량을 선택해야 한다.
+      counts: [
+        latestCount,
+        previousCount("2026-07-18"),
+        previousCount("2026-07-16"),
+        previousCount("2026-07-17"),
+      ],
+      schools: [iriSchool],
+    });
+    const [row] = fixedList.rows;
+
+    assert.equal(row.currentCountStartDate, "2026-08-24");
+    assert.equal(row.preservationCount, 1);
+    assert.deepEqual(row.servingCounts, {
+      class1Count: 22,
+      class2Count: 20,
+      class3Count: 21,
+      class4Count: 0,
+      linkedCount: 19,
+    });
+    assert.equal(row.total, 83);
+    assert.equal(fixedList.totalCount, 83);
+    assert.equal(
+      row.varianceNote,
+      "전체 4일 중 최신 수량 1일 · 이전 수량 1종",
+    );
+  });
+
+  test("starts a restored latest quantity at the final contiguous run", () => {
+    const school = {
+      id: "returning-count-school",
+      name: "복귀초",
+      preservationClass: null,
+      type: "elementary" as const,
+      order: 0,
+      active: true,
+    };
+    const day = (date: string, class1Count: number) => ({
+      schoolId: school.id,
+      date,
+      class1Count,
+      class2Count: 0,
+      class3Count: 0,
+      class4Count: 0,
+      linkedCount: 0,
+      preservationCount: 0,
+      deliveryDriverCount: 0,
+    });
+    const fixedList = createLunchBoxFixedCountList({
+      counts: [
+        day("2026-08-03", 10),
+        day("2026-08-04", 11),
+        day("2026-08-05", 10),
+      ],
+      schools: [school],
+    });
+
+    assert.equal(fixedList.rows[0].total, 10);
+    assert.equal(fixedList.rows[0].currentCountStartDate, "2026-08-05");
   });
 
   test("orders schools by their first supply date across the whole period", () => {
@@ -2694,16 +2804,18 @@ describe("lunch box count change log", () => {
 
   test("renders every school at once with counts next to each name", () => {
     const html = renderToStaticMarkup(
-      React.createElement(LunchBoxSchoolChecklist, {
+      React.createElement(LunchBoxSchoolChecklistContent, {
         clearChecks: clearSchoolChecks,
         fixedCountList,
         initialChecklist: { checkedSchoolIds: ["school-001"] },
         loadChecklist: loadSchoolChecklist,
+        refreshFixedList: () => undefined,
         setSchoolCheck,
       }),
     );
 
     assert.match(html, /도시락 학교 목록/);
+    assert.match(html, /최신 수량 기준 총/);
     assert.match(html, /보존식 1\(1반\)/);
     assert.match(html, /체크 1\/2/);
     assert.match(html, /type="checkbox"/);
@@ -2717,6 +2829,9 @@ describe("lunch box count change log", () => {
     assert.match(html, /aria-label="도시락 학교 목록 1단"/);
     assert.match(html, /aria-label="영만초 준비 완료"/);
     assert.match(html, /날짜마다 수량이 다른 학교/);
+    assert.match(html, /가장 최근 공급일 수량/);
+    assert.match(html, /최신 수량 8\.3부터/);
+    assert.match(html, /수량·체크 변경은 접속 중인 모든 직원 화면에 실시간 반영됩니다/);
   });
 
   test("splits checklist rows into balanced fixed-column groups", () => {
@@ -2754,7 +2869,7 @@ describe("lunch box count change log", () => {
 
   test("shows an empty checklist state when no count is registered", () => {
     const html = renderToStaticMarkup(
-      React.createElement(LunchBoxSchoolChecklist, {
+      React.createElement(LunchBoxSchoolChecklistContent, {
         clearChecks: clearSchoolChecks,
         fixedCountList: {
           hasDeliveryDriver: false,
@@ -2767,6 +2882,7 @@ describe("lunch box count change log", () => {
         },
         initialChecklist: { checkedSchoolIds: [] },
         loadChecklist: loadSchoolChecklist,
+        refreshFixedList: () => undefined,
         setSchoolCheck,
       }),
     );

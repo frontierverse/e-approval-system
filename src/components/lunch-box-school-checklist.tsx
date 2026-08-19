@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -77,13 +78,7 @@ const tableHeadShortLabels: Record<LunchBoxServingCountField, string> = {
 const numericCellClassName =
   "px-1 text-right text-[13px] leading-4 tabular-nums text-[#16181d]";
 
-export function LunchBoxSchoolChecklist({
-  clearChecks,
-  fixedCountList,
-  initialChecklist,
-  loadChecklist,
-  setSchoolCheck,
-}: {
+type LunchBoxSchoolChecklistProps = {
   clearChecks: () => Promise<
     LunchBoxActionResult<{ checkedSchoolIds: string[] }>
   >;
@@ -93,13 +88,35 @@ export function LunchBoxSchoolChecklist({
   setSchoolCheck: (
     schoolId: string,
     isChecked: boolean,
+    expectedCountSnapshot: string,
   ) => Promise<
     LunchBoxActionResult<{
       isChecked: boolean;
       schoolId: string;
     }>
   >;
-}) {
+};
+
+export function LunchBoxSchoolChecklist(props: LunchBoxSchoolChecklistProps) {
+  const router = useRouter();
+  const refreshFixedList = useCallback(() => router.refresh(), [router]);
+
+  return (
+    <LunchBoxSchoolChecklistContent
+      {...props}
+      refreshFixedList={refreshFixedList}
+    />
+  );
+}
+
+export function LunchBoxSchoolChecklistContent({
+  clearChecks,
+  fixedCountList,
+  initialChecklist,
+  loadChecklist,
+  refreshFixedList,
+  setSchoolCheck,
+}: LunchBoxSchoolChecklistProps & { refreshFixedList: () => void }) {
   const [canonicalCheckedSchoolIds, setCanonicalCheckedSchoolIds] = useState(
     initialChecklist.checkedSchoolIds,
   );
@@ -114,6 +131,9 @@ export function LunchBoxSchoolChecklist({
   const isMountedRef = useRef(true);
   const pendingCheckStatesRef = useRef(new Map<string, boolean>());
   const isClearPendingRef = useRef(false);
+  const refreshFixedListOnReadyRef = useRef(true);
+  const fixedCountRowsRef = useRef(fixedCountList.rows);
+  const loadChecklistRef = useRef(loadChecklist);
   const syncCoordinatorRef = useRef<LunchBoxRealtimeSyncCoordinator>(
     createLunchBoxRealtimeSyncCoordinator("fixed-school-list"),
   );
@@ -158,12 +178,12 @@ export function LunchBoxSchoolChecklist({
       setCanonicalCheckedSchoolIds(
         normalizeLunchBoxChecklistIds(
           data.checkedSchoolIds,
-          fixedCountList.rows,
+          fixedCountRowsRef.current,
         ),
       );
       setRealtimeSyncFailed(false);
     },
-    [fixedCountList.rows],
+    [],
   );
 
   const requestCanonicalSync = useCallback(async () => {
@@ -173,7 +193,7 @@ export function LunchBoxSchoolChecklist({
       coordinator,
       isActive: () => isMountedRef.current,
       load: async () => {
-        const result = await loadChecklist();
+        const result = await loadChecklistRef.current();
 
         return result.ok
           ? { data: result.data, ok: true as const }
@@ -182,7 +202,7 @@ export function LunchBoxSchoolChecklist({
       apply: applyCanonicalChecklist,
       onFailure: () => setRealtimeSyncFailed(true),
     });
-  }, [applyCanonicalChecklist, loadChecklist]);
+  }, [applyCanonicalChecklist]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -191,6 +211,14 @@ export function LunchBoxSchoolChecklist({
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    fixedCountRowsRef.current = fixedCountList.rows;
+  }, [fixedCountList.rows]);
+
+  useEffect(() => {
+    loadChecklistRef.current = loadChecklist;
+  }, [loadChecklist]);
 
   useEffect(() => {
     if (!realtimeSyncFailed) {
@@ -239,6 +267,7 @@ export function LunchBoxSchoolChecklist({
 
   useEffect(() => {
     let changeDebounceTimer: number | undefined;
+    let fixedListRefreshDebounceTimer: number | undefined;
     let disposed = false;
     let eventSource: EventSource | null = null;
     let isRealtimeReady = false;
@@ -252,6 +281,22 @@ export function LunchBoxSchoolChecklist({
         changeDebounceTimer = undefined;
         void requestCanonicalSync();
       }, delay);
+    }
+
+    function scheduleFixedListRefresh(delay = realtimeChangeDebounceMs) {
+      if (fixedListRefreshDebounceTimer) {
+        window.clearTimeout(fixedListRefreshDebounceTimer);
+      }
+
+      fixedListRefreshDebounceTimer = window.setTimeout(() => {
+        fixedListRefreshDebounceTimer = undefined;
+        refreshFixedList();
+      }, delay);
+    }
+
+    function scheduleFullSync(delay = realtimeChangeDebounceMs) {
+      scheduleCanonicalSync(delay);
+      scheduleFixedListRefresh(delay);
     }
 
     function closeEventSource() {
@@ -287,21 +332,41 @@ export function LunchBoxSchoolChecklist({
         setRealtimeConnectionStatus("connected");
         isRealtimeReady = true;
         scheduleCanonicalSync(0);
+
+        // 최초 구독과 실제 재연결 때 SSR 조회와 구독 사이의 변경 누락을 보정한다.
+        // router.refresh()가 props를 바꿔 effect를 다시 연결해도 연속 refresh하지 않도록
+        // 이 플래그는 네트워크/가시성 단절 때만 다시 켠다.
+        if (refreshFixedListOnReadyRef.current) {
+          refreshFixedListOnReadyRef.current = false;
+          scheduleFixedListRefresh(0);
+        }
       });
       source.addEventListener("change", () => {
         if (!disposed && eventSource === source) {
           scheduleCanonicalSync();
         }
       });
+      source.addEventListener("count-change", () => {
+        if (!disposed && eventSource === source) {
+          scheduleFullSync();
+        }
+      });
+      source.addEventListener("school-change", () => {
+        if (!disposed && eventSource === source) {
+          scheduleFullSync();
+        }
+      });
       source.addEventListener("reconnect", () => {
         if (!disposed && eventSource === source) {
           isRealtimeReady = false;
+          refreshFixedListOnReadyRef.current = true;
           setRealtimeConnectionStatus("reconnecting");
         }
       });
       source.onerror = () => {
         if (!disposed && eventSource === source) {
           isRealtimeReady = false;
+          refreshFixedListOnReadyRef.current = true;
           setRealtimeConnectionStatus(
             navigator.onLine ? "reconnecting" : "offline",
           );
@@ -311,22 +376,25 @@ export function LunchBoxSchoolChecklist({
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
+        refreshFixedListOnReadyRef.current = true;
         closeEventSource();
         setRealtimeConnectionStatus("paused");
         return;
       }
 
       connect();
-      scheduleCanonicalSync(0);
+      scheduleFullSync(0);
     }
 
     function handleOnline() {
+      refreshFixedListOnReadyRef.current = true;
       closeEventSource();
       connect();
-      scheduleCanonicalSync(0);
+      scheduleFullSync(0);
     }
 
     function handleOffline() {
+      refreshFixedListOnReadyRef.current = true;
       closeEventSource();
       setRealtimeConnectionStatus("offline");
     }
@@ -338,7 +406,7 @@ export function LunchBoxSchoolChecklist({
         document.visibilityState !== "hidden" &&
         navigator.onLine
       ) {
-        scheduleCanonicalSync(0);
+        scheduleFullSync(0);
       }
     }, realtimeFallbackSyncIntervalMs);
     window.addEventListener("online", handleOnline);
@@ -353,6 +421,10 @@ export function LunchBoxSchoolChecklist({
         window.clearTimeout(changeDebounceTimer);
       }
 
+      if (fixedListRefreshDebounceTimer) {
+        window.clearTimeout(fixedListRefreshDebounceTimer);
+      }
+
       window.clearInterval(fallbackSyncTimer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
@@ -361,7 +433,7 @@ export function LunchBoxSchoolChecklist({
         handleVisibilityChange,
       );
     };
-  }, [requestCanonicalSync]);
+  }, [refreshFixedList, requestCanonicalSync]);
 
   async function handleToggle(schoolId: string) {
     if (
@@ -372,21 +444,33 @@ export function LunchBoxSchoolChecklist({
     }
 
     const nextChecked = !checkedIdSet.has(schoolId);
-    const schoolName =
-      fixedCountList.rows.find((row) => row.schoolId === schoolId)
-        ?.schoolName ?? "학교";
+    const schoolRow = fixedCountList.rows.find(
+      (row) => row.schoolId === schoolId,
+    );
+    const schoolName = schoolRow?.schoolName ?? "학교";
+
+    if (nextChecked && !schoolRow?.countSnapshot) {
+      setError(`${schoolName} 최신 수량을 확인하지 못했습니다. 화면을 새로고침해 주세요.`);
+      refreshFixedList();
+      return;
+    }
 
     setError("");
     pendingCheckStatesRef.current.set(schoolId, nextChecked);
     setPendingCheckStates(new Map(pendingCheckStatesRef.current));
 
     try {
-      const result = await setSchoolCheck(schoolId, nextChecked);
+      const result = await setSchoolCheck(
+        schoolId,
+        nextChecked,
+        schoolRow?.countSnapshot ?? "",
+      );
 
       if (!result.ok) {
         setError(
           `${schoolName} 체크 상태를 저장하지 못했습니다. ${result.error}`,
         );
+        refreshFixedList();
       } else {
         setCanonicalCheckedSchoolIds((current) =>
           setLunchBoxChecklistIdChecked(
@@ -474,7 +558,7 @@ export function LunchBoxSchoolChecklist({
             도시락 학교 목록
           </h2>
           <p className="text-xs leading-5 tabular-nums text-[#697386]">
-            {fixedCountList.rows.length}개교 · 1일 기준 총{" "}
+            {fixedCountList.rows.length}개교 · 최신 수량 기준 총{" "}
             {fixedCountList.totalCount}개 · 보존식{" "}
             {fixedCountList.preservationTotal}개 · 첫 공급일 순
           </p>
@@ -492,7 +576,7 @@ export function LunchBoxSchoolChecklist({
             {realtimeStatusLabel}
           </p>
           <p className="text-xs leading-5 text-[#697386]">
-            체크·해제는 접속 중인 모든 직원 화면에 실시간 반영됩니다.
+            수량·체크 변경은 접속 중인 모든 직원 화면에 실시간 반영됩니다.
           </p>
         </div>
 
@@ -545,8 +629,8 @@ export function LunchBoxSchoolChecklist({
         <p className="border-t border-[#eef1f5] px-3 py-1.5 text-xs leading-5 text-[#72512a] sm:px-4">
           <span className="font-semibold">날짜마다 수량이 다른 학교</span>{" "}
           {fixedCountList.varyingSchoolNames.length}곳 ·{" "}
-          {fixedCountList.varyingSchoolNames.join(", ")} · 표에는 가장 많은
-          날짜의 수량을 표시했습니다.
+          {fixedCountList.varyingSchoolNames.join(", ")} · 표에는 각 학교의
+          가장 최근 공급일 수량을 표시했습니다.
         </p>
       ) : null}
 
@@ -627,11 +711,11 @@ function LunchBoxChecklistColumns({
                 합계
               </th>
               <th
-                className={`${tableHeadClassName} w-10 pl-1 text-right`}
+                className={`${tableHeadClassName} w-11 pl-1 text-right`}
                 scope="col"
-                title="각 학교가 처음 공급하는 날. 이 순서로 정렬합니다."
+                title="표시된 최신 수량이 연속 적용되기 시작한 공급일"
               >
-                시작
+                적용
               </th>
             </tr>
           </thead>
@@ -658,7 +742,7 @@ function LunchBoxChecklistColumns({
                   {row.schoolName}
                   {row.varianceNote ? (
                     <span
-                      aria-label="날짜마다 수량이 다름"
+                      aria-label={`수량 변경 있음, 최신 수량은 ${row.currentCountStartDate}부터 적용`}
                       className="ml-0.5 font-bold text-[#a1670a]"
                     >
                       *
@@ -707,8 +791,11 @@ function LunchBoxChecklistColumns({
                 <td className={`${numericCellClassName} font-semibold`}>
                   {row.total}
                 </td>
-                <td className={`${numericCellClassName} text-[#697386]`}>
-                  {formatLunchBoxShortDateLabel(row.firstDate)}
+                <td
+                  className={`${numericCellClassName} text-[#697386]`}
+                  title={`${row.currentCountStartDate}부터 표시된 최신 수량 적용`}
+                >
+                  {formatLunchBoxShortDateLabel(row.currentCountStartDate)}~
                 </td>
               </tr>
             ))}
@@ -747,7 +834,7 @@ function LunchBoxChecklistChipRow({
           {row.schoolName}
           {row.varianceNote ? (
             <span
-              aria-label="날짜마다 수량이 다름"
+              aria-label={`수량 변경 있음, 최신 수량은 ${row.currentCountStartDate}부터 적용`}
               className="ml-0.5 font-bold text-[#a1670a]"
             >
               *
@@ -779,7 +866,8 @@ function LunchBoxChecklistChipRow({
             <span className="font-semibold text-[#16181d]">{row.total}</span>
           </span>
           <span className="shrink-0 text-xs leading-5 tabular-nums text-[#697386]">
-            {formatLunchBoxShortDateLabel(row.firstDate)}~ {row.supplyDayCount}일
+            최신 수량 {formatLunchBoxShortDateLabel(row.currentCountStartDate)}부터
+            {" · "}전체 {row.supplyDayCount}일
           </span>
         </span>
       </label>
@@ -789,6 +877,9 @@ function LunchBoxChecklistChipRow({
 
 function buildSchoolTitle(row: LunchBoxFixedCountRow) {
   const base = `${row.schoolName} (${getLunchBoxSchoolTypeLabel(row.schoolType)}) · ${row.firstDate} ~ ${row.lastDate} · ${row.supplyDayCount}일`;
+  const currentCount = `최신 수량 ${row.currentCountStartDate}부터 적용`;
 
-  return row.varianceNote ? `${base} · ${row.varianceNote}` : base;
+  return row.varianceNote
+    ? `${base} · ${currentCount} · ${row.varianceNote}`
+    : `${base} · ${currentCount}`;
 }

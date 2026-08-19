@@ -151,6 +151,17 @@ export async function GET(request: NextRequest) {
             sendEvent("change", scope.payload);
           },
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "LunchBoxSchool",
+          },
+          () => {
+            sendEvent("change", scope.payload);
+          },
+        )
         .subscribe((status, error) => {
           if (closed) {
             return;

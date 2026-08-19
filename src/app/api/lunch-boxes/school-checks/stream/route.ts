@@ -121,6 +121,28 @@ export async function GET(request: NextRequest) {
             sendEvent("change");
           },
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "LunchBoxCount",
+          },
+          () => {
+            sendEvent("count-change");
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "LunchBoxSchool",
+          },
+          () => {
+            sendEvent("school-change");
+          },
+        )
         .subscribe((status, error) => {
           if (closed) {
             return;

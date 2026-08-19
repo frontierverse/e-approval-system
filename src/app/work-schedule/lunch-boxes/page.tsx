@@ -26,8 +26,7 @@ import {
   getLunchBoxCountMonth,
   getLunchBoxDailyCheckHistoryPage,
   getLunchBoxDailySchoolChecklist,
-  getLunchBoxFixedCountList,
-  getLunchBoxSchoolChecklist,
+  getLunchBoxSchoolChecklistPanelData,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
 import {
@@ -138,10 +137,8 @@ async function LunchBoxCountPanel({
 }
 
 async function LunchBoxSchoolChecklistPanel() {
-  const [fixedCountList, initialChecklist] = await Promise.all([
-    getLunchBoxFixedCountList(),
-    getLunchBoxSchoolChecklist(),
-  ]);
+  const { fixedCountList, initialChecklist } =
+    await getLunchBoxSchoolChecklistPanelData();
 
   return (
     <LunchBoxSchoolChecklist

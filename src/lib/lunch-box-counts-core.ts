@@ -200,6 +200,8 @@ export type LunchBoxDailyCountRecord = LunchBoxCountValues & {
 };
 
 export type LunchBoxFixedCountRow = LunchBoxChecklistRow & {
+  countSnapshot?: string;
+  currentCountStartDate: string;
   firstDate: string;
   lastDate: string;
   supplyDayCount: number;
@@ -878,9 +880,9 @@ export function formatLunchBoxPreservationChipLabel(
   return `보존식 ${count}(${preservationClass ? `${preservationClass}반` : "반 미지정"})`;
 }
 
-// 학교별 수량은 공급기간 내내 같은 값으로 운영된다. 그래서 날짜별 기록을 학교 단위로
-// 접어 고정 수치 한 줄로 보여준다. 값이 날짜마다 다른 학교는 최빈값을 쓰고 varianceNote로
-// 예외를 드러내, 실제 데이터가 고정이 아닌 경우를 숨기지 않는다.
+// 날짜별 기록을 학교 단위 한 줄로 접되, 가장 최근 공급일의 양수 수량을 표시한다.
+// 값이 바뀐 학교는 최근 값이 연속으로 이어지기 시작한 공급일과 varianceNote를 함께
+// 제공해 과거에 더 자주 쓰인 수량이 현재 수량처럼 보이지 않게 한다.
 export function createLunchBoxFixedCountList({
   counts,
   schools,
@@ -919,11 +921,14 @@ export function createLunchBoxFixedCountList({
       continue;
     }
 
+    const orderedSchoolCounts = [...schoolCounts].sort((left, right) =>
+      left.date < right.date ? -1 : left.date > right.date ? 1 : 0,
+    );
     const groups = new Map<string, { count: number; values: LunchBoxCountValues }>();
 
-    for (const record of schoolCounts) {
+    for (const record of orderedSchoolCounts) {
       const values = pickLunchBoxCountValues(record);
-      const key = lunchBoxCountFields.map((field) => values[field]).join("/");
+      const key = getLunchBoxCountValuesKey(values);
       const group = groups.get(key);
 
       if (group) {
@@ -933,60 +938,75 @@ export function createLunchBoxFixedCountList({
       }
     }
 
-    const sortedGroups = Array.from(groups.values()).sort(
-      (left, right) =>
-        right.count - left.count ||
-        getLunchBoxCountTotal(right.values) - getLunchBoxCountTotal(left.values),
-    );
-    const [dominant, ...others] = sortedGroups;
-    const dates = schoolCounts.map((record) => record.date).sort();
-    const total = getLunchBoxCountTotal(dominant.values);
+    const currentRecord = orderedSchoolCounts[orderedSchoolCounts.length - 1];
+    const currentValues = pickLunchBoxCountValues(currentRecord);
+    const currentKey = getLunchBoxCountValuesKey(currentValues);
+    const currentGroup = groups.get(currentKey);
+    let currentCountStartDate = currentRecord.date;
 
-    if (others.length > 0) {
+    for (let index = orderedSchoolCounts.length - 2; index >= 0; index -= 1) {
+      const previousRecord = orderedSchoolCounts[index];
+
+      if (
+        getLunchBoxCountValuesKey(pickLunchBoxCountValues(previousRecord)) !==
+        currentKey
+      ) {
+        break;
+      }
+
+      currentCountStartDate = previousRecord.date;
+    }
+
+    const otherValueCount = groups.size - 1;
+    const dates = orderedSchoolCounts.map((record) => record.date);
+    const total = getLunchBoxCountTotal(currentValues);
+
+    if (otherValueCount > 0) {
       varyingSchoolNames.push(school.name);
     }
 
     hasDeliveryDriver =
-      hasDeliveryDriver || dominant.values.deliveryDriverCount > 0;
-    preservationTotal += dominant.values.preservationCount;
+      hasDeliveryDriver || currentValues.deliveryDriverCount > 0;
+    preservationTotal += currentValues.preservationCount;
     totalCount += total;
     rows.push({
       classChips: lunchBoxServingCountFields.flatMap((field) =>
-        dominant.values[field] < 1
+        currentValues[field] < 1
           ? []
           : [
               {
                 field,
                 label: lunchBoxCountFieldLabels[field],
-                value: dominant.values[field],
+                value: currentValues[field],
               },
             ],
       ),
-      deliveryDriverCount: dominant.values.deliveryDriverCount,
+      currentCountStartDate,
+      deliveryDriverCount: currentValues.deliveryDriverCount,
       firstDate: dates[0],
       lastDate: dates[dates.length - 1],
       preservationClass: school.preservationClass,
-      preservationCount: dominant.values.preservationCount,
+      preservationCount: currentValues.preservationCount,
       preservationLabel: formatLunchBoxPreservationChipLabel(
-        dominant.values.preservationCount,
+        currentValues.preservationCount,
         school.preservationClass,
       ),
       schoolId: school.id,
       schoolName: school.name,
       schoolType: school.type,
       servingCounts: {
-        class1Count: dominant.values.class1Count,
-        class2Count: dominant.values.class2Count,
-        class3Count: dominant.values.class3Count,
-        class4Count: dominant.values.class4Count,
-        linkedCount: dominant.values.linkedCount,
+        class1Count: currentValues.class1Count,
+        class2Count: currentValues.class2Count,
+        class3Count: currentValues.class3Count,
+        class4Count: currentValues.class4Count,
+        linkedCount: currentValues.linkedCount,
       },
       supplyDayCount: schoolCounts.length,
       total,
       varianceNote:
-        others.length === 0
+        otherValueCount === 0
           ? null
-          : `${schoolCounts.length}일 중 ${dominant.count}일 기준 · 다른 수량 ${others.length}종`,
+          : `전체 ${schoolCounts.length}일 중 최신 수량 ${currentGroup?.count ?? 0}일 · 이전 수량 ${otherValueCount}종`,
     });
   }
 
@@ -1045,6 +1065,10 @@ function pickLunchBoxCountValues(
     preservationCount: values.preservationCount,
     deliveryDriverCount: values.deliveryDriverCount,
   };
+}
+
+function getLunchBoxCountValuesKey(values: LunchBoxCountValues) {
+  return lunchBoxCountFields.map((field) => values[field]).join("/");
 }
 
 export function splitLunchBoxChecklistColumns<Row>(

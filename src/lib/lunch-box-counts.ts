@@ -29,6 +29,7 @@ import {
   type LunchBoxSchoolChecklistData,
   type LunchBoxSchool,
 } from "@/lib/lunch-box-counts-core";
+import { createLunchBoxSchoolCountSnapshot } from "@/lib/lunch-box-school-snapshot";
 
 type LunchBoxSchoolRecord = {
   id: string;
@@ -38,13 +39,24 @@ type LunchBoxSchoolRecord = {
   order: number;
   active: boolean;
 };
+type LunchBoxChecklistReadClient = Pick<
+  Prisma.TransactionClient,
+  "lunchBoxCount" | "lunchBoxSchool" | "lunchBoxSchoolCheck"
+>;
 
 export async function getLunchBoxSchools({
   activeOnly = true,
 }: {
   activeOnly?: boolean;
 } = {}): Promise<LunchBoxSchool[]> {
-  const schools = await prisma.lunchBoxSchool.findMany({
+  return getLunchBoxSchoolsWithClient(prisma, activeOnly);
+}
+
+async function getLunchBoxSchoolsWithClient(
+  client: LunchBoxChecklistReadClient,
+  activeOnly: boolean,
+): Promise<LunchBoxSchool[]> {
+  const schools = await client.lunchBoxSchool.findMany({
     where: activeOnly ? { active: true } : undefined,
     orderBy: [{ order: "asc" }, { name: "asc" }],
     select: {
@@ -214,8 +226,14 @@ async function getLunchBoxCountGridData({
 }
 
 export async function getLunchBoxFixedCountList(): Promise<LunchBoxFixedCountList> {
-  const schools = await getLunchBoxSchools({ activeOnly: true });
-  const counts = await prisma.lunchBoxCount.findMany({
+  return getLunchBoxFixedCountListWithClient(prisma);
+}
+
+async function getLunchBoxFixedCountListWithClient(
+  client: LunchBoxChecklistReadClient,
+): Promise<LunchBoxFixedCountList> {
+  const schools = await getLunchBoxSchoolsWithClient(client, true);
+  const counts = await client.lunchBoxCount.findMany({
     where: { schoolId: { in: schools.map((school) => school.id) } },
     orderBy: { date: "asc" },
     select: {
@@ -231,13 +249,38 @@ export async function getLunchBoxFixedCountList(): Promise<LunchBoxFixedCountLis
     },
   });
 
-  return createLunchBoxFixedCountList({
-    counts: counts.map((count) => ({
-      ...count,
-      date: formatLunchBoxDateValue(count.date),
-    })),
+  const normalizedCounts = counts.map((count) => ({
+    ...count,
+    date: formatLunchBoxDateValue(count.date),
+  }));
+  const countsBySchoolId = new Map<string, typeof normalizedCounts>();
+
+  for (const count of normalizedCounts) {
+    const schoolCounts = countsBySchoolId.get(count.schoolId);
+
+    if (schoolCounts) {
+      schoolCounts.push(count);
+    } else {
+      countsBySchoolId.set(count.schoolId, [count]);
+    }
+  }
+
+  const schoolsById = new Map(schools.map((school) => [school.id, school]));
+  const fixedCountList = createLunchBoxFixedCountList({
+    counts: normalizedCounts,
     schools,
   });
+
+  return {
+    ...fixedCountList,
+    rows: fixedCountList.rows.map((row) => ({
+      ...row,
+      countSnapshot: createLunchBoxSchoolCountSnapshot({
+        counts: countsBySchoolId.get(row.schoolId) ?? [],
+        school: schoolsById.get(row.schoolId)!,
+      }),
+    })),
+  };
 }
 
 export async function getLunchBoxChartData(): Promise<LunchBoxChartData> {
@@ -287,7 +330,13 @@ export async function getLunchBoxChartData(): Promise<LunchBoxChartData> {
 }
 
 export async function getLunchBoxSchoolChecklist(): Promise<LunchBoxSchoolChecklistData> {
-  const checks = await prisma.lunchBoxSchoolCheck.findMany({
+  return getLunchBoxSchoolChecklistWithClient(prisma);
+}
+
+async function getLunchBoxSchoolChecklistWithClient(
+  client: LunchBoxChecklistReadClient,
+): Promise<LunchBoxSchoolChecklistData> {
+  const checks = await client.lunchBoxSchoolCheck.findMany({
     where: {
       school: { active: true },
     },
@@ -299,6 +348,16 @@ export async function getLunchBoxSchoolChecklist(): Promise<LunchBoxSchoolCheckl
   return {
     checkedSchoolIds: checks.map((check) => check.schoolId),
   };
+}
+
+export async function getLunchBoxSchoolChecklistPanelData() {
+  return prisma.$transaction(
+    async (tx) => ({
+      fixedCountList: await getLunchBoxFixedCountListWithClient(tx),
+      initialChecklist: await getLunchBoxSchoolChecklistWithClient(tx),
+    }),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 }
 
 export async function getLunchBoxCountMonth({
