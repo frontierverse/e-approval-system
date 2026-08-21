@@ -78,6 +78,11 @@ enum AuditAction {
   UPDATE_LUNCH_BOX_OPERATION
 }
 
+enum LunchBoxWorkerType {
+  STAFF
+  TEMPORARY
+}
+
 enum NotificationType {
   APPROVAL_REQUESTED
   APPROVAL_APPROVED
@@ -716,10 +721,11 @@ model LunchBoxWorkShift {
   operationId String
   operation   LunchBoxDailyOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
   order       Int                    @default(0)
+  workerType  LunchBoxWorkerType     @default(TEMPORARY)
   workerName  String
   startTime   String
   endTime     String
-  laborCost   Int                    @default(0)
+  laborCost   Int?
   note        String?
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt

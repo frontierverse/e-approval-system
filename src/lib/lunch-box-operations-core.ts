@@ -7,6 +7,9 @@ import {
 
 export const maxLunchBoxWorkShiftCount = 30;
 export const maxLunchBoxIngredientPurchaseCount = 50;
+export const lunchBoxWorkerTypes = ["STAFF", "TEMPORARY"] as const;
+
+export type LunchBoxWorkerType = (typeof lunchBoxWorkerTypes)[number];
 
 const maxWorkerNameLength = 50;
 const maxIngredientNameLength = 100;
@@ -17,6 +20,7 @@ const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
 const quantityPattern = /^\d{1,9}(?:\.\d{1,3})?$/u;
 
 export type LunchBoxWorkShiftInput = {
+  workerType: string;
   workerName: string;
   startTime: string;
   endTime: string;
@@ -33,10 +37,11 @@ export type LunchBoxIngredientPurchaseInput = {
 };
 
 export type NormalizedLunchBoxWorkShift = {
+  workerType: LunchBoxWorkerType;
   workerName: string;
   startTime: string;
   endTime: string;
-  laborCost: number;
+  laborCost: number | null;
   note: string | null;
 };
 
@@ -86,6 +91,7 @@ export type LunchBoxOperationMonthSummaryRow = {
     endTime: string;
     startTime: string;
     workerName: string;
+    workerType: LunchBoxWorkerType;
   }>;
 };
 
@@ -131,11 +137,23 @@ export function validateLunchBoxOperationsInput({
 
   for (const [index, shift] of workShifts.entries()) {
     const rowNumber = index + 1;
+    const workerType = normalizeLunchBoxWorkerType(shift.workerType);
     const workerName = normalizeSingleLineText(shift.workerName);
     const startTime = String(shift.startTime ?? "").trim();
     const endTime = String(shift.endTime ?? "").trim();
     const note = normalizeSingleLineText(shift.note);
-    const laborCost = parseLunchBoxWonInput(shift.laborCost);
+    const rawLaborCost = String(shift.laborCost ?? "").trim();
+    const laborCost =
+      workerType === "TEMPORARY"
+        ? parseLunchBoxWonInput(rawLaborCost)
+        : null;
+
+    if (!workerType) {
+      return {
+        ok: false,
+        error: `근무 ${rowNumber}행의 근무 구분을 다시 선택하세요.`,
+      };
+    }
 
     if (!workerName) {
       return {
@@ -165,10 +183,17 @@ export function validateLunchBoxOperationsInput({
       };
     }
 
-    if (laborCost === null) {
+    if (workerType === "STAFF" && rawLaborCost) {
       return {
         ok: false,
-        error: `근무 ${rowNumber}행의 고용비는 0원 이상 ${maxWonAmount.toLocaleString("ko-KR")}원 이하의 정수로 입력하세요.`,
+        error: `근무 ${rowNumber}행의 직원은 월급 대상이므로 추가 고용비를 입력하지 않습니다.`,
+      };
+    }
+
+    if (workerType === "TEMPORARY" && laborCost === null) {
+      return {
+        ok: false,
+        error: `근무 ${rowNumber}행의 추가 고용비는 0원 이상 ${maxWonAmount.toLocaleString("ko-KR")}원 이하의 정수로 입력하세요.`,
       };
     }
 
@@ -180,6 +205,7 @@ export function validateLunchBoxOperationsInput({
     }
 
     normalizedWorkShifts.push({
+      workerType,
       workerName,
       startTime,
       endTime,
@@ -302,7 +328,7 @@ export function createLunchBoxOperationSummary({
   >[];
   workShifts: readonly Pick<
     NormalizedLunchBoxWorkShift,
-    "endTime" | "laborCost" | "startTime" | "workerName"
+    "endTime" | "laborCost" | "startTime" | "workerName" | "workerType"
   >[];
 }) {
   const workerNames = Array.from(
@@ -318,7 +344,11 @@ export function createLunchBoxOperationSummary({
     0,
   );
   const laborCost = workShifts.reduce(
-    (sum, shift) => sum + Math.max(0, Math.floor(shift.laborCost)),
+    (sum, shift) =>
+      sum +
+      (shift.workerType !== "TEMPORARY" || shift.laborCost === null
+        ? 0
+        : Math.max(0, Math.floor(shift.laborCost))),
     0,
   );
   const ingredientPurchaseCost = ingredientPurchases.reduce(
@@ -336,6 +366,10 @@ export function createLunchBoxOperationSummary({
     workerCount: workerNames.length,
     workerNames,
   };
+}
+
+export function getLunchBoxWorkerTypeLabel(value: LunchBoxWorkerType) {
+  return value === "STAFF" ? "직원(월급)" : "별도 고용";
 }
 
 export function getLunchBoxOperationsMonthRange(month: string) {
@@ -404,4 +438,12 @@ function normalizeSingleLineText(value: unknown) {
   return String(value ?? "")
     .replace(/\s+/gu, " ")
     .trim();
+}
+
+export function normalizeLunchBoxWorkerType(
+  value: unknown,
+): LunchBoxWorkerType | null {
+  return lunchBoxWorkerTypes.includes(value as LunchBoxWorkerType)
+    ? (value as LunchBoxWorkerType)
+    : null;
 }

@@ -49,6 +49,7 @@ const requiredLunchBoxCountFields = [
   "checkedAt",
   "checkedById",
 ] as const;
+const requiredLunchBoxWorkShiftFields = ["workerType"] as const;
 
 const adapter = new PrismaPg({
   connectionString: getDatabaseUrl(),
@@ -205,9 +206,17 @@ function hasRequiredLunchBoxFields(client: PrismaClient) {
       .map((field) => field.name)
       .filter((name): name is string => typeof name === "string"),
   );
+  const workShiftFieldNames = new Set(
+    (models?.LunchBoxWorkShift?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
 
   return (
     requiredLunchBoxSchoolFields.every((field) => schoolFieldNames.has(field)) &&
-    requiredLunchBoxCountFields.every((field) => countFieldNames.has(field))
+    requiredLunchBoxCountFields.every((field) => countFieldNames.has(field)) &&
+    requiredLunchBoxWorkShiftFields.every((field) =>
+      workShiftFieldNames.has(field),
+    )
   );
 }

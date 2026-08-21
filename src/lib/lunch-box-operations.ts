@@ -7,9 +7,11 @@ import {
   createLunchBoxOperationSummary,
   getLunchBoxOperationsMonth,
   getLunchBoxOperationsMonthRange,
+  normalizeLunchBoxWorkerType,
   type LunchBoxDailyOperation,
   type LunchBoxOperationMonthSummaryRow,
   type LunchBoxOperationsViewData,
+  type LunchBoxWorkerType,
 } from "@/lib/lunch-box-operations-core";
 import { formatLunchBoxDateValue } from "@/lib/lunch-box-counts-core";
 
@@ -25,6 +27,7 @@ const dailyOperationSelect = {
     select: {
       id: true,
       order: true,
+      workerType: true,
       workerName: true,
       startTime: true,
       endTime: true,
@@ -74,6 +77,7 @@ export async function getLunchBoxOperationsView({
         workShifts: {
           orderBy: [{ order: "asc" }, { id: "asc" }],
           select: {
+            workerType: true,
             workerName: true,
             startTime: true,
             endTime: true,
@@ -112,6 +116,7 @@ function mapLunchBoxDailyOperation(
     updatedByName: record.updatedBy?.name ?? null,
     workShifts: record.workShifts.map((shift) => ({
       ...shift,
+      workerType: normalizeLunchBoxWorkerType(shift.workerType) ?? "TEMPORARY",
       note: shift.note,
     })),
     ingredientPurchases: record.ingredientPurchases.map((purchase) => ({
@@ -133,9 +138,10 @@ function mapLunchBoxOperationMonthSummary(
     }>;
     workShifts: Array<{
       endTime: string;
-      laborCost: number;
+      laborCost: number | null;
       startTime: string;
       workerName: string;
+      workerType: LunchBoxWorkerType;
     }>;
   },
 ): LunchBoxOperationMonthSummaryRow {
@@ -147,6 +153,8 @@ function mapLunchBoxOperationMonthSummary(
       unit: purchase.unit,
     })),
     workShiftItems: record.workShifts.map((shift) => ({
+      workerType:
+        normalizeLunchBoxWorkerType(shift.workerType) ?? "TEMPORARY",
       workerName: shift.workerName,
       startTime: shift.startTime,
       endTime: shift.endTime,

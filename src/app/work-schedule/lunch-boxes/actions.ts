@@ -15,6 +15,7 @@ import {
 } from "@/lib/lunch-box-counts";
 import { getLunchBoxOperationsView } from "@/lib/lunch-box-operations";
 import {
+  normalizeLunchBoxWorkerType,
   validateLunchBoxOperationsInput,
   type LunchBoxIngredientPurchaseInput,
   type LunchBoxOperationsViewData,
@@ -180,6 +181,7 @@ export async function saveLunchBoxOperationsAction(
         workShifts: {
           orderBy: [{ order: "asc" }, { id: "asc" }],
           select: {
+            workerType: true,
             workerName: true,
             startTime: true,
             endTime: true,
@@ -207,7 +209,11 @@ export async function saveLunchBoxOperationsAction(
 
     const previousSnapshot = existing
       ? createLunchBoxOperationsSnapshot({
-          workShifts: existing.workShifts,
+          workShifts: existing.workShifts.map((shift) => ({
+            ...shift,
+            workerType:
+              normalizeLunchBoxWorkerType(shift.workerType) ?? "TEMPORARY",
+          })),
           ingredientPurchases: existing.ingredientPurchases.map(
             (purchase) => ({
               ...purchase,
@@ -1552,6 +1558,7 @@ function createLunchBoxOperationsSnapshot({
 }) {
   return {
     workShifts: workShifts.map((shift) => ({
+      workerType: shift.workerType,
       workerName: shift.workerName,
       startTime: shift.startTime,
       endTime: shift.endTime,

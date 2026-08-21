@@ -21,6 +21,7 @@ import {
   createLunchBoxOperationSummary,
   formatLunchBoxWon,
   formatLunchBoxWorkMinutes,
+  getLunchBoxWorkerTypeLabel,
   getLunchBoxShiftMinutes,
   maxLunchBoxIngredientPurchaseCount,
   maxLunchBoxWorkShiftCount,
@@ -29,6 +30,7 @@ import {
   type LunchBoxIngredientPurchaseInput,
   type LunchBoxOperationMonthSummaryRow,
   type LunchBoxOperationsViewData,
+  type LunchBoxWorkerType,
   type LunchBoxWorkShiftInput,
 } from "@/lib/lunch-box-operations-core";
 
@@ -65,6 +67,7 @@ const addButtonClassName = buttonClass(
   buttonStyles.neutral,
   "h-11 shrink-0 px-3 text-sm text-[var(--brand)]",
 );
+const workerTypeOptions: LunchBoxWorkerType[] = ["STAFF", "TEMPORARY"];
 
 export function LunchBoxOperationsBoard({
   initialData,
@@ -103,7 +106,12 @@ export function LunchBoxOperationsBoard({
       createLunchBoxOperationSummary({
         workShifts: workShifts.map((shift) => ({
           ...shift,
-          laborCost: parseDraftWon(shift.laborCost),
+          workerType:
+            shift.workerType === "TEMPORARY" ? "TEMPORARY" : "STAFF",
+          laborCost:
+            shift.workerType === "TEMPORARY"
+              ? parseDraftWon(shift.laborCost)
+              : null,
         })),
         ingredientPurchases: ingredientPurchases.map((purchase) => ({
           purchaseAmount: parseDraftWon(purchase.purchaseAmount),
@@ -210,6 +218,7 @@ export function LunchBoxOperationsBoard({
       ...current,
       {
         clientId: `new-shift-${draftSequenceRef.current}`,
+        workerType: "",
         workerName: "",
         startTime: "",
         endTime: "",
@@ -250,7 +259,15 @@ export function LunchBoxOperationsBoard({
   ) {
     setWorkShifts((current) =>
       current.map((shift) =>
-        shift.clientId === clientId ? { ...shift, [field]: value } : shift,
+        shift.clientId === clientId
+          ? {
+              ...shift,
+              [field]: value,
+              ...(field === "workerType" && value !== "TEMPORARY"
+                ? { laborCost: "" }
+                : {}),
+            }
+          : shift,
       ),
     );
     markDirty();
@@ -373,7 +390,7 @@ export function LunchBoxOperationsBoard({
               근무·지출 운영 기록
             </h2>
             <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
-              날짜마다 실제 근무시간·고용비·식재료 구매량과 구매비를 별도로 기록합니다.
+              직원과 별도 고용 인력을 구분하고, 추가 고용비와 식재료 구매를 날짜별로 기록합니다.
             </p>
           </div>
 
@@ -609,12 +626,12 @@ function MonthMetricGrid({ totals }: { totals: ReturnType<typeof createMonthTota
   const metrics = [
     { label: "기록일", value: `${totals.recordedDays.toLocaleString("ko-KR")}일` },
     { label: "총 근무시간", value: formatLunchBoxWorkMinutes(totals.totalMinutes) },
-    { label: "고용비", value: formatLunchBoxWon(totals.laborCost) },
+    { label: "추가 고용비", value: formatLunchBoxWon(totals.laborCost) },
     {
       label: "식재료비",
       value: formatLunchBoxWon(totals.ingredientPurchaseCost),
     },
-    { label: "총 지출", value: formatLunchBoxWon(totals.totalCost) },
+    { label: "추가 지출 합계", value: formatLunchBoxWon(totals.totalCost) },
   ];
 
   return (
@@ -677,10 +694,10 @@ function MonthOperationsList({
             <span>날짜</span>
             <span>근무자·시간</span>
             <span className="text-right">총 근무</span>
-            <span className="text-right">고용비</span>
+            <span className="text-right">추가 고용비</span>
             <span>식재료 구매</span>
             <span className="text-right">식재료비</span>
-            <span className="text-right">총 지출</span>
+            <span className="text-right">추가 지출 합계</span>
             <span className="text-center">관리</span>
           </div>
           <ol className="divide-y divide-[var(--border)]">
@@ -742,7 +759,7 @@ function MonthOperationRow({
         {formatLunchBoxWorkMinutes(row.totalMinutes)}
       </p>
       <p className="col-start-2 row-start-3 text-right text-xs tabular-nums text-[var(--text-muted)] xl:col-start-4 xl:row-start-1 xl:text-sm xl:text-[var(--foreground)]">
-        <span className="font-semibold xl:hidden">고용비 </span>
+        <span className="font-semibold xl:hidden">추가 고용비 </span>
         {formatLunchBoxWon(row.laborCost)}
       </p>
       <div className="col-span-2 row-start-4 min-w-0 xl:col-span-1 xl:col-start-5 xl:row-start-1">
@@ -756,7 +773,7 @@ function MonthOperationRow({
       </p>
       <p className="col-start-2 row-start-5 text-right text-sm font-semibold tabular-nums text-[var(--foreground)] xl:col-start-7 xl:row-start-1">
         <span className="mr-1 text-xs font-semibold text-[var(--text-muted)] xl:hidden">
-          총 지출
+          추가 지출 합계
         </span>
         {formatLunchBoxWon(row.totalCost)}
       </p>
@@ -784,12 +801,12 @@ function DailyDraftSummary({
   const metrics = [
     { label: "근무 인원", value: `${summary.workerCount}명` },
     { label: "총 근무", value: formatLunchBoxWorkMinutes(summary.totalMinutes) },
-    { label: "고용비", value: formatLunchBoxWon(summary.laborCost) },
+    { label: "추가 고용비", value: formatLunchBoxWon(summary.laborCost) },
     {
       label: "식재료비",
       value: formatLunchBoxWon(summary.ingredientPurchaseCost),
     },
-    { label: "총 지출", value: formatLunchBoxWon(summary.totalCost) },
+    { label: "추가 지출 합계", value: formatLunchBoxWon(summary.totalCost) },
   ];
 
   return (
@@ -836,6 +853,8 @@ function WorkShiftEditor({
   ) => void;
   rows: WorkShiftDraft[];
 }) {
+  const workerTypeHelpId = useId();
+
   return (
     <fieldset className="overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
       <legend className="sr-only">근무 기록</legend>
@@ -844,8 +863,11 @@ function WorkShiftEditor({
           <h3 className="text-sm font-semibold text-[var(--foreground)]">
             근무 기록
           </h3>
-          <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-            근무자별 실제 시작·종료 시간과 당일 고용비
+          <p
+            className="mt-0.5 text-[11px] text-[var(--text-muted)]"
+            id={workerTypeHelpId}
+          >
+            직원은 월급에 포함하고, 별도 고용 인력만 추가 고용비를 입력합니다.
           </p>
         </div>
         <button
@@ -858,13 +880,14 @@ function WorkShiftEditor({
         </button>
       </div>
 
-      <div className="hidden grid-cols-[2rem_minmax(8rem,1fr)_8rem_8rem_7.5rem_9rem_minmax(8rem,1fr)_3rem] gap-2 border-b border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold text-[var(--text-muted)] xl:grid">
+      <div className="hidden grid-cols-[2rem_7.5rem_minmax(8rem,1fr)_7.5rem_7.5rem_7rem_9rem_minmax(8rem,1fr)_3rem] gap-2 border-b border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold text-[var(--text-muted)] xl:grid">
         <span>번호</span>
+        <span>근무 구분</span>
         <span>근무자</span>
         <span>시작</span>
         <span>종료</span>
         <span>근무시간</span>
-        <span>고용비</span>
+        <span>추가 고용비</span>
         <span>비고</span>
         <span className="sr-only">행 관리</span>
       </div>
@@ -879,12 +902,33 @@ function WorkShiftEditor({
 
             return (
               <li
-                className="grid grid-cols-2 gap-2 px-3 py-3 sm:px-4 xl:grid-cols-[2rem_minmax(8rem,1fr)_8rem_8rem_7.5rem_9rem_minmax(8rem,1fr)_3rem] xl:items-end xl:px-3 xl:py-2"
+                className="grid grid-cols-2 gap-2 px-3 py-3 sm:px-4 xl:grid-cols-[2rem_7.5rem_minmax(8rem,1fr)_7.5rem_7.5rem_7rem_9rem_minmax(8rem,1fr)_3rem] xl:items-end xl:px-3 xl:py-2"
                 key={row.clientId}
               >
                 <span className="col-span-2 flex h-6 items-center text-xs font-semibold tabular-nums text-[var(--text-muted)] xl:col-span-1 xl:h-11">
                   {index + 1}
                 </span>
+                <label className="col-span-2 min-w-0 xl:col-span-1">
+                  <span className={fieldLabelClassName}>근무 구분</span>
+                  <select
+                    aria-describedby={workerTypeHelpId}
+                    aria-label={`근무 ${index + 1}행 근무 구분`}
+                    className={inputClassName}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onUpdate(row.clientId, "workerType", event.target.value)
+                    }
+                    required
+                    value={row.workerType}
+                  >
+                    <option value="">구분 선택</option>
+                    {workerTypeOptions.map((workerType) => (
+                      <option key={workerType} value={workerType}>
+                        {getLunchBoxWorkerTypeLabel(workerType)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="col-span-2 min-w-0 xl:col-span-1">
                   <span className={fieldLabelClassName}>근무자</span>
                   <input
@@ -937,28 +981,54 @@ function WorkShiftEditor({
                     {minutes > 0 ? formatLunchBoxWorkMinutes(minutes) : "-"}
                   </output>
                 </div>
-                <label className="min-w-0">
-                  <span className={fieldLabelClassName}>고용비</span>
-                  <div className="relative">
-                    <input
-                      aria-label={`근무 ${index + 1}행 고용비`}
-                      className={`${inputClassName} pr-8 text-right tabular-nums`}
-                      disabled={disabled}
-                      inputMode="numeric"
-                      maxLength={11}
-                      onChange={(event) =>
-                        onUpdate(row.clientId, "laborCost", event.target.value)
-                      }
-                      pattern="[0-9,]*"
-                      placeholder="0"
-                      required
-                      value={row.laborCost}
-                    />
-                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-[var(--text-muted)]">
-                      원
-                    </span>
+                {row.workerType === "STAFF" ? (
+                  <div className="min-w-0">
+                    <span className={fieldLabelClassName}>추가 고용비</span>
+                    <output
+                      aria-label={`근무 ${index + 1}행 추가 고용비`}
+                      className="flex h-11 items-center rounded-md bg-[var(--surface-muted)] px-3 text-sm font-semibold text-[var(--text-muted)]"
+                    >
+                      월급 포함
+                    </output>
                   </div>
-                </label>
+                ) : row.workerType === "TEMPORARY" ? (
+                  <label className="min-w-0">
+                    <span className={fieldLabelClassName}>추가 고용비</span>
+                    <div className="relative">
+                      <input
+                        aria-label={`근무 ${index + 1}행 추가 고용비`}
+                        className={`${inputClassName} pr-8 text-right tabular-nums`}
+                        disabled={disabled}
+                        inputMode="numeric"
+                        maxLength={11}
+                        onChange={(event) =>
+                          onUpdate(
+                            row.clientId,
+                            "laborCost",
+                            event.target.value,
+                          )
+                        }
+                        pattern="[0-9,]*"
+                        placeholder="0"
+                        required
+                        value={row.laborCost}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-[var(--text-muted)]">
+                        원
+                      </span>
+                    </div>
+                  </label>
+                ) : (
+                  <div className="min-w-0">
+                    <span className={fieldLabelClassName}>추가 고용비</span>
+                    <output
+                      aria-label={`근무 ${index + 1}행 추가 고용비`}
+                      className="flex h-11 items-center rounded-md bg-[var(--surface-muted)] px-3 text-sm font-semibold text-[var(--text-muted)]"
+                    >
+                      구분 먼저 선택
+                    </output>
+                  </div>
+                )}
                 <label className="col-span-2 min-w-0 xl:col-span-1">
                   <span className={fieldLabelClassName}>비고</span>
                   <input
@@ -1183,10 +1253,11 @@ function createWorkShiftDrafts(
 ): WorkShiftDraft[] {
   return operation.workShifts.map((shift) => ({
     clientId: shift.id,
+    workerType: shift.workerType,
     workerName: shift.workerName,
     startTime: shift.startTime,
     endTime: shift.endTime,
-    laborCost: String(shift.laborCost),
+    laborCost: shift.laborCost === null ? "" : String(shift.laborCost),
     note: shift.note ?? "",
   }));
 }
@@ -1208,6 +1279,7 @@ function stripWorkShiftClientId(
   shift: WorkShiftDraft,
 ): LunchBoxWorkShiftInput {
   return {
+    workerType: shift.workerType,
     workerName: shift.workerName,
     startTime: shift.startTime,
     endTime: shift.endTime,
@@ -1257,7 +1329,7 @@ function formatShiftItems(row: LunchBoxOperationMonthSummaryRow) {
     .slice(0, 2)
     .map(
       (shift) =>
-        `${shift.workerName} ${shift.startTime}~${shift.endTime}`,
+        `${shift.workerName} · ${getLunchBoxWorkerTypeLabel(shift.workerType)} ${shift.startTime}~${shift.endTime}`,
     )
     .join(" · ");
   const hiddenCount = row.workShiftItems.length - 2;
