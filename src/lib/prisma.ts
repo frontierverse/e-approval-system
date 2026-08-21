@@ -28,8 +28,11 @@ const requiredPrismaDelegates = [
   "staffLeaveLedger",
   "loginHistory",
   "lunchBoxCount",
+  "lunchBoxDailyOperation",
+  "lunchBoxIngredientPurchase",
   "lunchBoxMenu",
   "lunchBoxSchool",
+  "lunchBoxWorkShift",
 ] as const;
 
 const requiredYouthLearningScheduleFields = [

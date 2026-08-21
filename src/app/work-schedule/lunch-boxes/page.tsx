@@ -7,7 +7,9 @@ import {
   getLunchBoxCountMonthAction,
   getLunchBoxDailyCheckHistoryPageAction,
   getLunchBoxDailySchoolChecklistAction,
+  getLunchBoxOperationsViewAction,
   getLunchBoxSchoolChecklistAction,
+  saveLunchBoxOperationsAction,
   saveLunchBoxCountsAction,
   setLunchBoxDailySchoolCheckAction,
   setLunchBoxSchoolCheckAction,
@@ -16,6 +18,7 @@ import { LunchBoxChartBoard } from "@/components/lunch-box-chart-board";
 import { LunchBoxCountCalendarBoard } from "@/components/lunch-box-count-calendar-board";
 import { LunchBoxCountChangeLog } from "@/components/lunch-box-count-change-log";
 import { LunchBoxDailySchoolChecklist } from "@/components/lunch-box-daily-school-checklist";
+import { LunchBoxOperationsBoard } from "@/components/lunch-box-operations-board";
 import { LunchBoxSchoolChecklist } from "@/components/lunch-box-school-checklist";
 import { LunchBoxSchoolList } from "@/components/lunch-box-school-list";
 import { PageTitle } from "@/components/page-title";
@@ -29,6 +32,7 @@ import {
   getLunchBoxSchoolChecklistPanelData,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
+import { getLunchBoxOperationsView } from "@/lib/lunch-box-operations";
 import {
   getLunchBoxCountToday,
   isLunchBoxDate,
@@ -43,6 +47,7 @@ export const metadata: Metadata = {
 
 type LunchBoxManagementTab =
   | "counts"
+  | "operations"
   | "schoolList"
   | "dailySchoolList"
   | "charts"
@@ -66,6 +71,7 @@ export default async function WorkScheduleLunchBoxesPage({
   const params = await searchParams;
   const activeTab = getSelectedLunchBoxTab(params.tab);
   const isCompactTab =
+    activeTab === "operations" ||
     activeTab === "schoolList" ||
     activeTab === "dailySchoolList" ||
     activeTab === "charts";
@@ -88,6 +94,8 @@ export default async function WorkScheduleLunchBoxesPage({
           <LunchBoxSchoolPanel />
         ) : activeTab === "charts" ? (
           <LunchBoxChartPanel />
+        ) : activeTab === "operations" ? (
+          <LunchBoxOperationsPanel date={params.date} />
         ) : activeTab === "dailySchoolList" ? (
           <LunchBoxDailySchoolChecklistPanel
             checkLogPage={params.checkLogPage}
@@ -100,6 +108,27 @@ export default async function WorkScheduleLunchBoxesPage({
         )}
       </div>
     </>
+  );
+}
+
+async function LunchBoxOperationsPanel({
+  date,
+}: {
+  date: string | string[] | undefined;
+}) {
+  const today = getLunchBoxCountToday();
+  const requestedDate = Array.isArray(date) ? date[0] : date;
+  const selectedDate =
+    requestedDate && isLunchBoxDate(requestedDate) ? requestedDate : today;
+  const initialData = await getLunchBoxOperationsView({ date: selectedDate });
+
+  return (
+    <LunchBoxOperationsBoard
+      initialData={initialData}
+      loadOperations={getLunchBoxOperationsViewAction}
+      saveOperations={saveLunchBoxOperationsAction}
+      today={today}
+    />
   );
 }
 
@@ -213,6 +242,11 @@ function LunchBoxManagementTabs({
           label="일자별 개수"
         />
         <LunchBoxManagementTabLink
+          active={activeTab === "operations"}
+          href="/work-schedule/lunch-boxes?tab=operations"
+          label="근무·지출"
+        />
+        <LunchBoxManagementTabLink
           active={activeTab === "schoolList"}
           href="/work-schedule/lunch-boxes?tab=school-list"
           label="도시락 학교 목록"
@@ -282,6 +316,10 @@ function getSelectedLunchBoxTab(
 
   if (value === "charts") {
     return "charts";
+  }
+
+  if (value === "operations") {
+    return "operations";
   }
 
   return value === "school-list" ? "schoolList" : "counts";

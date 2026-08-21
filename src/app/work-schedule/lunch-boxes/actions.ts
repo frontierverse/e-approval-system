@@ -13,6 +13,15 @@ import {
   getLunchBoxSchoolChecklist,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
+import { getLunchBoxOperationsView } from "@/lib/lunch-box-operations";
+import {
+  validateLunchBoxOperationsInput,
+  type LunchBoxIngredientPurchaseInput,
+  type LunchBoxOperationsViewData,
+  type LunchBoxWorkShiftInput,
+  type NormalizedLunchBoxIngredientPurchase,
+  type NormalizedLunchBoxWorkShift,
+} from "@/lib/lunch-box-operations-core";
 import {
   formatLunchBoxDateValue,
   getLunchBoxCountTotal,
@@ -91,6 +100,250 @@ export async function getLunchBoxCountMonthAction(
     data: {
       monthData: await getLunchBoxCountMonth({ month }),
     },
+  };
+}
+
+export async function getLunchBoxOperationsViewAction(
+  date: string,
+): Promise<LunchBoxActionResult<LunchBoxOperationsViewData>> {
+  await requireUser();
+
+  if (!isLunchBoxDate(date)) {
+    return {
+      ok: false,
+      error: "날짜를 다시 선택하세요.",
+    };
+  }
+
+  return {
+    ok: true,
+    data: await getLunchBoxOperationsView({ date }),
+  };
+}
+
+export async function saveLunchBoxOperationsAction(
+  date: string,
+  expectedVersion: number,
+  workShifts: LunchBoxWorkShiftInput[],
+  ingredientPurchases: LunchBoxIngredientPurchaseInput[],
+): Promise<LunchBoxActionResult<LunchBoxOperationsViewData>> {
+  const user = await requireUser();
+
+  if (!isLunchBoxDate(date)) {
+    return {
+      ok: false,
+      error: "날짜를 다시 선택하세요.",
+    };
+  }
+
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
+    return {
+      ok: false,
+      error: "현재 기록의 버전이 올바르지 않습니다. 날짜를 다시 불러오세요.",
+    };
+  }
+
+  if (!Array.isArray(workShifts) || !Array.isArray(ingredientPurchases)) {
+    return {
+      ok: false,
+      error: "근무·구매 기록 형식이 올바르지 않습니다. 다시 입력하세요.",
+    };
+  }
+
+  const validated = validateLunchBoxOperationsInput({
+    workShifts,
+    ingredientPurchases,
+  });
+
+  if (!validated.ok) {
+    return validated;
+  }
+
+  const dateValue = parseLunchBoxDateValue(date);
+  const auditRequestData = await getCurrentAuditLogRequestData();
+  const nextSnapshot = createLunchBoxOperationsSnapshot({
+    workShifts: validated.workShifts,
+    ingredientPurchases: validated.ingredientPurchases,
+  });
+  const mutationResult = await prisma.$transaction(async (tx) => {
+    // 날짜별 advisory lock은 아직 일일 레코드가 없는 날에도 동시 생성을 직렬화한다.
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1 AS "locked"
+      FROM pg_advisory_xact_lock(hashtext(${`lunch-box-operation:${date}`}))
+    `;
+
+    const existing = await tx.lunchBoxDailyOperation.findUnique({
+      where: { date: dateValue },
+      select: {
+        id: true,
+        version: true,
+        workShifts: {
+          orderBy: [{ order: "asc" }, { id: "asc" }],
+          select: {
+            workerName: true,
+            startTime: true,
+            endTime: true,
+            laborCost: true,
+            note: true,
+          },
+        },
+        ingredientPurchases: {
+          orderBy: [{ order: "asc" }, { id: "asc" }],
+          select: {
+            itemName: true,
+            quantity: true,
+            unit: true,
+            purchaseAmount: true,
+            note: true,
+          },
+        },
+      },
+    });
+    const currentVersion = existing?.version ?? 0;
+
+    if (currentVersion !== expectedVersion) {
+      return { kind: "conflict" as const };
+    }
+
+    const previousSnapshot = existing
+      ? createLunchBoxOperationsSnapshot({
+          workShifts: existing.workShifts,
+          ingredientPurchases: existing.ingredientPurchases.map(
+            (purchase) => ({
+              ...purchase,
+              quantity: purchase.quantity.toString(),
+            }),
+          ),
+        })
+      : null;
+
+    if (
+      previousSnapshot &&
+      JSON.stringify(previousSnapshot) === JSON.stringify(nextSnapshot)
+    ) {
+      return { kind: "unchanged" as const };
+    }
+
+    const hasNextRows =
+      nextSnapshot.workShifts.length > 0 ||
+      nextSnapshot.ingredientPurchases.length > 0;
+
+    if (!hasNextRows) {
+      if (!existing) {
+        return { kind: "unchanged" as const };
+      }
+
+      await tx.lunchBoxDailyOperation.delete({
+        where: { id: existing.id },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          ...auditRequestData,
+          action: AuditAction.UPDATE_LUNCH_BOX_OPERATION,
+          targetType: "LunchBoxDailyOperation",
+          targetId: existing.id,
+          message: `${date} 도시락 근무·지출 기록을 삭제했습니다.`,
+          metadata: {
+            changeType: "lunchBoxOperation.delete",
+            date,
+            next: null,
+            previous: previousSnapshot,
+            source: "lunch-box-operations",
+          },
+        },
+      });
+
+      return { kind: "saved" as const };
+    }
+
+    const operation = existing
+      ? await tx.lunchBoxDailyOperation.update({
+          where: { id: existing.id },
+          data: {
+            version: { increment: 1 },
+            updatedById: user.id,
+            workShifts: {
+              deleteMany: {},
+              create: validated.workShifts.map((shift, order) => ({
+                ...shift,
+                order,
+              })),
+            },
+            ingredientPurchases: {
+              deleteMany: {},
+              create: validated.ingredientPurchases.map(
+                (purchase, order) => ({
+                  ...purchase,
+                  order,
+                }),
+              ),
+            },
+          },
+          select: { id: true },
+        })
+      : await tx.lunchBoxDailyOperation.create({
+          data: {
+            date: dateValue,
+            updatedById: user.id,
+            workShifts: {
+              create: validated.workShifts.map((shift, order) => ({
+                ...shift,
+                order,
+              })),
+            },
+            ingredientPurchases: {
+              create: validated.ingredientPurchases.map(
+                (purchase, order) => ({
+                  ...purchase,
+                  order,
+                }),
+              ),
+            },
+          },
+          select: { id: true },
+        });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.UPDATE_LUNCH_BOX_OPERATION,
+        targetType: "LunchBoxDailyOperation",
+        targetId: operation.id,
+        message: existing
+          ? `${date} 도시락 근무·지출 기록을 수정했습니다.`
+          : `${date} 도시락 근무·지출 기록을 등록했습니다.`,
+        metadata: {
+          changeType: existing
+            ? "lunchBoxOperation.update"
+            : "lunchBoxOperation.create",
+          date,
+          next: nextSnapshot,
+          previous: previousSnapshot,
+          source: "lunch-box-operations",
+        },
+      },
+    });
+
+    return { kind: "saved" as const };
+  });
+
+  if (mutationResult.kind === "conflict") {
+    return {
+      ok: false,
+      error:
+        "다른 사용자가 이 날짜의 기록을 먼저 변경했습니다. 입력 내용을 확인한 뒤 날짜를 다시 불러오세요.",
+    };
+  }
+
+  if (mutationResult.kind === "saved") {
+    revalidatePath(lunchBoxManagementPath);
+  }
+
+  return {
+    ok: true,
+    data: await getLunchBoxOperationsView({ date }),
   };
 }
 
@@ -1288,4 +1541,29 @@ function validateLunchBoxSchoolValues(values: {
   }
 
   return "";
+}
+
+function createLunchBoxOperationsSnapshot({
+  ingredientPurchases,
+  workShifts,
+}: {
+  ingredientPurchases: readonly NormalizedLunchBoxIngredientPurchase[];
+  workShifts: readonly NormalizedLunchBoxWorkShift[];
+}) {
+  return {
+    workShifts: workShifts.map((shift) => ({
+      workerName: shift.workerName,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      laborCost: shift.laborCost,
+      note: shift.note,
+    })),
+    ingredientPurchases: ingredientPurchases.map((purchase) => ({
+      itemName: purchase.itemName,
+      quantity: purchase.quantity,
+      unit: purchase.unit,
+      purchaseAmount: purchase.purchaseAmount,
+      note: purchase.note,
+    })),
+  };
 }

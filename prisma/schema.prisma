@@ -75,6 +75,7 @@ enum AuditAction {
   DELETE_QUESTION_BANK_PDF
   CREATE_WORK_FEATURE_UPDATE
   UPDATE_LUNCH_BOX_COUNT
+  UPDATE_LUNCH_BOX_OPERATION
 }
 
 enum NotificationType {
@@ -113,28 +114,29 @@ model User {
   department Department @relation(fields: [departmentId], references: [id])
   position   Position   @relation(fields: [positionId], references: [id])
 
-  draftedDocuments     ApprovalDocument[]   @relation("DocumentDrafter")
-  approvalSteps        ApprovalStep[]       @relation("StepApprover")
-  actedApprovalSteps   ApprovalStep[]       @relation("StepActor")
-  proxyApprovalSteps   ApprovalStep[]       @relation("StepProxyApprover")
-  comments             ApprovalComment[]    @relation("CommentAuthor")
-  attachments          Attachment[]         @relation("AttachmentUploader")
-  resourcePosts        ResourcePost[]       @relation("ResourceAuthor")
-  resourceAttachments  ResourceAttachment[] @relation("ResourceAttachmentUploader")
-  resourcePostViews    ResourcePostView[]   @relation("ResourcePostViewUser")
-  auditLogs            AuditLog[]           @relation("AuditActor")
-  loginHistories       LoginHistory[]
-  notifications        Notification[]
-  signedAttachments    Attachment[]         @relation("AttachmentSigner")
-  convertedAttachments Attachment[]         @relation("AttachmentConverter")
-  leaveLedgerEntries   StaffLeaveLedger[]   @relation("StaffLeaveUser")
-  createdLeaveEntries  StaffLeaveLedger[]   @relation("StaffLeaveActor")
-  workFeatureUpdates   WorkFeatureUpdate[]  @relation("WorkFeatureUpdateCreator")
-  youthDecisionDocuments YouthDecisionDocument[] @relation("YouthDecisionDocumentUploader")
-  youthDischargeExtensions YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
-  cafeComplianceNotes  CafeComplianceNote[]  @relation("CafeComplianceNoteCreator")
-  checkedLunchBoxCounts LunchBoxCount[] @relation("LunchBoxCountChecker")
-  checkedLunchBoxSchools LunchBoxSchoolCheck[] @relation("LunchBoxSchoolCheckChecker")
+  draftedDocuments               ApprovalDocument[]        @relation("DocumentDrafter")
+  approvalSteps                  ApprovalStep[]            @relation("StepApprover")
+  actedApprovalSteps             ApprovalStep[]            @relation("StepActor")
+  proxyApprovalSteps             ApprovalStep[]            @relation("StepProxyApprover")
+  comments                       ApprovalComment[]         @relation("CommentAuthor")
+  attachments                    Attachment[]              @relation("AttachmentUploader")
+  resourcePosts                  ResourcePost[]            @relation("ResourceAuthor")
+  resourceAttachments            ResourceAttachment[]      @relation("ResourceAttachmentUploader")
+  resourcePostViews              ResourcePostView[]        @relation("ResourcePostViewUser")
+  auditLogs                      AuditLog[]                @relation("AuditActor")
+  loginHistories                 LoginHistory[]
+  notifications                  Notification[]
+  signedAttachments              Attachment[]              @relation("AttachmentSigner")
+  convertedAttachments           Attachment[]              @relation("AttachmentConverter")
+  leaveLedgerEntries             StaffLeaveLedger[]        @relation("StaffLeaveUser")
+  createdLeaveEntries            StaffLeaveLedger[]        @relation("StaffLeaveActor")
+  workFeatureUpdates             WorkFeatureUpdate[]       @relation("WorkFeatureUpdateCreator")
+  youthDecisionDocuments         YouthDecisionDocument[]   @relation("YouthDecisionDocumentUploader")
+  youthDischargeExtensions       YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
+  cafeComplianceNotes            CafeComplianceNote[]      @relation("CafeComplianceNoteCreator")
+  checkedLunchBoxCounts          LunchBoxCount[]           @relation("LunchBoxCountChecker")
+  checkedLunchBoxSchools         LunchBoxSchoolCheck[]     @relation("LunchBoxSchoolCheckChecker")
+  updatedLunchBoxDailyOperations LunchBoxDailyOperation[]  @relation("LunchBoxDailyOperationUpdater")
 
   @@index([departmentId])
   @@index([positionId])
@@ -219,11 +221,11 @@ model ApprovalDocument {
   template DocumentTemplate @relation(fields: [templateId], references: [id])
   drafter  User             @relation("DocumentDrafter", fields: [drafterId], references: [id])
 
-  approvalSteps ApprovalStep[]
-  comments      ApprovalComment[]
-  attachments   Attachment[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  approvalSteps      ApprovalStep[]
+  comments           ApprovalComment[]
+  attachments        Attachment[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
   leaveLedgerEntries StaffLeaveLedger[]
 
   @@index([status])
@@ -233,14 +235,14 @@ model ApprovalDocument {
 }
 
 model ApprovalStep {
-  id                String             @id @default(cuid())
-  order             Int
-  status            ApprovalStepStatus @default(WAITING)
-  actedAt           DateTime?
-  comment           String?
-  decisionType      String             @default("NORMAL")
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id           String             @id @default(cuid())
+  order        Int
+  status       ApprovalStepStatus @default(WAITING)
+  actedAt      DateTime?
+  comment      String?
+  decisionType String             @default("NORMAL")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   documentId        String
   approverId        String
@@ -312,15 +314,15 @@ model Attachment {
 }
 
 model ResourcePost {
-  id        String   @id @default(cuid())
-  title     String
-  summary   String
-  category  String   @default("bajaul")
+  id             String   @id @default(cuid())
+  title          String
+  summary        String
+  category       String   @default("bajaul")
   educationLevel String?
-  pinned    Boolean  @default(false)
-  viewCount Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  pinned         Boolean  @default(false)
+  viewCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   authorId String
 
@@ -374,26 +376,26 @@ model ResourcePostView {
 }
 
 model Youth {
-  id            String   @id @default(cuid())
-  name          String   @unique
-  admissionDate String?
+  id                   String   @id @default(cuid())
+  name                 String   @unique
+  admissionDate        String?
   initialDischargeDate String?
-  dischargeDate String?
-  birthDate     String?
-  age           Int?
-  phone         String?
-  familyContact String?
-  familyRelationship String?
-  familyPhone        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  dischargeDate        String?
+  birthDate            String?
+  age                  Int?
+  phone                String?
+  familyContact        String?
+  familyRelationship   String?
+  familyPhone          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  familyContacts YouthFamilyContact[]
-  notes          YouthSpecialNote[]
-  learningSchedules YouthLearningSchedule[]
-  rules          YouthRule[]
-  studyConceptChecks StudyConceptCheck[]
-  decisionDocuments YouthDecisionDocument[]
+  familyContacts      YouthFamilyContact[]
+  notes               YouthSpecialNote[]
+  learningSchedules   YouthLearningSchedule[]
+  rules               YouthRule[]
+  studyConceptChecks  StudyConceptCheck[]
+  decisionDocuments   YouthDecisionDocument[]
   dischargeExtensions YouthDischargeExtension[]
 
   @@index([name])
@@ -424,11 +426,11 @@ model YouthDischargeExtension {
 }
 
 model YouthRule {
-  id            String   @id @default(cuid())
-  category      String
-  detail        String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(cuid())
+  category  String
+  detail    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   targetYouthId String?
 
@@ -498,18 +500,18 @@ model YouthSpecialNote {
 }
 
 model YouthLearningSchedule {
-  id           String   @id @default(cuid())
-  scheduleDate String
-  startHour    Int
-  startMinute  Int
-  endHour      Int
-  endMinute    Int
-  content      String
-  repeatsWeekly Boolean  @default(false)
+  id                   String   @id @default(cuid())
+  scheduleDate         String
+  startHour            Int
+  startMinute          Int
+  endHour              Int
+  endMinute            Int
+  content              String
+  repeatsWeekly        Boolean  @default(false)
   recurrenceSourceDate String?
-  recurrenceWeekdays String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  recurrenceWeekdays   String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   youthId String
 
@@ -570,16 +572,16 @@ model YouthCommonSchedule {
 }
 
 model WorkSchedule {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   scheduleDate String
-  weekday     Int
-  startHour   Int
-  startMinute Int
-  endHour     Int
-  endMinute   Int
-  content     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  weekday      Int
+  startHour    Int
+  startMinute  Int
+  endHour      Int
+  endMinute    Int
+  content      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([scheduleDate, startMinute])
   @@index([scheduleDate, startMinute])
@@ -595,23 +597,23 @@ model WorkFeatureUpdate {
   createdAt   DateTime @default(now())
 
   createdById String?
-  createdBy   User?    @relation("WorkFeatureUpdateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation("WorkFeatureUpdateCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@index([createdById])
 }
 
 model CafeItem {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   name                 String
   category             String
-  purchasedAt          DateTime @db.Date
+  purchasedAt          DateTime  @db.Date
   priceWon             Int?
   purchaseReason       String?
   expirationDate       DateTime? @db.Date
   expirationHoldReason String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([category])
   @@index([purchasedAt])
@@ -642,7 +644,7 @@ model LunchBoxSchool {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  counts LunchBoxCount[]
+  counts         LunchBoxCount[]
   checklistCheck LunchBoxSchoolCheck?
 
   @@unique([name])
@@ -663,22 +665,22 @@ model LunchBoxSchoolCheck {
 }
 
 model LunchBoxCount {
-  id                String         @id @default(cuid())
-  schoolId          String
-  school            LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  date              DateTime       @db.Date
-  class1Count       Int            @default(0)
-  class2Count       Int            @default(0)
-  class3Count       Int            @default(0)
-  class4Count       Int            @default(0)
-  linkedCount       Int            @default(0)
-  preservationCount Int            @default(0)
-  deliveryDriverCount Int          @default(0)
-  checkedAt         DateTime?
-  checkedById       String?
-  checkedBy         User?          @relation("LunchBoxCountChecker", fields: [checkedById], references: [id], onDelete: SetNull)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  schoolId            String
+  school              LunchBoxSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date                DateTime       @db.Date
+  class1Count         Int            @default(0)
+  class2Count         Int            @default(0)
+  class3Count         Int            @default(0)
+  class4Count         Int            @default(0)
+  linkedCount         Int            @default(0)
+  preservationCount   Int            @default(0)
+  deliveryDriverCount Int            @default(0)
+  checkedAt           DateTime?
+  checkedById         String?
+  checkedBy           User?          @relation("LunchBoxCountChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@unique([schoolId, date])
   @@index([date])
@@ -691,6 +693,54 @@ model LunchBoxMenu {
   items     String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model LunchBoxDailyOperation {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?   @relation("LunchBoxDailyOperationUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  workShifts          LunchBoxWorkShift[]
+  ingredientPurchases LunchBoxIngredientPurchase[]
+
+  @@index([updatedById])
+}
+
+model LunchBoxWorkShift {
+  id          String                 @id @default(cuid())
+  operationId String
+  operation   LunchBoxDailyOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  order       Int                    @default(0)
+  workerName  String
+  startTime   String
+  endTime     String
+  laborCost   Int                    @default(0)
+  note        String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([operationId, order])
+}
+
+model LunchBoxIngredientPurchase {
+  id             String                 @id @default(cuid())
+  operationId    String
+  operation      LunchBoxDailyOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  order          Int                    @default(0)
+  itemName       String
+  quantity       Decimal                @db.Decimal(12, 3)
+  unit           String
+  purchaseAmount Int                    @default(0)
+  note           String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([operationId, order])
 }
 
 model AuditLog {
