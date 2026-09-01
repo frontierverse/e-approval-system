@@ -22,6 +22,7 @@ const requiredPrismaDelegates = [
   "youthFamilyContact",
   "youthSpecialNote",
   "youthLearningSchedule",
+  "youthPersonalSchedule",
   "youthCommonSchedule",
   "studyConcept",
   "studyConceptCheck",

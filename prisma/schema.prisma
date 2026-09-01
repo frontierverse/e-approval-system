@@ -406,6 +406,7 @@ model Youth {
 
   familyContacts      YouthFamilyContact[]
   academySchedules    YouthAcademySchedule[]
+  personalSchedules   YouthPersonalSchedule[]
   notes               YouthSpecialNote[]
   learningSchedules   YouthLearningSchedule[]
   rules               YouthRule[]
@@ -438,6 +439,27 @@ model YouthAcademySchedule {
   @@unique([youthId, academyName, weekdays, attendanceMinute], map: "YouthAcademySchedule_youth_slot_key")
   @@index([youthId, sortOrder])
   @@index([academyName])
+}
+
+model YouthPersonalSchedule {
+  id                    String   @id @default(cuid())
+  content               String
+  startMinute           Int
+  endMinute             Int
+  selectionMode         String
+  occurrenceDates       String[]
+  recurrenceWeekdays    String?
+  recurrenceStartDate   String?
+  recurrenceEndDate     String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  youthId String
+
+  youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+
+  @@index([youthId])
+  @@index([occurrenceDates], type: Gin, map: "YouthPersonalSchedule_occurrenceDates_gin_idx")
 }
 
 model YouthDischargeExtension {

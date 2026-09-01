@@ -47,6 +47,7 @@ const resourceNavigationItems: NavigationItem[] = [
 const youthNavigationItems: NavigationItem[] = [
   { label: "청소년 명단", href: "/youth/roster" },
   { label: "공통 일정표", href: "/youth/common-schedule" },
+  { label: "개인 일정표", href: "/youth/personal-schedule" },
   { label: "학습진도", href: "/youth/learning-progress" },
   { label: "규칙", href: "/youth/rules" },
 ];

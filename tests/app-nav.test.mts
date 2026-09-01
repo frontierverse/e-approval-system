@@ -81,6 +81,17 @@ describe("app navigation active paths", () => {
     );
   });
 
+  test("places the personal schedule in the youth management workflow", () => {
+    assert.match(
+      appShellSource,
+      /const youthNavigationItems[\s\S]*?청소년 명단[\s\S]*?공통 일정표[\s\S]*?개인 일정표[\s\S]*?학습진도[\s\S]*?규칙/,
+    );
+    assert.match(
+      appShellSource,
+      /label: "개인 일정표", href: "\/youth\/personal-schedule"/,
+    );
+  });
+
   test("keeps the topbar mounted in a desktop-only visual wrapper", () => {
     assert.match(
       appShellSource,
