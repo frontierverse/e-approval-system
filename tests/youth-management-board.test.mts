@@ -14,6 +14,7 @@ const youths: YouthProfile[] = [
     birthDate: "2009-06-10",
     age: 17,
     phone: "010-1111-2222",
+    academySchedules: [],
     decisionDocuments: [],
     familyContacts: [
       {
@@ -49,6 +50,7 @@ const youths: YouthProfile[] = [
     birthDate: null,
     age: null,
     phone: null,
+    academySchedules: [],
     decisionDocuments: [],
     familyContacts: [],
     notes: [],
@@ -71,6 +73,14 @@ describe("YouthManagementBoard", () => {
               birthDate: name.birthDate || null,
               age: name.birthDate ? 17 : null,
               phone: name.phone || null,
+              academySchedules: (name.academySchedules ?? []).map(
+                (schedule, index) => ({
+                  id: `created-academy-schedule-${index}`,
+                  academyName: schedule.academyName,
+                  weekdays: [...schedule.weekdays],
+                  attendanceTime: schedule.attendanceTime,
+                }),
+              ),
               familyContacts: name.familyContacts.map((contact, index) => ({
                 id: `created-family-contact-${index}`,
                 relationship: contact.relationship || null,
@@ -98,6 +108,14 @@ describe("YouthManagementBoard", () => {
               birthDate: values.birthDate || null,
               age: values.birthDate ? 17 : null,
               phone: values.phone || null,
+              academySchedules: (values.academySchedules ?? []).map(
+                (schedule, index) => ({
+                  id: `updated-academy-schedule-${index}`,
+                  academyName: schedule.academyName,
+                  weekdays: [...schedule.weekdays],
+                  attendanceTime: schedule.attendanceTime,
+                }),
+              ),
               familyContacts: values.familyContacts.map((contact, index) => ({
                 id: `updated-family-contact-${index}`,
                 relationship: contact.relationship || null,

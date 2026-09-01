@@ -31,6 +31,20 @@ const roster = {
       age: 17,
       koreanAge: 18,
       phone: "010-1111-2222",
+      academySchedules: [
+        {
+          id: "academy-schedule-001",
+          academyName: "새봄수학학원",
+          weekdays: [1, 3, 5],
+          attendanceTime: "18:30",
+        },
+        {
+          id: "academy-schedule-002",
+          academyName: "푸른영어학원",
+          weekdays: [2, 4],
+          attendanceTime: "20:00",
+        },
+      ],
       decisionDocuments: [
         {
           id: "decision-document-001",
@@ -61,6 +75,7 @@ const roster = {
       age: 18,
       koreanAge: 19,
       phone: null,
+      academySchedules: [],
       decisionDocuments: [],
       familyContacts: [],
       updatedAt: "2026-05-01T03:20:00.000Z",
@@ -106,6 +121,14 @@ const rosterActions = {
         dischargeDate: values.dischargeDate || null,
         age: values.birthDate ? 17 : null,
         phone: values.phone || null,
+        academySchedules: (values.academySchedules ?? []).map(
+          (schedule, index) => ({
+            id: `created-academy-schedule-${index}`,
+            academyName: schedule.academyName,
+            weekdays: [...schedule.weekdays],
+            attendanceTime: schedule.attendanceTime,
+          }),
+        ),
         familyContacts: values.familyContacts.map((contact, index) => ({
           id: `created-family-contact-${index}`,
           relationship: contact.relationship || null,
@@ -128,6 +151,14 @@ const rosterActions = {
         dischargeDate: values.dischargeDate || null,
         age: values.birthDate ? 17 : null,
         phone: values.phone || null,
+        academySchedules: (values.academySchedules ?? []).map(
+          (schedule, index) => ({
+            id: `updated-academy-schedule-${index}`,
+            academyName: schedule.academyName,
+            weekdays: [...schedule.weekdays],
+            attendanceTime: schedule.attendanceTime,
+          }),
+        ),
         familyContacts: values.familyContacts.map((contact, index) => ({
           id: `updated-family-contact-${index}`,
           relationship: contact.relationship || null,
@@ -194,6 +225,8 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /입소중/);
     assert.match(html, /마지막 업데이트/);
     assert.match(html, /2026\. 06\. 21\./);
+    assert.match(html, /title="2026년 6월 21일 오후 9:45"/);
+    assert.doesNotMatch(html, /title="[^"]*\b(?:AM|PM)\b/);
     assert.match(html, /2026\. 05\. 01\. \(금\)/);
     assert.match(html, /2026\. 07\. 15\. \(수\)/);
     assert.doesNotMatch(html, /010-1111-2222/);
@@ -268,6 +301,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /staff@example\.com/);
     assert.match(html, /1 \/ 2/);
     assert.match(html, /href="\/youth\/roster\?logPage=2"/);
+    assert.match(html, /06\. 22\. 18:30/);
   });
 
   test("renders a delete action in admitted youth edit modals", () => {
@@ -304,6 +338,38 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /연락처 열람은 감사기록에 남습니다/);
     assert.doesNotMatch(html, /010-1111-2222/);
     assert.doesNotMatch(html, /010-3333-4444/);
+    assert.match(html, /학원 일정/);
+    assert.match(html, /2개/);
+    assert.match(html, /새봄수학학원/);
+    assert.match(html, /푸른영어학원/);
+    assert.match(html, /aria-label="학원 일정 1 등원 시간"/);
+    assert.match(html, /aria-label="학원 일정 2 등원 시간"/);
+    assert.match(html, /type="time"[^>]*value="18:30"/);
+    assert.match(html, /type="time"[^>]*value="20:00"/);
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 월요일"[^>]*checked=""/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 수요일"[^>]*checked=""/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 금요일"[^>]*checked=""/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 2 화요일"[^>]*checked=""/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 2 목요일"[^>]*checked=""/,
+    );
+    assert.equal((html.match(/type="checkbox"/g) ?? []).length, 14);
+    assert.equal((html.match(/type="checkbox"[^>]*checked=""/g) ?? []).length, 5);
+    assert.match(html, /aria-label="학원 일정 1 삭제"/);
+    assert.match(html, /aria-label="학원 일정 2 삭제"/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);
     assert.match(html, /결정문 파일/);

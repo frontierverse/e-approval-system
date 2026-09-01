@@ -396,6 +396,7 @@ model Youth {
   updatedAt            DateTime @updatedAt
 
   familyContacts      YouthFamilyContact[]
+  academySchedules    YouthAcademySchedule[]
   notes               YouthSpecialNote[]
   learningSchedules   YouthLearningSchedule[]
   rules               YouthRule[]
@@ -407,6 +408,24 @@ model Youth {
   @@index([birthDate])
   @@index([dischargeDate])
   @@index([initialDischargeDate])
+}
+
+model YouthAcademySchedule {
+  id               String   @id @default(cuid())
+  academyName      String
+  weekdays         String
+  attendanceMinute Int
+  sortOrder        Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  youthId String
+
+  youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+
+  @@unique([youthId, academyName, weekdays, attendanceMinute], map: "YouthAcademySchedule_youth_slot_key")
+  @@index([youthId, sortOrder])
+  @@index([academyName])
 }
 
 model YouthDischargeExtension {

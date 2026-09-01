@@ -18,6 +18,7 @@ const requiredPrismaDelegates = [
   "workSchedule",
   "workFeatureUpdate",
   "youth",
+  "youthAcademySchedule",
   "youthFamilyContact",
   "youthSpecialNote",
   "youthLearningSchedule",

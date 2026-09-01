@@ -7,6 +7,7 @@ import {
   calculateYouthKoreanAge,
   getYouthDisplayAge,
   getYouthLearningScheduleToday,
+  type YouthAcademySchedule,
   type YouthDischargeExtension,
   type YouthDecisionDocumentItem,
 } from "@/lib/youth-management-core";
@@ -27,6 +28,7 @@ export type YouthRosterItem = {
   dischargeDate: string | null;
   dischargeExtensions?: YouthDischargeExtension[];
   decisionDocuments: YouthDecisionDocumentItem[];
+  academySchedules: YouthAcademySchedule[];
   familyContacts: YouthRosterFamilyContact[];
   name: string;
   phone: string | null;
@@ -217,6 +219,7 @@ function mapYouthRosterItem(
 
   return {
     id: record.id,
+    academySchedules: [],
     admissionDate: normalizeBlank(record.admissionDate),
     birthDate,
     age: getYouthDisplayAge(

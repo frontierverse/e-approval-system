@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AuditAction } from "@/generated/prisma/client";
+import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireUser } from "@/lib/auth";
 import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
@@ -15,10 +15,15 @@ import {
 } from "@/lib/attachment-storage";
 import { prisma } from "@/lib/prisma";
 import {
+  formatYouthLearningScheduleWeekdays,
   isYouthLearningScheduleDate,
   isYouthNoteCategory,
   isYouthNotePriority,
+  normalizeYouthAcademySchedules,
+  parseYouthLearningScheduleWeekdays,
+  type NormalizedYouthAcademyScheduleInput,
   type YouthActionResult,
+  type YouthAcademySchedule,
   type YouthCreateInput,
   type YouthDischargeExtension,
   type YouthDischargeExtensionInput,
@@ -32,6 +37,7 @@ import {
   type YouthUpdateInput,
 } from "@/lib/youth-management-core";
 import {
+  mapYouthAcademySchedule,
   mapYouthProfile,
   mapYouthSpecialNote,
 } from "@/lib/youth-management";
@@ -64,7 +70,7 @@ const youthDetailViewDedupWindowMs = 30 * 60 * 1000;
 
 export async function recordYouthDetailViewAction(
   youthId: string,
-): Promise<void> {
+): Promise<YouthActionResult<{ academySchedules: YouthAcademySchedule[] }>> {
   const user = await requireUser();
 
   const youth = await prisma.youth.findUnique({
@@ -78,7 +84,10 @@ export async function recordYouthDetailViewAction(
   });
 
   if (!youth) {
-    return;
+    return {
+      ok: false,
+      error: "상세정보를 확인할 청소년을 찾을 수 없습니다.",
+    };
   }
 
   const recentView = await prisma.auditLog.findFirst({
@@ -96,25 +105,37 @@ export async function recordYouthDetailViewAction(
     },
   });
 
-  if (recentView) {
-    return;
+  if (!recentView) {
+    const auditRequestData = await getCurrentAuditLogRequestData();
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        ...auditRequestData,
+        action: AuditAction.VIEW_YOUTH_DETAIL,
+        targetType: "Youth",
+        targetId: youth.id,
+        message: `${youth.name} 청소년의 상세정보를 열람했습니다.`,
+        metadata: {
+          youthId: youth.id,
+        },
+      },
+    });
   }
 
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      ...auditRequestData,
-      action: AuditAction.VIEW_YOUTH_DETAIL,
-      targetType: "Youth",
-      targetId: youth.id,
-      message: `${youth.name} 청소년의 상세정보를 열람했습니다.`,
-      metadata: {
-        youthId: youth.id,
-      },
+  const academySchedules = await prisma.youthAcademySchedule.findMany({
+    where: {
+      youthId: youth.id,
     },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
+
+  return {
+    ok: true,
+    data: {
+      academySchedules: academySchedules.map(mapYouthAcademySchedule),
+    },
+  };
 }
 
 export async function recordYouthContactViewAction(
@@ -232,6 +253,58 @@ async function createYouthDecisionDocuments(
   });
 }
 
+type YouthTransactionClient = Parameters<
+  Parameters<typeof prisma.$transaction>[0]
+>[0];
+
+class YouthUpdateConflictError extends Error {
+  constructor() {
+    super("Youth update conflict");
+    this.name = "YouthUpdateConflictError";
+  }
+}
+
+const youthUpdateConflictErrorMessage =
+  "다른 사용자가 먼저 청소년 정보를 수정했습니다. 페이지를 새로고침해 최신 정보를 확인한 후 다시 시도해 주세요.";
+
+async function replaceYouthAcademySchedules(
+  tx: YouthTransactionClient,
+  youthId: string,
+  schedules: NormalizedYouthAcademyScheduleInput[],
+) {
+  await tx.youthAcademySchedule.deleteMany({
+    where: {
+      youthId,
+    },
+  });
+
+  if (schedules.length > 0) {
+    await tx.youthAcademySchedule.createMany({
+      data: schedules.map((schedule, index) => ({
+        academyName: schedule.academyName,
+        attendanceMinute: schedule.attendanceMinute,
+        sortOrder: index,
+        weekdays: schedule.weekdaysValue,
+        youthId,
+      })),
+    });
+  }
+
+  return findYouthAcademySchedules(tx, youthId);
+}
+
+function findYouthAcademySchedules(
+  tx: YouthTransactionClient,
+  youthId: string,
+) {
+  return tx.youthAcademySchedule.findMany({
+    where: {
+      youthId,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  });
+}
+
 async function cleanupYouthDecisionDocuments(files: PreparedAttachmentFile[]) {
   if (files.length === 0) {
     return;
@@ -279,6 +352,9 @@ export async function createYouthAction(
 
   const normalizedBirthDate = normalizeOptionalDate(values.birthDate);
   const normalizedPhone = normalizeOptionalPhone(values.phone);
+  const normalizedAcademySchedules = normalizeYouthAcademySchedules(
+    values.academySchedules,
+  );
   const normalizedFamilyContacts = normalizeFamilyContacts(
     values.familyContacts,
   );
@@ -289,6 +365,13 @@ export async function createYouthAction(
     return {
       ok: false,
       error: normalizedPhone.error,
+    };
+  }
+
+  if (normalizedAcademySchedules.error) {
+    return {
+      ok: false,
+      error: normalizedAcademySchedules.error,
     };
   }
 
@@ -389,6 +472,12 @@ export async function createYouthAction(
         `;
       }
 
+      const academySchedules = await replaceYouthAcademySchedules(
+        tx,
+        createdYouth.id,
+        normalizedAcademySchedules.value,
+      );
+
       const decisionDocuments = await createYouthDecisionDocuments(
         tx,
         createdYouth.id,
@@ -405,6 +494,7 @@ export async function createYouthAction(
           targetId: createdYouth.id,
           message: `${normalizedName} 청소년을 등록했습니다.`,
           metadata: {
+            academyScheduleCount: academySchedules.length,
             familyContactCount: familyContacts.length,
             hasPhone: Boolean(normalizedPhone.value),
             decisionDocumentCount: preparedDocuments.files.length,
@@ -414,6 +504,7 @@ export async function createYouthAction(
 
       return {
         ...createdYouth,
+        academySchedules,
         familyContacts,
         decisionDocuments,
       };
@@ -456,6 +547,14 @@ export async function updateYouthAction(
     },
     select: {
       id: true,
+      academySchedules: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: {
+          academyName: true,
+          attendanceMinute: true,
+          weekdays: true,
+        },
+      },
       name: true,
       admissionDate: true,
       birthDate: true,
@@ -479,6 +578,17 @@ export async function updateYouthAction(
     };
   }
 
+  const normalizedExpectedUpdatedAt = normalizeYouthExpectedUpdatedAt(
+    values.expectedUpdatedAt,
+  );
+
+  if (normalizedExpectedUpdatedAt.error) {
+    return {
+      ok: false,
+      error: normalizedExpectedUpdatedAt.error,
+    };
+  }
+
   const existingName = await prisma.youth.findUnique({
     where: {
       name: normalizedName,
@@ -497,6 +607,9 @@ export async function updateYouthAction(
 
   const normalizedBirthDate = normalizeOptionalDate(values.birthDate);
   const normalizedPhone = normalizeOptionalPhone(values.phone);
+  const normalizedAcademySchedules = normalizeYouthAcademySchedules(
+    values.academySchedules,
+  );
   const normalizedFamilyContacts = normalizeFamilyContacts(
     values.familyContacts,
   );
@@ -507,6 +620,13 @@ export async function updateYouthAction(
     return {
       ok: false,
       error: normalizedPhone.error,
+    };
+  }
+
+  if (normalizedAcademySchedules.error) {
+    return {
+      ok: false,
+      error: normalizedAcademySchedules.error,
     };
   }
 
@@ -556,37 +676,72 @@ export async function updateYouthAction(
 
   try {
     youth = await prisma.$transaction(async (tx) => {
-      const updatedYouth = await tx.youth.update({
-        where: {
-          id: youthId,
-        },
-        data: {
-          name: normalizedName,
-          admissionDate: normalizedAdmissionDate.value,
-          birthDate: normalizedBirthDate.value,
-          age: null,
-          phone: normalizedPhone.value,
-          familyRelationship: firstFamilyContact?.relationship ?? null,
-          familyPhone: firstFamilyContact?.phone ?? null,
-          familyContact: firstFamilyContact?.phone ?? null,
-        },
-        include: {
-          dischargeExtensions: {
-            orderBy: [{ extensionOrder: "asc" }],
-            include: {
-              processedBy: {
-                select: {
-                  id: true,
-                  name: true,
-                },
+      const nextUpdatedAt = normalizedExpectedUpdatedAt.value
+        ? new Date(
+            Math.max(
+              Date.now(),
+              normalizedExpectedUpdatedAt.value.getTime() + 1,
+            ),
+          )
+        : undefined;
+      const youthUpdateData = {
+        name: normalizedName,
+        admissionDate: normalizedAdmissionDate.value,
+        birthDate: normalizedBirthDate.value,
+        age: null,
+        phone: normalizedPhone.value,
+        familyRelationship: firstFamilyContact?.relationship ?? null,
+        familyPhone: firstFamilyContact?.phone ?? null,
+        familyContact: firstFamilyContact?.phone ?? null,
+        ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
+      } satisfies Prisma.YouthUpdateManyMutationInput;
+      const youthUpdateInclude = {
+        dischargeExtensions: {
+          orderBy: [{ extensionOrder: "asc" }],
+          include: {
+            processedBy: {
+              select: {
+                id: true,
+                name: true,
               },
             },
           },
-          notes: {
-            orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
-          },
         },
-      });
+        notes: {
+          orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+        },
+      } satisfies Prisma.YouthInclude;
+
+      let updatedYouth;
+
+      if (normalizedExpectedUpdatedAt.value) {
+        const updateResult = await tx.youth.updateMany({
+          where: {
+            id: youthId,
+            updatedAt: normalizedExpectedUpdatedAt.value,
+          },
+          data: youthUpdateData,
+        });
+
+        if (updateResult.count !== 1) {
+          throw new YouthUpdateConflictError();
+        }
+
+        updatedYouth = await tx.youth.findUniqueOrThrow({
+          where: {
+            id: youthId,
+          },
+          include: youthUpdateInclude,
+        });
+      } else {
+        updatedYouth = await tx.youth.update({
+          where: {
+            id: youthId,
+          },
+          data: youthUpdateData,
+          include: youthUpdateInclude,
+        });
+      }
 
       await tx.$executeRaw`
         DELETE FROM "YouthFamilyContact"
@@ -623,6 +778,14 @@ export async function updateYouthAction(
         `;
       }
 
+      const academySchedules = normalizedAcademySchedules.provided
+        ? await replaceYouthAcademySchedules(
+            tx,
+            youthId,
+            normalizedAcademySchedules.value,
+          )
+        : await findYouthAcademySchedules(tx, youthId);
+
       const decisionDocuments = await createYouthDecisionDocuments(
         tx,
         youthId,
@@ -633,6 +796,9 @@ export async function updateYouthAction(
       const fieldChanges = getYouthFieldChanges(
         {
           name: existingYouth.name,
+          academySchedules: mapYouthAcademySchedulesForLog(
+            existingYouth.academySchedules,
+          ),
           admissionDate: existingYouth.admissionDate,
           birthDate: existingYouth.birthDate,
           dischargeDate: existingYouth.dischargeDate,
@@ -641,11 +807,15 @@ export async function updateYouthAction(
         },
         {
           name: normalizedName,
+          academySchedules: mapYouthAcademySchedulesForLog(academySchedules),
           admissionDate: normalizedAdmissionDate.value,
           birthDate: normalizedBirthDate.value,
           dischargeDate: existingYouth.dischargeDate,
           phone: normalizedPhone.value,
           familyContacts: normalizedFamilyContacts.value,
+        },
+        {
+          includeAcademySchedules: normalizedAcademySchedules.provided,
         },
       );
       const addedDocumentNames = preparedDocuments.files.map(
@@ -667,6 +837,7 @@ export async function updateYouthAction(
           metadata: {
             changes: fieldChanges,
             addedDocumentNames,
+            academyScheduleCount: academySchedules.length,
             familyContactCount: familyContacts.length,
             hasPhone: Boolean(normalizedPhone.value),
             decisionDocumentCount: preparedDocuments.files.length,
@@ -676,12 +847,21 @@ export async function updateYouthAction(
 
       return {
         ...updatedYouth,
+        academySchedules,
         familyContacts,
         decisionDocuments,
       };
     });
   } catch (error) {
     await cleanupYouthDecisionDocuments(preparedDocuments.files);
+
+    if (error instanceof YouthUpdateConflictError) {
+      return {
+        ok: false,
+        error: youthUpdateConflictErrorMessage,
+      };
+    }
+
     throw error;
   }
 
@@ -1318,12 +1498,19 @@ function normalizeFamilyContacts(values: YouthFamilyContactInput[]): {
 }
 
 type YouthFieldSnapshot = {
+  academySchedules: YouthAcademyScheduleFieldValue[];
   name: string;
   admissionDate: string | null;
   birthDate: string | null;
   dischargeDate: string | null;
   phone: string | null;
   familyContacts: Array<{ relationship: string | null; phone: string | null }>;
+};
+
+type YouthAcademyScheduleFieldValue = {
+  academyName: string;
+  attendanceTime: string;
+  weekdays: number[];
 };
 
 type YouthFieldChange = {
@@ -1336,10 +1523,23 @@ type YouthFieldChange = {
 function getYouthFieldChanges(
   before: YouthFieldSnapshot,
   after: YouthFieldSnapshot,
+  options: {
+    includeAcademySchedules: boolean;
+  },
 ): YouthFieldChange[] {
   const changes: YouthFieldChange[] = [];
 
   pushYouthFieldChange(changes, "name", "이름", before.name, after.name);
+
+  if (options.includeAcademySchedules) {
+    pushYouthFieldChange(
+      changes,
+      "academySchedules",
+      "학원 일정",
+      formatYouthAcademySchedulesForLog(before.academySchedules),
+      formatYouthAcademySchedulesForLog(after.academySchedules),
+    );
+  }
   pushYouthFieldChange(
     changes,
     "admissionDate",
@@ -1412,6 +1612,72 @@ function formatYouthFamilyContactsForLog(
       return `${relationship}(${phone})`;
     })
     .join(", ");
+}
+
+function mapYouthAcademySchedulesForLog(
+  schedules: Array<{
+    academyName: string;
+    attendanceMinute: number;
+    weekdays: string;
+  }>,
+): YouthAcademyScheduleFieldValue[] {
+  return schedules.map((schedule) => ({
+    academyName: schedule.academyName,
+    attendanceTime: formatYouthAcademyAttendanceTime(schedule.attendanceMinute),
+    weekdays: parseYouthLearningScheduleWeekdays(schedule.weekdays),
+  }));
+}
+
+function formatYouthAcademySchedulesForLog(
+  schedules: YouthAcademyScheduleFieldValue[],
+) {
+  if (schedules.length === 0) {
+    return "미등록";
+  }
+
+  return schedules
+    .map((schedule) => {
+      const weekdays = formatYouthLearningScheduleWeekdays(schedule.weekdays);
+
+      return `${schedule.academyName}(${weekdays} ${schedule.attendanceTime})`;
+    })
+    .join(", ");
+}
+
+function formatYouthAcademyAttendanceTime(attendanceMinute: number) {
+  const hour = Math.floor(attendanceMinute / 60);
+  const minute = attendanceMinute % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function normalizeYouthExpectedUpdatedAt(value: unknown): {
+  error?: string;
+  value?: Date;
+} {
+  if (value === undefined) {
+    return {};
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return {
+      error:
+        "수정 기준 시간이 올바르지 않습니다. 페이지를 새로고침해 최신 정보를 확인한 후 다시 시도해 주세요.",
+    };
+  }
+
+  const parsedValue = new Date(value);
+
+  if (Number.isNaN(parsedValue.getTime())) {
+    return {
+      error:
+        "수정 기준 시간이 올바르지 않습니다. 페이지를 새로고침해 최신 정보를 확인한 후 다시 시도해 주세요.",
+    };
+  }
+
+  return {
+    value: parsedValue,
+  };
 }
 
 function buildYouthUpdateMessage(

@@ -4,6 +4,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthDisplayAge,
+  parseYouthLearningScheduleWeekdays,
+  type YouthAcademySchedule,
   type YouthDecisionDocumentItem,
   type YouthFamilyContact,
   normalizeYouthNoteCategory,
@@ -35,7 +37,15 @@ const youthInclude = {
 type YouthRecord = Prisma.YouthGetPayload<{
   include: typeof youthInclude;
 }> & {
+  academySchedules: YouthAcademyScheduleRecord[];
   familyContacts: YouthFamilyContactRecord[];
+};
+
+type YouthAcademyScheduleRecord = {
+  id: string;
+  academyName: string;
+  attendanceMinute: number;
+  weekdays: string;
 };
 
 type YouthFamilyContactRecord = {
@@ -58,6 +68,7 @@ export async function getYouthProfiles(): Promise<YouthProfile[]> {
   return youths.map((youth) =>
     mapYouthProfile({
       ...youth,
+      academySchedules: [],
       familyContacts: familyContactsByYouthId.get(youth.id) ?? [],
     }),
   );
@@ -100,6 +111,7 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
       birthDate: record.birthDate,
     }),
     phone: record.phone,
+    academySchedules: record.academySchedules.map(mapYouthAcademySchedule),
     familyContacts: mapYouthFamilyContacts(record),
     decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
     dischargeExtensions: record.dischargeExtensions.map((extension) => ({
@@ -113,6 +125,20 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
     })),
     notes: record.notes.map(mapYouthSpecialNote),
     updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+export function mapYouthAcademySchedule(record: {
+  id: string;
+  academyName: string;
+  attendanceMinute: number;
+  weekdays: string;
+}): YouthAcademySchedule {
+  return {
+    id: record.id,
+    academyName: record.academyName,
+    weekdays: parseYouthLearningScheduleWeekdays(record.weekdays),
+    attendanceTime: formatMinuteOfDay(record.attendanceMinute),
   };
 }
 
@@ -150,6 +176,13 @@ function mapYouthFamilyContacts(record: YouthRecord): YouthFamilyContact[] {
       phone: legacyPhone,
     },
   ];
+}
+
+function formatMinuteOfDay(value: number) {
+  const hour = Math.floor(value / 60);
+  const minute = value % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 function mapYouthFamilyContact(
