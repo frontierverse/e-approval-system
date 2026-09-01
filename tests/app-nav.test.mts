@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { isActivePath } from "../src/lib/app-nav-core.ts";
 import {
-  isActivePath,
   MobileMenuTrigger,
   MobileNavigationMenuContent,
   TopbarBirthdayAlertModalContent,

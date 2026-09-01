@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  canDiscardRecalledDocumentByPolicy,
   canDeleteSignedAttachmentByPolicy,
   canDeleteDraftDocumentByPolicy,
   canManageDraftDocumentAttachmentsByPolicy,
   canReadApprovalDocument,
   canRecallDocumentByPolicy,
+  canRestoreDiscardedDocumentByPolicy,
   getReadableDocumentWhere,
   type ReadableDocumentShape,
 } from "../src/lib/approval-permissions-core.ts";
@@ -71,6 +73,33 @@ describe("approval document read permission", () => {
       true,
     );
   });
+
+  test("keeps discarded documents private to their drafter and admins", () => {
+    const discardedDocument = {
+      ...document,
+      status: "DISCARDED",
+    };
+
+    assert.equal(
+      canReadApprovalDocument("approver-001", "USER", discardedDocument),
+      false,
+    );
+    assert.equal(
+      canReadApprovalDocument("approver-001", "USER", {
+        ...discardedDocument,
+        status: "discarded",
+      }),
+      false,
+    );
+    assert.equal(
+      canReadApprovalDocument("drafter-001", "USER", discardedDocument),
+      true,
+    );
+    assert.equal(
+      canReadApprovalDocument("admin-001", "ADMIN", discardedDocument),
+      true,
+    );
+  });
 });
 
 describe("readable document query filter", () => {
@@ -88,7 +117,7 @@ describe("readable document query filter", () => {
           AND: [
             {
               status: {
-                notIn: ["DRAFT", "RECALLED"],
+                notIn: ["DRAFT", "RECALLED", "DISCARDED"],
               },
             },
             {
@@ -161,6 +190,54 @@ describe("document action policy", () => {
     );
   });
 
+  test("allows only the drafter to discard recalled documents", () => {
+    assert.equal(
+      canDiscardRecalledDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "recalled",
+      }),
+      true,
+    );
+    assert.equal(
+      canDiscardRecalledDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "DRAFT",
+      }),
+      false,
+    );
+    assert.equal(
+      canDiscardRecalledDocumentByPolicy("approver-001", {
+        drafterId: "drafter-001",
+        status: "RECALLED",
+      }),
+      false,
+    );
+  });
+
+  test("allows only the drafter to restore discarded documents", () => {
+    assert.equal(
+      canRestoreDiscardedDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "discarded",
+      }),
+      true,
+    );
+    assert.equal(
+      canRestoreDiscardedDocumentByPolicy("drafter-001", {
+        drafterId: "drafter-001",
+        status: "RECALLED",
+      }),
+      false,
+    );
+    assert.equal(
+      canRestoreDiscardedDocumentByPolicy("approver-001", {
+        drafterId: "drafter-001",
+        status: "DISCARDED",
+      }),
+      false,
+    );
+  });
+
   test("allows the drafter to manage attachments only while draft or recalled", () => {
     assert.equal(
       canManageDraftDocumentAttachmentsByPolicy("drafter-001", {
@@ -206,6 +283,20 @@ describe("document action policy", () => {
         signedById: "approver-001",
       }),
       true,
+    );
+    assert.equal(
+      canDeleteSignedAttachmentByPolicy({
+        actorId: "admin-001",
+        actorRole: "ADMIN",
+        document: {
+          drafterId: "drafter-001",
+          status: "DISCARDED",
+        },
+        isCurrentApprover: false,
+        signedApprovalStatus: "PENDING",
+        signedById: "approver-001",
+      }),
+      false,
     );
     assert.equal(
       canDeleteSignedAttachmentByPolicy({

@@ -30,6 +30,7 @@ const statusOptions = [
   { value: "all", label: "전체" },
   { value: "draft", label: "임시저장" },
   { value: "recalled", label: "회수" },
+  { value: "discarded", label: "폐기 문서" },
 ];
 
 type DraftDocumentFilters = {
@@ -69,7 +70,7 @@ export default async function DraftsPage({
     <>
       <PageTitle
         title="임시저장함"
-        description="작성 중이거나 회수한 문서를 이어서 수정하고 결재 요청합니다."
+        description="작성 중이거나 회수한 문서를 이어서 수정하고, 폐기 문서를 확인합니다."
         action={
           <Link
             href="/drafts/new"
@@ -97,12 +98,16 @@ export default async function DraftsPage({
         basePath="/drafts"
         documentPage={draftPage}
         emptyDescription={
-          hasActiveFilter
+          filters.status === "discarded"
+            ? "회수 문서를 폐기하면 내용과 결재 이력을 보존한 채 이곳에서 확인할 수 있습니다."
+            : hasActiveFilter
             ? "검색어나 필터를 조정하면 다른 문서를 찾을 수 있습니다."
             : "기안을 임시저장하거나 결재 요청을 회수하면 여기에 표시됩니다."
         }
         emptyTitle={
-          hasActiveFilter
+          filters.status === "discarded"
+            ? "폐기한 문서가 없습니다"
+            : hasActiveFilter
             ? "조건에 맞는 임시저장 문서가 없습니다"
             : "임시저장 문서가 없습니다"
         }
@@ -126,7 +131,7 @@ function getFilters(params: DraftsPageSearchParams): DraftDocumentFilters {
 }
 
 function normalizeStatus(value: string | undefined): DraftDocumentStatusFilter {
-  if (value === "draft" || value === "recalled") {
+  if (value === "draft" || value === "recalled" || value === "discarded") {
     return value;
   }
 

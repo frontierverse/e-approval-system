@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import { getYouthCommonSchedules } from "@/lib/youth-common-schedules";
 import {
   createYouthCommonSchedulePdf,
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  await requireUser();
+  await requireYouthBasicAccess();
 
   const orientation = getSchedulePdfOrientation(
     request.nextUrl.searchParams.get("orientation"),

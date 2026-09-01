@@ -131,6 +131,9 @@ export type YouthProfile = {
   initialDischargeDate?: string | null;
   dischargeDate: string | null;
   age: number | null;
+  hasContact?: boolean;
+  hasFamilyContact?: boolean;
+  hasPhone?: boolean;
   phone: string | null;
   familyContacts: YouthFamilyContact[];
   academySchedules: YouthAcademySchedule[];
@@ -251,14 +254,6 @@ export type YouthLearningProgressChangeLogFilters = {
   totalPages: number;
 };
 
-export const hiddenYouthLearningProgressChangeLogActorNames = ["신승식"] as const;
-
-export function shouldShowYouthLearningProgressChangeLogActor(name: string) {
-  return !hiddenYouthLearningProgressChangeLogActorNames.some(
-    (hiddenName) => hiddenName === name.trim(),
-  );
-}
-
 export type YouthFamilyContactInput = {
   relationship: string;
   phone: string;
@@ -295,8 +290,14 @@ export type YouthCreateInput = {
   familyContacts: YouthFamilyContactInput[];
 };
 
-export type YouthUpdateInput = YouthCreateInput & {
+export type YouthUpdateInput = Omit<
+  YouthCreateInput,
+  "academySchedules" | "familyContacts" | "phone"
+> & {
+  academySchedules?: YouthAcademyScheduleInput[];
   expectedUpdatedAt?: string;
+  familyContacts?: YouthFamilyContactInput[];
+  phone?: string;
 };
 
 export type YouthDischargeExtensionInput = {

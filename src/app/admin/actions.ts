@@ -45,6 +45,10 @@ export type AdminUserFormState = {
     resignationDate?: string;
     role?: string;
     status?: string;
+    canViewYouthDetails?: boolean;
+    canViewYouthContacts?: boolean;
+    canDownloadYouthDocuments?: boolean;
+    canManageYouth?: boolean;
   };
 };
 
@@ -62,6 +66,13 @@ const userStatusLabels: Record<string, string> = {
   [UserStatus.ACTIVE]: "활성",
   [UserStatus.INACTIVE]: "비활성",
 };
+
+const youthPermissionLabels = {
+  canViewYouthDetails: "청소년 상세 조회",
+  canViewYouthContacts: "청소년 연락처 조회",
+  canDownloadYouthDocuments: "청소년 결정문 다운로드",
+  canManageYouth: "청소년 정보 관리",
+} as const;
 
 export type AdminDepartmentFormState = {
   success?: string;
@@ -220,6 +231,10 @@ export async function createAdminUserAction(
       passwordHash: hashPassword(password),
       role: values.role,
       status: values.status,
+      canViewYouthDetails: values.canViewYouthDetails,
+      canViewYouthContacts: values.canViewYouthContacts,
+      canDownloadYouthDocuments: values.canDownloadYouthDocuments,
+      canManageYouth: values.canManageYouth,
       birthDate: values.birthDate || null,
       hireDate: values.hireDate || null,
       resignationDate: values.resignationDate || null,
@@ -241,10 +256,19 @@ export async function createAdminUserAction(
       targetType: "User",
       targetId: user.id,
       message: `${user.name} 사용자를 생성했습니다.`,
+      metadata: {
+        youthPermissions: {
+          canViewYouthDetails: values.canViewYouthDetails,
+          canViewYouthContacts: values.canViewYouthContacts,
+          canDownloadYouthDocuments: values.canDownloadYouthDocuments,
+          canManageYouth: values.canManageYouth,
+        },
+      },
     },
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/staff");
   revalidatePath("/company-info");
 
   return {
@@ -283,6 +307,10 @@ export async function updateAdminUserAction(
       name: true,
       role: true,
       status: true,
+      canViewYouthDetails: true,
+      canViewYouthContacts: true,
+      canDownloadYouthDocuments: true,
+      canManageYouth: true,
       birthDate: true,
       hireDate: true,
       resignationDate: true,
@@ -354,6 +382,10 @@ export async function updateAdminUserAction(
       resignationDate: nextResignationDate,
       role: values.role,
       status: values.status,
+      canViewYouthDetails: values.canViewYouthDetails,
+      canViewYouthContacts: values.canViewYouthContacts,
+      canDownloadYouthDocuments: values.canDownloadYouthDocuments,
+      canManageYouth: values.canManageYouth,
     },
     before: target,
     passwordChanged: willResetPassword,
@@ -368,6 +400,10 @@ export async function updateAdminUserAction(
         name: values.name,
         role: values.role,
         status: values.status,
+        canViewYouthDetails: values.canViewYouthDetails,
+        canViewYouthContacts: values.canViewYouthContacts,
+        canDownloadYouthDocuments: values.canDownloadYouthDocuments,
+        canManageYouth: values.canManageYouth,
         birthDate: nextBirthDate,
         hireDate: nextHireDate,
         resignationDate: nextResignationDate,
@@ -413,7 +449,9 @@ export async function updateAdminUserAction(
 
   revalidatePath("/");
   revalidatePath("/admin");
+  revalidatePath("/admin/staff");
   revalidatePath("/company-info");
+  revalidatePath("/youth");
 
   return {
     success: willResetPassword
@@ -1019,6 +1057,11 @@ function normalizeActionText(value: string) {
 }
 
 function getUserFormValues(formData: FormData) {
+  const role =
+    formData.get("role") === UserRole.ADMIN ? UserRole.ADMIN : UserRole.USER;
+  const hasYouthPermission = (name: keyof typeof youthPermissionLabels) =>
+    role === UserRole.ADMIN || formData.has(name);
+
   return {
     name: String(formData.get("name") ?? "").trim(),
     email: String(formData.get("email") ?? "").trim().toLowerCase(),
@@ -1027,12 +1070,17 @@ function getUserFormValues(formData: FormData) {
     hireDate: String(formData.get("hireDate") ?? "").trim(),
     birthDate: String(formData.get("birthDate") ?? "").trim(),
     resignationDate: String(formData.get("resignationDate") ?? "").trim(),
-    role:
-      formData.get("role") === UserRole.ADMIN ? UserRole.ADMIN : UserRole.USER,
+    role,
     status:
       formData.get("status") === UserStatus.INACTIVE
         ? UserStatus.INACTIVE
         : UserStatus.ACTIVE,
+    canViewYouthDetails: hasYouthPermission("canViewYouthDetails"),
+    canViewYouthContacts: hasYouthPermission("canViewYouthContacts"),
+    canDownloadYouthDocuments: hasYouthPermission(
+      "canDownloadYouthDocuments",
+    ),
+    canManageYouth: hasYouthPermission("canManageYouth"),
   };
 }
 
@@ -1052,6 +1100,10 @@ function createUserUpdateAuditChanges({
     resignationDate: string | null;
     role: string;
     status: string;
+    canViewYouthDetails: boolean;
+    canViewYouthContacts: boolean;
+    canDownloadYouthDocuments: boolean;
+    canManageYouth: boolean;
   };
   before: {
     department: {
@@ -1068,6 +1120,10 @@ function createUserUpdateAuditChanges({
     resignationDate: string | null;
     role: string;
     status: string;
+    canViewYouthDetails: boolean;
+    canViewYouthContacts: boolean;
+    canDownloadYouthDocuments: boolean;
+    canManageYouth: boolean;
   };
   passwordChanged: boolean;
 }) {
@@ -1093,6 +1149,16 @@ function createUserUpdateAuditChanges({
     userStatusLabels[before.status] ?? before.status,
     userStatusLabels[after.status] ?? after.status,
   );
+  for (const [field, label] of Object.entries(youthPermissionLabels)) {
+    const permissionField = field as keyof typeof youthPermissionLabels;
+    pushAuditChange(
+      changes,
+      permissionField,
+      label,
+      formatPermissionValue(before[permissionField]),
+      formatPermissionValue(after[permissionField]),
+    );
+  }
   pushAuditChange(
     changes,
     "department",
@@ -1139,6 +1205,10 @@ function createUserUpdateAuditChanges({
   }
 
   return changes;
+}
+
+function formatPermissionValue(value: boolean) {
+  return value ? "허용" : "허용 안 함";
 }
 
 function pushAuditChange(

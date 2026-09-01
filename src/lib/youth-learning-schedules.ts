@@ -4,9 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthLearningScheduleWeekday,
-  hiddenYouthLearningProgressChangeLogActorNames,
   parseYouthLearningScheduleWeekdays,
-  shouldShowYouthLearningProgressChangeLogActor,
   type YouthLearningProgressChangeLog,
   type YouthLearningProgressChangeLogActor,
   type YouthLearningProgressChangeLogFilters,
@@ -123,11 +121,7 @@ export async function getYouthLearningProgressChangeLogs({
 
   return {
     actorId: normalizedActorId,
-    logs: logs
-      .filter((log) =>
-        shouldShowYouthLearningProgressChangeLogActor(log.actor.name),
-      )
-      .map((log) => ({
+    logs: logs.map((log) => ({
         id: log.id,
         message: log.message,
         metadata: log.metadata,
@@ -168,9 +162,6 @@ export async function getYouthLearningProgressChangeLogActors(): Promise<
 
   return rows
     .map((row) => row.actor)
-    .filter((actor) =>
-      shouldShowYouthLearningProgressChangeLogActor(actor.name),
-    )
     .sort((first, second) => first.name.localeCompare(second.name, "ko-KR"));
 }
 
@@ -270,13 +261,6 @@ function createYouthLearningProgressChangeLogWhere({
           },
         },
       ],
-    },
-    {
-      actor: {
-        name: {
-          notIn: [...hiddenYouthLearningProgressChangeLogActorNames],
-        },
-      },
     },
   ];
 

@@ -6,10 +6,10 @@
 
 - 문서 본문과 결재 이력은 삭제보다 상태 변경으로 관리한다.
 - 결재선은 문서마다 복사해서 저장한다. 사용자의 직급이나 부서가 바뀌어도 이미 결재 요청된 문서의 당시 결재선이 보존되어야 한다.
-- 승인, 반려, 회수 같은 주요 행위는 AuditLog에 남긴다.
+- 승인, 반려, 회수, 폐기, 복원 같은 주요 행위는 AuditLog에 남긴다.
 - 로그인 성공/실패는 LoginHistory에 남기며 관리자가 보안 확인용으로 조회한다.
 - 첨부파일은 로컬 개발 저장소와 Vercel Blob 운영 저장소를 구분해 메타데이터를 남긴다.
-- 승인완료, 반려, 회수 문서는 처리일 기준 5년 뒤 보관 검토 대상으로 표시하며 자동 삭제하지 않는다.
+- 승인완료, 반려, 회수 문서는 처리일 기준, 폐기 문서는 폐기일 기준 5년 뒤 보관 검토 대상으로 표시하며 자동 삭제하지 않는다.
 
 ## ERD 초안
 
@@ -50,6 +50,7 @@ erDiagram
 - APPROVED: 승인완료
 - REJECTED: 반려
 - RECALLED: 회수
+- DISCARDED: 폐기
 
 ### ApprovalStepStatus
 
@@ -67,6 +68,8 @@ erDiagram
 - APPROVE: 승인
 - REJECT: 반려
 - RECALL: 회수
+- DISCARD_DOCUMENT: 문서 폐기
+- RESTORE_DOCUMENT: 문서 복원
 - COMPLETE: 최종 승인완료
 - CREATE_USER: 사용자 생성
 - UPDATE_USER: 사용자 수정
@@ -176,7 +179,8 @@ erDiagram
 | templateId | string | Y | DocumentTemplate 참조 |
 | drafterId | string | Y | 작성자 User 참조 |
 | submittedAt | datetime | N | 결재 요청일 |
-| completedAt | datetime | N | 승인완료 또는 반려일 |
+| completedAt | datetime | N | 승인완료, 반려 또는 회수 처리일 |
+| discardedAt | datetime | N | 폐기 처리일, 복원 시 null |
 | createdAt | datetime | Y | 생성일 |
 | updatedAt | datetime | Y | 수정일 |
 
@@ -329,13 +333,16 @@ stateDiagram-v2
   APPROVED --> [*]
   REJECTED --> [*]
   RECALLED --> DRAFT: edit again
+  RECALLED --> DISCARDED: discard
+  DISCARDED --> RECALLED: restore
 ```
 
 삭제 정책:
 
 - DRAFT 문서는 작성자가 삭제할 수 있다.
 - SUBMITTED, IN_PROGRESS 문서는 작성자가 회수할 수 있다.
-- APPROVED, REJECTED, RECALLED 문서는 삭제하지 않고 보관한다.
+- RECALLED 문서는 작성자가 폐기할 수 있고, DISCARDED 문서는 작성자가 RECALLED로 복원할 수 있다.
+- APPROVED, REJECTED, RECALLED, DISCARDED 문서는 삭제하지 않고 보관한다.
 
 ## 다음 단계에서 Prisma로 옮길 때 확인할 것
 

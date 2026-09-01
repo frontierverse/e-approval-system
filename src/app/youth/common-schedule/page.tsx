@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { YouthCommonScheduleBoard } from "@/components/youth-common-schedule-board";
 import { PageTitle } from "@/components/page-title";
-import { requireUser } from "@/lib/auth";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import {
   getYouthCommonScheduleChangeLogActors,
   getYouthCommonScheduleChangeLogs,
@@ -34,7 +34,7 @@ type YouthCommonSchedulePageProps = {
 export default async function YouthCommonSchedulePage({
   searchParams,
 }: YouthCommonSchedulePageProps) {
-  await requireUser();
+  await requireYouthBasicAccess();
   const params = await searchParams;
   const [schedules, changeLogActors] = await Promise.all([
     getYouthCommonSchedules(),

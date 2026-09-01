@@ -64,7 +64,7 @@ type ApprovalPdfStamp = {
   source: ApprovalStampImageSource;
 };
 
-type Sharp = typeof import("sharp");
+type SharpConstructor = (typeof import("sharp"))["default"];
 type ApprovalPdfFonts = {
   korean: PDFFont;
 };
@@ -2828,8 +2828,8 @@ async function readableStreamToBuffer(stream: ReadableStream<Uint8Array>) {
   return Buffer.concat(chunks, totalLength);
 }
 
-async function getSharp(): Promise<Sharp> {
+async function getSharp(): Promise<SharpConstructor> {
   const sharpModule = await import("sharp");
 
-  return (sharpModule.default ?? sharpModule) as Sharp;
+  return sharpModule.default;
 }

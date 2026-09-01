@@ -187,7 +187,12 @@ function PersonText({ person }: { person: UserSummary }) {
 }
 
 function getDocumentActivityDate(document: ApprovalDocument) {
-  return document.completedAt ?? document.submittedAt ?? document.createdAt;
+  return (
+    (document.status === "discarded" ? document.discardedAt : null) ??
+    document.completedAt ??
+    document.submittedAt ??
+    document.createdAt
+  );
 }
 
 function getDocumentNumberLabel(document: ApprovalDocument) {

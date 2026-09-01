@@ -97,6 +97,21 @@ describe("document archive policy", () => {
     assert.equal(info.reviewAt, "2031-04-02T00:00:00.000Z");
   });
 
+  test("uses the discard date as the retention base for discarded documents", () => {
+    const info = getDocumentArchiveInfo(
+      createDocument({
+        status: "discarded",
+        discardedAt: "2026-06-01T00:00:00.000Z",
+      }),
+      new Date("2031-05-31T23:59:59.999Z"),
+    );
+
+    assert.equal(info.applies, true);
+    assert.equal(info.isReviewDue, false);
+    assert.equal(info.baseDate, "2026-06-01T00:00:00.000Z");
+    assert.equal(info.reviewAt, "2031-06-01T00:00:00.000Z");
+  });
+
   test("gets the base date range for documents due for review today", () => {
     const range = getTodayArchiveReviewBaseDateRange(
       new Date("2026-05-19T03:00:00.000Z"),

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readStoredAttachmentFile } from "@/lib/attachment-storage";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
+import { hasYouthPermission } from "@/lib/youth-permissions-core";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,16 @@ export async function POST(
 
   if (!user) {
     return new Response("인증이 필요합니다.", { status: 401 });
+  }
+
+  if (!hasYouthPermission(user, "canDownloadYouthDocuments")) {
+    await recordDecisionDocumentDownloadAudit({
+      actorId: user.id,
+      decisionDocumentId: id,
+      outcome: "forbidden",
+    });
+
+    return new Response("결정문 다운로드 권한이 없습니다.", { status: 403 });
   }
 
   const formData = await request.formData();
@@ -132,12 +143,18 @@ async function recordDecisionDocumentDownloadAudit({
 }: {
   actorId: string;
   decisionDocumentId: string;
-  outcome: "downloaded" | "invalid_reason" | "not_found" | "storage_error";
+  outcome:
+    | "downloaded"
+    | "forbidden"
+    | "invalid_reason"
+    | "not_found"
+    | "storage_error";
   reason?: DecisionDocumentDownloadReason;
   reasonDetail?: string;
 }) {
   const messages = {
     downloaded: "결정문 다운로드를 요청했습니다.",
+    forbidden: "권한 없이 결정문 다운로드를 요청했습니다.",
     invalid_reason: "사유 없이 또는 올바르지 않은 사유로 결정문 다운로드를 요청했습니다.",
     not_found: "존재하지 않는 결정문 다운로드를 요청했습니다.",
     storage_error: "결정문 다운로드를 요청했으나 파일을 찾을 수 없습니다.",

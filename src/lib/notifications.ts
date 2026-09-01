@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NotificationType, Prisma } from "@/generated/prisma/client";
+import { getReadableDocumentWhere } from "@/lib/approval-permissions";
 import { prisma } from "@/lib/prisma";
 import type { AppNotification } from "@/lib/notification-types";
 
@@ -51,17 +52,16 @@ export async function createDocumentNotification(
 }
 
 export async function getNotificationSummary(userId: string, limit = 6) {
+  const visibleNotificationWhere = getVisibleNotificationWhere(userId);
   const [unreadCount, notifications] = await Promise.all([
     prisma.notification.count({
       where: {
-        userId,
+        ...visibleNotificationWhere,
         readAt: null,
       },
     }),
     prisma.notification.findMany({
-      where: {
-        userId,
-      },
+      where: visibleNotificationWhere,
       include: notificationInclude,
       orderBy: {
         createdAt: "desc",
@@ -78,9 +78,7 @@ export async function getNotificationSummary(userId: string, limit = 6) {
 
 export async function getNotifications(userId: string, limit = 30) {
   const notifications = await prisma.notification.findMany({
-    where: {
-      userId,
-    },
+    where: getVisibleNotificationWhere(userId),
     include: notificationInclude,
     orderBy: {
       createdAt: "desc",
@@ -89,6 +87,17 @@ export async function getNotifications(userId: string, limit = 30) {
   });
 
   return notifications.map(toAppNotification);
+}
+
+function getVisibleNotificationWhere(
+  userId: string,
+): Prisma.NotificationWhereInput {
+  return {
+    userId,
+    document: {
+      is: getReadableDocumentWhere(userId, "USER"),
+    },
+  };
 }
 
 export async function markNotificationRead(userId: string, notificationId: string) {

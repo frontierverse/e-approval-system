@@ -131,6 +131,16 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
   };
 }
 
+export async function getYouthDirectory() {
+  return prisma.youth.findMany({
+    orderBy: [{ name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}
+
 export function mapYouthAcademySchedule(record: {
   id: string;
   academyName: string;

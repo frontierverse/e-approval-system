@@ -6,6 +6,7 @@ const archiveReviewStatuses = new Set<DocumentStatus>([
   "approved",
   "rejected",
   "recalled",
+  "discarded",
 ]);
 
 export type DocumentArchiveInfo = {
@@ -43,7 +44,11 @@ export function getDocumentArchiveInfo(
     };
   }
 
-  const baseDate = document.completedAt ?? document.submittedAt ?? document.createdAt;
+  const baseDate =
+    (document.status === "discarded" ? document.discardedAt : null) ??
+    document.completedAt ??
+    document.submittedAt ??
+    document.createdAt;
   const reviewAt = addYears(new Date(baseDate), documentArchiveRetentionYears);
 
   return {

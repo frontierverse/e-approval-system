@@ -3,6 +3,7 @@ import "server-only";
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { mapYouthDecisionDocument } from "@/lib/youth-management";
+import type { EffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import {
   calculateYouthKoreanAge,
   getYouthDisplayAge,
@@ -18,6 +19,15 @@ export type YouthRosterData = {
   referenceDate: string;
 };
 
+export type YouthRosterPermissions = Pick<
+  EffectiveYouthPermissions,
+  | "canViewYouthDetails"
+  | "canViewYouthContacts"
+  | "canDownloadYouthDocuments"
+  | "canManageYouth"
+  | "canDeleteYouth"
+>;
+
 export type YouthRosterItem = {
   id: string;
   admissionDate: string | null;
@@ -30,6 +40,9 @@ export type YouthRosterItem = {
   decisionDocuments: YouthDecisionDocumentItem[];
   academySchedules: YouthAcademySchedule[];
   familyContacts: YouthRosterFamilyContact[];
+  hasContact?: boolean;
+  hasFamilyContact?: boolean;
+  hasPhone?: boolean;
   name: string;
   phone: string | null;
   updatedAt: string;
@@ -80,10 +93,12 @@ const youthRosterAuditActions = [
   AuditAction.DELETE_YOUTH_NOTE,
 ];
 
-export async function getYouthRoster(): Promise<YouthRosterData> {
+export async function getYouthRoster(
+  permissions: YouthRosterPermissions,
+): Promise<YouthRosterData> {
   const referenceDate = getYouthLearningScheduleToday();
   const youths = (await getYouthRosterRows()).map((youth) =>
-    mapYouthRosterItem(youth, referenceDate),
+    mapYouthRosterItem(youth, referenceDate, permissions),
   );
 
   return {
@@ -100,10 +115,12 @@ export async function getYouthRoster(): Promise<YouthRosterData> {
 export async function getYouthRosterChangeLogs({
   page = 1,
   pageSize = youthRosterChangeLogPageSize,
+  permissions,
 }: {
   page?: number;
   pageSize?: number;
-} = {}): Promise<YouthRosterChangeLogsResult> {
+  permissions: YouthRosterPermissions;
+}): Promise<YouthRosterChangeLogsResult> {
   const normalizedPageSize = Math.max(1, pageSize);
   const where = createYouthRosterChangeLogWhere();
   const total = await prisma.auditLog.count({ where });
@@ -142,8 +159,8 @@ export async function getYouthRosterChangeLogs({
       action: log.action,
       targetType: log.targetType,
       targetId: log.targetId,
-      message: log.message,
-      metadata: log.metadata,
+      message: sanitizeYouthRosterChangeLogMessage(log.message, permissions),
+      metadata: sanitizeYouthRosterChangeLogMetadata(log.metadata, permissions),
       createdAt: log.createdAt.toISOString(),
       actor: {
         ...log.actor,
@@ -214,70 +231,172 @@ async function getYouthRosterRows() {
 function mapYouthRosterItem(
   record: YouthRosterRecord,
   referenceDate: string,
+  permissions: YouthRosterPermissions,
 ): YouthRosterItem {
   const birthDate = normalizeBlank(record.birthDate);
+  const canViewDetails = permissions.canViewYouthDetails;
+  const canAccessDecisionDocuments = permissions.canDownloadYouthDocuments;
 
   return {
     id: record.id,
     academySchedules: [],
     admissionDate: normalizeBlank(record.admissionDate),
-    birthDate,
-    age: getYouthDisplayAge(
-      {
-        age: record.age,
-        birthDate,
-      },
-      referenceDate,
-    ),
-    koreanAge: calculateYouthKoreanAge(birthDate, referenceDate),
-    initialDischargeDate:
-      normalizeBlank(record.initialDischargeDate) ?? normalizeBlank(record.dischargeDate),
+    birthDate: canViewDetails ? birthDate : null,
+    age: canViewDetails
+      ? getYouthDisplayAge(
+          {
+            age: record.age,
+            birthDate,
+          },
+          referenceDate,
+        )
+      : null,
+    koreanAge: canViewDetails
+      ? calculateYouthKoreanAge(birthDate, referenceDate)
+      : null,
+    initialDischargeDate: canViewDetails
+      ? normalizeBlank(record.initialDischargeDate) ??
+        normalizeBlank(record.dischargeDate)
+      : undefined,
     dischargeDate: normalizeBlank(record.dischargeDate),
-    dischargeExtensions: record.dischargeExtensions.map((extension) => ({
-      id: extension.id,
-      extensionOrder: extension.extensionOrder,
-      previousDischargeDate: extension.previousDischargeDate,
-      extendedDischargeDate: extension.extendedDischargeDate,
-      reason: extension.reason,
-      processedAt: extension.processedAt.toISOString(),
-      processedBy: extension.processedBy,
-    })),
-    decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
-    familyContacts: getFamilyContacts(record),
+    dischargeExtensions: canViewDetails
+      ? record.dischargeExtensions.map((extension) => ({
+          id: extension.id,
+          extensionOrder: extension.extensionOrder,
+          previousDischargeDate: extension.previousDischargeDate,
+          extendedDischargeDate: extension.extendedDischargeDate,
+          reason: extension.reason,
+          processedAt: extension.processedAt.toISOString(),
+          processedBy: extension.processedBy,
+        }))
+      : undefined,
+    decisionDocuments: canAccessDecisionDocuments
+      ? record.decisionDocuments.map(mapYouthDecisionDocument)
+      : [],
+    familyContacts: [],
+    hasContact:
+      permissions.canViewYouthContacts && hasRegisteredYouthContact(record),
+    hasFamilyContact:
+      permissions.canViewYouthContacts &&
+      hasRegisteredYouthFamilyContact(record),
+    hasPhone:
+      permissions.canViewYouthContacts && Boolean(normalizeBlank(record.phone)),
     name: record.name,
-    phone: normalizeBlank(record.phone),
+    phone: null,
     updatedAt: record.updatedAt.toISOString(),
   };
 }
 
-function getFamilyContacts(
+function hasRegisteredYouthContact(
   record: Pick<
     YouthRosterRecord,
     "familyContact" | "familyContacts" | "familyPhone" | "familyRelationship" | "id"
+  > & { phone: string | null },
+) {
+  return Boolean(
+    normalizeBlank(record.phone) ||
+      normalizeBlank(record.familyPhone) ||
+      normalizeBlank(record.familyContact) ||
+      normalizeBlank(record.familyRelationship) ||
+      record.familyContacts.some(
+        (contact) =>
+          Boolean(normalizeBlank(contact.phone)) ||
+          Boolean(normalizeBlank(contact.relationship)),
+      ),
+  );
+}
+
+function hasRegisteredYouthFamilyContact(
+  record: Pick<
+    YouthRosterRecord,
+    "familyContact" | "familyContacts" | "familyPhone" | "familyRelationship"
   >,
 ) {
-  if (record.familyContacts.length > 0) {
-    return record.familyContacts.map((contact) => ({
-      id: contact.id,
-      phone: normalizeBlank(contact.phone),
-      relationship: normalizeBlank(contact.relationship),
-    }));
+  return Boolean(
+    normalizeBlank(record.familyPhone) ||
+      normalizeBlank(record.familyContact) ||
+      normalizeBlank(record.familyRelationship) ||
+      record.familyContacts.some(
+        (contact) =>
+          Boolean(normalizeBlank(contact.phone)) ||
+          Boolean(normalizeBlank(contact.relationship)),
+      ),
+  );
+}
+
+function sanitizeYouthRosterChangeLogMessage(
+  message: string | null,
+  permissions: YouthRosterPermissions,
+) {
+  if (!message) {
+    return message;
   }
 
-  const legacyPhone = normalizeBlank(record.familyPhone) ?? normalizeBlank(record.familyContact);
-  const legacyRelationship = normalizeBlank(record.familyRelationship);
+  return message
+    .split("\n")
+    .filter((line) => {
+      if (!line.startsWith("- ")) {
+        return true;
+      }
 
-  if (!legacyPhone && !legacyRelationship) {
-    return [];
+      if (!permissions.canViewYouthDetails) {
+        return false;
+      }
+
+      if (
+        !permissions.canViewYouthContacts &&
+        (line.startsWith("- 핸드폰 번호:") ||
+          line.startsWith("- 가족 연락처:"))
+      ) {
+        return false;
+      }
+
+      return (
+        permissions.canDownloadYouthDocuments ||
+        !line.startsWith("- 결정문 파일")
+      );
+    })
+    .join("\n");
+}
+
+function sanitizeYouthRosterChangeLogMetadata(
+  metadata: unknown,
+  permissions: YouthRosterPermissions,
+) {
+  if (!permissions.canViewYouthDetails || !isPlainObject(metadata)) {
+    return null;
   }
 
-  return [
-    {
-      id: `legacy-family-${record.id}`,
-      phone: legacyPhone,
-      relationship: legacyRelationship,
-    },
-  ];
+  const sanitized: Record<string, unknown> = { ...metadata };
+
+  if (Array.isArray(sanitized.changes)) {
+    sanitized.changes = sanitized.changes.filter((change) => {
+      if (!isPlainObject(change) || typeof change.field !== "string") {
+        return false;
+      }
+
+      return (
+        permissions.canViewYouthContacts ||
+        (change.field !== "phone" && change.field !== "familyContacts")
+      );
+    });
+  }
+
+  if (!permissions.canViewYouthContacts) {
+    delete sanitized.hasPhone;
+    delete sanitized.familyContactCount;
+  }
+
+  if (!permissions.canDownloadYouthDocuments) {
+    delete sanitized.addedDocumentNames;
+    delete sanitized.decisionDocumentCount;
+  }
+
+  return sanitized;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isAdmittedYouth(youth: YouthRosterItem, referenceDate: string) {

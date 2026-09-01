@@ -10,7 +10,7 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 
 운영 배포 전에 반드시 준비할 것:
 
-- 런타임: Node.js 22 이상
+- 런타임: Node.js 22.13 이상
 - DB: Realtime URL과 같은 Supabase 프로젝트의 PostgreSQL `DATABASE_URL`
 - 첨부파일: Supabase Storage 버킷을 만들고 Vercel 환경변수에 `ATTACHMENT_STORAGE_DRIVER=supabase-storage`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` 등록
 
@@ -29,7 +29,7 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 - 서버리스 환경이므로 로컬 파일 DB를 운영 DB로 쓰지 않는다.
 - 서버의 로컬 폴더에 첨부파일을 저장하지 않는다.
 - 운영 DB 마이그레이션은 `prisma migrate deploy` 방식으로 실행한다.
-- 프로젝트 런타임은 `package.json`에 맞춰 Node.js 22 이상으로 둔다.
+- 프로젝트 런타임은 `package.json`에 맞춰 Node.js 22.13 이상으로 둔다.
 
 ### 일반 Node.js 서버
 
@@ -184,8 +184,20 @@ npm run admin:create
 
 시스템 로그:
 
-- Vercel 배포 시 Vercel Runtime Logs를 1차 확인 위치로 둔다.
+- 서버 렌더링, Route Handler, Server Action 오류는 `request.failed` JSON 로그로
+  남긴다. 로그에는 요청 ID, 라우트 템플릿, 실행 유형과 오류 digest만 포함하며
+  헤더, 쿼리 문자열, 예외 메시지와 사용자 입력은 기록하지 않는다.
+- Vercel 배포 시 Vercel Runtime Logs를 1차 확인 위치로 둔다. 화면에 표시되는
+  `오류 참조` digest로 같은 오류 로그를 찾을 수 있다.
 - 장애 대응을 강화하려면 Sentry 같은 외부 오류 수집 도구를 추후 연결한다.
+
+헬스체크:
+
+- `GET /api/health/live`: 애플리케이션 프로세스 응답 여부를 확인한다.
+- `GET /api/health/ready`: 2초 제한으로 PostgreSQL 연결을 확인하고, 준비되지
+  않았으면 내부 오류 내용을 노출하지 않은 채 HTTP 503을 반환한다.
+- 두 응답 모두 `Cache-Control: no-store`이며 인증 정보나 환경값을 반환하지
+  않는다.
 
 ## 백업 정책
 
@@ -202,9 +214,41 @@ Vercel/Supabase PostgreSQL/Supabase Storage 조합으로 갈 경우:
 - Supabase Storage bucket의 삭제 보호 또는 버전 관리 대안을 검토한다.
 - DB와 첨부파일은 같은 시점 기준으로 복구할 수 있어야 한다.
 
+## CI와 브라우저 스모크 테스트
+
+GitHub Actions의 `CI` 워크플로는 임시 PostgreSQL 16 서비스에서 아래 순서로
+검증한다.
+
+1. 의존성과 Chromium을 설치한다.
+2. Prisma Client를 생성하고 모든 PostgreSQL migration을 적용한다.
+3. 데모 데이터를 seed한 뒤 단위 테스트, ESLint와 TypeScript 타입 검사를 실행한다.
+4. 프로덕션 빌드를 실행한다.
+5. 빌드된 서버를 대상으로 데스크톱(1366×768)과 모바일(390×844)
+   Playwright 스모크 테스트를 실행한다.
+
+브라우저 테스트는 로그인과 `/youth/roster` 경로를 확인하며, 404 응답,
+hydration 오류, `console.error`, 처리되지 않은 브라우저 예외가 발생하면
+실패한다. 실패 시 Playwright HTML 보고서, trace, 화면 캡처와 동영상이 CI
+artifact로 7일간 보관된다.
+
+로컬에서 같은 브라우저 검증을 실행하려면 운영 DB가 아닌 별도 테스트용
+PostgreSQL을 `DATABASE_URL`과 `DIRECT_URL`에 지정한 뒤 아래 명령을 실행한다.
+
+```bash
+npm run db:generate
+npm run db:deploy
+npm run db:seed
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+`db:seed`는 기존 데이터를 삭제하고 데모 데이터를 다시 만들기 때문에 운영
+DB나 보존해야 하는 개발 DB에는 절대 실행하지 않는다.
+
 ## Vercel 전환 작업 목록
 
-1. Vercel 프로젝트 런타임을 Node.js 22 이상으로 설정한다.
+1. Vercel 프로젝트 런타임을 Node.js 22.13 이상으로 설정한다.
 2. Supabase에서 PostgreSQL DB와 Storage private bucket을 준비한다.
 3. 같은 Supabase 프로젝트의 `DATABASE_URL`과 필요 시 `DIRECT_URL`을 Vercel 환경변수에 등록한다.
 4. Vercel 환경변수에 `AUTH_SECRET`을 등록한다.

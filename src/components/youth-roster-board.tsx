@@ -59,6 +59,7 @@ import type {
   YouthRosterChangeLogsResult,
   YouthRosterData,
   YouthRosterItem,
+  YouthRosterPermissions,
 } from "@/lib/youth-roster";
 type YouthRosterBoardProps = {
   changeLogFilters?: YouthRosterChangeLogFilters;
@@ -96,6 +97,7 @@ type YouthRosterBoardProps = {
     page: number,
   ) => Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>>;
   pageHeader?: boolean;
+  permissions: YouthRosterPermissions;
   recordYouthContactView?: (
     youthId: string,
   ) => Promise<
@@ -134,6 +136,11 @@ type DecisionDocumentDownloadModalState = {
   document: YouthDecisionDocumentItem;
   returnFocusTo?: HTMLElement;
   youthName: string;
+};
+
+type YouthRosterDetailModalState = {
+  returnFocusTo?: HTMLElement;
+  youth: YouthRosterItem;
 };
 
 type YouthFormDraft = {
@@ -202,6 +209,7 @@ export function YouthRosterBoard({
   extendYouthDischarge,
   loadChangeLogs,
   pageHeader = false,
+  permissions,
   recordYouthContactView,
   recordYouthDetailView,
   updateYouth,
@@ -216,6 +224,8 @@ export function YouthRosterBoard({
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [modal, setModal] = useState<YouthRosterModalState | null>(null);
+  const [detailModal, setDetailModal] =
+    useState<YouthRosterDetailModalState | null>(null);
   const [decisionDocumentDownload, setDecisionDocumentDownload] =
     useState<DecisionDocumentDownloadModalState | null>(null);
   const rosterData = useMemo(
@@ -354,11 +364,13 @@ export function YouthRosterBoard({
           title="청소년 명단"
           description={`기준일 ${formatDate(rosterData.referenceDate)}`}
           action={
-            <AddYouthButton
-              onClick={(returnFocusTo) =>
-                setModal({ mode: "create", returnFocusTo })
-              }
-            />
+            permissions.canManageYouth ? (
+              <AddYouthButton
+                onClick={(returnFocusTo) =>
+                  setModal({ mode: "create", returnFocusTo })
+                }
+              />
+            ) : undefined
           }
           compact
         />
@@ -367,7 +379,7 @@ export function YouthRosterBoard({
         className={`${pageHeader ? "-mt-1" : ""} space-y-2 sm:space-y-4`}
         aria-label="청소년 명단"
       >
-        {pageHeader ? null : (
+        {!pageHeader && permissions.canManageYouth ? (
           <div className="flex justify-end">
             <AddYouthButton
               onClick={(returnFocusTo) =>
@@ -375,7 +387,7 @@ export function YouthRosterBoard({
               }
             />
           </div>
-        )}
+        ) : null}
         <RosterSummary data={rosterData} />
         <RosterSearch
           query={searchQuery}
@@ -395,6 +407,9 @@ export function YouthRosterBoard({
           onEdit={(youth, returnFocusTo) =>
             setModal({ mode: "edit", canDelete: true, returnFocusTo, youth })
           }
+          onView={(youth, returnFocusTo) =>
+            setDetailModal({ returnFocusTo, youth })
+          }
           onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
             setDecisionDocumentDownload({
               document,
@@ -406,6 +421,7 @@ export function YouthRosterBoard({
           isFiltered={normalizedSearchQuery.length > 0}
           onClearSearch={() => setSearchQuery("")}
           referenceDate={filteredRosterData.referenceDate}
+          permissions={permissions}
           sortState={admittedSort}
           title="입소중인 청소년 목록"
           totalCount={rosterData.admittedYouths.length}
@@ -418,6 +434,9 @@ export function YouthRosterBoard({
           onEdit={(youth, returnFocusTo) =>
             setModal({ mode: "edit", canDelete: false, returnFocusTo, youth })
           }
+          onView={(youth, returnFocusTo) =>
+            setDetailModal({ returnFocusTo, youth })
+          }
           onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
             setDecisionDocumentDownload({
               document,
@@ -428,6 +447,7 @@ export function YouthRosterBoard({
           isFiltered={normalizedSearchQuery.length > 0}
           onClearSearch={() => setSearchQuery("")}
           referenceDate={filteredRosterData.referenceDate}
+          permissions={permissions}
           title="퇴소 청소년 목록"
           totalCount={rosterData.dischargedYouths.length}
           youths={filteredRosterData.dischargedYouths}
@@ -448,6 +468,7 @@ export function YouthRosterBoard({
             deleteDecisionDocument={deleteDecisionDocument}
             extendYouthDischarge={extendYouthDischarge}
             modal={modal}
+            permissions={permissions}
             onClose={() => setModal(null)}
             onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
               setDecisionDocumentDownload({
@@ -461,6 +482,22 @@ export function YouthRosterBoard({
             recordYouthContactView={recordYouthContactView}
             recordYouthDetailView={recordYouthDetailView}
             updateYouth={updateYouth}
+          />
+        ) : null}
+        {detailModal && !permissions.canManageYouth ? (
+          <YouthRosterDetailModal
+            modal={detailModal}
+            onClose={() => setDetailModal(null)}
+            onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
+              setDecisionDocumentDownload({
+                document,
+                returnFocusTo,
+                youthName,
+              })
+            }
+            permissions={permissions}
+            recordYouthContactView={recordYouthContactView}
+            recordYouthDetailView={recordYouthDetailView}
           />
         ) : null}
         {decisionDocumentDownload ? (
@@ -922,8 +959,10 @@ function YouthRosterSection({
   isFiltered,
   onClearSearch,
   onEdit,
+  onView,
   onDecisionDocumentDownload,
   onSort,
+  permissions,
   referenceDate,
   sortState,
   title,
@@ -936,12 +975,14 @@ function YouthRosterSection({
   isFiltered: boolean;
   onClearSearch: () => void;
   onEdit: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  onView: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
   onDecisionDocumentDownload: (
     youthName: string,
     document: YouthDecisionDocumentItem,
     returnFocusTo?: HTMLElement,
   ) => void;
   onSort?: (field: YouthRosterSortField) => void;
+  permissions: YouthRosterPermissions;
   referenceDate: string;
   sortState?: YouthRosterSortState;
   title: string;
@@ -970,6 +1011,8 @@ function YouthRosterSection({
           <MobileYouthRosterList
             onDecisionDocumentDownload={onDecisionDocumentDownload}
             onEdit={onEdit}
+            onView={onView}
+            permissions={permissions}
             referenceDate={referenceDate}
             youths={youths}
             variant={variant}
@@ -1054,7 +1097,11 @@ function YouthRosterSection({
                         <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                           {youth.name}
                         </span>
-                        <EditYouthButton youth={youth} onEdit={onEdit} />
+                        {permissions.canManageYouth ? (
+                          <EditYouthButton youth={youth} onEdit={onEdit} />
+                        ) : canOpenYouthDetails(permissions) ? (
+                          <ViewYouthButton youth={youth} onView={onView} />
+                        ) : null}
                       </span>
                     </td>
                     <TableCell>{formatYouthRosterAge(youth)}</TableCell>
@@ -1073,16 +1120,31 @@ function YouthRosterSection({
                     <TableCell>
                       <LastUpdatedDate value={youth.updatedAt} />
                     </TableCell>
-                    <TableCell>{formatMaskedPhone(youth.phone)}</TableCell>
                     <TableCell>
-                      <FamilyContactList youth={youth} />
+                      {getContactStatusLabel(
+                        hasRosterYouthPhone(youth),
+                        permissions.canViewYouthContacts,
+                      )}
                     </TableCell>
                     <TableCell>
-                      <DecisionDocumentLinks
-                        documents={youth.decisionDocuments}
-                        onDownload={onDecisionDocumentDownload}
-                        youthName={youth.name}
-                      />
+                      {getContactStatusLabel(
+                        hasRosterYouthFamilyContact(youth),
+                        permissions.canViewYouthContacts,
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {permissions.canDownloadYouthDocuments ? (
+                        <DecisionDocumentLinks
+                          documents={youth.decisionDocuments}
+                          onDownload={onDecisionDocumentDownload}
+                          youthName={youth.name}
+                        />
+                      ) : permissions.canManageYouth &&
+                        youth.decisionDocuments.length > 0 ? (
+                        `${youth.decisionDocuments.length}개 등록됨`
+                      ) : (
+                        "열람 권한 없음"
+                      )}
                     </TableCell>
                   </tr>
                 ))}
@@ -1118,6 +1180,8 @@ function YouthRosterSection({
 function MobileYouthRosterList({
   onDecisionDocumentDownload,
   onEdit,
+  onView,
+  permissions,
   referenceDate,
   youths,
   variant,
@@ -1128,6 +1192,8 @@ function MobileYouthRosterList({
     returnFocusTo?: HTMLElement,
   ) => void;
   onEdit: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  onView: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  permissions: YouthRosterPermissions;
   referenceDate: string;
   youths: YouthRosterItem[];
   variant: "admitted" | "discharged";
@@ -1157,7 +1223,11 @@ function MobileYouthRosterList({
                 {formatYouthRosterAge(youth)} · {formatYouthSchoolGradeLabel(youth, referenceDate) ?? "학년 미등록"}
               </p>
             </div>
-            <EditYouthButton youth={youth} onEdit={onEdit} />
+            {permissions.canManageYouth ? (
+              <EditYouthButton youth={youth} onEdit={onEdit} />
+            ) : canOpenYouthDetails(permissions) ? (
+              <ViewYouthButton youth={youth} onView={onView} />
+            ) : null}
           </div>
 
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -1186,7 +1256,10 @@ function MobileYouthRosterList({
                 연락처
               </dt>
               <dd className="mt-1 break-words text-[var(--foreground)]">
-                {formatMaskedPhone(youth.phone)}
+                {getContactStatusLabel(
+                  hasRosterYouthPhone(youth),
+                  permissions.canViewYouthContacts,
+                )}
               </dd>
             </div>
             <div className="min-w-0">
@@ -1194,7 +1267,10 @@ function MobileYouthRosterList({
                 가족 연락처
               </dt>
               <dd className="mt-1 text-[var(--foreground)]">
-                <FamilyContactList youth={youth} />
+                {getContactStatusLabel(
+                  hasRosterYouthFamilyContact(youth),
+                  permissions.canViewYouthContacts,
+                )}
               </dd>
             </div>
             <div className="col-span-2 flex min-w-0 items-baseline gap-2">
@@ -1211,11 +1287,22 @@ function MobileYouthRosterList({
             <span className="shrink-0 text-xs font-semibold text-[var(--text-muted)]">
               결정문
             </span>
-            <DecisionDocumentLinks
-              documents={youth.decisionDocuments}
-              onDownload={onDecisionDocumentDownload}
-              youthName={youth.name}
-            />
+            {permissions.canDownloadYouthDocuments ? (
+              <DecisionDocumentLinks
+                documents={youth.decisionDocuments}
+                onDownload={onDecisionDocumentDownload}
+                youthName={youth.name}
+              />
+            ) : permissions.canManageYouth &&
+              youth.decisionDocuments.length > 0 ? (
+              <span className="text-sm text-[var(--foreground)]">
+                {youth.decisionDocuments.length}개 등록됨
+              </span>
+            ) : (
+              <span className="text-sm text-[var(--text-muted)]">
+                열람 권한 없음
+              </span>
+            )}
           </div>
         </li>
       ))}
@@ -1250,6 +1337,39 @@ function EditYouthButton({
         ✎
       </span>
     </button>
+  );
+}
+
+function ViewYouthButton({
+  onView,
+  youth,
+}: {
+  onView: (youth: YouthRosterItem, returnFocusTo?: HTMLElement) => void;
+  youth: YouthRosterItem;
+}) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      aria-label={`${youth.name} 상세정보 보기`}
+      title={`${youth.name} 상세정보 보기`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus({ preventScroll: true });
+        onView(youth, event.currentTarget);
+      }}
+      className="inline-flex h-11 shrink-0 items-center justify-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+    >
+      상세
+    </button>
+  );
+}
+
+function canOpenYouthDetails(permissions: YouthRosterPermissions) {
+  return (
+    permissions.canViewYouthDetails ||
+    permissions.canViewYouthContacts ||
+    permissions.canDownloadYouthDocuments
   );
 }
 
@@ -1366,12 +1486,295 @@ function SortableRosterHeader({
   );
 }
 
+type YouthDetailAcademyState =
+  | { status: "hidden" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; schedules: YouthProfile["academySchedules"] };
+
+type YouthDetailContactState =
+  | { status: "hidden" }
+  | { status: "error"; message: string }
+  | {
+      status: "ready";
+      familyContacts: YouthFamilyContact[];
+      phone: string | null;
+    };
+
+function YouthRosterDetailModal({
+  modal,
+  onClose,
+  onDecisionDocumentDownload,
+  permissions,
+  recordYouthContactView,
+  recordYouthDetailView,
+}: {
+  modal: YouthRosterDetailModalState;
+  onClose: () => void;
+  onDecisionDocumentDownload: (
+    youthName: string,
+    document: YouthDecisionDocumentItem,
+    returnFocusTo?: HTMLElement,
+  ) => void;
+  permissions: YouthRosterPermissions;
+  recordYouthContactView?: YouthRosterBoardProps["recordYouthContactView"];
+  recordYouthDetailView?: YouthRosterBoardProps["recordYouthDetailView"];
+}) {
+  const titleId = useId();
+  const [academyState, setAcademyState] = useState<YouthDetailAcademyState>(
+    permissions.canViewYouthDetails
+      ? { status: "loading" }
+      : { status: "hidden" },
+  );
+  const [contactState, setContactState] = useState<YouthDetailContactState>({
+    status: "hidden",
+  });
+  const [isContactPending, startContactTransition] = useTransition();
+  const youth = modal.youth;
+
+  useEffect(() => {
+    if (!permissions.canViewYouthDetails || !recordYouthDetailView) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void recordYouthDetailView(youth.id)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+
+        setAcademyState(
+          result.ok
+            ? { status: "ready", schedules: result.data.academySchedules }
+            : { status: "error", message: result.error },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAcademyState({
+            status: "error",
+            message: "학원 일정을 불러오지 못했습니다. 다시 시도해 주세요.",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [permissions.canViewYouthDetails, recordYouthDetailView, youth.id]);
+
+  function revealContacts() {
+    if (!permissions.canViewYouthContacts || !recordYouthContactView) {
+      return;
+    }
+
+    startContactTransition(async () => {
+      try {
+        const result = await recordYouthContactView(youth.id);
+
+        setContactState(
+          result.ok
+            ? {
+                status: "ready",
+                familyContacts: result.data.familyContacts,
+                phone: result.data.phone,
+              }
+            : { status: "error", message: result.error },
+        );
+      } catch {
+        setContactState({
+          status: "error",
+          message: "연락처를 불러오지 못했습니다. 다시 시도해 주세요.",
+        });
+      }
+    });
+  }
+
+  return (
+    <AppModal
+      className="max-w-2xl"
+      labelledBy={titleId}
+      onClose={onClose}
+      returnFocusTo={modal.returnFocusTo}
+    >
+      <div className="max-h-[calc(100vh-3rem)] overflow-y-auto bg-white">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#eef1f5] bg-white px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#697386]">청소년 정보</p>
+            <h2
+              id={titleId}
+              className="mt-1 break-words text-xl font-semibold text-[#16181d]"
+            >
+              {youth.name} 상세정보
+            </h2>
+            <p className="mt-1 text-sm text-[#697386]">열람 전용 화면입니다.</p>
+          </div>
+          <button
+            type="button"
+            data-modal-initial-focus
+            onClick={onClose}
+            className="h-11 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
+          >
+            닫기
+          </button>
+        </header>
+
+        <div className="grid gap-4 p-5 sm:p-6">
+          <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
+            <h3 className="text-sm font-semibold text-[#394150]">기본정보</h3>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              <YouthDetailValue label="입소 날짜" value={formatOptionalDate(youth.admissionDate)} />
+              <YouthDetailValue label="퇴소 날짜" value={formatOptionalDate(youth.dischargeDate)} />
+              {permissions.canViewYouthDetails ? (
+                <YouthDetailValue label="생년월일" value={formatOptionalDate(youth.birthDate)} />
+              ) : null}
+              <YouthDetailValue
+                label="마지막 업데이트"
+                value={formatLastUpdatedDateTime(youth.updatedAt)}
+              />
+            </dl>
+          </section>
+
+          {permissions.canViewYouthDetails ? (
+            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
+              <h3 className="text-sm font-semibold text-[#394150]">학원 일정</h3>
+              <div className="mt-3">
+                {academyState.status === "loading" ? (
+                  <p role="status" className="text-sm text-[#697386]">
+                    학원 일정을 불러오는 중입니다.
+                  </p>
+                ) : academyState.status === "error" ? (
+                  <p role="alert" className="text-sm text-[#8a1f1f]">
+                    {academyState.message}
+                  </p>
+                ) : academyState.status === "ready" &&
+                  academyState.schedules.length > 0 ? (
+                  <ul className="grid gap-2">
+                    {academyState.schedules.map((schedule) => (
+                      <li
+                        key={schedule.id}
+                        className="rounded-md border border-[#d9dee7] bg-white px-3 py-2"
+                      >
+                        <p className="font-semibold text-[#16181d]">
+                          {schedule.academyName}
+                        </p>
+                        <p className="mt-1 text-sm text-[#697386]">
+                          {formatAcademyScheduleSummary(schedule)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[#697386]">등록된 학원 일정이 없습니다.</p>
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {permissions.canViewYouthContacts ? (
+            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#394150]">연락처</h3>
+                  <p className="mt-1 text-xs text-[#697386]">
+                    열람 시 감사기록이 남습니다.
+                  </p>
+                </div>
+                {contactState.status !== "ready" ? (
+                  <button
+                    type="button"
+                    onClick={revealContacts}
+                    disabled={isContactPending}
+                    className="h-11 rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isContactPending ? "불러오는 중" : "연락처 확인"}
+                  </button>
+                ) : null}
+              </div>
+              {contactState.status === "error" ? (
+                <p role="alert" className="mt-3 text-sm text-[#8a1f1f]">
+                  {contactState.message}
+                </p>
+              ) : contactState.status === "ready" ? (
+                <div className="mt-3 grid gap-2 text-sm">
+                  <YouthDetailValue
+                    label="핸드폰 번호"
+                    value={contactState.phone ?? "미등록"}
+                  />
+                  <div>
+                    <dt className="text-xs font-semibold text-[#697386]">가족 연락처</dt>
+                    <dd className="mt-1 text-[#16181d]">
+                      {contactState.familyContacts.length > 0 ? (
+                        <ul className="grid gap-1">
+                          {contactState.familyContacts.map((contact) => (
+                            <li key={contact.id}>
+                              {contact.relationship ?? "관계 미등록"} · {contact.phone ?? "연락처 미등록"}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        "미등록"
+                      )}
+                    </dd>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {permissions.canDownloadYouthDocuments ? (
+            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
+              <h3 className="text-sm font-semibold text-[#394150]">결정문</h3>
+              <div className="mt-3">
+                <DecisionDocumentLinks
+                  documents={youth.decisionDocuments}
+                  onDownload={onDecisionDocumentDownload}
+                  youthName={youth.name}
+                />
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
+    </AppModal>
+  );
+}
+
+function YouthDetailValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-[#697386]">{label}</p>
+      <p className="mt-1 break-words text-[#16181d]">{value}</p>
+    </div>
+  );
+}
+
+function formatAcademyScheduleSummary(
+  schedule: YouthProfile["academySchedules"][number],
+) {
+  const weekdayLabels = youthLearningScheduleWeekdays
+    .filter((weekday) => schedule.weekdays.includes(weekday.value))
+    .map((weekday) => weekday.label)
+    .join("·");
+  const period =
+    schedule.startDate && schedule.endDate
+      ? `${formatDate(schedule.startDate)}~${formatDate(schedule.endDate)} · `
+      : "";
+
+  return `${period}${weekdayLabels || "요일 미등록"} · ${schedule.attendanceTime}${
+    schedule.endTime ? `~${schedule.endTime}` : ""
+  }`;
+}
+
 export function YouthRosterFormModal({
   createYouth,
   deleteYouth,
   deleteDecisionDocument,
   extendYouthDischarge,
   modal,
+  permissions,
   onClose,
   onDecisionDocumentDownload,
   onDeleted,
@@ -1385,6 +1788,7 @@ export function YouthRosterFormModal({
   deleteDecisionDocument: YouthRosterBoardProps["deleteDecisionDocument"];
   extendYouthDischarge?: YouthRosterBoardProps["extendYouthDischarge"];
   modal: YouthRosterModalState;
+  permissions: YouthRosterPermissions;
   onClose: () => void;
   onDecisionDocumentDownload: (
     youthName: string,
@@ -1402,8 +1806,12 @@ export function YouthRosterFormModal({
   const academyScheduleSectionTitleId = useId();
   const academyScheduleLoadStatusId = useId();
   const academyScheduleLimitId = useId();
+  const canAccessContactFields =
+    modal.mode === "create" || permissions.canViewYouthContacts;
   const loadsAcademySchedulesOnOpen =
-    modal.mode === "edit" && Boolean(recordYouthDetailView);
+    modal.mode === "edit" &&
+    permissions.canViewYouthDetails &&
+    Boolean(recordYouthDetailView);
   const [draft, setDraft] = useState(() => {
     const initialDraft = createYouthFormDraft(
       modal.mode === "edit" ? modal.youth : null,
@@ -1432,7 +1840,8 @@ export function YouthRosterFormModal({
   );
   const [contactVisible, setContactVisible] = useState(
     () =>
-      modal.mode === "create" || !hasRegisteredYouthContact(modal.youth),
+      modal.mode === "create" ||
+      (canAccessContactFields && !hasRegisteredYouthContact(modal.youth)),
   );
   const [error, setError] = useState("");
   const [academyScheduleError, setAcademyScheduleError] =
@@ -1674,7 +2083,7 @@ export function YouthRosterFormModal({
   }
 
   function revealContacts() {
-    if (modal.mode !== "edit") {
+    if (modal.mode !== "edit" || !permissions.canViewYouthContacts) {
       return;
     }
 
@@ -1715,6 +2124,10 @@ export function YouthRosterFormModal({
   }
 
   function addDecisionFiles(event: ChangeEvent<HTMLInputElement>) {
+    if (!permissions.canManageYouth) {
+      return;
+    }
+
     const addedFiles = Array.from(event.target.files ?? []);
 
     event.target.value = "";
@@ -1742,7 +2155,7 @@ export function YouthRosterFormModal({
   }
 
   function deleteSavedDocument(document: YouthDecisionDocumentItem) {
-    if (modal.mode !== "edit") {
+    if (modal.mode !== "edit" || !permissions.canManageYouth) {
       return;
     }
 
@@ -1794,6 +2207,11 @@ export function YouthRosterFormModal({
     event.preventDefault();
     setError("");
 
+    if (!permissions.canManageYouth) {
+      setError("청소년 정보 관리 권한이 없습니다.");
+      return;
+    }
+
     if (modal.mode === "edit" && !academySchedulesReady) {
       setError(
         academyScheduleLoadState.status === "loading"
@@ -1840,6 +2258,18 @@ export function YouthRosterFormModal({
     setAcademyScheduleError(null);
 
     const values = getYouthInputFromDraft(draft);
+    const updateValues =
+      modal.mode === "edit"
+        ? {
+            ...values,
+            ...(!permissions.canViewYouthDetails
+              ? { academySchedules: undefined }
+              : {}),
+            ...(!permissions.canViewYouthContacts
+              ? { familyContacts: undefined, phone: undefined }
+              : {}),
+          }
+        : values;
     const documentsFormData = getDecisionDocumentsFormData(draft.decisionFiles);
 
     if (modal.mode === "edit" && !window.confirm(youthUpdateConfirmMessage)) {
@@ -1856,7 +2286,7 @@ export function YouthRosterFormModal({
             : await updateYouth(
                 modal.youth.id,
                 {
-                  ...values,
+                  ...updateValues,
                   expectedUpdatedAt,
                 },
                 documentsFormData,
@@ -1876,7 +2306,11 @@ export function YouthRosterFormModal({
   }
 
   function deleteCurrentYouth() {
-    if (modal.mode !== "edit") {
+    if (
+      modal.mode !== "edit" ||
+      !permissions.canManageYouth ||
+      !permissions.canDeleteYouth
+    ) {
       return;
     }
 
@@ -1979,7 +2413,7 @@ export function YouthRosterFormModal({
                   extensionCount={dischargeState?.extensions.length ?? 0}
                   initialDischargeDate={dischargeState?.initialDischargeDate ?? null}
                   onExtend={
-                    extendYouthDischarge
+                    extendYouthDischarge && permissions.canViewYouthDetails
                       ? () => setDischargeExtensionOpen(true)
                       : undefined
                   }
@@ -1995,7 +2429,11 @@ export function YouthRosterFormModal({
                   onChange={(value) => updateDraft({ birthDate: value })}
                 />
               </RosterFormField>
-              {contactVisible ? (
+              {!canAccessContactFields ? (
+                <div className="rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-sm text-[#697386]">
+                  연락처 열람 권한이 없어 기존 값은 전송되거나 표시되지 않습니다.
+                </div>
+              ) : contactVisible ? (
                 <RosterFormField label="핸드폰 번호">
                   <input
                     value={draft.phone}
@@ -2015,7 +2453,7 @@ export function YouthRosterFormModal({
               )}
             </div>
 
-            {contactVisible ? (
+            {canAccessContactFields && contactVisible ? (
               <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
                 <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
                   <h3 className="text-sm font-semibold text-[#394150]">
@@ -2074,7 +2512,7 @@ export function YouthRosterFormModal({
               </section>
             ) : null}
 
-            {modal.mode === "edit" ? (
+            {modal.mode === "edit" && permissions.canViewYouthDetails ? (
               <section
                 aria-busy={
                   academyScheduleLoadState.status === "loading" ||
@@ -2513,20 +2951,22 @@ export function YouthRosterFormModal({
                             </p>
                           </div>
                           <div className="flex shrink-0 gap-2">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.currentTarget.focus({ preventScroll: true });
-                                onDecisionDocumentDownload(
-                                  modal.youth.name,
-                                  document,
-                                  event.currentTarget,
-                                );
-                              }}
-                              className="inline-flex h-11 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
-                            >
-                              다운로드
-                            </button>
+                            {permissions.canDownloadYouthDocuments ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.currentTarget.focus({ preventScroll: true });
+                                  onDecisionDocumentDownload(
+                                    modal.youth.name,
+                                    document,
+                                    event.currentTarget,
+                                  );
+                                }}
+                                className="inline-flex h-11 items-center rounded-md border border-[#b8d9d7] bg-[#eef7f6] px-3 text-sm font-semibold text-[#196b69] transition hover:bg-[#ddefed]"
+                              >
+                                다운로드
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => deleteSavedDocument(document)}
@@ -2594,7 +3034,9 @@ export function YouthRosterFormModal({
           </div>
 
           <footer className="sticky bottom-0 flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            {modal.mode === "edit" && modal.canDelete ? (
+            {modal.mode === "edit" &&
+            modal.canDelete &&
+            permissions.canDeleteYouth ? (
               <button
                 type="button"
                 aria-label={`${modal.youth.name} 청소년 삭제`}
@@ -2625,7 +3067,9 @@ export function YouthRosterFormModal({
                 }
                 disabled={
                   pending ||
-                  (modal.mode === "edit" && !academySchedulesReady) ||
+                  (modal.mode === "edit" &&
+                    permissions.canViewYouthDetails &&
+                    !academySchedulesReady) ||
                   draft.academySchedules.length > youthAcademyScheduleMaxCount
                 }
                 className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
@@ -2633,9 +3077,11 @@ export function YouthRosterFormModal({
                 {pending && pendingIntent === "save"
                   ? "저장 중"
                   : modal.mode === "edit" &&
+                      permissions.canViewYouthDetails &&
                       academyScheduleLoadState.status === "loading"
                     ? "일정 확인 중"
                     : modal.mode === "edit" &&
+                        permissions.canViewYouthDetails &&
                         academyScheduleLoadState.status === "error"
                       ? "일정 확인 필요"
                       : "저장"}
@@ -3160,26 +3606,31 @@ function DecisionDocumentIcon() {
   );
 }
 
-function FamilyContactList({ youth }: { youth: YouthRosterItem }) {
-  if (youth.familyContacts.length === 0) {
+function getContactStatusLabel(
+  registered: boolean,
+  canViewYouthContacts: boolean,
+) {
+  if (!canViewYouthContacts) {
+    return "열람 권한 없음";
+  }
+
+  if (!registered) {
     return "미등록";
   }
 
+  return "등록됨";
+}
+
+function hasRosterYouthPhone(youth: YouthRosterItem) {
+  return youth.hasPhone ?? Boolean(youth.phone?.trim());
+}
+
+function hasRosterYouthFamilyContact(youth: YouthRosterItem) {
   return (
-    <ul className="space-y-1">
-      {youth.familyContacts.map((contact) => (
-        <li
-          key={contact.id}
-          className="break-words leading-5 [overflow-wrap:anywhere]"
-        >
-          <span className="font-semibold text-[var(--foreground)]">
-            {contact.relationship ?? "관계 미등록"}
-          </span>
-          <span className="text-[var(--text-muted)]"> · </span>
-          <span>{formatMaskedPhone(contact.phone)}</span>
-        </li>
-      ))}
-    </ul>
+    youth.hasFamilyContact ??
+    youth.familyContacts.some((contact) =>
+      Boolean(contact.phone?.trim() || contact.relationship?.trim()),
+    )
   );
 }
 
@@ -3256,10 +3707,6 @@ function formatOptionalDate(value: string | null) {
   return value ? formatYouthDateWithWeekday(value) : "미등록";
 }
 
-function formatMaskedPhone(value: string | null) {
-  return value ? "************" : "미등록";
-}
-
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
 
@@ -3328,8 +3775,12 @@ function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
 }
 
 function hasRegisteredYouthContact(
-  youth: Pick<YouthRosterItem, "familyContacts" | "phone">,
+  youth: Pick<YouthRosterItem, "familyContacts" | "hasContact" | "phone">,
 ) {
+  if (youth.hasContact) {
+    return true;
+  }
+
   if (youth.phone?.trim()) {
     return true;
   }
@@ -3603,6 +4054,20 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
       phone: contact.phone,
       relationship: contact.relationship,
     })),
+    hasContact:
+      youth.hasContact ??
+      Boolean(
+        youth.phone?.trim() ||
+          youth.familyContacts.some((contact) =>
+            Boolean(contact.phone?.trim() || contact.relationship?.trim()),
+          ),
+      ),
+    hasFamilyContact:
+      youth.hasFamilyContact ??
+      youth.familyContacts.some((contact) =>
+        Boolean(contact.phone?.trim() || contact.relationship?.trim()),
+      ),
+    hasPhone: youth.hasPhone ?? Boolean(youth.phone?.trim()),
     name: youth.name,
     phone: youth.phone,
     updatedAt: youth.updatedAt,

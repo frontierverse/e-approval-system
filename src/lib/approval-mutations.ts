@@ -23,9 +23,11 @@ import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { getApprovalAuthorityLineError } from "@/lib/approval-authority";
 import { getApprovalLinePolicyError } from "@/lib/approval-line-policy";
 import {
+  canDiscardRecalledDocumentByPolicy,
   canDeleteDraftDocumentByPolicy,
   canManageDraftDocumentAttachmentsByPolicy,
   canRecallDocumentByPolicy,
+  canRestoreDiscardedDocumentByPolicy,
 } from "@/lib/approval-permissions-core";
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
@@ -933,6 +935,162 @@ export async function recallSubmittedDocument(
         targetId: document.id,
         documentId: document.id,
         message: `"${document.title}" 결재 요청을 회수했습니다.`,
+      },
+    });
+
+    return {
+      ok: true,
+      documentId: document.id,
+    };
+  });
+}
+
+export async function discardRecalledDocument(
+  documentId: string,
+  actorId: string,
+): Promise<DraftMutationResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  return prisma.$transaction(async (tx) => {
+    const document = await tx.approvalDocument.findUnique({
+      where: {
+        id: documentId,
+      },
+      select: {
+        id: true,
+        title: true,
+        drafterId: true,
+        status: true,
+      },
+    });
+
+    if (!document) {
+      return {
+        ok: false,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (document.drafterId !== actorId) {
+      return {
+        ok: false,
+        message: "작성자만 회수 문서를 폐기할 수 있습니다.",
+      };
+    }
+
+    if (!canDiscardRecalledDocumentByPolicy(actorId, document)) {
+      return {
+        ok: false,
+        message: "회수 상태의 문서만 폐기할 수 있습니다.",
+      };
+    }
+
+    const discardResult = await tx.approvalDocument.updateMany({
+      where: {
+        id: document.id,
+        drafterId: actorId,
+        status: DocumentStatus.RECALLED,
+      },
+      data: {
+        status: DocumentStatus.DISCARDED,
+        discardedAt: new Date(),
+      },
+    });
+
+    if (discardResult.count === 0) {
+      return {
+        ok: false,
+        message: "이미 변경되었거나 폐기할 수 없는 문서입니다.",
+      };
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        ...auditRequestData,
+        action: AuditAction.DISCARD_DOCUMENT,
+        targetType: "ApprovalDocument",
+        targetId: document.id,
+        documentId: document.id,
+        message: `"${document.title}" 회수 문서를 폐기했습니다.`,
+      },
+    });
+
+    return {
+      ok: true,
+      documentId: document.id,
+    };
+  });
+}
+
+export async function restoreDiscardedDocument(
+  documentId: string,
+  actorId: string,
+): Promise<DraftMutationResult> {
+  const auditRequestData = await getCurrentAuditLogRequestData();
+
+  return prisma.$transaction(async (tx) => {
+    const document = await tx.approvalDocument.findUnique({
+      where: {
+        id: documentId,
+      },
+      select: {
+        id: true,
+        title: true,
+        drafterId: true,
+        status: true,
+      },
+    });
+
+    if (!document) {
+      return {
+        ok: false,
+        message: "문서를 찾을 수 없습니다.",
+      };
+    }
+
+    if (document.drafterId !== actorId) {
+      return {
+        ok: false,
+        message: "작성자만 폐기 문서를 복원할 수 있습니다.",
+      };
+    }
+
+    if (!canRestoreDiscardedDocumentByPolicy(actorId, document)) {
+      return {
+        ok: false,
+        message: "폐기 상태의 문서만 복원할 수 있습니다.",
+      };
+    }
+
+    const restoreResult = await tx.approvalDocument.updateMany({
+      where: {
+        id: document.id,
+        drafterId: actorId,
+        status: DocumentStatus.DISCARDED,
+      },
+      data: {
+        status: DocumentStatus.RECALLED,
+        discardedAt: null,
+      },
+    });
+
+    if (restoreResult.count === 0) {
+      return {
+        ok: false,
+        message: "이미 변경되었거나 복원할 수 없는 문서입니다.",
+      };
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        ...auditRequestData,
+        action: AuditAction.RESTORE_DOCUMENT,
+        targetType: "ApprovalDocument",
+        targetId: document.id,
+        documentId: document.id,
+        message: `"${document.title}" 폐기 문서를 회수 상태로 복원했습니다.`,
       },
     });
 

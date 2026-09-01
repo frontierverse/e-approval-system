@@ -141,7 +141,9 @@ function normalizeDate(value: string) {
 }
 
 function normalizeDraftStatus(value: string): DraftDocumentStatusFilter {
-  return value === "draft" || value === "recalled" ? value : "all";
+  return value === "draft" || value === "recalled" || value === "discarded"
+    ? value
+    : "all";
 }
 
 function normalizeInboxStatus(value: string): InboxDocumentStatusFilter {

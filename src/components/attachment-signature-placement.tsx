@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import * as pdfjsLib from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   type PointerEvent as ReactPointerEvent,
   useActionState,
@@ -44,29 +45,8 @@ type SurfaceDisplay = {
   width: number;
 };
 
-type PdfDocument = {
-  destroy(): Promise<void> | void;
-  getPage(pageNumber: number): Promise<PdfPage>;
-  numPages: number;
-};
-
-type PdfPage = {
-  getViewport(options: { scale: number }): PdfViewport;
-  render(options: {
-    canvasContext: CanvasRenderingContext2D;
-    viewport: PdfViewport;
-  }): PdfRenderTask;
-};
-
-type PdfRenderTask = {
-  cancel(): void;
-  promise: Promise<void>;
-};
-
-type PdfViewport = {
-  height: number;
-  width: number;
-};
+type PdfDocument = PDFDocumentProxy;
+type PdfRenderTask = RenderTask;
 
 type DragHandle = {
   cleanup(): void;
@@ -165,15 +145,15 @@ export function AttachmentSignaturePlacement({
         return loadingTask.promise;
       })
       .then((document) => {
-        loadedDocument = document as PdfDocument;
+        loadedDocument = document;
 
         if (cancelled) {
-          void loadedDocument.destroy();
+          void loadingTask?.destroy();
           return;
         }
 
-        setPdfDocument(loadedDocument);
-        setPdfPageCount(loadedDocument.numPages);
+        setPdfDocument(document);
+        setPdfPageCount(document.numPages);
         setPdfError(null);
         setCurrentPage((page) => clamp(page, 1, loadedDocument!.numPages));
       })
@@ -187,7 +167,6 @@ export function AttachmentSignaturePlacement({
       cancelled = true;
       abortController.abort();
       void loadingTask?.destroy();
-      void loadedDocument?.destroy();
     };
   }, [previewHref, previewKind]);
 
@@ -246,7 +225,7 @@ export function AttachmentSignaturePlacement({
       context.clearRect(0, 0, canvas.width, canvas.height);
 
       renderTask = page.render({
-        canvasContext: context,
+        canvas,
         viewport,
       });
 

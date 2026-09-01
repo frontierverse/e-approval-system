@@ -10,7 +10,6 @@ import {
   YouthLearningProgressBoardContent as YouthLearningProgressBoard,
 } from "../src/components/youth-learning-progress-board.tsx";
 import {
-  shouldShowYouthLearningProgressChangeLogActor,
   type YouthLearningProgressChangeLogActor,
   type YouthLearningProgressChangeLogFilters,
   type YouthLearningProgressChangeLog,
@@ -156,15 +155,6 @@ describe("YouthLearningProgressBoard", () => {
     assert.deepEqual(endOptionsFromNine.slice(0, 3), [550, 560, 570]);
     assert.equal(endOptionsFromNine.at(-1), 1080);
     assert.deepEqual(endOptionsFromLastStart, [1080]);
-  });
-
-  test("hides Shin Seungsik's learning progress change logs", () => {
-    assert.equal(shouldShowYouthLearningProgressChangeLogActor("신승식"), false);
-    assert.equal(
-      shouldShowYouthLearningProgressChangeLogActor(" 신승식 "),
-      false,
-    );
-    assert.equal(shouldShowYouthLearningProgressChangeLogActor("정하리"), true);
   });
 
   test("renders a stable timetable skeleton while schedules load", () => {

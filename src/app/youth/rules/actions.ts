@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
-import { requireUser } from "@/lib/auth";
+import {
+  requireYouthBasicAccess,
+  requireYouthPermission,
+} from "@/lib/youth-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthRuleChangeLogs,
@@ -32,7 +35,7 @@ export async function getYouthRulesAction({
   page: number;
   target: YouthRuleTargetFilter;
 }): Promise<YouthActionResult<{ ruleResult: YouthRulesResult }>> {
-  await requireUser();
+  await requireYouthBasicAccess();
   const ruleResult = await getYouthRules({
     category,
     page,
@@ -58,7 +61,7 @@ export async function getYouthRuleChangeLogsAction({
   page: number;
   target: YouthRuleTargetFilter;
 }): Promise<YouthActionResult<{ changeLogResult: YouthRuleChangeLogsResult }>> {
-  await requireUser();
+  await requireYouthBasicAccess();
   const changeLogResult = await getYouthRuleChangeLogs({
     actorId,
     category,
@@ -75,7 +78,7 @@ export async function getYouthRuleChangeLogsAction({
 }
 
 export async function createYouthRuleAction(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const category = String(formData.get("category") ?? "").trim();
   const detail = String(formData.get("detail") ?? "").trim();
   const targetYouthIdValue = String(formData.get("targetYouthId") ?? "").trim();
@@ -158,7 +161,7 @@ export async function createYouthRuleAction(formData: FormData) {
 }
 
 export async function deleteYouthRuleAction(ruleId: string) {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
   const deletedRules = await prisma.$transaction(async (tx) => {
     const rules = await tx.$queryRaw<

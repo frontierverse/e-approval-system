@@ -560,12 +560,19 @@ describe("major UI rendering", () => {
         status: "pending",
       }),
     );
+    const discardedBadgeHtml = renderToStaticMarkup(
+      React.createElement(StatusBadge, {
+        type: "document",
+        status: "discarded",
+      }),
+    );
 
     assert.match(documentBadgeHtml, /진행중/);
     assert.doesNotMatch(documentBadgeHtml, /결재 요청/);
     assert.match(documentBadgeHtml, /shrink-0/);
     assert.match(documentBadgeHtml, /whitespace-nowrap/);
     assert.match(stepBadgeHtml, /결재대기/);
+    assert.match(discardedBadgeHtml, /폐기/);
   });
 
   test("renders the document list with current approver and progress", () => {

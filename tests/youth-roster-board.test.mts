@@ -116,6 +116,13 @@ const changeLogFilters: YouthRosterChangeLogFilters = {
 };
 
 const rosterActions = {
+  permissions: {
+    canViewYouthDetails: true,
+    canViewYouthContacts: true,
+    canDownloadYouthDocuments: true,
+    canManageYouth: true,
+    canDeleteYouth: true,
+  },
   createYouth: async (values: YouthCreateInput) => ({
     ok: true as const,
     data: {
@@ -138,7 +145,7 @@ const rosterActions = {
             endDate: schedule.endDate,
           }),
         ),
-        familyContacts: values.familyContacts.map((contact, index) => ({
+        familyContacts: (values.familyContacts ?? []).map((contact, index) => ({
           id: `created-family-contact-${index}`,
           relationship: contact.relationship || null,
           phone: contact.phone || null,
@@ -171,7 +178,7 @@ const rosterActions = {
             endDate: schedule.endDate,
           }),
         ),
-        familyContacts: values.familyContacts.map((contact, index) => ({
+        familyContacts: (values.familyContacts ?? []).map((contact, index) => ({
           id: `updated-family-contact-${index}`,
           relationship: contact.relationship || null,
           phone: contact.phone || null,
@@ -242,9 +249,8 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /2026\. 05\. 01\. \(금\)/);
     assert.match(html, /2026\. 07\. 15\. \(수\)/);
     assert.doesNotMatch(html, /010-1111-2222/);
-    assert.match(html, /어머니/);
+    assert.match(html, /등록됨/);
     assert.doesNotMatch(html, /010-3333-4444/);
-    assert.match(html, /\*\*\*\*\*\*\*\*\*\*\*\*/);
     assert.match(html, /이도현/);
     assert.match(html, /이도현 정보 수정/);
     assert.match(html, /2026\. 04\. 30\. \(목\)/);
@@ -314,6 +320,45 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /1 \/ 2/);
     assert.match(html, /href="\/youth\/roster\?logPage=2"/);
     assert.match(html, /06\. 22\. 18:30/);
+  });
+
+  test("renders only permission-appropriate roster controls and sensitive metadata", () => {
+    const basicHtml = renderToStaticMarkup(
+      React.createElement(YouthRosterBoard, {
+        ...rosterActions,
+        data: roster,
+        permissions: {
+          canViewYouthDetails: false,
+          canViewYouthContacts: false,
+          canDownloadYouthDocuments: false,
+          canManageYouth: false,
+          canDeleteYouth: false,
+        },
+      }),
+    );
+    const detailHtml = renderToStaticMarkup(
+      React.createElement(YouthRosterBoard, {
+        ...rosterActions,
+        data: roster,
+        permissions: {
+          canViewYouthDetails: true,
+          canViewYouthContacts: true,
+          canDownloadYouthDocuments: false,
+          canManageYouth: false,
+          canDeleteYouth: false,
+        },
+      }),
+    );
+
+    assert.doesNotMatch(basicHtml, /청소년 추가|정보 수정|상세정보 보기/);
+    assert.doesNotMatch(basicHtml, /김하늘_결정문\.pdf/);
+    assert.doesNotMatch(basicHtml, /010-1111-2222|010-3333-4444/);
+    assert.match(basicHtml, /열람 권한 없음/);
+    assert.doesNotMatch(basicHtml, /등록됨 · 열람 권한 없음/);
+
+    assert.match(detailHtml, /김하늘 상세정보 보기/);
+    assert.doesNotMatch(detailHtml, /김하늘 정보 수정|청소년 추가/);
+    assert.match(detailHtml, />등록됨</);
   });
 
   test("renders a delete action in admitted youth edit modals", () => {

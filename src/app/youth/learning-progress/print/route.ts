@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import { getYouthLearningSchedules } from "@/lib/youth-learning-schedules";
-import { getYouthProfiles } from "@/lib/youth-management";
+import { getYouthDirectory } from "@/lib/youth-management";
 import {
   getYouthLearningScheduleToday,
   isYouthLearningScheduleDate,
@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  await requireUser();
+  await requireYouthBasicAccess();
 
   const selectedDate = getSelectedDate(request.nextUrl.searchParams.get("date"));
   const [youths, schedules] = await Promise.all([
-    getYouthProfiles(),
+    getYouthDirectory(),
     getYouthLearningSchedules(selectedDate),
   ]);
   const pdf = await createYouthLearningProgressPdf({

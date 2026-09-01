@@ -198,7 +198,11 @@ type DocumentRecord = Prisma.ApprovalDocumentGetPayload<{
 }>;
 
 export type InboxDocumentStatusFilter = "all" | "active";
-export type DraftDocumentStatusFilter = "all" | "draft" | "recalled";
+export type DraftDocumentStatusFilter =
+  | "all"
+  | "draft"
+  | "recalled"
+  | "discarded";
 export type SentDocumentStatusFilter =
   | "all"
   | "active"
@@ -253,6 +257,7 @@ const documentStatusMap: Record<DbDocumentStatus, DocumentStatus> = {
   APPROVED: "approved",
   REJECTED: "rejected",
   RECALLED: "recalled",
+  DISCARDED: "discarded",
 };
 
 const approvalStepStatusMap: Record<
@@ -276,6 +281,8 @@ const auditActionLabels: Record<AuditAction, string> = {
   PROXY_REJECT: "대리결재 반려",
   REJECT: "반려",
   RECALL: "회수",
+  DISCARD_DOCUMENT: "문서 폐기",
+  RESTORE_DOCUMENT: "문서 복원",
   COMPLETE: "승인완료",
   CREATE_USER: "사용자 생성",
   UPDATE_USER: "사용자 수정",
@@ -313,6 +320,9 @@ const auditActionLabels: Record<AuditAction, string> = {
 export async function getInboxDocuments(userId: string) {
   const records = await prisma.approvalDocument.findMany({
     where: {
+      status: {
+        in: [DbDocumentStatus.SUBMITTED, DbDocumentStatus.IN_PROGRESS],
+      },
       approvalSteps: {
         some: {
           approverId: userId,
@@ -802,6 +812,9 @@ function getInboxDocumentWhere(
   const query = options.query?.trim();
   const status = options.status ?? "all";
   const where: Prisma.ApprovalDocumentWhereInput = {
+    status: {
+      in: [DbDocumentStatus.SUBMITTED, DbDocumentStatus.IN_PROGRESS],
+    },
     approvalSteps: {
       some: {
         approverId: userId,
@@ -838,7 +851,11 @@ function getSentDocumentWhere(
   const where: Prisma.ApprovalDocumentWhereInput = {
     drafterId: userId,
     status: {
-      notIn: [DbDocumentStatus.DRAFT, DbDocumentStatus.RECALLED],
+      notIn: [
+        DbDocumentStatus.DRAFT,
+        DbDocumentStatus.RECALLED,
+        DbDocumentStatus.DISCARDED,
+      ],
     },
   };
 
@@ -883,7 +900,10 @@ function getDraftDocumentWhere(
     where.OR = getDocumentSearchConditions(query);
   }
 
-  const dateRangeCondition = getActivityDateRangeCondition(options);
+  const dateRangeCondition =
+    status === "discarded"
+      ? getDiscardedDateRangeCondition(options)
+      : getActivityDateRangeCondition(options);
 
   if (dateRangeCondition) {
     where.AND = [dateRangeCondition];
@@ -899,20 +919,45 @@ function getCompletedDocumentWhere(
   const query = options.query?.trim();
   const status = options.status ?? "all";
   const archiveReview = options.archiveReview ?? "none";
-  const and: Prisma.ApprovalDocumentWhereInput[] = [
-    {
-      OR: [
-        { drafterId: userId },
-        {
-          approvalSteps: {
-            some: {
-              approverId: userId,
+  const relatedDocumentWhere: Prisma.ApprovalDocumentWhereInput =
+    archiveReview === "review"
+      ? {
+          OR: [
+            { drafterId: userId },
+            {
+              AND: [
+                {
+                  status: {
+                    in: [
+                      DbDocumentStatus.APPROVED,
+                      DbDocumentStatus.REJECTED,
+                    ],
+                  },
+                },
+                {
+                  approvalSteps: {
+                    some: {
+                      approverId: userId,
+                    },
+                  },
+                },
+              ],
             },
-          },
-        },
-      ],
-    },
-  ];
+          ],
+        }
+      : {
+          OR: [
+            { drafterId: userId },
+            {
+              approvalSteps: {
+                some: {
+                  approverId: userId,
+                },
+              },
+            },
+          ],
+        };
+  const and: Prisma.ApprovalDocumentWhereInput[] = [relatedDocumentWhere];
 
   if (status === "all") {
     and.push({
@@ -923,6 +968,7 @@ function getCompletedDocumentWhere(
                 DbDocumentStatus.APPROVED,
                 DbDocumentStatus.REJECTED,
                 DbDocumentStatus.RECALLED,
+                DbDocumentStatus.DISCARDED,
               ]
             : [DbDocumentStatus.APPROVED, DbDocumentStatus.REJECTED],
       },
@@ -978,12 +1024,25 @@ function getArchiveReviewDateRangeCondition(
   return {
     OR: [
       {
+        status: DbDocumentStatus.DISCARDED,
+        discardedAt: {
+          not: null,
+          ...dateFilter,
+        },
+      },
+      {
+        status: {
+          not: DbDocumentStatus.DISCARDED,
+        },
         completedAt: {
           not: null,
           ...dateFilter,
         },
       },
       {
+        status: {
+          not: DbDocumentStatus.DISCARDED,
+        },
         completedAt: null,
         submittedAt: {
           not: null,
@@ -991,6 +1050,9 @@ function getArchiveReviewDateRangeCondition(
         },
       },
       {
+        status: {
+          not: DbDocumentStatus.DISCARDED,
+        },
         completedAt: null,
         submittedAt: null,
         createdAt: {
@@ -999,6 +1061,14 @@ function getArchiveReviewDateRangeCondition(
       },
     ],
   };
+}
+
+function getDiscardedDateRangeCondition(
+  options: DocumentDateRangeOptions,
+): Prisma.ApprovalDocumentWhereInput | null {
+  const range = getDateTimeRangeFilter(options);
+
+  return range ? { discardedAt: range } : null;
 }
 
 function getDocumentSearchConditions(
@@ -1186,6 +1256,7 @@ function toDbDocumentStatus(status: DocumentStatusFilterValue) {
     approved: DbDocumentStatus.APPROVED,
     rejected: DbDocumentStatus.REJECTED,
     recalled: DbDocumentStatus.RECALLED,
+    discarded: DbDocumentStatus.DISCARDED,
   } satisfies Record<DocumentStatusFilterValue, DbDocumentStatus>;
 
   return statusMap[status];
@@ -1212,6 +1283,7 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
     createdAt: record.createdAt.toISOString(),
     submittedAt: record.submittedAt?.toISOString() ?? null,
     completedAt: record.completedAt?.toISOString() ?? null,
+    discardedAt: record.discardedAt?.toISOString() ?? null,
     content: extractDisplayContentFromTemplate(
       record.content,
       record.templateId,

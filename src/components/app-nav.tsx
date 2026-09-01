@@ -25,6 +25,13 @@ import {
   type CurrentCommonScheduleSource,
 } from "@/lib/current-common-schedule-core";
 import {
+  createCurrentHref,
+  getActiveNavigationGroup,
+  isActivePath,
+  type NavigationGroup,
+  type NavigationItem,
+} from "@/lib/app-nav-core";
+import {
   createRefrigeratorFoodExpirationAlert,
   readRefrigeratorItemsFromStorage,
   refrigeratorItemsStorageEventName,
@@ -33,16 +40,11 @@ import {
   type RefrigeratorFoodExpirationAlertItem,
 } from "@/lib/refrigerator-items-core";
 
-export type NavigationItem = {
-  label: string;
-  href: string;
-};
-
-export type NavigationGroup = {
-  label: string;
-  items: NavigationItem[];
-  align?: "end";
-};
+export {
+  isActivePath,
+  type NavigationGroup,
+  type NavigationItem,
+} from "@/lib/app-nav-core";
 
 export type NavigationTopbarAlert = {
   ddayLabel: string;
@@ -165,12 +167,13 @@ export function AppNav({
 }: AppNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentHref = getCurrentHref(pathname, searchParams);
+  const currentHref = createCurrentHref(pathname, searchParams);
   const mobileNavRef = useRef<HTMLElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTitleId = useId();
   const mobileMenuDescriptionId = useId();
-  const selectedGroup = getActiveGroup(groups, pathname, currentHref) ?? groups[0];
+  const selectedGroup =
+    getActiveNavigationGroup(groups, pathname, currentHref) ?? groups[0];
   const selectedItems = selectedGroup?.items ?? [];
   const firstEndAlignedGroupIndex = groups.findIndex(
     (group) => group.align === "end",
@@ -424,7 +427,6 @@ export function AppNav({
     </nav>
   );
 }
-
 function useCurrentScheduleAlert({
   enabled,
   initialAlert,
@@ -1765,7 +1767,7 @@ export function MobileNavigationMenuContent({
   pathname: string;
   titleId: string;
 }) {
-  const activeGroup = getActiveGroup(groups, pathname, currentHref);
+  const activeGroup = getActiveNavigationGroup(groups, pathname, currentHref);
 
   return (
     <div className="flex max-h-[calc(100dvh-3rem)] min-h-0 flex-col">
@@ -2012,111 +2014,4 @@ function formatTopbarVacationDate(value: string) {
   }).format(date);
 
   return `${formatTopbarAlertDate(value)} (${weekday})`;
-}
-
-function getActiveGroup(
-  groups: NavigationGroup[],
-  pathname: string,
-  currentHref: string,
-) {
-  return groups.find((group) =>
-    group.items.some((item) => isActivePath(pathname, item.href, currentHref)) ||
-    isRelatedGroupPath(group, pathname),
-  );
-}
-
-function isRelatedGroupPath(group: NavigationGroup, pathname: string) {
-  const hrefs = group.items.map((item) => item.href);
-  const hrefPaths = hrefs.map(getHrefPath);
-
-  if (
-    hrefPaths.includes("/") &&
-    /^\/(documents|attachments)(\/|$)/.test(pathname)
-  ) {
-    return true;
-  }
-
-  if (hrefPaths.includes("/resources") && pathname.startsWith("/resources")) {
-    return true;
-  }
-
-  if (hrefPaths.includes("/youth") && pathname.startsWith("/youth/")) {
-    return true;
-  }
-
-  if (hrefPaths.includes("/account") && pathname.startsWith("/account/")) {
-    return true;
-  }
-
-  if (hrefPaths.includes("/admin") && pathname.startsWith("/admin/")) {
-    return true;
-  }
-
-  return false;
-}
-
-export function isActivePath(
-  pathname: string,
-  href: string,
-  currentHref: string,
-) {
-  const hrefPath = getHrefPath(href);
-  const hrefQuery = href.split("?")[1];
-
-  if (hrefQuery) {
-    return pathname === hrefPath && hasExpectedSearchParams(currentHref, hrefQuery);
-  }
-
-  if (href === "/") {
-    return pathname === "/";
-  }
-
-  if (href === "/drafts/new") {
-    return pathname === "/drafts/new";
-  }
-
-  if (href === "/drafts") {
-    return pathname === "/drafts" || /^\/drafts\/[^/]+\/edit$/.test(pathname);
-  }
-
-  if (href === "/youth") {
-    return pathname === "/youth";
-  }
-
-  if (href === "/admin") {
-    return pathname === "/admin";
-  }
-
-  if (href === "/work-schedule") {
-    return pathname === "/work-schedule";
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getCurrentHref(
-  pathname: string,
-  searchParams: { toString(): string },
-) {
-  const queryString = searchParams.toString();
-
-  return queryString ? `${pathname}?${queryString}` : pathname;
-}
-
-function getHrefPath(href: string) {
-  return href.split("?")[0] ?? href;
-}
-
-function hasExpectedSearchParams(currentHref: string, expectedQuery: string) {
-  const currentQuery = currentHref.split("?")[1] ?? "";
-  const currentParams = new URLSearchParams(currentQuery);
-  const expectedParams = new URLSearchParams(expectedQuery);
-
-  for (const [key, value] of expectedParams) {
-    if (currentParams.get(key) !== value) {
-      return false;
-    }
-  }
-
-  return true;
 }

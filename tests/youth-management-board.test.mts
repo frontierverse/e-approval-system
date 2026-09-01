@@ -122,7 +122,7 @@ describe("YouthManagementBoard", () => {
                   endDate: schedule.endDate,
                 }),
               ),
-              familyContacts: values.familyContacts.map((contact, index) => ({
+              familyContacts: (values.familyContacts ?? []).map((contact, index) => ({
                 id: `updated-family-contact-${index}`,
                 relationship: contact.relationship || null,
                 phone: contact.phone || null,

@@ -9,6 +9,12 @@ import { hashPassword } from "../src/lib/password";
 
 const adminDepartmentId = "dept-corporation";
 const adminPositionId = "pos-director";
+const fullYouthPermissions = {
+  canViewYouthDetails: true,
+  canViewYouthContacts: true,
+  canDownloadYouthDocuments: true,
+  canManageYouth: true,
+};
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({
@@ -36,6 +42,7 @@ async function main() {
       email,
     },
     update: {
+      ...fullYouthPermissions,
       name,
       passwordHash: hashPassword(password),
       role: UserRole.ADMIN,
@@ -44,6 +51,7 @@ async function main() {
       positionId: adminPositionId,
     },
     create: {
+      ...fullYouthPermissions,
       name,
       email,
       passwordHash: hashPassword(password),

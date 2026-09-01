@@ -24,6 +24,7 @@ enum DocumentStatus {
   APPROVED
   REJECTED
   RECALLED
+  DISCARDED
 }
 
 enum ApprovalStepStatus {
@@ -44,6 +45,8 @@ enum AuditAction {
   PROXY_REJECT
   REJECT
   RECALL
+  DISCARD_DOCUMENT
+  RESTORE_DOCUMENT
   COMPLETE
   CREATE_USER
   UPDATE_USER
@@ -97,6 +100,10 @@ model User {
   passwordHash                  String?
   role                          UserRole   @default(USER)
   status                        UserStatus @default(ACTIVE)
+  canViewYouthDetails           Boolean    @default(false)
+  canViewYouthContacts          Boolean    @default(false)
+  canDownloadYouthDocuments     Boolean    @default(false)
+  canManageYouth                Boolean    @default(false)
   birthDate                     String?
   hireDate                      String?
   resignationDate               String?
@@ -217,6 +224,7 @@ model ApprovalDocument {
   status      DocumentStatus @default(DRAFT)
   submittedAt DateTime?
   completedAt DateTime?
+  discardedAt DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -237,6 +245,7 @@ model ApprovalDocument {
   @@index([templateId])
   @@index([drafterId])
   @@index([submittedAt])
+  @@index([discardedAt])
 }
 
 model ApprovalStep {

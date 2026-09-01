@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
-import { requireUser } from "@/lib/auth";
+import {
+  requireYouthBasicAccess,
+  requireYouthPermission,
+} from "@/lib/youth-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthLearningProgressChangeLogs,
@@ -51,7 +54,7 @@ export async function createYouthStudyConceptAction(
   _previousState: YouthStudyConceptFormState,
   formData: FormData,
 ): Promise<YouthStudyConceptFormState> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
 
   const content = normalizeYouthStudyConceptContent(formData.get("content"));
   const validationError = validateYouthStudyConceptContent(content);
@@ -129,7 +132,7 @@ export async function toggleYouthStudyConceptCheckAction(
 ): Promise<
   YouthActionResult<{ conceptId: string; youthId: string; isChecked: boolean }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
 
   const concept = await prisma.studyConcept.findUnique({
     where: {
@@ -234,7 +237,7 @@ export async function toggleYouthStudyConceptCheckAction(
 }
 
 export async function deleteYouthStudyConceptAction(conceptId: string) {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
 
   const concept = await prisma.studyConcept.findUnique({
     where: {
@@ -290,7 +293,7 @@ export async function getYouthLearningSchedulesAction(
 ): Promise<
   YouthActionResult<{ scheduleDate: string; schedules: YouthLearningSchedule[] }>
 > {
-  await requireUser();
+  await requireYouthBasicAccess();
 
   if (!isYouthLearningScheduleDate(scheduleDate)) {
     return {
@@ -316,7 +319,7 @@ export async function getYouthLearningProgressChangeLogsAction(
 ): Promise<
   YouthActionResult<{ changeLogResult: YouthLearningProgressChangeLogsResult }>
 > {
-  await requireUser();
+  await requireYouthBasicAccess();
   const changeLogResult = await getYouthLearningProgressChangeLogs({
     actorId: filters.actorId,
     page: filters.page,
@@ -340,7 +343,7 @@ export async function saveYouthLearningScheduleAction(
   recurrenceWeekdays: number[],
   sourceStartMinute = startMinute,
 ): Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const normalizedRecurrenceWeekdays = normalizeYouthLearningScheduleWeekdays(
     Array.isArray(recurrenceWeekdays) ? recurrenceWeekdays : [],
   );
@@ -679,7 +682,7 @@ export async function deleteYouthLearningScheduleAction(
 ): Promise<
   YouthActionResult<{ youthId: string; scheduleDate: string; startMinute: number }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
 
   if (!isYouthLearningScheduleDate(scheduleDate)) {
     return {

@@ -917,6 +917,10 @@ function getStatusChangeBadgeClass(value: string) {
     return "border-[#ddd4c6] bg-[#faf6ef] text-[#72512a]";
   }
 
+  if (value === "폐기") {
+    return "border-[#cfd6e3] bg-[#eef1f5] text-[#394150]";
+  }
+
   return "border-[#cfd6e3] bg-white text-[#394150]";
 }
 
@@ -972,7 +976,18 @@ function getAuditHistoryTone(action: string) {
     };
   }
 
-  if (action.includes("회수") || action.includes("삭제")) {
+  if (action.includes("복원")) {
+    return {
+      marker: "border-[#bdd7f0] bg-[#245d8f] text-white",
+      badge: "border-[#bdd7f0] bg-[#edf6ff] text-[#245d8f]",
+    };
+  }
+
+  if (
+    action.includes("회수") ||
+    action.includes("삭제") ||
+    action.includes("폐기")
+  ) {
     return {
       marker: "border-[#ddd4c6] bg-[#72512a] text-white",
       badge: "border-[#ddd4c6] bg-[#faf6ef] text-[#72512a]",

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
-import { requireUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { defaultAllowedAttachmentExtensions } from "@/lib/attachment-policy-core";
 import {
   type AttachmentPolicyConfig,
@@ -45,12 +45,23 @@ import {
   getYouthRosterChangeLogs,
   type YouthRosterChangeLogsResult,
 } from "@/lib/youth-roster";
+import {
+  requireYouthBasicAccess,
+  requireYouthPermission,
+} from "@/lib/youth-permissions";
+import {
+  getEffectiveYouthPermissions,
+  type EffectiveYouthPermissions,
+} from "@/lib/youth-permissions-core";
 
 export async function getYouthRosterChangeLogsAction(
   page: number,
 ): Promise<YouthActionResult<{ changeLogResult: YouthRosterChangeLogsResult }>> {
-  await requireUser();
-  const changeLogResult = await getYouthRosterChangeLogs({ page });
+  const user = await requireYouthBasicAccess();
+  const changeLogResult = await getYouthRosterChangeLogs({
+    page,
+    permissions: getEffectiveYouthPermissions(user),
+  });
 
   return {
     ok: true,
@@ -60,18 +71,16 @@ export async function getYouthRosterChangeLogsAction(
   };
 }
 
-// Views of a youth's detail (contacts, family, decision documents) leave no
-// trace on their own since all staff can open them, so record who looked. To
-// keep volume sane, repeated views of the same youth by the same person within
-// this window collapse into a single log entry. These entries stay out of the
-// roster change-log feed (not in youthRosterAuditActions) and live only in the
-// audit log for accountability.
+// Detail access is permission-gated and audited. To keep audit volume sane,
+// repeated views of the same youth by the same person within this window
+// collapse into a single entry. These entries stay out of the roster change-log
+// feed (not in youthRosterAuditActions) and live only in the audit log.
 const youthDetailViewDedupWindowMs = 30 * 60 * 1000;
 
 export async function recordYouthDetailViewAction(
   youthId: string,
 ): Promise<YouthActionResult<{ academySchedules: YouthAcademySchedule[] }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canViewYouthDetails");
 
   const youth = await prisma.youth.findUnique({
     where: {
@@ -146,7 +155,7 @@ export async function recordYouthContactViewAction(
     phone: string | null;
   }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canViewYouthContacts");
 
   const youth = await prisma.youth.findUnique({
     where: {
@@ -325,7 +334,7 @@ export async function createYouthAction(
   values: YouthCreateInput,
   documentsFormData?: FormData,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
@@ -522,7 +531,10 @@ export async function createYouthAction(
   return {
     ok: true,
     data: {
-      youth: mapYouthProfile(youth),
+      youth: mapYouthProfileForRosterResponse(
+        youth,
+        getEffectiveYouthPermissions(user),
+      ),
     },
   };
 }
@@ -532,7 +544,7 @@ export async function updateYouthAction(
   values: YouthUpdateInput,
   documentsFormData?: FormData,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
@@ -570,6 +582,7 @@ export async function updateYouthAction(
       familyContacts: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
+          id: true,
           relationship: true,
           phone: true,
         },
@@ -612,17 +625,21 @@ export async function updateYouthAction(
   }
 
   const normalizedBirthDate = normalizeOptionalDate(values.birthDate);
-  const normalizedPhone = normalizeOptionalPhone(values.phone);
+  const phoneProvided = values.phone !== undefined;
+  const familyContactsProvided = values.familyContacts !== undefined;
+  const normalizedPhone = phoneProvided
+    ? normalizeOptionalPhone(values.phone ?? "")
+    : { value: existingYouth.phone };
   const normalizedAcademySchedules = normalizeYouthAcademySchedules(
     values.academySchedules,
   );
-  const normalizedFamilyContacts = normalizeFamilyContacts(
-    values.familyContacts,
-  );
+  const normalizedFamilyContacts = familyContactsProvided
+    ? normalizeFamilyContacts(values.familyContacts ?? [])
+    : { value: existingYouth.familyContacts };
   const normalizedAdmissionDate = normalizeOptionalDate(values.admissionDate);
   const normalizedDischargeDate = normalizeOptionalDate(values.dischargeDate);
 
-  if (normalizedPhone.error) {
+  if ("error" in normalizedPhone && normalizedPhone.error) {
     return {
       ok: false,
       error: normalizedPhone.error,
@@ -695,10 +712,14 @@ export async function updateYouthAction(
         admissionDate: normalizedAdmissionDate.value,
         birthDate: normalizedBirthDate.value,
         age: null,
-        phone: normalizedPhone.value,
-        familyRelationship: firstFamilyContact?.relationship ?? null,
-        familyPhone: firstFamilyContact?.phone ?? null,
-        familyContact: firstFamilyContact?.phone ?? null,
+        ...(phoneProvided ? { phone: normalizedPhone.value } : {}),
+        ...(familyContactsProvided
+          ? {
+              familyRelationship: firstFamilyContact?.relationship ?? null,
+              familyPhone: firstFamilyContact?.phone ?? null,
+              familyContact: firstFamilyContact?.phone ?? null,
+            }
+          : {}),
         ...(nextUpdatedAt ? { updatedAt: nextUpdatedAt } : {}),
       } satisfies Prisma.YouthUpdateManyMutationInput;
       const youthUpdateInclude = {
@@ -749,39 +770,44 @@ export async function updateYouthAction(
         });
       }
 
-      await tx.$executeRaw`
-        DELETE FROM "YouthFamilyContact"
-        WHERE "youthId" = ${youthId}
-      `;
+      const familyContacts = familyContactsProvided
+        ? normalizedFamilyContacts.value.map((contact, index) => ({
+            id: `family-contact-${youthId}-${index + 1}`,
+            youthId,
+            relationship: contact.relationship,
+            phone: contact.phone,
+          }))
+        : existingYouth.familyContacts.map((contact) => ({
+            ...contact,
+            youthId,
+          }));
 
-      const familyContacts = normalizedFamilyContacts.value.map(
-        (contact, index) => ({
-          id: `family-contact-${youthId}-${index + 1}`,
-          youthId,
-          relationship: contact.relationship,
-          phone: contact.phone,
-        }),
-      );
-
-      for (const contact of familyContacts) {
+      if (familyContactsProvided) {
         await tx.$executeRaw`
-          INSERT INTO "YouthFamilyContact" (
-            "id",
-            "relationship",
-            "phone",
-            "createdAt",
-            "updatedAt",
-            "youthId"
-          )
-          VALUES (
-            ${contact.id},
-            ${contact.relationship},
-            ${contact.phone},
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            ${contact.youthId}
-          )
+          DELETE FROM "YouthFamilyContact"
+          WHERE "youthId" = ${youthId}
         `;
+
+        for (const contact of familyContacts) {
+          await tx.$executeRaw`
+            INSERT INTO "YouthFamilyContact" (
+              "id",
+              "relationship",
+              "phone",
+              "createdAt",
+              "updatedAt",
+              "youthId"
+            )
+            VALUES (
+              ${contact.id},
+              ${contact.relationship},
+              ${contact.phone},
+              CURRENT_TIMESTAMP,
+              CURRENT_TIMESTAMP,
+              ${contact.youthId}
+            )
+          `;
+        }
       }
 
       const academySchedules = normalizedAcademySchedules.provided
@@ -876,7 +902,10 @@ export async function updateYouthAction(
   return {
     ok: true,
     data: {
-      youth: mapYouthProfile(youth),
+      youth: mapYouthProfileForRosterResponse(
+        youth,
+        getEffectiveYouthPermissions(user),
+      ),
     },
   };
 }
@@ -893,7 +922,7 @@ export async function extendYouthDischargeAction(
     youthId: string;
   }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
   const normalizedDischargeDate = normalizeOptionalDate(
     values.extendedDischargeDate,
@@ -1055,7 +1084,7 @@ export async function extendYouthDischargeAction(
 export async function deleteYouthAction(
   youthId: string,
 ): Promise<YouthActionResult<{ youthId: string }>> {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const existingYouth = await prisma.youth.findUnique({
@@ -1127,7 +1156,7 @@ export async function deleteYouthDecisionDocumentAction(
     youthId: string;
   }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const document = await prisma.youthDecisionDocument.findUnique({
@@ -1213,7 +1242,7 @@ export async function updateYouthNoteAction(
   noteId: string,
   values: YouthNoteInput,
 ): Promise<YouthActionResult<{ note: YouthSpecialNote }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const error = validateYouthNoteInput(values);
@@ -1295,7 +1324,7 @@ export async function updateYouthNoteAction(
 export async function deleteYouthNoteAction(
   noteId: string,
 ): Promise<YouthActionResult<{ noteId: string; youthId: string }>> {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const note = await prisma.youthSpecialNote.findUnique({
@@ -1744,6 +1773,40 @@ function buildYouthUpdateMessage(
   }
 
   return lines.join("\n");
+}
+
+function mapYouthProfileForRosterResponse(
+  youth: Parameters<typeof mapYouthProfile>[0],
+  permissions: EffectiveYouthPermissions,
+): YouthProfile {
+  const profile = mapYouthProfile(youth);
+  const hasPhone = Boolean(profile.phone?.trim());
+  const hasFamilyContact = profile.familyContacts.some((contact) =>
+    Boolean(contact.phone?.trim() || contact.relationship?.trim()),
+  );
+
+  return {
+    ...profile,
+    age: permissions.canViewYouthDetails ? profile.age : null,
+    academySchedules: [],
+    birthDate: permissions.canViewYouthDetails ? profile.birthDate : null,
+    decisionDocuments: permissions.canDownloadYouthDocuments
+      ? profile.decisionDocuments
+      : [],
+    dischargeExtensions: permissions.canViewYouthDetails
+      ? profile.dischargeExtensions
+      : undefined,
+    familyContacts: [],
+    hasContact:
+      permissions.canViewYouthContacts && (hasPhone || hasFamilyContact),
+    hasFamilyContact: permissions.canViewYouthContacts && hasFamilyContact,
+    hasPhone: permissions.canViewYouthContacts && hasPhone,
+    initialDischargeDate: permissions.canViewYouthDetails
+      ? profile.initialDischargeDate
+      : undefined,
+    notes: [],
+    phone: null,
+  };
 }
 
 function revalidateYouthPaths() {

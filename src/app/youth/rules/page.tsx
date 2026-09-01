@@ -5,7 +5,7 @@ import {
   YouthRuleChangeLogList,
   YouthRulesBoard,
 } from "@/components/youth-rules-board";
-import { requireUser } from "@/lib/auth";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import {
   getYouthRuleChangeLogActors,
   getYouthRuleChangeLogs,
@@ -46,7 +46,7 @@ type YouthRulesPageProps = {
 export default async function YouthRulesPage({
   searchParams,
 }: YouthRulesPageProps) {
-  await requireUser();
+  await requireYouthBasicAccess();
   const params = await searchParams;
   const activeTab = getSelectedRulesTab(params.tab);
 

@@ -12,6 +12,7 @@ const documentTone: Record<DocumentStatus, string> = {
   approved: "border-[#bddfc9] bg-[#e8f5ed] text-[#22633a]",
   rejected: "border-[#f0c6c6] bg-[#fff1f1] text-[#8a1f1f]",
   recalled: "border-[#ddd4c6] bg-[#faf6ef] text-[#72512a]",
+  discarded: "border-[#cfd6e3] bg-[#eef1f5] text-[#394150]",
 };
 
 const stepTone: Record<ApprovalStepStatus, string> = {

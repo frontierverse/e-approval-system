@@ -30,6 +30,10 @@ type AdminUser = {
   email: string | null;
   role: "USER" | "ADMIN";
   status: "ACTIVE" | "INACTIVE";
+  canViewYouthDetails: boolean;
+  canViewYouthContacts: boolean;
+  canDownloadYouthDocuments: boolean;
+  canManageYouth: boolean;
   birthDate: string | null;
   hireDate: string | null;
   resignationDate: string | null;
@@ -169,6 +173,9 @@ function CreateUserForm({
     createAdminUserAction,
     initialState,
   );
+  const [role, setRole] = useState<AdminUser["role"]>(
+    state.values?.role === "ADMIN" ? "ADMIN" : "USER",
+  );
 
   return (
     <form
@@ -239,8 +246,13 @@ function CreateUserForm({
           }))}
         />
         <RoleStatusFields
-          role={state.values?.role ?? "USER"}
+          role={role}
           status={state.values?.status ?? "ACTIVE"}
+          onRoleChange={setRole}
+        />
+        <YouthPermissionFields
+          defaultPermissions={getYouthPermissionValues(state.values)}
+          isAdmin={role === "ADMIN"}
         />
       </div>
 
@@ -276,6 +288,11 @@ function EditUserForm({
   const [resetState, resetFormAction, resetPending] = useActionState(
     resetProfileImage,
     initialState,
+  );
+  const [role, setRole] = useState<AdminUser["role"]>(
+    state.values?.role === "ADMIN" || state.values?.role === "USER"
+      ? state.values.role
+      : user.role,
   );
 
   return (
@@ -366,8 +383,15 @@ function EditUserForm({
         </div>
 
         <RoleStatusFields
-          role={state.values?.role ?? user.role}
+          role={role}
           status={state.values?.status ?? user.status}
+          onRoleChange={setRole}
+        />
+
+        <YouthPermissionFields
+          className="sm:col-span-2"
+          defaultPermissions={getYouthPermissionValues(state.values ?? user)}
+          isAdmin={role === "ADMIN"}
         />
 
         <TextField
@@ -502,18 +526,31 @@ function StatusPill({ active }: { active: boolean }) {
   );
 }
 
-function RoleStatusFields({ role, status }: { role: string; status: string }) {
+function RoleStatusFields({
+  role,
+  status,
+  onRoleChange,
+}: {
+  role: AdminUser["role"];
+  status: string;
+  onRoleChange: (role: AdminUser["role"]) => void;
+}) {
   return (
     <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-1">
-      <SelectField
-        label="권한"
-        name="role"
-        defaultValue={role}
-        options={[
-          { value: "USER", label: "사용자" },
-          { value: "ADMIN", label: "관리자" },
-        ]}
-      />
+      <label className="block min-w-0">
+        <span className="text-xs font-semibold text-[#697386]">권한</span>
+        <select
+          name="role"
+          value={role}
+          onChange={(event) =>
+            onRoleChange(event.target.value === "ADMIN" ? "ADMIN" : "USER")
+          }
+          className="mt-2 h-10 w-full min-w-0 cursor-pointer rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+        >
+          <option value="USER">사용자</option>
+          <option value="ADMIN">관리자</option>
+        </select>
+      </label>
       <SelectField
         label="상태"
         name="status"
@@ -525,4 +562,96 @@ function RoleStatusFields({ role, status }: { role: string; status: string }) {
       />
     </div>
   );
+}
+
+type YouthPermissionValues = Pick<
+  AdminUser,
+  | "canViewYouthDetails"
+  | "canViewYouthContacts"
+  | "canDownloadYouthDocuments"
+  | "canManageYouth"
+>;
+
+const youthPermissionOptions: Array<{
+  name: keyof YouthPermissionValues;
+  label: string;
+}> = [
+  { name: "canViewYouthDetails", label: "상세 정보 조회" },
+  { name: "canViewYouthContacts", label: "연락처 조회" },
+  { name: "canDownloadYouthDocuments", label: "결정문 다운로드" },
+  { name: "canManageYouth", label: "정보 관리(청소년 삭제 제외)" },
+];
+
+function YouthPermissionFields({
+  className,
+  defaultPermissions,
+  isAdmin,
+}: {
+  className?: string;
+  defaultPermissions: YouthPermissionValues;
+  isAdmin: boolean;
+}) {
+  const descriptionId = useId();
+  const [permissions, setPermissions] = useState(defaultPermissions);
+
+  return (
+    <fieldset
+      aria-describedby={descriptionId}
+      className={[
+        "min-w-0 rounded-md border border-[#d9dee7] p-3",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <legend className="px-1 text-xs font-semibold text-[#697386]">
+        청소년 정보 권한
+      </legend>
+      <p id={descriptionId} className="text-xs leading-5 text-[#697386]">
+        {isAdmin
+          ? "관리자는 네 권한이 모두 허용됩니다."
+          : "업무에 필요한 권한만 선택하세요."}
+      </p>
+      <div className="mt-2 grid gap-1 sm:grid-cols-2">
+        {youthPermissionOptions.map((option) => (
+          <label
+            key={option.name}
+            className={[
+              "flex min-h-11 items-center gap-3 rounded-md px-2 text-sm text-[#394150] transition",
+              isAdmin
+                ? "cursor-default"
+                : "cursor-pointer hover:bg-[#f7f9fc]",
+            ].join(" ")}
+          >
+            <input
+              type="checkbox"
+              name={option.name}
+              value="true"
+              checked={isAdmin || permissions[option.name]}
+              disabled={isAdmin}
+              onChange={(event) =>
+                setPermissions((current) => ({
+                  ...current,
+                  [option.name]: event.target.checked,
+                }))
+              }
+              className="h-4 w-4 shrink-0 accent-[#196b69] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#196b69] disabled:cursor-not-allowed"
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function getYouthPermissionValues(
+  values?: Partial<YouthPermissionValues>,
+): YouthPermissionValues {
+  return {
+    canViewYouthDetails: values?.canViewYouthDetails ?? false,
+    canViewYouthContacts: values?.canViewYouthContacts ?? false,
+    canDownloadYouthDocuments: values?.canDownloadYouthDocuments ?? false,
+    canManageYouth: values?.canManageYouth ?? false,
+  };
 }

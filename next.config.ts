@@ -7,6 +7,12 @@ export default function nextConfig(phase: string): NextConfig {
     // Keep `next dev` isolated from production builds. Sharing the same output
     // directory can briefly invalidate nested App Router routes during a build.
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? ".next-dev" : ".next",
+    typescript: {
+      tsconfigPath:
+        phase === PHASE_DEVELOPMENT_SERVER
+          ? "tsconfig.json"
+          : "tsconfig.typecheck.json",
+    },
     allowedDevOrigins: ["127.0.0.1"],
     outputFileTracingIncludes: {
       "/*": ["public/fonts/**/*"],

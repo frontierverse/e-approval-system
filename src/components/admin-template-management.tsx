@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  PDFDocumentLoadingTask,
+  PDFDocumentProxy,
+  RenderTask,
+} from "pdfjs-dist";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AdminTemplateSchemaFormState,
@@ -79,30 +84,8 @@ type EditableTemplateField = {
 
 type TemplateDesignerPreviewMode = "form" | "pdf";
 
-type PdfDocument = {
-  destroy(): Promise<void> | void;
-  getPage(pageNumber: number): Promise<PdfPage>;
-  numPages: number;
-};
-
-type PdfPage = {
-  getViewport(options: { scale: number }): PdfViewport;
-  render(options: {
-    canvasContext: CanvasRenderingContext2D;
-    transform?: number[];
-    viewport: PdfViewport;
-  }): PdfRenderTask;
-};
-
-type PdfRenderTask = {
-  cancel(): void;
-  promise: Promise<void>;
-};
-
-type PdfViewport = {
-  height: number;
-  width: number;
-};
+type PdfDocument = PDFDocumentProxy;
+type PdfRenderTask = RenderTask;
 
 export function AdminTemplateManagement({
   templates,
@@ -680,10 +663,7 @@ function TemplateDesignerPdfPreview({
 
     let active = true;
     const controller = new AbortController();
-    let loadingTask: {
-      destroy(): Promise<void>;
-      promise: Promise<PdfDocument>;
-    } | null = null;
+    let loadingTask: PDFDocumentLoadingTask | null = null;
     let loadedDocument: PdfDocument | null = null;
     const timeoutId = window.setTimeout(async () => {
       canvasRefs.current.clear();
@@ -717,11 +697,10 @@ function TemplateDesignerPdfPreview({
         const data = new Uint8Array(await response.arrayBuffer());
         const pdfjs = await loadPdfJs();
 
-        loadingTask = pdfjs.getDocument({ data }) as {
-          destroy(): Promise<void>;
-          promise: Promise<PdfDocument>;
-        };
-        loadedDocument = await loadingTask.promise;
+        const nextLoadingTask = pdfjs.getDocument({ data });
+
+        loadingTask = nextLoadingTask;
+        loadedDocument = await nextLoadingTask.promise;
 
         if (!active) {
           return;
@@ -753,11 +732,7 @@ function TemplateDesignerPdfPreview({
       active = false;
       controller.abort();
       window.clearTimeout(timeoutId);
-      if (loadedDocument) {
-        void loadedDocument.destroy();
-      } else {
-        void loadingTask?.destroy();
-      }
+      void loadingTask?.destroy();
     };
   }, [schema, schemaValid, template.name]);
 
@@ -835,7 +810,7 @@ function TemplateDesignerPdfPreview({
           context.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
 
           const renderTask = page.render({
-            canvasContext: context,
+            canvas: currentCanvas,
             transform:
               outputScale === 1
                 ? undefined

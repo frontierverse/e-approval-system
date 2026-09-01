@@ -198,7 +198,7 @@ export async function createYouthLearningProgressPdf({
 }: {
   schedules: YouthLearningSchedule[];
   selectedDate: string;
-  youths: YouthProfile[];
+  youths: Array<Pick<YouthProfile, "id" | "name">>;
 }) {
   const youthChunks = chunkItems(youths, 4);
   const pages =

@@ -284,6 +284,7 @@ function toDocumentStatus(status: DbDocumentStatus): DocumentStatus {
     APPROVED: "approved",
     REJECTED: "rejected",
     RECALLED: "recalled",
+    DISCARDED: "discarded",
   } satisfies Record<DbDocumentStatus, DocumentStatus>;
 
   return statusMap[status];

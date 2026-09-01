@@ -21,6 +21,12 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 const demoPasswordHash = hashPassword("password123");
+const fullYouthPermissions = {
+  canViewYouthDetails: true,
+  canViewYouthContacts: true,
+  canDownloadYouthDocuments: true,
+  canManageYouth: true,
+};
 const defaultDocumentTemplateSchema = getDefaultDocumentTemplateSchema();
 const expenseReportDocumentTemplateSchema =
   getExpenseReportDocumentTemplateSchema();
@@ -84,6 +90,7 @@ async function main() {
   await prisma.user.createMany({
     data: [
       {
+        ...fullYouthPermissions,
         id: "user-001",
         name: "김민준",
         email: "minjun.kim@company.local",
@@ -94,6 +101,7 @@ async function main() {
         status: UserStatus.ACTIVE,
       },
       {
+        ...fullYouthPermissions,
         id: "user-002",
         name: "이서연",
         email: "seoyeon.lee@company.local",
@@ -104,6 +112,7 @@ async function main() {
         status: UserStatus.ACTIVE,
       },
       {
+        ...fullYouthPermissions,
         id: "user-003",
         name: "박도윤",
         email: "doyoon.park@company.local",
@@ -114,6 +123,7 @@ async function main() {
         status: UserStatus.ACTIVE,
       },
       {
+        ...fullYouthPermissions,
         id: "user-004",
         name: "최지훈",
         email: "jihun.choi@company.local",
@@ -124,6 +134,7 @@ async function main() {
         status: UserStatus.ACTIVE,
       },
       {
+        ...fullYouthPermissions,
         id: "user-005",
         name: "정하린",
         email: "harin.jung@company.local",

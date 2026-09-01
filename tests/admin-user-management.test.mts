@@ -30,6 +30,10 @@ describe("AdminUserManagement", () => {
             email: "staff@example.com",
             role: "USER",
             status: "ACTIVE",
+            canViewYouthDetails: true,
+            canViewYouthContacts: false,
+            canDownloadYouthDocuments: true,
+            canManageYouth: false,
             birthDate: "1990-03-15",
             hireDate: "2026-01-01",
             resignationDate: null,
@@ -61,5 +65,13 @@ describe("AdminUserManagement", () => {
     assert.match(html, /aria-label="생년월일 년"/);
     assert.match(html, /aria-label="입사일 월"/);
     assert.match(html, /aria-label="퇴사일 일"/);
+    assert.match(html, /청소년 정보 권한/);
+    assert.match(html, /업무에 필요한 권한만 선택하세요/);
+    assert.match(html, /name="canViewYouthDetails"/);
+    assert.match(html, /name="canViewYouthContacts"/);
+    assert.match(html, /name="canDownloadYouthDocuments"/);
+    assert.match(html, /name="canManageYouth"/);
+    assert.equal((html.match(/type="checkbox"/g) ?? []).length, 4);
+    assert.doesNotMatch(html, /type="checkbox"[^>]*checked/);
   });
 });

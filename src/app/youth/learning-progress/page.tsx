@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { PageTitle } from "@/components/page-title";
 import { YouthSubjectProgressBoard } from "@/components/youth-subject-progress-board";
-import { requireUser } from "@/lib/auth";
-import { getYouthProfiles } from "@/lib/youth-management";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
+import { getYouthDirectory } from "@/lib/youth-management";
 import {
   getYouthStudyConceptChecks,
   getYouthStudyConcepts,
@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function YouthLearningProgressPage() {
-  await requireUser();
+  await requireYouthBasicAccess();
   const [youthProfiles, concepts, checks] = await Promise.all([
-    getYouthProfiles(),
+    getYouthDirectory(),
     getYouthStudyConcepts(),
     getYouthStudyConceptChecks(),
   ]);

@@ -119,7 +119,7 @@ const rosterQuerySource = extractSection(
 const rosterMapperSource = extractSection(
   rosterSource,
   "function mapYouthRosterItem(",
-  "function getFamilyContacts(",
+  "function hasRegisteredYouthContact(",
   "청소년 명단 매퍼",
 );
 const profileIncludeSource = extractSection(
@@ -212,7 +212,10 @@ describe("youth academy schedule persistence contracts", () => {
   });
 
   test("returns academy schedules only through the audited detail action", () => {
-    assert.match(detailViewActionSource, /const user = await requireUser\(\)/);
+    assert.match(
+      detailViewActionSource,
+      /const user = await requireYouthPermission\("canViewYouthDetails"\)/,
+    );
     assert.match(detailViewActionSource, /AuditAction\.VIEW_YOUTH_DETAIL/);
     assert.match(detailViewActionSource, /await prisma\.auditLog\.create\(/);
     assert.match(
@@ -419,6 +422,6 @@ describe("youth academy schedule persistence contracts", () => {
       /setExpectedUpdatedAt\(result\.data\.updatedAt\)/,
     );
     assert.match(formModalSource, /setExpectedUpdatedAt\(result\.updatedAt\)/);
-    assert.match(submitFormSource, /\.\.\.values,\s*expectedUpdatedAt,/);
+    assert.match(submitFormSource, /\.\.\.updateValues,\s*expectedUpdatedAt,/);
   });
 });

@@ -67,6 +67,7 @@ const STATUS_LABELS: Record<string, string> = {
   APPROVED: "승인완료",
   REJECTED: "반려",
   RECALLED: "회수",
+  DISCARDED: "폐기",
 };
 
 export function createDraftUpdateAuditDetails({

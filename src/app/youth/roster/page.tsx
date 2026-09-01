@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { YouthRosterBoard } from "@/components/youth-roster-board";
-import { requireUser } from "@/lib/auth";
+import { requireYouthBasicAccess } from "@/lib/youth-permissions";
+import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import {
   getYouthRoster,
   getYouthRosterChangeLogs,
@@ -31,12 +32,14 @@ type YouthRosterPageProps = {
 export default async function YouthRosterPage({
   searchParams,
 }: YouthRosterPageProps) {
-  await requireUser();
+  const user = await requireYouthBasicAccess();
+  const permissions = getEffectiveYouthPermissions(user);
   const params = await searchParams;
   const [roster, changeLogResult] = await Promise.all([
-    getYouthRoster(),
+    getYouthRoster(permissions),
     getYouthRosterChangeLogs({
       page: getSelectedPage(params.logPage),
+      permissions,
     }),
   ]);
 
@@ -56,8 +59,15 @@ export default async function YouthRosterPage({
       extendYouthDischarge={extendYouthDischargeAction}
       loadChangeLogs={getYouthRosterChangeLogsAction}
       pageHeader
-      recordYouthContactView={recordYouthContactViewAction}
-      recordYouthDetailView={recordYouthDetailViewAction}
+      permissions={permissions}
+      recordYouthContactView={
+        permissions.canViewYouthContacts
+          ? recordYouthContactViewAction
+          : undefined
+      }
+      recordYouthDetailView={
+        permissions.canViewYouthDetails ? recordYouthDetailViewAction : undefined
+      }
       updateYouth={updateYouthAction}
     />
   );

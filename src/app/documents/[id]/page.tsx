@@ -20,8 +20,10 @@ import { getReadableDocumentById } from "@/lib/approval-queries";
 import {
   canDeleteDraftDocumentByPolicy,
   canDeleteSignedAttachmentByPolicy,
+  canDiscardRecalledDocumentByPolicy,
   canManageDraftDocumentAttachmentsByPolicy,
   canRecallDocumentByPolicy,
+  canRestoreDiscardedDocumentByPolicy,
 } from "@/lib/approval-permissions-core";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { requireUser } from "@/lib/auth";
@@ -40,9 +42,11 @@ import {
   deleteAttachmentAction,
   deleteSignedAttachmentAction,
   deleteDraftDocumentAction,
+  discardDocumentAction,
   proxyApproveDocumentAction,
   recallDocumentAction,
   rejectProxyApprovalAction,
+  restoreDocumentAction,
   submitDocumentAction,
 } from "./actions";
 
@@ -71,9 +75,13 @@ export default async function DocumentDetailPage({
   const isOwnDocument = document.drafterId === user.id;
   const isEditableDraft =
     document.status === "draft" || document.status === "recalled";
+  const isDraftWorkspaceDocument =
+    isEditableDraft || document.status === "discarded";
   const listHref = isOwnDocument
-    ? isEditableDraft
-      ? "/drafts"
+    ? isDraftWorkspaceDocument
+      ? document.status === "discarded"
+        ? "/drafts?status=discarded"
+        : "/drafts"
       : "/sent"
     : "/inbox";
   const documentLabel = document.documentNo || "임시문서";
@@ -88,8 +96,15 @@ export default async function DocumentDetailPage({
   );
   const canDeleteDraft = canDeleteDraftDocumentByPolicy(user.id, document);
   const canRecall = canRecallDocumentByPolicy(user.id, document);
+  const canDiscard = canDiscardRecalledDocumentByPolicy(user.id, document);
+  const canRestore = canRestoreDiscardedDocumentByPolicy(user.id, document);
   const hasDocumentActions =
-    canEditDraft || canSubmitDraft || canRecall || canDeleteDraft;
+    canEditDraft ||
+    canSubmitDraft ||
+    canRecall ||
+    canDiscard ||
+    canRestore ||
+    canDeleteDraft;
   const canDecide =
     currentStep?.approverId === user.id &&
     (document.status === "submitted" || document.status === "in_progress");
@@ -125,12 +140,16 @@ export default async function DocumentDetailPage({
             label:
               document.status === "rejected"
                 ? "반려"
-                : document.status === "recalled"
+                : document.status === "recalled" ||
+                    document.status === "discarded"
                   ? "회수"
                   : "완료",
             value: formatDateTime(document.completedAt),
           },
         ]
+      : []),
+    ...(document.discardedAt
+      ? [{ label: "폐기", value: formatDateTime(document.discardedAt) }]
       : []),
   ];
 
@@ -157,7 +176,7 @@ export default async function DocumentDetailPage({
                   className={buttonClass(
                     buttonStyles.base,
                     buttonStyles.save,
-                    "h-10 px-4 text-sm",
+                    "h-11 px-4 text-sm",
                   )}
                 >
                   수정
@@ -171,7 +190,7 @@ export default async function DocumentDetailPage({
                     className={buttonClass(
                       buttonStyles.base,
                       buttonStyles.primary,
-                      "h-10 px-4 text-sm",
+                      "h-11 px-4 text-sm",
                     )}
                   >
                     결재 요청
@@ -186,10 +205,42 @@ export default async function DocumentDetailPage({
                     className={buttonClass(
                       buttonStyles.base,
                       buttonStyles.dangerOutline,
-                      "h-10 px-4 text-sm",
+                      "h-11 px-4 text-sm",
                     )}
                   >
                     회수
+                  </ConfirmSubmitButton>
+                </form>
+              ) : null}
+              {canRestore ? (
+                <form action={restoreDocumentAction.bind(null, document.id)}>
+                  <ConfirmSubmitButton
+                    message="이 문서를 회수 상태로 복원하시겠습니까? 복원 후 수정하거나 다시 결재 요청할 수 있습니다."
+                    pendingLabel="복원 중"
+                    type="submit"
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.save,
+                      "h-11 px-4 text-sm",
+                    )}
+                  >
+                    복원
+                  </ConfirmSubmitButton>
+                </form>
+              ) : null}
+              {canDiscard ? (
+                <form action={discardDocumentAction.bind(null, document.id)}>
+                  <ConfirmSubmitButton
+                    message="이 회수 문서를 폐기하시겠습니까? 문서와 결재 이력은 보존되며 기본 목록에서 숨겨집니다."
+                    pendingLabel="폐기 중"
+                    type="submit"
+                    className={buttonClass(
+                      buttonStyles.base,
+                      buttonStyles.danger,
+                      "h-11 px-4 text-sm",
+                    )}
+                  >
+                    폐기
                   </ConfirmSubmitButton>
                 </form>
               ) : null}
@@ -201,7 +252,7 @@ export default async function DocumentDetailPage({
                     className={buttonClass(
                       buttonStyles.base,
                       buttonStyles.danger,
-                      "h-10 px-4 text-sm",
+                      "h-11 px-4 text-sm",
                     )}
                   >
                     삭제
@@ -221,6 +272,12 @@ export default async function DocumentDetailPage({
       {actionError ? (
         <p className="mb-5 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-4 py-3 text-sm text-[#8a1f1f]">
           {actionError}
+        </p>
+      ) : null}
+      {document.status === "discarded" ? (
+        <p className="mb-5 rounded-md border border-[#cfd6e3] bg-[#f7f9fc] px-4 py-3 text-sm text-[#394150]">
+          폐기된 문서입니다. 문서 내용과 첨부파일, 결재 및 감사 이력은
+          보존되며 기본 기안 목록에서는 숨겨집니다.
         </p>
       ) : null}
 

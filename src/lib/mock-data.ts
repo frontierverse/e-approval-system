@@ -5,7 +5,8 @@ export type DocumentStatus =
   | "in_progress"
   | "approved"
   | "rejected"
-  | "recalled";
+  | "recalled"
+  | "discarded";
 export type ApprovalStepStatus =
   | "waiting"
   | "pending"
@@ -100,6 +101,7 @@ export type ApprovalDocument = {
   createdAt: string;
   submittedAt: string | null;
   completedAt: string | null;
+  discardedAt?: string | null;
   content: string;
   attachmentCount: number;
   attachments: AttachmentSummary[];
@@ -406,6 +408,7 @@ export const documentStatusLabels: Record<DocumentStatus, string> = {
   approved: "승인완료",
   rejected: "반려",
   recalled: "회수",
+  discarded: "폐기",
 };
 
 export const approvalStepStatusLabels: Record<ApprovalStepStatus, string> = {
@@ -485,7 +488,8 @@ export function getSentDocuments(userId = currentUser.id) {
       (document) =>
         document.drafterId === userId &&
         document.status !== "draft" &&
-        document.status !== "recalled",
+        document.status !== "recalled" &&
+        document.status !== "discarded",
     )
     .sort(sortByRecentActivity);
 }

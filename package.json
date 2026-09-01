@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --import ./tests/tsx-loader.mjs --test --experimental-test-isolation=none \"tests/**/*.test.mts\"",
-    "verify": "npm run test && npm run lint && npm run build",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "verify": "npm run test && npm run lint && npm run typecheck && npm run build",
     "deploy:check": "node scripts/check-production-env.mjs",
     "admin:create": "tsx scripts/create-initial-admin.ts",
     "postinstall": "prisma generate",
@@ -25,19 +27,20 @@
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "@supabase/supabase-js": "^2.110.8",
-    "@vercel/blob": "^2.3.3",
-    "next": "16.2.4",
+    "@vercel/blob": "^2.8.0",
+    "next": "16.3.4",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.3.289",
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
@@ -45,8 +48,8 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "prisma": "^7.8.0",
+    "eslint-config-next": "16.3.4",
+    "prisma": "^7.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

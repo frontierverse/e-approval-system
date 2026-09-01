@@ -11,10 +11,12 @@ import {
   approveCurrentApprovalStep,
   deleteDocumentAttachment,
   deleteDraftDocument,
+  discardRecalledDocument,
   proxyApproveApprovalStepsThrough,
   recallSubmittedDocument,
   rejectCurrentApprovalStep,
   rejectProxyApprovedStep,
+  restoreDiscardedDocument,
   submitDraftDocument,
 } from "@/lib/approval-mutations";
 import {
@@ -224,6 +226,42 @@ export async function recallDocumentAction(documentId: string) {
   revalidatePath("/");
   revalidatePath("/drafts");
   revalidatePath("/inbox");
+  revalidatePath("/sent");
+  revalidatePath(`/documents/${documentId}`);
+
+  if (!result.ok) {
+    redirect(
+      `/documents/${documentId}?actionError=${encodeURIComponent(result.message)}`,
+    );
+  }
+
+  redirect(`/documents/${result.documentId}`);
+}
+
+export async function discardDocumentAction(documentId: string) {
+  const user = await requireUser();
+  const result = await discardRecalledDocument(documentId, user.id);
+
+  revalidatePath("/");
+  revalidatePath("/drafts");
+  revalidatePath("/sent");
+  revalidatePath(`/documents/${documentId}`);
+
+  if (!result.ok) {
+    redirect(
+      `/documents/${documentId}?actionError=${encodeURIComponent(result.message)}`,
+    );
+  }
+
+  redirect("/drafts?status=discarded");
+}
+
+export async function restoreDocumentAction(documentId: string) {
+  const user = await requireUser();
+  const result = await restoreDiscardedDocument(documentId, user.id);
+
+  revalidatePath("/");
+  revalidatePath("/drafts");
   revalidatePath("/sent");
   revalidatePath(`/documents/${documentId}`);
 

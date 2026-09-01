@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
-import { requireUser } from "@/lib/auth";
+import {
+  requireYouthBasicAccess,
+  requireYouthPermission,
+} from "@/lib/youth-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthCommonScheduleChangeLogs,
@@ -34,7 +37,7 @@ export async function getYouthCommonScheduleChangeLogsAction(
 ): Promise<
   YouthActionResult<{ changeLogResult: YouthCommonScheduleChangeLogsResult }>
 > {
-  await requireUser();
+  await requireYouthBasicAccess();
   const changeLogResult = await getYouthCommonScheduleChangeLogs({
     actorId: filters.actorId,
     page: filters.page,
@@ -63,7 +66,7 @@ export async function saveYouthCommonScheduleAction(
     targetWeekdays: YouthLearningScheduleWeekday[];
   }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
   const sourceStartMinute = Array.isArray(recurrenceWeekdaysOrSourceStartMinute)
     ? (maybeSourceStartMinute ?? startMinute)
     : recurrenceWeekdaysOrSourceStartMinute;
@@ -333,7 +336,7 @@ export async function deleteYouthCommonScheduleAction(
 ): Promise<
   YouthActionResult<{ weekday: YouthLearningScheduleWeekday; startMinute: number }>
 > {
-  const user = await requireUser();
+  const user = await requireYouthPermission("canManageYouth");
 
   if (!isYouthCommonScheduleWeekday(weekday)) {
     return {

@@ -46,7 +46,7 @@ export function getReadableDocumentWhere(
         AND: [
           {
             status: {
-              notIn: ["DRAFT", "RECALLED"],
+              notIn: ["DRAFT", "RECALLED", "DISCARDED"],
             },
           },
           {
@@ -81,6 +81,26 @@ export function canRecallDocumentByPolicy(
   return (
     document.drafterId === userId &&
     (status === "SUBMITTED" || status === "IN_PROGRESS")
+  );
+}
+
+export function canDiscardRecalledDocumentByPolicy(
+  userId: string,
+  document: DocumentActionPolicyShape,
+) {
+  return (
+    document.drafterId === userId &&
+    normalizeDocumentStatus(document.status) === "RECALLED"
+  );
+}
+
+export function canRestoreDiscardedDocumentByPolicy(
+  userId: string,
+  document: DocumentActionPolicyShape,
+) {
+  return (
+    document.drafterId === userId &&
+    normalizeDocumentStatus(document.status) === "DISCARDED"
   );
 }
 
@@ -142,13 +162,20 @@ function isSignedAttachmentLocked(
   return (
     status === "APPROVED" ||
     status === "REJECTED" ||
+    status === "DISCARDED" ||
     approvalStatus === "APPROVED" ||
     approvalStatus === "REJECTED"
   );
 }
 
 function isPrivateDraftStatus(status: string | undefined) {
-  return status === "DRAFT" || status === "RECALLED";
+  const normalizedStatus = normalizeDocumentStatus(status);
+
+  return (
+    normalizedStatus === "DRAFT" ||
+    normalizedStatus === "RECALLED" ||
+    normalizedStatus === "DISCARDED"
+  );
 }
 
 function normalizeDocumentStatus(status: string | null | undefined) {
