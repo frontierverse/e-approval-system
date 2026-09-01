@@ -415,6 +415,7 @@ model YouthAcademySchedule {
   academyName      String
   weekdays         String
   attendanceMinute Int
+  endMinute        Int?
   sortOrder        Int
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

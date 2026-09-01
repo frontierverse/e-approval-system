@@ -29,6 +29,13 @@ const migrationSource = readFileSync(
   ),
   "utf8",
 );
+const endTimeMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260901130000_add_youth_academy_schedule_end_time/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function extractSection(
   source: string,
@@ -126,6 +133,7 @@ describe("youth academy schedule persistence contracts", () => {
     assert.equal(schemaUniqueName, "YouthAcademySchedule_youth_slot_key");
     assert.equal(migrationUniqueName, schemaUniqueName);
     assert.ok(Buffer.byteLength(schemaUniqueName, "utf8") <= 63);
+    assert.match(academyScheduleModelSource, /endMinute\s+Int\?/);
     assert.match(
       academyScheduleModelSource,
       /youth\s+Youth\s+@relation\([^\n]*onDelete:\s*Cascade\)/,
@@ -151,6 +159,14 @@ describe("youth academy schedule persistence contracts", () => {
       migrationSource,
       /ALTER TABLE "YouthAcademySchedule" ENABLE ROW LEVEL SECURITY/,
     );
+    assert.match(
+      endTimeMigrationSource,
+      /ALTER TABLE "YouthAcademySchedule"\s+ADD COLUMN "endMinute" INTEGER;/,
+    );
+    assert.match(
+      endTimeMigrationSource,
+      /CONSTRAINT "YouthAcademySchedule_endMinute_check"\s+CHECK \([\s\S]*?"endMinute" IS NULL[\s\S]*?"endMinute" >= 0[\s\S]*?"endMinute" < 1440[\s\S]*?"endMinute" > "attendanceMinute"[\s\S]*?\);/,
+    );
   });
 
   test("returns academy schedules only through the audited detail action", () => {
@@ -169,6 +185,10 @@ describe("youth academy schedule persistence contracts", () => {
     assert.match(rosterMapperSource, /academySchedules:\s*\[\]/);
     assert.doesNotMatch(profileIncludeSource, /academySchedules/);
     assert.match(getYouthProfilesSource, /academySchedules:\s*\[\]/);
+    assert.match(
+      managementSource,
+      /endMinute:\s*number \| null;[\s\S]*?endTime:\s*record\.endMinute === null\s*\? (?:null|"")\s*:\s*formatMinuteOfDay\(record\.endMinute\)/,
+    );
   });
 
   test("uses optimistic concurrency and preserves omitted schedules", () => {
@@ -195,6 +215,44 @@ describe("youth academy schedule persistence contracts", () => {
     assert.match(
       replaceAcademySchedulesSource,
       /if \(schedules\.length > 0\)[\s\S]*?youthAcademySchedule\.createMany\(/,
+    );
+    assert.match(
+      replaceAcademySchedulesSource,
+      /attendanceMinute:\s*schedule\.attendanceMinute,[\s\S]*?endMinute:\s*schedule\.endMinute,/,
+    );
+    assert.match(updateYouthActionSource, /endMinute:\s*true/);
+    assert.match(
+      actionsSource,
+      /endTime:\s*schedule\.endMinute === null\s*\? ""\s*:\s*formatYouthAcademyAttendanceTime\(schedule\.endMinute\)/,
+    );
+    assert.match(
+      actionsSource,
+      /const timeRange = schedule\.endTime\s*\? `\$\{schedule\.attendanceTime\}~\$\{schedule\.endTime\}`\s*:\s*schedule\.attendanceTime/,
+    );
+  });
+
+  test("renders, validates, and submits a second academy time input", () => {
+    assert.match(
+      formModalSource,
+      /const endTimeId = getAcademyScheduleFieldId\([\s\S]*?"endTime",\s*\);/,
+    );
+    assert.match(
+      formModalSource,
+      /aria-label=\{`학원 일정 \$\{index \+ 1\} 마치는 시간`\}[\s\S]*?type="time"[\s\S]*?value=\{schedule\.endTime\}/,
+    );
+    assert.match(
+      formModalSource,
+      /updateAcademySchedule\(schedule\.key, \{\s*endTime:\s*event\.target\.value,/,
+    );
+    assert.match(boardSource, /endTime:\s*schedule\.endTime \?\? ""/);
+    assert.match(boardSource, /!schedule\.endTime/);
+    assert.match(
+      boardSource,
+      /if \(schedule\.endTime <= schedule\.attendanceTime\)/,
+    );
+    assert.match(
+      boardSource,
+      /academySchedules:[\s\S]*?endTime:\s*schedule\.endTime,[\s\S]*?weekdays:\s*schedule\.weekdays/,
     );
   });
 

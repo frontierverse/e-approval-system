@@ -15,13 +15,14 @@ function normalizeUnknownAcademySchedules(value: unknown) {
 }
 
 describe("youth academy schedule normalization", () => {
-  test("normalizes academy names, weekday order, and attendance minutes", () => {
+  test("normalizes academy names, weekday order, and attendance/end minutes", () => {
     assert.deepEqual(
       normalizeYouthAcademySchedules([
         {
           academyName: "  새봄수학학원  ",
           weekdays: [5, 1, 3, 1],
           attendanceTime: " 18:05 ",
+          endTime: " 19:35 ",
         },
       ]),
       {
@@ -33,6 +34,8 @@ describe("youth academy schedule normalization", () => {
             weekdaysValue: "1,3,5",
             attendanceTime: "18:05",
             attendanceMinute: 1085,
+            endTime: "19:35",
+            endMinute: 1175,
           },
         ],
       },
@@ -54,6 +57,7 @@ describe("youth academy schedule normalization", () => {
           academyName: "   ",
           weekdays: [],
           attendanceTime: " ",
+          endTime: " ",
         },
       ]),
       {
@@ -66,7 +70,14 @@ describe("youth academy schedule normalization", () => {
   test("rejects partially filled rows with row-specific errors", () => {
     const partialRows = [
       {
-        input: [{ academyName: "", weekdays: [1], attendanceTime: "18:00" }],
+        input: [
+          {
+            academyName: "",
+            weekdays: [1],
+            attendanceTime: "18:00",
+            endTime: "19:00",
+          },
+        ],
         error: /1번 학원명을 입력하세요/,
       },
       {
@@ -75,6 +86,7 @@ describe("youth academy schedule normalization", () => {
             academyName: "새봄수학학원",
             weekdays: [],
             attendanceTime: "18:00",
+            endTime: "19:00",
           },
         ],
         error: /1번 요일을 하나 이상 선택하세요/,
@@ -85,9 +97,21 @@ describe("youth academy schedule normalization", () => {
             academyName: "새봄수학학원",
             weekdays: [1],
             attendanceTime: "",
+            endTime: "19:00",
           },
         ],
         error: /1번 등원 시간은 HH:mm 형식으로 입력하세요/,
+      },
+      {
+        input: [
+          {
+            academyName: "새봄수학학원",
+            weekdays: [1],
+            attendanceTime: "18:00",
+            endTime: "",
+          },
+        ],
+        error: /1번 마치는 시간은 HH:mm 형식으로 입력하세요/,
       },
     ];
 
@@ -105,6 +129,7 @@ describe("youth academy schedule normalization", () => {
         academyName: "새봄수학학원",
         weekdays: [7],
         attendanceTime: "18:00",
+        endTime: "19:00",
       },
     ]);
     const invalidTime = normalizeYouthAcademySchedules([
@@ -112,6 +137,15 @@ describe("youth academy schedule normalization", () => {
         academyName: "새봄수학학원",
         weekdays: [1],
         attendanceTime: "24:00",
+        endTime: "19:00",
+      },
+    ]);
+    const invalidEndTime = normalizeYouthAcademySchedules([
+      {
+        academyName: "새봄수학학원",
+        weekdays: [1],
+        attendanceTime: "18:00",
+        endTime: "24:00",
       },
     ]);
 
@@ -119,6 +153,8 @@ describe("youth academy schedule normalization", () => {
     assert.deepEqual(invalidWeekday.value, []);
     assert.match(invalidTime.error ?? "", /HH:mm 형식/);
     assert.deepEqual(invalidTime.value, []);
+    assert.match(invalidEndTime.error ?? "", /마치는 시간.*HH:mm 형식/);
+    assert.deepEqual(invalidEndTime.value, []);
   });
 
   test("accepts evening academy attendance times", () => {
@@ -128,6 +164,7 @@ describe("youth academy schedule normalization", () => {
           academyName: "푸른영어학원",
           weekdays: [2, 4],
           attendanceTime: "20:30",
+          endTime: "22:00",
         },
       ]),
       {
@@ -139,23 +176,27 @@ describe("youth academy schedule normalization", () => {
             weekdaysValue: "2,4",
             attendanceTime: "20:30",
             attendanceMinute: 1230,
+            endTime: "22:00",
+            endMinute: 1320,
           },
         ],
       },
     );
   });
 
-  test("rejects duplicate schedules after normalization", () => {
+  test("keeps the existing slot identity when end times differ", () => {
     const result = normalizeYouthAcademySchedules([
       {
         academyName: "새봄수학학원",
         weekdays: [1, 3, 1],
         attendanceTime: "18:30",
+        endTime: "19:30",
       },
       {
         academyName: " 새봄수학학원 ",
         weekdays: [3, 1],
         attendanceTime: " 18:30 ",
+        endTime: " 20:00 ",
       },
     ]);
 
@@ -165,12 +206,13 @@ describe("youth academy schedule normalization", () => {
   });
 
   test("accepts 20 academy schedules and rejects the 21st", () => {
-  const maximumSchedules: YouthAcademyScheduleInput[] = Array.from(
+    const maximumSchedules: YouthAcademyScheduleInput[] = Array.from(
       { length: youthAcademyScheduleMaxCount },
       (_, index) => ({
         academyName: `학원 ${index + 1}`,
         weekdays: [1],
         attendanceTime: "18:00",
+        endTime: "19:00",
       }),
     );
     const accepted = normalizeYouthAcademySchedules(maximumSchedules);
@@ -180,6 +222,7 @@ describe("youth academy schedule normalization", () => {
         academyName: "한도 초과 학원",
         weekdays: [2],
         attendanceTime: "19:00",
+        endTime: "20:00",
       },
     ]);
 
@@ -199,6 +242,7 @@ describe("youth academy schedule normalization", () => {
         academyName: "새봄수학학원",
         weekdays: [0, 1, 2, 3, 4, 5, 6, 1],
         attendanceTime: "18:00",
+        endTime: "19:00",
       },
     ]);
 
@@ -210,17 +254,19 @@ describe("youth academy schedule normalization", () => {
     assert.deepEqual(result.value, []);
   });
 
-  test("enforces academy-name and attendance-time boundaries", () => {
+  test("enforces academy-name and academy-time boundaries", () => {
     const accepted = normalizeYouthAcademySchedules([
       {
         academyName: "가".repeat(youthAcademyNameMaxLength),
         weekdays: [0],
         attendanceTime: "00:00",
+        endTime: "00:01",
       },
       {
         academyName: "마감 학원",
         weekdays: [6],
-        attendanceTime: "23:59",
+        attendanceTime: "23:58",
+        endTime: "23:59",
       },
     ]);
     const rejected = normalizeYouthAcademySchedules([
@@ -228,12 +274,17 @@ describe("youth academy schedule normalization", () => {
         academyName: "가".repeat(youthAcademyNameMaxLength + 1),
         weekdays: [1],
         attendanceTime: "18:00",
+        endTime: "19:00",
       },
     ]);
 
     assert.deepEqual(
       accepted.value.map((schedule) => schedule.attendanceMinute),
-      [0, 1439],
+      [0, 1438],
+    );
+    assert.deepEqual(
+      accepted.value.map((schedule) => schedule.endMinute),
+      [1, 1439],
     );
     assert.match(
       rejected.error ?? "",
@@ -242,14 +293,69 @@ describe("youth academy schedule normalization", () => {
     assert.deepEqual(rejected.value, []);
   });
 
+  test("requires the academy end time to be later than attendance", () => {
+    for (const [attendanceTime, endTime] of [
+      ["18:00", "18:00"],
+      ["18:01", "18:00"],
+    ] as const) {
+      const result = normalizeYouthAcademySchedules([
+        {
+          academyName: "새봄수학학원",
+          weekdays: [1],
+          attendanceTime,
+          endTime,
+        },
+      ]);
+
+      assert.match(result.error ?? "", /마치는 시간.*등원 시간보다 늦/);
+      assert.deepEqual(result.value, []);
+    }
+  });
+
   test("rejects malformed runtime values without throwing", () => {
     const malformedValues: unknown[] = [
       "not-an-array",
       [null],
-      [{ academyName: 1, weekdays: [1], attendanceTime: "18:00" }],
-      [{ academyName: "학원", weekdays: "1", attendanceTime: "18:00" }],
-      [{ academyName: "학원", weekdays: ["1"], attendanceTime: "18:00" }],
-      [{ academyName: "학원", weekdays: [1], attendanceTime: 1800 }],
+      [
+        {
+          academyName: 1,
+          weekdays: [1],
+          attendanceTime: "18:00",
+          endTime: "19:00",
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: "1",
+          attendanceTime: "18:00",
+          endTime: "19:00",
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: ["1"],
+          attendanceTime: "18:00",
+          endTime: "19:00",
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: [1],
+          attendanceTime: 1800,
+          endTime: "19:00",
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: [1],
+          attendanceTime: "18:00",
+          endTime: 1900,
+        },
+      ],
     ];
 
     for (const value of malformedValues) {

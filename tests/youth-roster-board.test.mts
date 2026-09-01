@@ -37,12 +37,14 @@ const roster = {
           academyName: "새봄수학학원",
           weekdays: [1, 3, 5],
           attendanceTime: "18:30",
+          endTime: "20:00",
         },
         {
           id: "academy-schedule-002",
           academyName: "푸른영어학원",
           weekdays: [2, 4],
           attendanceTime: "20:00",
+          endTime: "21:30",
         },
       ],
       decisionDocuments: [
@@ -127,6 +129,7 @@ const rosterActions = {
             academyName: schedule.academyName,
             weekdays: [...schedule.weekdays],
             attendanceTime: schedule.attendanceTime,
+            endTime: schedule.endTime,
           }),
         ),
         familyContacts: values.familyContacts.map((contact, index) => ({
@@ -157,6 +160,7 @@ const rosterActions = {
             academyName: schedule.academyName,
             weekdays: [...schedule.weekdays],
             attendanceTime: schedule.attendanceTime,
+            endTime: schedule.endTime,
           }),
         ),
         familyContacts: values.familyContacts.map((contact, index) => ({
@@ -344,8 +348,17 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /푸른영어학원/);
     assert.match(html, /aria-label="학원 일정 1 등원 시간"/);
     assert.match(html, /aria-label="학원 일정 2 등원 시간"/);
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 마치는 시간"[^>]*value="20:00"/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 2 마치는 시간"[^>]*value="21:30"/,
+    );
     assert.match(html, /type="time"[^>]*value="18:30"/);
     assert.match(html, /type="time"[^>]*value="20:00"/);
+    assert.equal((html.match(/type="time"/g) ?? []).length, 4);
     assert.match(
       html,
       /aria-label="학원 일정 1 월요일"[^>]*checked=""/,

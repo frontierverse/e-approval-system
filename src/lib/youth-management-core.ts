@@ -95,6 +95,7 @@ export type YouthAcademySchedule = {
   academyName: string;
   weekdays: YouthLearningScheduleWeekday[];
   attendanceTime: string;
+  endTime: string;
 };
 
 export const youthDecisionDocumentFormFieldName = "decisionDocuments";
@@ -265,12 +266,15 @@ export type YouthAcademyScheduleInput = {
   academyName: string;
   weekdays: YouthLearningScheduleWeekday[];
   attendanceTime: string;
+  endTime: string;
 };
 
 export type NormalizedYouthAcademyScheduleInput = {
   academyName: string;
   attendanceMinute: number;
   attendanceTime: string;
+  endMinute: number;
+  endTime: string;
   weekdays: YouthLearningScheduleWeekday[];
   weekdaysValue: string;
 };
@@ -677,7 +681,8 @@ export function normalizeYouthAcademySchedules(
     if (
       typeof value.academyName !== "string" ||
       !Array.isArray(value.weekdays) ||
-      typeof value.attendanceTime !== "string"
+      typeof value.attendanceTime !== "string" ||
+      typeof value.endTime !== "string"
     ) {
       return {
         error: `학원 일정 ${rowNumber}번 형식이 올바르지 않습니다.`,
@@ -688,9 +693,15 @@ export function normalizeYouthAcademySchedules(
 
     const academyName = value.academyName.trim();
     const attendanceTime = value.attendanceTime.trim();
+    const endTime = value.endTime.trim();
     const rawWeekdays = value.weekdays as unknown[];
 
-    if (!academyName && rawWeekdays.length === 0 && !attendanceTime) {
+    if (
+      !academyName &&
+      rawWeekdays.length === 0 &&
+      !attendanceTime &&
+      !endTime
+    ) {
       continue;
     }
 
@@ -745,7 +756,8 @@ export function normalizeYouthAcademySchedules(
       rawWeekdays as number[],
     );
     const weekdaysValue = serializeYouthLearningScheduleWeekdays(weekdays);
-    const attendanceMinute = parseYouthAcademyAttendanceMinute(attendanceTime);
+    const attendanceMinute = parseYouthAcademyScheduleMinute(attendanceTime);
+    const endMinute = parseYouthAcademyScheduleMinute(endTime);
 
     if (!weekdaysValue) {
       return {
@@ -758,6 +770,22 @@ export function normalizeYouthAcademySchedules(
     if (attendanceMinute === null) {
       return {
         error: `학원 일정 ${rowNumber}번 등원 시간은 HH:mm 형식으로 입력하세요.`,
+        provided: true,
+        value: [],
+      };
+    }
+
+    if (endMinute === null) {
+      return {
+        error: `학원 일정 ${rowNumber}번 마치는 시간은 HH:mm 형식으로 입력하세요.`,
+        provided: true,
+        value: [],
+      };
+    }
+
+    if (endMinute <= attendanceMinute) {
+      return {
+        error: `학원 일정 ${rowNumber}번 마치는 시간은 등원 시간보다 늦게 입력하세요.`,
         provided: true,
         value: [],
       };
@@ -782,6 +810,8 @@ export function normalizeYouthAcademySchedules(
       academyName,
       attendanceMinute,
       attendanceTime,
+      endMinute,
+      endTime,
       weekdays,
       weekdaysValue,
     });
@@ -793,7 +823,7 @@ export function normalizeYouthAcademySchedules(
   };
 }
 
-function parseYouthAcademyAttendanceMinute(value: string) {
+function parseYouthAcademyScheduleMinute(value: string) {
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
     return null;
   }

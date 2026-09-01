@@ -283,6 +283,7 @@ async function replaceYouthAcademySchedules(
       data: schedules.map((schedule, index) => ({
         academyName: schedule.academyName,
         attendanceMinute: schedule.attendanceMinute,
+        endMinute: schedule.endMinute,
         sortOrder: index,
         weekdays: schedule.weekdaysValue,
         youthId,
@@ -552,6 +553,7 @@ export async function updateYouthAction(
         select: {
           academyName: true,
           attendanceMinute: true,
+          endMinute: true,
           weekdays: true,
         },
       },
@@ -1510,6 +1512,7 @@ type YouthFieldSnapshot = {
 type YouthAcademyScheduleFieldValue = {
   academyName: string;
   attendanceTime: string;
+  endTime: string;
   weekdays: number[];
 };
 
@@ -1618,12 +1621,17 @@ function mapYouthAcademySchedulesForLog(
   schedules: Array<{
     academyName: string;
     attendanceMinute: number;
+    endMinute: number | null;
     weekdays: string;
   }>,
 ): YouthAcademyScheduleFieldValue[] {
   return schedules.map((schedule) => ({
     academyName: schedule.academyName,
     attendanceTime: formatYouthAcademyAttendanceTime(schedule.attendanceMinute),
+    endTime:
+      schedule.endMinute === null
+        ? ""
+        : formatYouthAcademyAttendanceTime(schedule.endMinute),
     weekdays: parseYouthLearningScheduleWeekdays(schedule.weekdays),
   }));
 }
@@ -1639,7 +1647,11 @@ function formatYouthAcademySchedulesForLog(
     .map((schedule) => {
       const weekdays = formatYouthLearningScheduleWeekdays(schedule.weekdays);
 
-      return `${schedule.academyName}(${weekdays} ${schedule.attendanceTime})`;
+      const timeRange = schedule.endTime
+        ? `${schedule.attendanceTime}~${schedule.endTime}`
+        : schedule.attendanceTime;
+
+      return `${schedule.academyName}(${weekdays} ${timeRange})`;
     })
     .join(", ");
 }

@@ -157,7 +157,7 @@ type AcademyScheduleDraft = YouthAcademyScheduleInput & {
 type AcademyScheduleWeekday = YouthAcademyScheduleInput["weekdays"][number];
 
 type AcademyScheduleDraftError = {
-  field: "academyName" | "attendanceTime" | "weekdays";
+  field: "academyName" | "attendanceTime" | "endTime" | "weekdays";
   key: string;
   message: string;
   position: number;
@@ -2182,6 +2182,11 @@ export function YouthRosterFormModal({
                         schedule.key,
                         "attendanceTime",
                       );
+                      const endTimeId = getAcademyScheduleFieldId(
+                        academyScheduleFieldIdPrefix,
+                        schedule.key,
+                        "endTime",
+                      );
                       const firstWeekdayId = getAcademyScheduleFieldId(
                         academyScheduleFieldIdPrefix,
                         schedule.key,
@@ -2212,7 +2217,7 @@ export function YouthRosterFormModal({
                             </button>
                           </div>
 
-                          <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                          <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,9rem)_minmax(0,9rem)]">
                             <label className="block min-w-0" htmlFor={academyNameId}>
                               <span className="text-sm font-semibold text-[#394150]">
                                 학원명
@@ -2237,7 +2242,7 @@ export function YouthRosterFormModal({
                                   undefined
                                 }
                                 disabled={pending}
-                                className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
                               />
                             </label>
                             <label
@@ -2268,7 +2273,41 @@ export function YouthRosterFormModal({
                                   undefined
                                 }
                                 disabled={pending}
-                                className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                              />
+                            </label>
+                            <label
+                              className="block min-w-0"
+                              htmlFor={endTimeId}
+                            >
+                              <span className="text-sm font-semibold text-[#394150]">
+                                마치는 시간
+                                <span className="ml-1 text-xs text-[#196b69]">
+                                  (필수)
+                                </span>
+                              </span>
+                              <input
+                                id={endTimeId}
+                                aria-label={`학원 일정 ${index + 1} 마치는 시간`}
+                                aria-required="true"
+                                type="time"
+                                step="60"
+                                value={schedule.endTime}
+                                onChange={(event) =>
+                                  updateAcademySchedule(schedule.key, {
+                                    endTime: event.target.value,
+                                  })
+                                }
+                                aria-describedby={
+                                  scheduleError?.field === "endTime"
+                                    ? errorId
+                                    : undefined
+                                }
+                                aria-invalid={
+                                  scheduleError?.field === "endTime" || undefined
+                                }
+                                disabled={pending}
+                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
                               />
                             </label>
                           </div>
@@ -3221,6 +3260,7 @@ function createAcademyScheduleDraft(index: number): AcademyScheduleDraft {
   return {
     academyName: "",
     attendanceTime: "",
+    endTime: "",
     key: `academy-schedule-draft-${Date.now()}-${index}`,
     weekdays: [],
   };
@@ -3232,6 +3272,7 @@ function createAcademyScheduleDrafts(
   return schedules.map((schedule, index) => ({
     academyName: schedule.academyName,
     attendanceTime: schedule.attendanceTime,
+    endTime: schedule.endTime ?? "",
     key: schedule.id || `academy-schedule-${index}`,
     weekdays: [...schedule.weekdays],
   }));
@@ -3263,20 +3304,38 @@ function getAcademyScheduleDraftError(
       };
     }
 
-    if (schedule.weekdays.length === 0) {
-      return {
-        field: "weekdays",
-        key: schedule.key,
-        message: "등원 요일을 하나 이상 선택하세요.",
-        position,
-      };
-    }
-
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.attendanceTime)) {
       return {
         field: "attendanceTime",
         key: schedule.key,
         message: "등원 시간을 선택하세요.",
+        position,
+      };
+    }
+
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime)) {
+      return {
+        field: "endTime",
+        key: schedule.key,
+        message: "마치는 시간을 선택하세요.",
+        position,
+      };
+    }
+
+    if (schedule.endTime <= schedule.attendanceTime) {
+      return {
+        field: "endTime",
+        key: schedule.key,
+        message: "마치는 시간은 등원 시간보다 늦게 선택하세요.",
+        position,
+      };
+    }
+
+    if (schedule.weekdays.length === 0) {
+      return {
+        field: "weekdays",
+        key: schedule.key,
+        message: "등원 요일을 하나 이상 선택하세요.",
         position,
       };
     }
@@ -3307,7 +3366,8 @@ function isAcademyScheduleDraftBlank(schedule: AcademyScheduleDraft) {
   return (
     !schedule.academyName.trim() &&
     schedule.weekdays.length === 0 &&
-    !schedule.attendanceTime
+    !schedule.attendanceTime &&
+    !schedule.endTime
   );
 }
 
@@ -3345,6 +3405,7 @@ function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
       .map((schedule) => ({
         academyName: schedule.academyName,
         attendanceTime: schedule.attendanceTime,
+        endTime: schedule.endTime,
         weekdays: schedule.weekdays,
       })),
     birthDate: draft.birthDate,

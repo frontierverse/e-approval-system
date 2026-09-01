@@ -79,6 +79,7 @@ describe("YouthManagementBoard", () => {
                   academyName: schedule.academyName,
                   weekdays: [...schedule.weekdays],
                   attendanceTime: schedule.attendanceTime,
+                  endTime: schedule.endTime,
                 }),
               ),
               familyContacts: name.familyContacts.map((contact, index) => ({
@@ -114,6 +115,7 @@ describe("YouthManagementBoard", () => {
                   academyName: schedule.academyName,
                   weekdays: [...schedule.weekdays],
                   attendanceTime: schedule.attendanceTime,
+                  endTime: schedule.endTime,
                 }),
               ),
               familyContacts: values.familyContacts.map((contact, index) => ({

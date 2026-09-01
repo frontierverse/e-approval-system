@@ -45,6 +45,7 @@ type YouthAcademyScheduleRecord = {
   id: string;
   academyName: string;
   attendanceMinute: number;
+  endMinute: number | null;
   weekdays: string;
 };
 
@@ -132,6 +133,7 @@ export function mapYouthAcademySchedule(record: {
   id: string;
   academyName: string;
   attendanceMinute: number;
+  endMinute: number | null;
   weekdays: string;
 }): YouthAcademySchedule {
   return {
@@ -139,6 +141,8 @@ export function mapYouthAcademySchedule(record: {
     academyName: record.academyName,
     weekdays: parseYouthLearningScheduleWeekdays(record.weekdays),
     attendanceTime: formatMinuteOfDay(record.attendanceMinute),
+    endTime:
+      record.endMinute === null ? "" : formatMinuteOfDay(record.endMinute),
   };
 }
 
