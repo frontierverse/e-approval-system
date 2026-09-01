@@ -4,8 +4,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthDisplayAge,
-  parseYouthLearningScheduleWeekdays,
-  type YouthAcademySchedule,
   type YouthDecisionDocumentItem,
   type YouthFamilyContact,
   normalizeYouthNoteCategory,
@@ -37,18 +35,7 @@ const youthInclude = {
 type YouthRecord = Prisma.YouthGetPayload<{
   include: typeof youthInclude;
 }> & {
-  academySchedules: YouthAcademyScheduleRecord[];
   familyContacts: YouthFamilyContactRecord[];
-};
-
-type YouthAcademyScheduleRecord = {
-  id: string;
-  academyName: string;
-  attendanceMinute: number;
-  endMinute: number | null;
-  startDate: Date | string | null;
-  endDate: Date | string | null;
-  weekdays: string;
 };
 
 type YouthFamilyContactRecord = {
@@ -71,7 +58,6 @@ export async function getYouthProfiles(): Promise<YouthProfile[]> {
   return youths.map((youth) =>
     mapYouthProfile({
       ...youth,
-      academySchedules: [],
       familyContacts: familyContactsByYouthId.get(youth.id) ?? [],
     }),
   );
@@ -114,7 +100,6 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
       birthDate: record.birthDate,
     }),
     phone: record.phone,
-    academySchedules: record.academySchedules.map(mapYouthAcademySchedule),
     familyContacts: mapYouthFamilyContacts(record),
     decisionDocuments: record.decisionDocuments.map(mapYouthDecisionDocument),
     dischargeExtensions: record.dischargeExtensions.map((extension) => ({
@@ -139,39 +124,6 @@ export async function getYouthDirectory() {
       name: true,
     },
   });
-}
-
-export function mapYouthAcademySchedule(record: {
-  id: string;
-  academyName: string;
-  attendanceMinute: number;
-  endMinute: number | null;
-  startDate: Date | string | null;
-  endDate: Date | string | null;
-  weekdays: string;
-}): YouthAcademySchedule {
-  return {
-    id: record.id,
-    academyName: record.academyName,
-    weekdays: parseYouthLearningScheduleWeekdays(record.weekdays),
-    attendanceTime: formatMinuteOfDay(record.attendanceMinute),
-    endTime:
-      record.endMinute === null ? "" : formatMinuteOfDay(record.endMinute),
-    startDate: formatYouthAcademyScheduleDate(record.startDate),
-    endDate: formatYouthAcademyScheduleDate(record.endDate),
-  };
-}
-
-function formatYouthAcademyScheduleDate(value: Date | string | null) {
-  if (value === null) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value.slice(0, 10);
-  }
-
-  return value.toISOString().slice(0, 10);
 }
 
 export function mapYouthDecisionDocument(record: {
@@ -208,13 +160,6 @@ function mapYouthFamilyContacts(record: YouthRecord): YouthFamilyContact[] {
       phone: legacyPhone,
     },
   ];
-}
-
-function formatMinuteOfDay(value: number) {
-  const hour = Math.floor(value / 60);
-  const minute = value % 60;
-
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 function mapYouthFamilyContact(

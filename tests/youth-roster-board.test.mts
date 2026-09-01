@@ -31,26 +31,6 @@ const roster = {
       age: 17,
       koreanAge: 18,
       phone: "010-1111-2222",
-      academySchedules: [
-        {
-          id: "academy-schedule-001",
-          academyName: "새봄수학학원",
-          weekdays: [1, 3, 5],
-          attendanceTime: "18:30",
-          endTime: "20:00",
-          startDate: "2026-06-01",
-          endDate: "2026-12-31",
-        },
-        {
-          id: "academy-schedule-002",
-          academyName: "푸른영어학원",
-          weekdays: [2, 4],
-          attendanceTime: "20:00",
-          endTime: "21:30",
-          startDate: "2026-05-01",
-          endDate: "2027-02-28",
-        },
-      ],
       decisionDocuments: [
         {
           id: "decision-document-001",
@@ -81,7 +61,6 @@ const roster = {
       age: 18,
       koreanAge: 19,
       phone: null,
-      academySchedules: [],
       decisionDocuments: [],
       familyContacts: [],
       updatedAt: "2026-05-01T03:20:00.000Z",
@@ -134,17 +113,6 @@ const rosterActions = {
         dischargeDate: values.dischargeDate || null,
         age: values.birthDate ? 17 : null,
         phone: values.phone || null,
-        academySchedules: (values.academySchedules ?? []).map(
-          (schedule, index) => ({
-            id: `created-academy-schedule-${index}`,
-            academyName: schedule.academyName,
-            weekdays: [...schedule.weekdays],
-            attendanceTime: schedule.attendanceTime,
-            endTime: schedule.endTime,
-            startDate: schedule.startDate,
-            endDate: schedule.endDate,
-          }),
-        ),
         familyContacts: (values.familyContacts ?? []).map((contact, index) => ({
           id: `created-family-contact-${index}`,
           relationship: contact.relationship || null,
@@ -167,17 +135,6 @@ const rosterActions = {
         dischargeDate: values.dischargeDate || null,
         age: values.birthDate ? 17 : null,
         phone: values.phone || null,
-        academySchedules: (values.academySchedules ?? []).map(
-          (schedule, index) => ({
-            id: `updated-academy-schedule-${index}`,
-            academyName: schedule.academyName,
-            weekdays: [...schedule.weekdays],
-            attendanceTime: schedule.attendanceTime,
-            endTime: schedule.endTime,
-            startDate: schedule.startDate,
-            endDate: schedule.endDate,
-          }),
-        ),
         familyContacts: (values.familyContacts ?? []).map((contact, index) => ({
           id: `updated-family-contact-${index}`,
           relationship: contact.relationship || null,
@@ -203,6 +160,7 @@ const rosterActions = {
       youthId: "youth-admitted-001",
     },
   }),
+  recordYouthDetailView: async () => {},
 };
 
 describe("YouthRosterBoard", () => {
@@ -395,64 +353,7 @@ describe("YouthRosterBoard", () => {
     assert.match(html, /연락처 열람은 감사기록에 남습니다/);
     assert.doesNotMatch(html, /010-1111-2222/);
     assert.doesNotMatch(html, /010-3333-4444/);
-    assert.match(html, /학원 일정/);
-    assert.match(html, /2개/);
-    assert.match(html, /새봄수학학원/);
-    assert.match(html, /푸른영어학원/);
-    assert.match(html, /aria-label="학원 일정 1 등원 시간"/);
-    assert.match(html, /aria-label="학원 일정 2 등원 시간"/);
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 마치는 시간"[^>]*value="20:00"/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 2 마치는 시간"[^>]*value="21:30"/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 시작일"[^>]*type="date"[^>]*value="2026-06-01"/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 종료일"[^>]*type="date"[^>]*value="2026-12-31"/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 2 시작일"[^>]*type="date"[^>]*value="2026-05-01"/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 2 종료일"[^>]*type="date"[^>]*value="2027-02-28"/,
-    );
-    assert.match(html, /type="time"[^>]*value="18:30"/);
-    assert.match(html, /type="time"[^>]*value="20:00"/);
-    assert.equal((html.match(/type="time"/g) ?? []).length, 4);
-    assert.equal((html.match(/type="date"/g) ?? []).length, 4);
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 월요일"[^>]*checked=""/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 수요일"[^>]*checked=""/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 1 금요일"[^>]*checked=""/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 2 화요일"[^>]*checked=""/,
-    );
-    assert.match(
-      html,
-      /aria-label="학원 일정 2 목요일"[^>]*checked=""/,
-    );
-    assert.equal((html.match(/type="checkbox"/g) ?? []).length, 14);
-    assert.equal((html.match(/type="checkbox"[^>]*checked=""/g) ?? []).length, 5);
-    assert.match(html, /aria-label="학원 일정 1 삭제"/);
-    assert.match(html, /aria-label="학원 일정 2 삭제"/);
+    assert.doesNotMatch(html, /학원 일정|학원 추가|학원명|등원 시간/);
     assert.match(html, /aria-label="김하늘 청소년 삭제"/);
     assert.doesNotMatch(html, />청소년 삭제</);
     assert.match(html, /결정문 파일/);
@@ -461,6 +362,28 @@ describe("YouthRosterBoard", () => {
     assert.doesNotMatch(html, /href="\/youth\/decision-documents\/decision-document-001"/);
     assert.match(html, />다운로드</);
     assert.match(html, /type="file"/);
+  });
+
+  test("does not render academy controls in youth creation modals", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(YouthRosterFormModal, {
+        ...rosterActions,
+        modal: {
+          mode: "create",
+        },
+        onClose: () => {},
+        onDecisionDocumentDownload: () => {},
+        onDeleted: () => {},
+        onSaved: () => {},
+      }),
+    );
+
+    assert.match(html, /청소년 추가/);
+    assert.match(html, /입소 날짜/);
+    assert.match(html, /퇴소 예정/);
+    assert.match(html, /가족 연락처/);
+    assert.match(html, /결정문 파일/);
+    assert.doesNotMatch(html, /학원 일정|학원 추가|학원명|등원 시간/);
   });
 
   test("does not render the youth delete action in discharged edit modals", () => {

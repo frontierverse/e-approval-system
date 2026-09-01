@@ -87,19 +87,6 @@ export type YouthFamilyContact = {
   phone: string | null;
 };
 
-export const youthAcademyNameMaxLength = 100;
-export const youthAcademyScheduleMaxCount = 20;
-
-export type YouthAcademySchedule = {
-  id: string;
-  academyName: string;
-  weekdays: YouthLearningScheduleWeekday[];
-  attendanceTime: string;
-  endTime: string;
-  startDate: string;
-  endDate: string;
-};
-
 export const youthDecisionDocumentFormFieldName = "decisionDocuments";
 export const youthDischargeExtensionReasonMaxLength = 500;
 
@@ -136,7 +123,6 @@ export type YouthProfile = {
   hasPhone?: boolean;
   phone: string | null;
   familyContacts: YouthFamilyContact[];
-  academySchedules: YouthAcademySchedule[];
   decisionDocuments: YouthDecisionDocumentItem[];
   dischargeExtensions?: YouthDischargeExtension[];
   notes: YouthSpecialNote[];
@@ -259,29 +245,7 @@ export type YouthFamilyContactInput = {
   phone: string;
 };
 
-export type YouthAcademyScheduleInput = {
-  academyName: string;
-  weekdays: YouthLearningScheduleWeekday[];
-  attendanceTime: string;
-  endTime: string;
-  startDate: string;
-  endDate: string;
-};
-
-export type NormalizedYouthAcademyScheduleInput = {
-  academyName: string;
-  attendanceMinute: number;
-  attendanceTime: string;
-  endMinute: number;
-  endTime: string;
-  startDate: string;
-  endDate: string;
-  weekdays: YouthLearningScheduleWeekday[];
-  weekdaysValue: string;
-};
-
 export type YouthCreateInput = {
-  academySchedules?: YouthAcademyScheduleInput[];
   name: string;
   admissionDate: string;
   birthDate: string;
@@ -292,9 +256,8 @@ export type YouthCreateInput = {
 
 export type YouthUpdateInput = Omit<
   YouthCreateInput,
-  "academySchedules" | "familyContacts" | "phone"
+  "familyContacts" | "phone"
 > & {
-  academySchedules?: YouthAcademyScheduleInput[];
   expectedUpdatedAt?: string;
   familyContacts?: YouthFamilyContactInput[];
   phone?: string;
@@ -637,239 +600,6 @@ export function serializeYouthLearningScheduleWeekdays(
   const weekdays = normalizeYouthLearningScheduleWeekdays(values);
 
   return weekdays.length > 0 ? weekdays.join(",") : null;
-}
-
-export function normalizeYouthAcademySchedules(
-  values: YouthAcademyScheduleInput[] | undefined,
-): {
-  error?: string;
-  provided: boolean;
-  value: NormalizedYouthAcademyScheduleInput[];
-} {
-  if (values === undefined) {
-    return {
-      provided: false,
-      value: [],
-    };
-  }
-
-  if (!Array.isArray(values)) {
-    return {
-      error: "학원 일정 형식이 올바르지 않습니다.",
-      provided: true,
-      value: [],
-    };
-  }
-
-  if (values.length > youthAcademyScheduleMaxCount) {
-    return {
-      error: `학원 일정은 최대 ${youthAcademyScheduleMaxCount}개까지 등록할 수 있습니다.`,
-      provided: true,
-      value: [],
-    };
-  }
-
-  const schedules: NormalizedYouthAcademyScheduleInput[] = [];
-  const duplicateKeys = new Set<string>();
-
-  for (const [index, rawValue] of (values as unknown[]).entries()) {
-    const rowNumber = index + 1;
-
-    if (!rawValue || typeof rawValue !== "object") {
-      return {
-        error: `학원 일정 ${rowNumber}번 형식이 올바르지 않습니다.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    const value = rawValue as Record<string, unknown>;
-
-    if (
-      typeof value.academyName !== "string" ||
-      !Array.isArray(value.weekdays) ||
-      typeof value.attendanceTime !== "string" ||
-      typeof value.endTime !== "string" ||
-      typeof value.startDate !== "string" ||
-      typeof value.endDate !== "string"
-    ) {
-      return {
-        error: `학원 일정 ${rowNumber}번 형식이 올바르지 않습니다.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    const academyName = value.academyName.trim();
-    const attendanceTime = value.attendanceTime.trim();
-    const endTime = value.endTime.trim();
-    const startDate = value.startDate.trim();
-    const endDate = value.endDate.trim();
-    const rawWeekdays = value.weekdays as unknown[];
-
-    if (
-      !academyName &&
-      rawWeekdays.length === 0 &&
-      !attendanceTime &&
-      !endTime &&
-      !startDate &&
-      !endDate
-    ) {
-      continue;
-    }
-
-    if (rawWeekdays.length > youthLearningScheduleWeekdays.length) {
-      return {
-        error: `학원 일정 ${rowNumber}번 요일은 최대 ${youthLearningScheduleWeekdays.length}개까지 선택할 수 있습니다.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (!academyName) {
-      return {
-        error: `학원 일정 ${rowNumber}번 학원명을 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (academyName.length > youthAcademyNameMaxLength) {
-      return {
-        error: `학원 일정 ${rowNumber}번 학원명은 ${youthAcademyNameMaxLength}자 이하로 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (rawWeekdays.length === 0) {
-      return {
-        error: `학원 일정 ${rowNumber}번 요일을 하나 이상 선택하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (
-      !rawWeekdays.every(
-        (weekday) =>
-          typeof weekday === "number" &&
-          Number.isInteger(weekday) &&
-          isYouthLearningScheduleWeekday(weekday),
-      )
-    ) {
-      return {
-        error: `학원 일정 ${rowNumber}번 요일을 다시 선택하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    const weekdays = normalizeYouthLearningScheduleWeekdays(
-      rawWeekdays as number[],
-    );
-    const weekdaysValue = serializeYouthLearningScheduleWeekdays(weekdays);
-    const attendanceMinute = parseYouthAcademyScheduleMinute(attendanceTime);
-    const endMinute = parseYouthAcademyScheduleMinute(endTime);
-
-    if (!weekdaysValue) {
-      return {
-        error: `학원 일정 ${rowNumber}번 요일을 하나 이상 선택하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (attendanceMinute === null) {
-      return {
-        error: `학원 일정 ${rowNumber}번 등원 시간은 HH:mm 형식으로 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (endMinute === null) {
-      return {
-        error: `학원 일정 ${rowNumber}번 마치는 시간은 HH:mm 형식으로 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (endMinute <= attendanceMinute) {
-      return {
-        error: `학원 일정 ${rowNumber}번 마치는 시간은 등원 시간보다 늦게 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (!isYouthLearningScheduleDate(startDate)) {
-      return {
-        error: `학원 일정 ${rowNumber}번 시작일은 YYYY-MM-DD 형식으로 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (!isYouthLearningScheduleDate(endDate)) {
-      return {
-        error: `학원 일정 ${rowNumber}번 종료일은 YYYY-MM-DD 형식으로 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    if (endDate < startDate) {
-      return {
-        error: `학원 일정 ${rowNumber}번 종료일은 시작일과 같거나 늦게 입력하세요.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    const duplicateKey = JSON.stringify([
-      academyName,
-      weekdaysValue,
-      attendanceMinute,
-    ]);
-
-    if (duplicateKeys.has(duplicateKey)) {
-      return {
-        error: `학원 일정 ${rowNumber}번이 앞선 일정과 중복됩니다.`,
-        provided: true,
-        value: [],
-      };
-    }
-
-    duplicateKeys.add(duplicateKey);
-    schedules.push({
-      academyName,
-      attendanceMinute,
-      attendanceTime,
-      endMinute,
-      endTime,
-      startDate,
-      endDate,
-      weekdays,
-      weekdaysValue,
-    });
-  }
-
-  return {
-    provided: true,
-    value: schedules,
-  };
-}
-
-function parseYouthAcademyScheduleMinute(value: string) {
-  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
-    return null;
-  }
-
-  const [hour, minute] = value.split(":").map(Number);
-
-  return hour * 60 + minute;
 }
 
 export function parseYouthLearningScheduleWeekdays(

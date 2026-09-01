@@ -26,11 +26,7 @@ import {
   calculateYouthKoreanAge,
   formatYouthSchoolGradeLabel,
   getYouthDisplayAge,
-  isYouthLearningScheduleDate,
-  youthAcademyScheduleMaxCount,
-  youthAcademyNameMaxLength,
   type YouthActionResult,
-  type YouthAcademyScheduleInput,
   type YouthCreateInput,
   type YouthDischargeExtension,
   type YouthDischargeExtensionInput,
@@ -41,7 +37,6 @@ import {
   type YouthFamilyContactInput,
   type YouthProfile,
   type YouthUpdateInput,
-  youthLearningScheduleWeekdays,
 } from "@/lib/youth-management-core";
 import {
   createYouthDischargeAlertItems,
@@ -108,11 +103,7 @@ type YouthRosterBoardProps = {
   >;
   recordYouthDetailView?: (
     youthId: string,
-  ) => Promise<
-    YouthActionResult<{
-      academySchedules: YouthProfile["academySchedules"];
-    }>
-  >;
+  ) => Promise<void>;
   updateYouth: (
     youthId: string,
     values: YouthUpdateInput,
@@ -145,7 +136,6 @@ type YouthRosterDetailModalState = {
 
 type YouthFormDraft = {
   admissionDate: string;
-  academySchedules: AcademyScheduleDraft[];
   birthDate: string;
   decisionFiles: File[];
   dischargeDate: string;
@@ -157,30 +147,6 @@ type YouthFormDraft = {
 type FamilyContactDraft = YouthFamilyContactInput & {
   key: string;
 };
-
-type AcademyScheduleDraft = YouthAcademyScheduleInput & {
-  key: string;
-};
-
-type AcademyScheduleWeekday = YouthAcademyScheduleInput["weekdays"][number];
-
-type AcademyScheduleDraftError = {
-  field:
-    | "academyName"
-    | "attendanceTime"
-    | "endDate"
-    | "endTime"
-    | "startDate"
-    | "weekdays";
-  key: string;
-  message: string;
-  position: number;
-};
-
-type AcademyScheduleLoadState =
-  | { status: "error"; message: string }
-  | { status: "loading" }
-  | { status: "ready" };
 
 type YouthRosterSortField = "admissionDate" | "age" | "dischargeDate";
 type YouthRosterSortDirection = "asc" | "desc";
@@ -1486,12 +1452,6 @@ function SortableRosterHeader({
   );
 }
 
-type YouthDetailAcademyState =
-  | { status: "hidden" }
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; schedules: YouthProfile["academySchedules"] };
-
 type YouthDetailContactState =
   | { status: "hidden" }
   | { status: "error"; message: string }
@@ -1521,11 +1481,6 @@ function YouthRosterDetailModal({
   recordYouthDetailView?: YouthRosterBoardProps["recordYouthDetailView"];
 }) {
   const titleId = useId();
-  const [academyState, setAcademyState] = useState<YouthDetailAcademyState>(
-    permissions.canViewYouthDetails
-      ? { status: "loading" }
-      : { status: "hidden" },
-  );
   const [contactState, setContactState] = useState<YouthDetailContactState>({
     status: "hidden",
   });
@@ -1537,32 +1492,7 @@ function YouthRosterDetailModal({
       return;
     }
 
-    let cancelled = false;
-
-    void recordYouthDetailView(youth.id)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-
-        setAcademyState(
-          result.ok
-            ? { status: "ready", schedules: result.data.academySchedules }
-            : { status: "error", message: result.error },
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAcademyState({
-            status: "error",
-            message: "학원 일정을 불러오지 못했습니다. 다시 시도해 주세요.",
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    void recordYouthDetailView(youth.id).catch(() => undefined);
   }, [permissions.canViewYouthDetails, recordYouthDetailView, youth.id]);
 
   function revealContacts() {
@@ -1636,42 +1566,6 @@ function YouthRosterDetailModal({
               />
             </dl>
           </section>
-
-          {permissions.canViewYouthDetails ? (
-            <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
-              <h3 className="text-sm font-semibold text-[#394150]">학원 일정</h3>
-              <div className="mt-3">
-                {academyState.status === "loading" ? (
-                  <p role="status" className="text-sm text-[#697386]">
-                    학원 일정을 불러오는 중입니다.
-                  </p>
-                ) : academyState.status === "error" ? (
-                  <p role="alert" className="text-sm text-[#8a1f1f]">
-                    {academyState.message}
-                  </p>
-                ) : academyState.status === "ready" &&
-                  academyState.schedules.length > 0 ? (
-                  <ul className="grid gap-2">
-                    {academyState.schedules.map((schedule) => (
-                      <li
-                        key={schedule.id}
-                        className="rounded-md border border-[#d9dee7] bg-white px-3 py-2"
-                      >
-                        <p className="font-semibold text-[#16181d]">
-                          {schedule.academyName}
-                        </p>
-                        <p className="mt-1 text-sm text-[#697386]">
-                          {formatAcademyScheduleSummary(schedule)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-[#697386]">등록된 학원 일정이 없습니다.</p>
-                )}
-              </div>
-            </section>
-          ) : null}
 
           {permissions.canViewYouthContacts ? (
             <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd] p-4">
@@ -1751,23 +1645,6 @@ function YouthDetailValue({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatAcademyScheduleSummary(
-  schedule: YouthProfile["academySchedules"][number],
-) {
-  const weekdayLabels = youthLearningScheduleWeekdays
-    .filter((weekday) => schedule.weekdays.includes(weekday.value))
-    .map((weekday) => weekday.label)
-    .join("·");
-  const period =
-    schedule.startDate && schedule.endDate
-      ? `${formatDate(schedule.startDate)}~${formatDate(schedule.endDate)} · `
-      : "";
-
-  return `${period}${weekdayLabels || "요일 미등록"} · ${schedule.attendanceTime}${
-    schedule.endTime ? `~${schedule.endTime}` : ""
-  }`;
-}
-
 export function YouthRosterFormModal({
   createYouth,
   deleteYouth,
@@ -1802,25 +1679,11 @@ export function YouthRosterFormModal({
   updateYouth: YouthRosterBoardProps["updateYouth"];
 }) {
   const titleId = useId();
-  const academyScheduleFieldIdPrefix = useId();
-  const academyScheduleSectionTitleId = useId();
-  const academyScheduleLoadStatusId = useId();
-  const academyScheduleLimitId = useId();
   const canAccessContactFields =
     modal.mode === "create" || permissions.canViewYouthContacts;
-  const loadsAcademySchedulesOnOpen =
-    modal.mode === "edit" &&
-    permissions.canViewYouthDetails &&
-    Boolean(recordYouthDetailView);
-  const [draft, setDraft] = useState(() => {
-    const initialDraft = createYouthFormDraft(
-      modal.mode === "edit" ? modal.youth : null,
-    );
-
-    return loadsAcademySchedulesOnOpen
-      ? { ...initialDraft, academySchedules: [] }
-      : initialDraft;
-  });
+  const [draft, setDraft] = useState(() =>
+    createYouthFormDraft(modal.mode === "edit" ? modal.youth : null),
+  );
   const [savedDocuments, setSavedDocuments] = useState<
     YouthDecisionDocumentItem[]
   >(() => (modal.mode === "edit" ? modal.youth.decisionDocuments : []));
@@ -1844,207 +1707,33 @@ export function YouthRosterFormModal({
       (canAccessContactFields && !hasRegisteredYouthContact(modal.youth)),
   );
   const [error, setError] = useState("");
-  const [academyScheduleError, setAcademyScheduleError] =
-    useState<AcademyScheduleDraftError | null>(null);
-  const [academyScheduleLoadState, setAcademyScheduleLoadState] =
-    useState<AcademyScheduleLoadState>(() =>
-      loadsAcademySchedulesOnOpen
-        ? { status: "loading" }
-        : { status: "ready" },
-    );
-  const [academyScheduleLoadAttempt, setAcademyScheduleLoadAttempt] =
-    useState(0);
   const [pendingIntent, setPendingIntent] = useState<
     "delete" | "deleteDocument" | "save" | "viewContact" | null
   >(null);
   const [pending, startTransition] = useTransition();
   const title = modal.mode === "create" ? "청소년 추가" : "청소년 정보 수정";
-  const academySchedulesReady = academyScheduleLoadState.status === "ready";
-  const academyScheduleLimitReached =
-    draft.academySchedules.length >= youthAcademyScheduleMaxCount;
-  const academyScheduleAddDescriptionId = !academySchedulesReady
-    ? academyScheduleLoadStatusId
-    : academyScheduleLimitReached
-      ? academyScheduleLimitId
-      : undefined;
-
-  // The detail action both records the audited view and returns sensitive
-  // academy schedules. Never hydrate edit drafts from the roster payload when
-  // this action is available, or a failed load could overwrite saved rows.
   const viewedYouthId = modal.mode === "edit" ? modal.youth.id : null;
 
   useEffect(() => {
-    if (!viewedYouthId || !recordYouthDetailView) {
+    if (
+      !viewedYouthId ||
+      !permissions.canViewYouthDetails ||
+      !recordYouthDetailView
+    ) {
       return;
     }
 
-    let cancelled = false;
-
-    void recordYouthDetailView(viewedYouthId)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-
-        if (!result.ok) {
-          setAcademyScheduleLoadState({
-            status: "error",
-            message: result.error,
-          });
-          return;
-        }
-
-        setDraft((current) => ({
-          ...current,
-          academySchedules: createAcademyScheduleDrafts(
-            result.data.academySchedules,
-          ),
-        }));
-        setAcademyScheduleError(null);
-        setAcademyScheduleLoadState({ status: "ready" });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAcademyScheduleLoadState({
-            status: "error",
-            message: "학원 일정을 불러오지 못했습니다. 다시 시도해 주세요.",
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [academyScheduleLoadAttempt, viewedYouthId, recordYouthDetailView]);
+    void recordYouthDetailView(viewedYouthId).catch(() => undefined);
+  }, [permissions.canViewYouthDetails, viewedYouthId, recordYouthDetailView]);
 
   function updateDraft(
-    values: Partial<
-      Omit<YouthFormDraft, "academySchedules" | "familyContacts">
-    >,
+    values: Partial<Omit<YouthFormDraft, "familyContacts">>,
   ) {
     setDraft((current) => ({
       ...current,
       ...values,
     }));
     setError("");
-  }
-
-  function retryAcademyScheduleLoad() {
-    if (!recordYouthDetailView || modal.mode !== "edit" || pending) {
-      return;
-    }
-
-    setAcademyScheduleError(null);
-    setAcademyScheduleLoadState({ status: "loading" });
-    setError("");
-    setAcademyScheduleLoadAttempt((current) => current + 1);
-  }
-
-  function addAcademySchedule() {
-    if (
-      !academySchedulesReady ||
-      academyScheduleLimitReached ||
-      pending
-    ) {
-      return;
-    }
-
-    const nextSchedule = createAcademyScheduleDraft(
-      draft.academySchedules.length,
-    );
-
-    setDraft((current) => ({
-      ...current,
-      academySchedules: [
-        ...current.academySchedules,
-        nextSchedule,
-      ],
-    }));
-    setAcademyScheduleError(null);
-    setError("");
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(
-          getAcademyScheduleFieldId(
-            academyScheduleFieldIdPrefix,
-            nextSchedule.key,
-            "academyName",
-          ),
-        )
-        ?.focus();
-    });
-  }
-
-  function removeAcademySchedule(key: string) {
-    if (!academySchedulesReady || pending) {
-      return;
-    }
-
-    const removedIndex = draft.academySchedules.findIndex(
-      (schedule) => schedule.key === key,
-    );
-    const focusSchedule =
-      draft.academySchedules[removedIndex + 1] ??
-      draft.academySchedules[removedIndex - 1];
-
-    setDraft((current) => ({
-      ...current,
-      academySchedules: current.academySchedules.filter(
-        (schedule) => schedule.key !== key,
-      ),
-    }));
-    setAcademyScheduleError(null);
-    setError("");
-    window.requestAnimationFrame(() => {
-      const focusTargetId = focusSchedule
-        ? getAcademyScheduleFieldId(
-            academyScheduleFieldIdPrefix,
-            focusSchedule.key,
-            "academyName",
-          )
-        : getAcademyScheduleAddButtonId(academyScheduleFieldIdPrefix);
-
-      document.getElementById(focusTargetId)?.focus();
-    });
-  }
-
-  function updateAcademySchedule(
-    key: string,
-    values: Partial<Omit<AcademyScheduleDraft, "key">>,
-  ) {
-    if (!academySchedulesReady || pending) {
-      return;
-    }
-
-    setDraft((current) => ({
-      ...current,
-      academySchedules: current.academySchedules.map((schedule) =>
-        schedule.key === key ? { ...schedule, ...values } : schedule,
-      ),
-    }));
-    setAcademyScheduleError(null);
-    setError("");
-  }
-
-  function toggleAcademyScheduleWeekday(
-    key: string,
-    weekday: AcademyScheduleWeekday,
-  ) {
-    if (!academySchedulesReady || pending) {
-      return;
-    }
-
-    const schedule = draft.academySchedules.find((item) => item.key === key);
-
-    if (!schedule) {
-      return;
-    }
-
-    updateAcademySchedule(key, {
-      weekdays: schedule.weekdays.includes(weekday)
-        ? schedule.weekdays.filter((value) => value !== weekday)
-        : [...schedule.weekdays, weekday],
-    });
   }
 
   function addFamilyContact() {
@@ -2212,59 +1901,11 @@ export function YouthRosterFormModal({
       return;
     }
 
-    if (modal.mode === "edit" && !academySchedulesReady) {
-      setError(
-        academyScheduleLoadState.status === "loading"
-          ? "학원 일정 확인이 끝난 뒤 저장해 주세요."
-          : "학원 일정을 다시 불러온 뒤 저장해 주세요.",
-      );
-      window.requestAnimationFrame(() => {
-        document.getElementById(academyScheduleLoadStatusId)?.focus();
-      });
-      return;
-    }
-
-    if (draft.academySchedules.length > youthAcademyScheduleMaxCount) {
-      setError(
-        `학원 일정은 최대 ${youthAcademyScheduleMaxCount}개까지 등록할 수 있습니다.`,
-      );
-      window.requestAnimationFrame(() => {
-        document.getElementById(academyScheduleLimitId)?.focus();
-      });
-      return;
-    }
-
-    const draftError = getAcademyScheduleDraftError(
-      draft.academySchedules,
-    );
-
-    if (draftError) {
-      setAcademyScheduleError(draftError);
-      setError(`학원 일정 ${draftError.position}번을 확인해 주세요.`);
-      window.requestAnimationFrame(() => {
-        document
-          .getElementById(
-            getAcademyScheduleFieldId(
-              academyScheduleFieldIdPrefix,
-              draftError.key,
-              draftError.field,
-            ),
-          )
-          ?.focus();
-      });
-      return;
-    }
-
-    setAcademyScheduleError(null);
-
     const values = getYouthInputFromDraft(draft);
     const updateValues =
       modal.mode === "edit"
         ? {
             ...values,
-            ...(!permissions.canViewYouthDetails
-              ? { academySchedules: undefined }
-              : {}),
             ...(!permissions.canViewYouthContacts
               ? { familyContacts: undefined, phone: undefined }
               : {}),
@@ -2512,410 +2153,6 @@ export function YouthRosterFormModal({
               </section>
             ) : null}
 
-            {modal.mode === "edit" && permissions.canViewYouthDetails ? (
-              <section
-                aria-busy={
-                  academyScheduleLoadState.status === "loading" ||
-                  (pending && pendingIntent === "save")
-                    ? true
-                    : undefined
-                }
-                aria-labelledby={academyScheduleSectionTitleId}
-                className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]"
-              >
-                <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
-                  <div className="min-w-0">
-                    <h3
-                      id={academyScheduleSectionTitleId}
-                      className="text-sm font-semibold text-[#394150]"
-                    >
-                      학원 일정
-                    </h3>
-                    <p className="mt-1 text-xs tabular-nums text-[#697386]">
-                      {academyScheduleLoadState.status === "ready"
-                        ? `${draft.academySchedules.length}개 / 최대 ${youthAcademyScheduleMaxCount}개`
-                        : academyScheduleLoadState.status === "loading"
-                          ? "불러오는 중"
-                          : "불러오기 실패"}
-                    </p>
-                  </div>
-                  <button
-                    id={getAcademyScheduleAddButtonId(
-                      academyScheduleFieldIdPrefix,
-                    )}
-                    type="button"
-                    aria-describedby={academyScheduleAddDescriptionId}
-                    onClick={addAcademySchedule}
-                    disabled={
-                      pending ||
-                      !academySchedulesReady ||
-                      academyScheduleLimitReached
-                    }
-                    className="h-11 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    학원 추가
-                  </button>
-                </div>
-                <div className="grid gap-3 p-4">
-                  {academyScheduleLoadState.status === "loading" ? (
-                    <div
-                      id={academyScheduleLoadStatusId}
-                      role="status"
-                      aria-live="polite"
-                      tabIndex={-1}
-                      className="rounded-md border border-[#d7eceb] bg-[#f4faf9] px-3 py-3"
-                    >
-                      <p className="text-sm font-semibold text-[#196b69]">
-                        학원 일정을 불러오는 중입니다.
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-[#697386]">
-                        확인이 끝날 때까지 학원 추가와 정보 저장을 사용할 수
-                        없습니다.
-                      </p>
-                    </div>
-                  ) : academyScheduleLoadState.status === "error" ? (
-                    <div
-                      id={academyScheduleLoadStatusId}
-                      role="alert"
-                      tabIndex={-1}
-                      className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-3"
-                    >
-                      <p className="text-sm font-semibold text-[#8a1f1f]">
-                        학원 일정을 불러오지 못했습니다.
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-[#7a271a]">
-                        {academyScheduleLoadState.message}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={retryAcademyScheduleLoad}
-                        disabled={pending}
-                        className="mt-3 h-11 rounded-md border border-[#f0c3bd] bg-white px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#fff5f2] focus:outline-none focus:ring-2 focus:ring-[#f6d4cf] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        다시 불러오기
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {academyScheduleLimitReached ? (
-                        <p
-                          id={academyScheduleLimitId}
-                          role="status"
-                          tabIndex={-1}
-                          className="rounded-md border border-[#ead8a8] bg-[#fffaf0] px-3 py-2 text-sm leading-6 text-[#6d5214]"
-                        >
-                          학원 일정은 최대 {youthAcademyScheduleMaxCount}개까지
-                          등록할 수 있습니다. 추가하려면 기존 일정을 삭제해
-                          주세요.
-                        </p>
-                      ) : null}
-
-                      {draft.academySchedules.length > 0 ? (
-                    draft.academySchedules.map((schedule, index) => {
-                      const scheduleError =
-                        academyScheduleError?.key === schedule.key
-                          ? academyScheduleError
-                          : null;
-                      const errorMessage = scheduleError?.message;
-                      const academyNameId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "academyName",
-                      );
-                      const attendanceTimeId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "attendanceTime",
-                      );
-                      const endTimeId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "endTime",
-                      );
-                      const startDateId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "startDate",
-                      );
-                      const endDateId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "endDate",
-                      );
-                      const firstWeekdayId = getAcademyScheduleFieldId(
-                        academyScheduleFieldIdPrefix,
-                        schedule.key,
-                        "weekdays",
-                      );
-                      const errorId = `${academyScheduleFieldIdPrefix}-${schedule.key}-error`;
-
-                      return (
-                        <fieldset
-                          key={schedule.key}
-                          className="min-w-0 rounded-md border border-[#eef1f5] bg-white p-3"
-                        >
-                          <legend className="sr-only">
-                            학원 일정 {index + 1}
-                          </legend>
-                          <div className="flex min-w-0 items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-[#394150]">
-                              학원 {index + 1}
-                            </p>
-                            <button
-                              type="button"
-                              aria-label={`학원 일정 ${index + 1} 삭제`}
-                              onClick={() => removeAcademySchedule(schedule.key)}
-                              disabled={pending}
-                              className="h-11 shrink-0 rounded-md border border-[#f0c3bd] bg-[#fff5f2] px-3 text-sm font-semibold text-[#9d3328] transition hover:bg-[#ffe9e4] focus:outline-none focus:ring-2 focus:ring-[#f6d4cf] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              삭제
-                            </button>
-                          </div>
-
-                          <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,9rem)_minmax(0,9rem)]">
-                            <label className="block min-w-0" htmlFor={academyNameId}>
-                              <span className="text-sm font-semibold text-[#394150]">
-                                학원명
-                              </span>
-                              <input
-                                id={academyNameId}
-                                aria-label={`학원 일정 ${index + 1} 학원명`}
-                                value={schedule.academyName}
-                                onChange={(event) =>
-                                  updateAcademySchedule(schedule.key, {
-                                    academyName: event.target.value,
-                                  })
-                                }
-                                maxLength={youthAcademyNameMaxLength}
-                                aria-describedby={
-                                  scheduleError?.field === "academyName"
-                                    ? errorId
-                                    : undefined
-                                }
-                                aria-invalid={
-                                  scheduleError?.field === "academyName" ||
-                                  undefined
-                                }
-                                disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                              />
-                            </label>
-                            <label
-                              className="block min-w-0"
-                              htmlFor={attendanceTimeId}
-                            >
-                              <span className="text-sm font-semibold text-[#394150]">
-                                등원 시간
-                              </span>
-                              <input
-                                id={attendanceTimeId}
-                                aria-label={`학원 일정 ${index + 1} 등원 시간`}
-                                type="time"
-                                step="60"
-                                value={schedule.attendanceTime}
-                                onClick={openNativeInputPicker}
-                                onChange={(event) =>
-                                  updateAcademySchedule(schedule.key, {
-                                    attendanceTime: event.target.value,
-                                  })
-                                }
-                                aria-describedby={
-                                  scheduleError?.field === "attendanceTime"
-                                    ? errorId
-                                    : undefined
-                                }
-                                aria-invalid={
-                                  scheduleError?.field === "attendanceTime" ||
-                                  undefined
-                                }
-                                disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                              />
-                            </label>
-                            <label
-                              className="block min-w-0"
-                              htmlFor={endTimeId}
-                            >
-                              <span className="text-sm font-semibold text-[#394150]">
-                                마치는 시간
-                                <span className="ml-1 text-xs text-[#196b69]">
-                                  (필수)
-                                </span>
-                              </span>
-                              <input
-                                id={endTimeId}
-                                aria-label={`학원 일정 ${index + 1} 마치는 시간`}
-                                aria-required="true"
-                                type="time"
-                                step="60"
-                                value={schedule.endTime}
-                                onClick={openNativeInputPicker}
-                                onChange={(event) =>
-                                  updateAcademySchedule(schedule.key, {
-                                    endTime: event.target.value,
-                                  })
-                                }
-                                aria-describedby={
-                                  scheduleError?.field === "endTime"
-                                    ? errorId
-                                    : undefined
-                                }
-                                aria-invalid={
-                                  scheduleError?.field === "endTime" || undefined
-                                }
-                                disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                              />
-                            </label>
-                          </div>
-
-                          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-                            <label
-                              className="block min-w-0"
-                              htmlFor={startDateId}
-                            >
-                              <span className="text-sm font-semibold text-[#394150]">
-                                시작일
-                                <span className="ml-1 text-xs text-[#196b69]">
-                                  (필수)
-                                </span>
-                              </span>
-                              <input
-                                id={startDateId}
-                                aria-label={`학원 일정 ${index + 1} 시작일`}
-                                aria-required="true"
-                                type="date"
-                                value={schedule.startDate}
-                                onClick={openNativeInputPicker}
-                                onChange={(event) =>
-                                  updateAcademySchedule(schedule.key, {
-                                    startDate: event.target.value,
-                                  })
-                                }
-                                aria-describedby={
-                                  scheduleError?.field === "startDate"
-                                    ? errorId
-                                    : undefined
-                                }
-                                aria-invalid={
-                                  scheduleError?.field === "startDate" ||
-                                  undefined
-                                }
-                                disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                              />
-                            </label>
-                            <label
-                              className="block min-w-0"
-                              htmlFor={endDateId}
-                            >
-                              <span className="text-sm font-semibold text-[#394150]">
-                                종료일
-                                <span className="ml-1 text-xs text-[#196b69]">
-                                  (필수)
-                                </span>
-                              </span>
-                              <input
-                                id={endDateId}
-                                aria-label={`학원 일정 ${index + 1} 종료일`}
-                                aria-required="true"
-                                type="date"
-                                value={schedule.endDate}
-                                onClick={openNativeInputPicker}
-                                onChange={(event) =>
-                                  updateAcademySchedule(schedule.key, {
-                                    endDate: event.target.value,
-                                  })
-                                }
-                                aria-describedby={
-                                  scheduleError?.field === "endDate"
-                                    ? errorId
-                                    : undefined
-                                }
-                                aria-invalid={
-                                  scheduleError?.field === "endDate" || undefined
-                                }
-                                disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
-                              />
-                            </label>
-                          </div>
-
-                          <fieldset
-                            aria-describedby={
-                              scheduleError?.field === "weekdays"
-                                ? errorId
-                                : undefined
-                            }
-                            aria-invalid={
-                              scheduleError?.field === "weekdays" || undefined
-                            }
-                            className="mt-3 min-w-0"
-                          >
-                            <legend className="text-sm font-semibold text-[#394150]">
-                              요일
-                            </legend>
-                            <div className="mt-2 grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-4 sm:grid-cols-7">
-                              {youthLearningScheduleWeekdays.map(
-                                (weekday, weekdayIndex) => {
-                                  const checked = schedule.weekdays.includes(
-                                    weekday.value,
-                                  );
-                                  const weekdayId =
-                                    weekdayIndex === 0
-                                      ? firstWeekdayId
-                                      : `${firstWeekdayId}-${weekday.value}`;
-
-                                  return (
-                                    <label
-                                      key={weekday.value}
-                                      htmlFor={weekdayId}
-                                      className="flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#cfd6e3] bg-white px-2 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
-                                    >
-                                      <input
-                                        id={weekdayId}
-                                        aria-label={`학원 일정 ${index + 1} ${weekday.label}요일`}
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={() =>
-                                          toggleAcademyScheduleWeekday(
-                                            schedule.key,
-                                            weekday.value,
-                                          )
-                                        }
-                                        disabled={pending}
-                                        className="size-4 shrink-0 accent-[#196b69] focus:outline-none focus:ring-2 focus:ring-[#196b69] focus:ring-offset-1 disabled:cursor-not-allowed"
-                                      />
-                                      <span>{weekday.label}</span>
-                                    </label>
-                                  );
-                                },
-                              )}
-                            </div>
-                          </fieldset>
-
-                          {errorMessage ? (
-                            <p
-                              id={errorId}
-                              className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]"
-                            >
-                              {errorMessage}
-                            </p>
-                          ) : null}
-                        </fieldset>
-                      );
-                    })
-                      ) : (
-                        <p className="rounded-md border border-dashed border-[#cfd6e3] bg-white px-3 py-3 text-sm text-[#697386]">
-                          등록된 학원 일정이 없습니다.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
-            ) : null}
-
             <section className="rounded-md border border-[#eef1f5] bg-[#fbfcfd]">
               <div className="flex items-center justify-between gap-3 border-b border-[#eef1f5] px-4 py-3">
                 <h3 className="text-sm font-semibold text-[#394150]">
@@ -3060,31 +2297,10 @@ export function YouthRosterFormModal({
               </button>
               <button
                 type="submit"
-                aria-describedby={
-                  modal.mode === "edit" && !academySchedulesReady
-                    ? academyScheduleLoadStatusId
-                    : undefined
-                }
-                disabled={
-                  pending ||
-                  (modal.mode === "edit" &&
-                    permissions.canViewYouthDetails &&
-                    !academySchedulesReady) ||
-                  draft.academySchedules.length > youthAcademyScheduleMaxCount
-                }
+                disabled={pending}
                 className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {pending && pendingIntent === "save"
-                  ? "저장 중"
-                  : modal.mode === "edit" &&
-                      permissions.canViewYouthDetails &&
-                      academyScheduleLoadState.status === "loading"
-                    ? "일정 확인 중"
-                    : modal.mode === "edit" &&
-                        permissions.canViewYouthDetails &&
-                        academyScheduleLoadState.status === "error"
-                      ? "일정 확인 필요"
-                      : "저장"}
+                {pending && pendingIntent === "save" ? "저장 중" : "저장"}
               </button>
             </div>
           </footer>
@@ -3755,9 +2971,6 @@ function formatYouthRosterAge(youth: Pick<YouthRosterItem, "age" | "koreanAge">)
 function createYouthFormDraft(youth: YouthRosterItem | null): YouthFormDraft {
   return {
     admissionDate: youth?.admissionDate ?? "",
-    academySchedules: createAcademyScheduleDrafts(
-      youth?.academySchedules ?? [],
-    ),
     birthDate: youth?.birthDate ?? "",
     decisionFiles: [],
     dischargeDate: youth?.initialDischargeDate ?? youth?.dischargeDate ?? "",
@@ -3798,202 +3011,6 @@ function createFamilyContactDraft(index: number): FamilyContactDraft {
   };
 }
 
-function openNativeInputPicker(event: MouseEvent<HTMLInputElement>) {
-  const input = event.currentTarget;
-
-  if (
-    input.disabled ||
-    input.readOnly ||
-    typeof input.showPicker !== "function"
-  ) {
-    return;
-  }
-
-  try {
-    input.showPicker();
-  } catch {
-    // Unsupported or restricted picker calls should preserve native input behavior.
-  }
-}
-
-function createAcademyScheduleDraft(index: number): AcademyScheduleDraft {
-  return {
-    academyName: "",
-    attendanceTime: "",
-    endDate: "",
-    endTime: "",
-    key: `academy-schedule-draft-${Date.now()}-${index}`,
-    startDate: "",
-    weekdays: [],
-  };
-}
-
-function createAcademyScheduleDrafts(
-  schedules: YouthProfile["academySchedules"],
-): AcademyScheduleDraft[] {
-  return schedules.map((schedule, index) => ({
-    academyName: schedule.academyName,
-    attendanceTime: schedule.attendanceTime,
-    endDate: schedule.endDate ?? "",
-    endTime: schedule.endTime ?? "",
-    key: schedule.id || `academy-schedule-${index}`,
-    startDate: schedule.startDate ?? "",
-    weekdays: [...schedule.weekdays],
-  }));
-}
-
-function getAcademyScheduleDraftError(
-  schedules: AcademyScheduleDraft[],
-): AcademyScheduleDraftError | null {
-  const normalizedScheduleKeys = new Map<string, number>();
-
-  for (const [index, schedule] of schedules.entries()) {
-    const position = index + 1;
-
-    if (!schedule.academyName.trim()) {
-      return {
-        field: "academyName",
-        key: schedule.key,
-        message: "학원명을 입력하세요.",
-        position,
-      };
-    }
-
-    if (schedule.academyName.trim().length > youthAcademyNameMaxLength) {
-      return {
-        field: "academyName",
-        key: schedule.key,
-        message: `학원명은 ${youthAcademyNameMaxLength}자 이내로 입력하세요.`,
-        position,
-      };
-    }
-
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.attendanceTime)) {
-      return {
-        field: "attendanceTime",
-        key: schedule.key,
-        message: "등원 시간을 선택하세요.",
-        position,
-      };
-    }
-
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime)) {
-      return {
-        field: "endTime",
-        key: schedule.key,
-        message: "마치는 시간을 선택하세요.",
-        position,
-      };
-    }
-
-    if (schedule.endTime <= schedule.attendanceTime) {
-      return {
-        field: "endTime",
-        key: schedule.key,
-        message: "마치는 시간은 등원 시간보다 늦게 선택하세요.",
-        position,
-      };
-    }
-
-    if (!schedule.startDate) {
-      return {
-        field: "startDate",
-        key: schedule.key,
-        message: "시작일을 선택하세요.",
-        position,
-      };
-    }
-
-    if (!isYouthLearningScheduleDate(schedule.startDate)) {
-      return {
-        field: "startDate",
-        key: schedule.key,
-        message: "시작일을 올바른 날짜로 선택하세요.",
-        position,
-      };
-    }
-
-    if (!schedule.endDate) {
-      return {
-        field: "endDate",
-        key: schedule.key,
-        message: "종료일을 선택하세요.",
-        position,
-      };
-    }
-
-    if (!isYouthLearningScheduleDate(schedule.endDate)) {
-      return {
-        field: "endDate",
-        key: schedule.key,
-        message: "종료일을 올바른 날짜로 선택하세요.",
-        position,
-      };
-    }
-
-    if (schedule.endDate < schedule.startDate) {
-      return {
-        field: "endDate",
-        key: schedule.key,
-        message: "종료일은 시작일과 같거나 늦게 선택하세요.",
-        position,
-      };
-    }
-
-    if (schedule.weekdays.length === 0) {
-      return {
-        field: "weekdays",
-        key: schedule.key,
-        message: "등원 요일을 하나 이상 선택하세요.",
-        position,
-      };
-    }
-
-    const normalizedKey = [
-      schedule.academyName.trim(),
-      [...new Set(schedule.weekdays)].sort((first, second) => first - second).join(","),
-      schedule.attendanceTime,
-    ].join("|");
-    const duplicatePosition = normalizedScheduleKeys.get(normalizedKey);
-
-    if (duplicatePosition !== undefined) {
-      return {
-        field: "academyName",
-        key: schedule.key,
-        message: `${duplicatePosition}번과 같은 학원 일정입니다.`,
-        position,
-      };
-    }
-
-    normalizedScheduleKeys.set(normalizedKey, position);
-  }
-
-  return null;
-}
-
-function isAcademyScheduleDraftBlank(schedule: AcademyScheduleDraft) {
-  return (
-    !schedule.academyName.trim() &&
-    schedule.weekdays.length === 0 &&
-    !schedule.attendanceTime &&
-    !schedule.endDate &&
-    !schedule.endTime &&
-    !schedule.startDate
-  );
-}
-
-function getAcademyScheduleFieldId(
-  prefix: string,
-  key: string,
-  field: AcademyScheduleDraftError["field"],
-) {
-  return `${prefix}-${key}-${field}`;
-}
-
-function getAcademyScheduleAddButtonId(prefix: string) {
-  return `${prefix}-add`;
-}
-
 function getDecisionDocumentsFormData(files: File[]) {
   if (files.length === 0) {
     return undefined;
@@ -4011,16 +3028,6 @@ function getDecisionDocumentsFormData(files: File[]) {
 function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
   return {
     admissionDate: draft.admissionDate,
-    academySchedules: draft.academySchedules
-      .filter((schedule) => !isAcademyScheduleDraftBlank(schedule))
-      .map((schedule) => ({
-        academyName: schedule.academyName,
-        attendanceTime: schedule.attendanceTime,
-        endDate: schedule.endDate,
-        endTime: schedule.endTime,
-        startDate: schedule.startDate,
-        weekdays: schedule.weekdays,
-      })),
     birthDate: draft.birthDate,
     dischargeDate: draft.dischargeDate,
     familyContacts: draft.familyContacts.map((contact) => ({
@@ -4046,7 +3053,6 @@ function mapYouthProfileToRosterItem(youth: YouthProfile): YouthRosterItem {
     koreanAge: calculateYouthKoreanAge(birthDate),
     initialDischargeDate: youth.initialDischargeDate,
     dischargeDate: youth.dischargeDate,
-    academySchedules: youth.academySchedules ?? [],
     decisionDocuments: youth.decisionDocuments,
     dischargeExtensions: youth.dischargeExtensions ?? [],
     familyContacts: youth.familyContacts.map((contact) => ({
