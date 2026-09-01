@@ -46,6 +46,8 @@ type YouthAcademyScheduleRecord = {
   academyName: string;
   attendanceMinute: number;
   endMinute: number | null;
+  startDate: Date | string | null;
+  endDate: Date | string | null;
   weekdays: string;
 };
 
@@ -134,6 +136,8 @@ export function mapYouthAcademySchedule(record: {
   academyName: string;
   attendanceMinute: number;
   endMinute: number | null;
+  startDate: Date | string | null;
+  endDate: Date | string | null;
   weekdays: string;
 }): YouthAcademySchedule {
   return {
@@ -143,7 +147,21 @@ export function mapYouthAcademySchedule(record: {
     attendanceTime: formatMinuteOfDay(record.attendanceMinute),
     endTime:
       record.endMinute === null ? "" : formatMinuteOfDay(record.endMinute),
+    startDate: formatYouthAcademyScheduleDate(record.startDate),
+    endDate: formatYouthAcademyScheduleDate(record.endDate),
   };
+}
+
+function formatYouthAcademyScheduleDate(value: Date | string | null) {
+  if (value === null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.slice(0, 10);
+  }
+
+  return value.toISOString().slice(0, 10);
 }
 
 export function mapYouthDecisionDocument(record: {

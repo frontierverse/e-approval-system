@@ -26,6 +26,7 @@ import {
   calculateYouthKoreanAge,
   formatYouthSchoolGradeLabel,
   getYouthDisplayAge,
+  isYouthLearningScheduleDate,
   youthAcademyScheduleMaxCount,
   youthAcademyNameMaxLength,
   type YouthActionResult,
@@ -157,7 +158,13 @@ type AcademyScheduleDraft = YouthAcademyScheduleInput & {
 type AcademyScheduleWeekday = YouthAcademyScheduleInput["weekdays"][number];
 
 type AcademyScheduleDraftError = {
-  field: "academyName" | "attendanceTime" | "endTime" | "weekdays";
+  field:
+    | "academyName"
+    | "attendanceTime"
+    | "endDate"
+    | "endTime"
+    | "startDate"
+    | "weekdays";
   key: string;
   message: string;
   position: number;
@@ -2187,6 +2194,16 @@ export function YouthRosterFormModal({
                         schedule.key,
                         "endTime",
                       );
+                      const startDateId = getAcademyScheduleFieldId(
+                        academyScheduleFieldIdPrefix,
+                        schedule.key,
+                        "startDate",
+                      );
+                      const endDateId = getAcademyScheduleFieldId(
+                        academyScheduleFieldIdPrefix,
+                        schedule.key,
+                        "endDate",
+                      );
                       const firstWeekdayId = getAcademyScheduleFieldId(
                         academyScheduleFieldIdPrefix,
                         schedule.key,
@@ -2258,6 +2275,7 @@ export function YouthRosterFormModal({
                                 type="time"
                                 step="60"
                                 value={schedule.attendanceTime}
+                                onClick={openNativeInputPicker}
                                 onChange={(event) =>
                                   updateAcademySchedule(schedule.key, {
                                     attendanceTime: event.target.value,
@@ -2273,7 +2291,7 @@ export function YouthRosterFormModal({
                                   undefined
                                 }
                                 disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
                               />
                             </label>
                             <label
@@ -2293,6 +2311,7 @@ export function YouthRosterFormModal({
                                 type="time"
                                 step="60"
                                 value={schedule.endTime}
+                                onClick={openNativeInputPicker}
                                 onChange={(event) =>
                                   updateAcademySchedule(schedule.key, {
                                     endTime: event.target.value,
@@ -2307,7 +2326,79 @@ export function YouthRosterFormModal({
                                   scheduleError?.field === "endTime" || undefined
                                 }
                                 disabled={pending}
-                                className="mt-2 h-11 min-w-0 w-full rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                              />
+                            </label>
+                          </div>
+
+                          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+                            <label
+                              className="block min-w-0"
+                              htmlFor={startDateId}
+                            >
+                              <span className="text-sm font-semibold text-[#394150]">
+                                시작일
+                                <span className="ml-1 text-xs text-[#196b69]">
+                                  (필수)
+                                </span>
+                              </span>
+                              <input
+                                id={startDateId}
+                                aria-label={`학원 일정 ${index + 1} 시작일`}
+                                aria-required="true"
+                                type="date"
+                                value={schedule.startDate}
+                                onClick={openNativeInputPicker}
+                                onChange={(event) =>
+                                  updateAcademySchedule(schedule.key, {
+                                    startDate: event.target.value,
+                                  })
+                                }
+                                aria-describedby={
+                                  scheduleError?.field === "startDate"
+                                    ? errorId
+                                    : undefined
+                                }
+                                aria-invalid={
+                                  scheduleError?.field === "startDate" ||
+                                  undefined
+                                }
+                                disabled={pending}
+                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
+                              />
+                            </label>
+                            <label
+                              className="block min-w-0"
+                              htmlFor={endDateId}
+                            >
+                              <span className="text-sm font-semibold text-[#394150]">
+                                종료일
+                                <span className="ml-1 text-xs text-[#196b69]">
+                                  (필수)
+                                </span>
+                              </span>
+                              <input
+                                id={endDateId}
+                                aria-label={`학원 일정 ${index + 1} 종료일`}
+                                aria-required="true"
+                                type="date"
+                                value={schedule.endDate}
+                                onClick={openNativeInputPicker}
+                                onChange={(event) =>
+                                  updateAcademySchedule(schedule.key, {
+                                    endDate: event.target.value,
+                                  })
+                                }
+                                aria-describedby={
+                                  scheduleError?.field === "endDate"
+                                    ? errorId
+                                    : undefined
+                                }
+                                aria-invalid={
+                                  scheduleError?.field === "endDate" || undefined
+                                }
+                                disabled={pending}
+                                className="mt-2 h-11 min-w-0 w-full cursor-pointer rounded-md border border-[#cfd6e3] px-3 text-sm tabular-nums outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb] disabled:cursor-not-allowed disabled:opacity-60"
                               />
                             </label>
                           </div>
@@ -3256,12 +3347,32 @@ function createFamilyContactDraft(index: number): FamilyContactDraft {
   };
 }
 
+function openNativeInputPicker(event: MouseEvent<HTMLInputElement>) {
+  const input = event.currentTarget;
+
+  if (
+    input.disabled ||
+    input.readOnly ||
+    typeof input.showPicker !== "function"
+  ) {
+    return;
+  }
+
+  try {
+    input.showPicker();
+  } catch {
+    // Unsupported or restricted picker calls should preserve native input behavior.
+  }
+}
+
 function createAcademyScheduleDraft(index: number): AcademyScheduleDraft {
   return {
     academyName: "",
     attendanceTime: "",
+    endDate: "",
     endTime: "",
     key: `academy-schedule-draft-${Date.now()}-${index}`,
+    startDate: "",
     weekdays: [],
   };
 }
@@ -3272,8 +3383,10 @@ function createAcademyScheduleDrafts(
   return schedules.map((schedule, index) => ({
     academyName: schedule.academyName,
     attendanceTime: schedule.attendanceTime,
+    endDate: schedule.endDate ?? "",
     endTime: schedule.endTime ?? "",
     key: schedule.id || `academy-schedule-${index}`,
+    startDate: schedule.startDate ?? "",
     weekdays: [...schedule.weekdays],
   }));
 }
@@ -3331,6 +3444,51 @@ function getAcademyScheduleDraftError(
       };
     }
 
+    if (!schedule.startDate) {
+      return {
+        field: "startDate",
+        key: schedule.key,
+        message: "시작일을 선택하세요.",
+        position,
+      };
+    }
+
+    if (!isYouthLearningScheduleDate(schedule.startDate)) {
+      return {
+        field: "startDate",
+        key: schedule.key,
+        message: "시작일을 올바른 날짜로 선택하세요.",
+        position,
+      };
+    }
+
+    if (!schedule.endDate) {
+      return {
+        field: "endDate",
+        key: schedule.key,
+        message: "종료일을 선택하세요.",
+        position,
+      };
+    }
+
+    if (!isYouthLearningScheduleDate(schedule.endDate)) {
+      return {
+        field: "endDate",
+        key: schedule.key,
+        message: "종료일을 올바른 날짜로 선택하세요.",
+        position,
+      };
+    }
+
+    if (schedule.endDate < schedule.startDate) {
+      return {
+        field: "endDate",
+        key: schedule.key,
+        message: "종료일은 시작일과 같거나 늦게 선택하세요.",
+        position,
+      };
+    }
+
     if (schedule.weekdays.length === 0) {
       return {
         field: "weekdays",
@@ -3367,7 +3525,9 @@ function isAcademyScheduleDraftBlank(schedule: AcademyScheduleDraft) {
     !schedule.academyName.trim() &&
     schedule.weekdays.length === 0 &&
     !schedule.attendanceTime &&
-    !schedule.endTime
+    !schedule.endDate &&
+    !schedule.endTime &&
+    !schedule.startDate
   );
 }
 
@@ -3405,7 +3565,9 @@ function getYouthInputFromDraft(draft: YouthFormDraft): YouthCreateInput {
       .map((schedule) => ({
         academyName: schedule.academyName,
         attendanceTime: schedule.attendanceTime,
+        endDate: schedule.endDate,
         endTime: schedule.endTime,
+        startDate: schedule.startDate,
         weekdays: schedule.weekdays,
       })),
     birthDate: draft.birthDate,

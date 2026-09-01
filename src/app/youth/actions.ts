@@ -284,6 +284,8 @@ async function replaceYouthAcademySchedules(
         academyName: schedule.academyName,
         attendanceMinute: schedule.attendanceMinute,
         endMinute: schedule.endMinute,
+        startDate: parseYouthAcademyScheduleDate(schedule.startDate),
+        endDate: parseYouthAcademyScheduleDate(schedule.endDate),
         sortOrder: index,
         weekdays: schedule.weekdaysValue,
         youthId,
@@ -554,6 +556,8 @@ export async function updateYouthAction(
           academyName: true,
           attendanceMinute: true,
           endMinute: true,
+          startDate: true,
+          endDate: true,
           weekdays: true,
         },
       },
@@ -1513,6 +1517,8 @@ type YouthAcademyScheduleFieldValue = {
   academyName: string;
   attendanceTime: string;
   endTime: string;
+  startDate: string;
+  endDate: string;
   weekdays: number[];
 };
 
@@ -1622,6 +1628,8 @@ function mapYouthAcademySchedulesForLog(
     academyName: string;
     attendanceMinute: number;
     endMinute: number | null;
+    startDate: Date | string | null;
+    endDate: Date | string | null;
     weekdays: string;
   }>,
 ): YouthAcademyScheduleFieldValue[] {
@@ -1632,6 +1640,8 @@ function mapYouthAcademySchedulesForLog(
       schedule.endMinute === null
         ? ""
         : formatYouthAcademyAttendanceTime(schedule.endMinute),
+    startDate: formatYouthAcademyScheduleDateForLog(schedule.startDate),
+    endDate: formatYouthAcademyScheduleDateForLog(schedule.endDate),
     weekdays: parseYouthLearningScheduleWeekdays(schedule.weekdays),
   }));
 }
@@ -1650,8 +1660,12 @@ function formatYouthAcademySchedulesForLog(
       const timeRange = schedule.endTime
         ? `${schedule.attendanceTime}~${schedule.endTime}`
         : schedule.attendanceTime;
+      const period =
+        schedule.startDate && schedule.endDate
+          ? `${schedule.startDate}~${schedule.endDate} `
+          : "";
 
-      return `${schedule.academyName}(${weekdays} ${timeRange})`;
+      return `${schedule.academyName}(${period}${weekdays} ${timeRange})`;
     })
     .join(", ");
 }
@@ -1661,6 +1675,24 @@ function formatYouthAcademyAttendanceTime(attendanceMinute: number) {
   const minute = attendanceMinute % 60;
 
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function parseYouthAcademyScheduleDate(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function formatYouthAcademyScheduleDateForLog(
+  value: Date | string | null,
+) {
+  if (value === null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.slice(0, 10);
+  }
+
+  return value.toISOString().slice(0, 10);
 }
 
 function normalizeYouthExpectedUpdatedAt(value: unknown): {

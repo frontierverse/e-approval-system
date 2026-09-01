@@ -14,8 +14,13 @@ function normalizeUnknownAcademySchedules(value: unknown) {
   );
 }
 
+const validAcademyPeriod = {
+  startDate: "2026-09-01",
+  endDate: "2027-02-28",
+} as const;
+
 describe("youth academy schedule normalization", () => {
-  test("normalizes academy names, weekday order, and attendance/end minutes", () => {
+  test("normalizes academy names, weekday order, times, and attendance period", () => {
     assert.deepEqual(
       normalizeYouthAcademySchedules([
         {
@@ -23,6 +28,8 @@ describe("youth academy schedule normalization", () => {
           weekdays: [5, 1, 3, 1],
           attendanceTime: " 18:05 ",
           endTime: " 19:35 ",
+          startDate: " 2026-09-01 ",
+          endDate: " 2027-02-28 ",
         },
       ]),
       {
@@ -36,6 +43,8 @@ describe("youth academy schedule normalization", () => {
             attendanceMinute: 1085,
             endTime: "19:35",
             endMinute: 1175,
+            startDate: "2026-09-01",
+            endDate: "2027-02-28",
           },
         ],
       },
@@ -58,6 +67,8 @@ describe("youth academy schedule normalization", () => {
           weekdays: [],
           attendanceTime: " ",
           endTime: " ",
+          startDate: " ",
+          endDate: " ",
         },
       ]),
       {
@@ -76,6 +87,7 @@ describe("youth academy schedule normalization", () => {
             weekdays: [1],
             attendanceTime: "18:00",
             endTime: "19:00",
+            ...validAcademyPeriod,
           },
         ],
         error: /1번 학원명을 입력하세요/,
@@ -87,6 +99,7 @@ describe("youth academy schedule normalization", () => {
             weekdays: [],
             attendanceTime: "18:00",
             endTime: "19:00",
+            ...validAcademyPeriod,
           },
         ],
         error: /1번 요일을 하나 이상 선택하세요/,
@@ -98,6 +111,7 @@ describe("youth academy schedule normalization", () => {
             weekdays: [1],
             attendanceTime: "",
             endTime: "19:00",
+            ...validAcademyPeriod,
           },
         ],
         error: /1번 등원 시간은 HH:mm 형식으로 입력하세요/,
@@ -109,9 +123,36 @@ describe("youth academy schedule normalization", () => {
             weekdays: [1],
             attendanceTime: "18:00",
             endTime: "",
+            ...validAcademyPeriod,
           },
         ],
         error: /1번 마치는 시간은 HH:mm 형식으로 입력하세요/,
+      },
+      {
+        input: [
+          {
+            academyName: "새봄수학학원",
+            weekdays: [1],
+            attendanceTime: "18:00",
+            endTime: "19:00",
+            startDate: "",
+            endDate: "2027-02-28",
+          },
+        ],
+        error: /1번 시작.*YYYY-MM-DD/,
+      },
+      {
+        input: [
+          {
+            academyName: "새봄수학학원",
+            weekdays: [1],
+            attendanceTime: "18:00",
+            endTime: "19:00",
+            startDate: "2026-09-01",
+            endDate: "",
+          },
+        ],
+        error: /1번 종료.*YYYY-MM-DD/,
       },
     ];
 
@@ -130,6 +171,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [7],
         attendanceTime: "18:00",
         endTime: "19:00",
+        ...validAcademyPeriod,
       },
     ]);
     const invalidTime = normalizeYouthAcademySchedules([
@@ -138,6 +180,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [1],
         attendanceTime: "24:00",
         endTime: "19:00",
+        ...validAcademyPeriod,
       },
     ]);
     const invalidEndTime = normalizeYouthAcademySchedules([
@@ -146,6 +189,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [1],
         attendanceTime: "18:00",
         endTime: "24:00",
+        ...validAcademyPeriod,
       },
     ]);
 
@@ -165,6 +209,7 @@ describe("youth academy schedule normalization", () => {
           weekdays: [2, 4],
           attendanceTime: "20:30",
           endTime: "22:00",
+          ...validAcademyPeriod,
         },
       ]),
       {
@@ -178,25 +223,29 @@ describe("youth academy schedule normalization", () => {
             attendanceMinute: 1230,
             endTime: "22:00",
             endMinute: 1320,
+            ...validAcademyPeriod,
           },
         ],
       },
     );
   });
 
-  test("keeps the existing slot identity when end times differ", () => {
+  test("keeps the existing slot identity when end times and periods differ", () => {
     const result = normalizeYouthAcademySchedules([
       {
         academyName: "새봄수학학원",
         weekdays: [1, 3, 1],
         attendanceTime: "18:30",
         endTime: "19:30",
+        ...validAcademyPeriod,
       },
       {
         academyName: " 새봄수학학원 ",
         weekdays: [3, 1],
         attendanceTime: " 18:30 ",
         endTime: " 20:00 ",
+        startDate: "2027-03-01",
+        endDate: "2027-08-31",
       },
     ]);
 
@@ -213,6 +262,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [1],
         attendanceTime: "18:00",
         endTime: "19:00",
+        ...validAcademyPeriod,
       }),
     );
     const accepted = normalizeYouthAcademySchedules(maximumSchedules);
@@ -223,6 +273,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [2],
         attendanceTime: "19:00",
         endTime: "20:00",
+        ...validAcademyPeriod,
       },
     ]);
 
@@ -243,6 +294,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [0, 1, 2, 3, 4, 5, 6, 1],
         attendanceTime: "18:00",
         endTime: "19:00",
+        ...validAcademyPeriod,
       },
     ]);
 
@@ -261,12 +313,14 @@ describe("youth academy schedule normalization", () => {
         weekdays: [0],
         attendanceTime: "00:00",
         endTime: "00:01",
+        ...validAcademyPeriod,
       },
       {
         academyName: "마감 학원",
         weekdays: [6],
         attendanceTime: "23:58",
         endTime: "23:59",
+        ...validAcademyPeriod,
       },
     ]);
     const rejected = normalizeYouthAcademySchedules([
@@ -275,6 +329,7 @@ describe("youth academy schedule normalization", () => {
         weekdays: [1],
         attendanceTime: "18:00",
         endTime: "19:00",
+        ...validAcademyPeriod,
       },
     ]);
 
@@ -304,12 +359,76 @@ describe("youth academy schedule normalization", () => {
           weekdays: [1],
           attendanceTime,
           endTime,
+          ...validAcademyPeriod,
         },
       ]);
 
       assert.match(result.error ?? "", /마치는 시간.*등원 시간보다 늦/);
       assert.deepEqual(result.value, []);
     }
+  });
+
+  test("strictly validates academy attendance periods and allows a same-day period", () => {
+    const accepted = normalizeYouthAcademySchedules([
+      {
+        academyName: "윤년 학원",
+        weekdays: [1],
+        attendanceTime: "18:00",
+        endTime: "19:00",
+        startDate: "2028-02-29",
+        endDate: "2028-02-29",
+      },
+      {
+        academyName: "장기 학원",
+        weekdays: [2],
+        attendanceTime: "19:00",
+        endTime: "20:00",
+        startDate: "2026-09-01",
+        endDate: "2027-08-31",
+      },
+    ]);
+
+    assert.equal(accepted.error, undefined);
+    assert.deepEqual(
+      accepted.value.map(({ startDate, endDate }) => ({ startDate, endDate })),
+      [
+        { startDate: "2028-02-29", endDate: "2028-02-29" },
+        { startDate: "2026-09-01", endDate: "2027-08-31" },
+      ],
+    );
+
+    for (const [field, date] of [
+      ["startDate", "2027-02-29"],
+      ["endDate", "2026-04-31"],
+    ] as const) {
+      const result = normalizeYouthAcademySchedules([
+        {
+          academyName: "날짜 검증 학원",
+          weekdays: [3],
+          attendanceTime: "18:00",
+          endTime: "19:00",
+          ...validAcademyPeriod,
+          [field]: date,
+        },
+      ]);
+
+      assert.match(result.error ?? "", /(?:시작|종료).*YYYY-MM-DD/);
+      assert.deepEqual(result.value, []);
+    }
+
+    const reversed = normalizeYouthAcademySchedules([
+      {
+        academyName: "기간 역전 학원",
+        weekdays: [4],
+        attendanceTime: "18:00",
+        endTime: "19:00",
+        startDate: "2026-09-02",
+        endDate: "2026-09-01",
+      },
+    ]);
+
+    assert.match(reversed.error ?? "", /종료.*시작.*같거나.*늦/);
+    assert.deepEqual(reversed.value, []);
   });
 
   test("rejects malformed runtime values without throwing", () => {
@@ -322,6 +441,7 @@ describe("youth academy schedule normalization", () => {
           weekdays: [1],
           attendanceTime: "18:00",
           endTime: "19:00",
+          ...validAcademyPeriod,
         },
       ],
       [
@@ -330,6 +450,7 @@ describe("youth academy schedule normalization", () => {
           weekdays: "1",
           attendanceTime: "18:00",
           endTime: "19:00",
+          ...validAcademyPeriod,
         },
       ],
       [
@@ -338,6 +459,7 @@ describe("youth academy schedule normalization", () => {
           weekdays: ["1"],
           attendanceTime: "18:00",
           endTime: "19:00",
+          ...validAcademyPeriod,
         },
       ],
       [
@@ -346,6 +468,7 @@ describe("youth academy schedule normalization", () => {
           weekdays: [1],
           attendanceTime: 1800,
           endTime: "19:00",
+          ...validAcademyPeriod,
         },
       ],
       [
@@ -354,6 +477,27 @@ describe("youth academy schedule normalization", () => {
           weekdays: [1],
           attendanceTime: "18:00",
           endTime: 1900,
+          ...validAcademyPeriod,
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: [1],
+          attendanceTime: "18:00",
+          endTime: "19:00",
+          startDate: 20260901,
+          endDate: "2027-02-28",
+        },
+      ],
+      [
+        {
+          academyName: "학원",
+          weekdays: [1],
+          attendanceTime: "18:00",
+          endTime: "19:00",
+          startDate: "2026-09-01",
+          endDate: 20270228,
         },
       ],
     ];

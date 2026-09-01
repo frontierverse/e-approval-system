@@ -38,6 +38,8 @@ const roster = {
           weekdays: [1, 3, 5],
           attendanceTime: "18:30",
           endTime: "20:00",
+          startDate: "2026-06-01",
+          endDate: "2026-12-31",
         },
         {
           id: "academy-schedule-002",
@@ -45,6 +47,8 @@ const roster = {
           weekdays: [2, 4],
           attendanceTime: "20:00",
           endTime: "21:30",
+          startDate: "2026-05-01",
+          endDate: "2027-02-28",
         },
       ],
       decisionDocuments: [
@@ -130,6 +134,8 @@ const rosterActions = {
             weekdays: [...schedule.weekdays],
             attendanceTime: schedule.attendanceTime,
             endTime: schedule.endTime,
+            startDate: schedule.startDate,
+            endDate: schedule.endDate,
           }),
         ),
         familyContacts: values.familyContacts.map((contact, index) => ({
@@ -161,6 +167,8 @@ const rosterActions = {
             weekdays: [...schedule.weekdays],
             attendanceTime: schedule.attendanceTime,
             endTime: schedule.endTime,
+            startDate: schedule.startDate,
+            endDate: schedule.endDate,
           }),
         ),
         familyContacts: values.familyContacts.map((contact, index) => ({
@@ -356,9 +364,26 @@ describe("YouthRosterBoard", () => {
       html,
       /aria-label="학원 일정 2 마치는 시간"[^>]*value="21:30"/,
     );
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 시작일"[^>]*type="date"[^>]*value="2026-06-01"/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 1 종료일"[^>]*type="date"[^>]*value="2026-12-31"/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 2 시작일"[^>]*type="date"[^>]*value="2026-05-01"/,
+    );
+    assert.match(
+      html,
+      /aria-label="학원 일정 2 종료일"[^>]*type="date"[^>]*value="2027-02-28"/,
+    );
     assert.match(html, /type="time"[^>]*value="18:30"/);
     assert.match(html, /type="time"[^>]*value="20:00"/);
     assert.equal((html.match(/type="time"/g) ?? []).length, 4);
+    assert.equal((html.match(/type="date"/g) ?? []).length, 4);
     assert.match(
       html,
       /aria-label="학원 일정 1 월요일"[^>]*checked=""/,

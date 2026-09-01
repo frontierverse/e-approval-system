@@ -96,6 +96,8 @@ export type YouthAcademySchedule = {
   weekdays: YouthLearningScheduleWeekday[];
   attendanceTime: string;
   endTime: string;
+  startDate: string;
+  endDate: string;
 };
 
 export const youthDecisionDocumentFormFieldName = "decisionDocuments";
@@ -267,6 +269,8 @@ export type YouthAcademyScheduleInput = {
   weekdays: YouthLearningScheduleWeekday[];
   attendanceTime: string;
   endTime: string;
+  startDate: string;
+  endDate: string;
 };
 
 export type NormalizedYouthAcademyScheduleInput = {
@@ -275,6 +279,8 @@ export type NormalizedYouthAcademyScheduleInput = {
   attendanceTime: string;
   endMinute: number;
   endTime: string;
+  startDate: string;
+  endDate: string;
   weekdays: YouthLearningScheduleWeekday[];
   weekdaysValue: string;
 };
@@ -682,7 +688,9 @@ export function normalizeYouthAcademySchedules(
       typeof value.academyName !== "string" ||
       !Array.isArray(value.weekdays) ||
       typeof value.attendanceTime !== "string" ||
-      typeof value.endTime !== "string"
+      typeof value.endTime !== "string" ||
+      typeof value.startDate !== "string" ||
+      typeof value.endDate !== "string"
     ) {
       return {
         error: `학원 일정 ${rowNumber}번 형식이 올바르지 않습니다.`,
@@ -694,13 +702,17 @@ export function normalizeYouthAcademySchedules(
     const academyName = value.academyName.trim();
     const attendanceTime = value.attendanceTime.trim();
     const endTime = value.endTime.trim();
+    const startDate = value.startDate.trim();
+    const endDate = value.endDate.trim();
     const rawWeekdays = value.weekdays as unknown[];
 
     if (
       !academyName &&
       rawWeekdays.length === 0 &&
       !attendanceTime &&
-      !endTime
+      !endTime &&
+      !startDate &&
+      !endDate
     ) {
       continue;
     }
@@ -791,6 +803,30 @@ export function normalizeYouthAcademySchedules(
       };
     }
 
+    if (!isYouthLearningScheduleDate(startDate)) {
+      return {
+        error: `학원 일정 ${rowNumber}번 시작일은 YYYY-MM-DD 형식으로 입력하세요.`,
+        provided: true,
+        value: [],
+      };
+    }
+
+    if (!isYouthLearningScheduleDate(endDate)) {
+      return {
+        error: `학원 일정 ${rowNumber}번 종료일은 YYYY-MM-DD 형식으로 입력하세요.`,
+        provided: true,
+        value: [],
+      };
+    }
+
+    if (endDate < startDate) {
+      return {
+        error: `학원 일정 ${rowNumber}번 종료일은 시작일과 같거나 늦게 입력하세요.`,
+        provided: true,
+        value: [],
+      };
+    }
+
     const duplicateKey = JSON.stringify([
       academyName,
       weekdaysValue,
@@ -812,6 +848,8 @@ export function normalizeYouthAcademySchedules(
       attendanceTime,
       endMinute,
       endTime,
+      startDate,
+      endDate,
       weekdays,
       weekdaysValue,
     });

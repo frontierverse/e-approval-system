@@ -411,14 +411,16 @@ model Youth {
 }
 
 model YouthAcademySchedule {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   academyName      String
   weekdays         String
   attendanceMinute Int
   endMinute        Int?
+  startDate        DateTime? @db.Date
+  endDate          DateTime? @db.Date
   sortOrder        Int
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   youthId String
 
