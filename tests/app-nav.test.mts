@@ -48,6 +48,22 @@ describe("app navigation active paths", () => {
       isActivePath("/work-schedule", "/work-schedule", "/work-schedule"),
       true,
     );
+    assert.equal(
+      isActivePath(
+        "/work-schedule/work-log",
+        "/work-schedule",
+        "/work-schedule/work-log",
+      ),
+      false,
+    );
+    assert.equal(
+      isActivePath(
+        "/work-schedule/work-log",
+        "/work-schedule/work-log",
+        "/work-schedule/work-log",
+      ),
+      true,
+    );
   });
 
   test("matches cafe alert links by expected filters", () => {
@@ -89,6 +105,20 @@ describe("app navigation active paths", () => {
     assert.match(
       appShellSource,
       /label: "개인 일정표", href: "\/youth\/personal-schedule"/,
+    );
+  });
+
+  test("places work management immediately after electronic approval", () => {
+    assert.match(
+      appShellSource,
+      /label: "전자결재",\s*items: approvalNavigationItems,\s*},\s*{\s*label: "업무 관리",\s*items: workScheduleNavigationItems/,
+    );
+  });
+
+  test("places the work log directly under the work schedule menu", () => {
+    assert.match(
+      appShellSource,
+      /const workScheduleNavigationItems[\s\S]*?label: "업무 일정", href: "\/work-schedule"[\s\S]*?label: "업무일지", href: "\/work-schedule\/work-log"/,
     );
   });
 
@@ -134,6 +164,7 @@ describe("app navigation active paths", () => {
         label: "업무 관리",
         items: [
           { label: "업무 일정", href: "/work-schedule" },
+          { label: "업무일지", href: "/work-schedule/work-log" },
           { label: "카페 관리", href: "/work-schedule/cafe" },
         ],
       },
@@ -166,6 +197,7 @@ describe("app navigation active paths", () => {
     assert.match(html, /오늘의 업무/);
     assert.match(html, /기안작성/);
     assert.match(html, /업무 일정/);
+    assert.match(html, /업무일지/);
     assert.match(html, /카페 관리/);
     assert.match(html, /내 계정/);
     assert.match(

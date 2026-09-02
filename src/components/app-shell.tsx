@@ -54,6 +54,7 @@ const youthNavigationItems: NavigationItem[] = [
 
 const workScheduleNavigationItems: NavigationItem[] = [
   { label: "업무 일정", href: "/work-schedule" },
+  { label: "업무일지", href: "/work-schedule/work-log" },
   { label: "카페 관리", href: "/work-schedule/cafe" },
   { label: "냉장고 관리", href: "/work-schedule/refrigerator" },
   { label: "도시락 현황", href: "/work-schedule/lunch-boxes" },
@@ -308,16 +309,16 @@ function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
       items: approvalNavigationItems,
     },
     {
+      label: "업무 관리",
+      items: workScheduleNavigationItems,
+    },
+    {
       label: "자료실",
       items: resourceNavigationItems,
     },
     {
       label: "청소년 관리",
       items: youthNavigationItems,
-    },
-    {
-      label: "업무 관리",
-      items: workScheduleNavigationItems,
     },
     {
       label: "회사 정보",

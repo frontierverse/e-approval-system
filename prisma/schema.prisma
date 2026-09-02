@@ -63,6 +63,7 @@ enum AuditAction {
   UPDATE_RESOURCE
   DELETE_RESOURCE
   UPDATE_WORK_SCHEDULE
+  UPDATE_WORK_LOG
   UPDATE_CAFE_ITEM
   CREATE_YOUTH
   UPDATE_YOUTH
@@ -143,6 +144,7 @@ model User {
   leaveLedgerEntries             StaffLeaveLedger[]        @relation("StaffLeaveUser")
   createdLeaveEntries            StaffLeaveLedger[]        @relation("StaffLeaveActor")
   workFeatureUpdates             WorkFeatureUpdate[]       @relation("WorkFeatureUpdateCreator")
+  workLogs                       WorkLog[]                 @relation("WorkLogAuthor")
   youthDecisionDocuments         YouthDecisionDocument[]   @relation("YouthDecisionDocumentUploader")
   youthDischargeExtensions       YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
   cafeComplianceNotes            CafeComplianceNote[]      @relation("CafeComplianceNoteCreator")
@@ -646,6 +648,20 @@ model WorkSchedule {
   @@index([weekday, startMinute])
   @@index([startHour])
   @@index([startMinute])
+}
+
+model WorkLog {
+  id        String   @id @default(cuid())
+  workDate  DateTime @db.Date
+  keyword   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId String
+  author   User   @relation("WorkLogAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@unique([authorId, workDate])
 }
 
 model WorkFeatureUpdate {
