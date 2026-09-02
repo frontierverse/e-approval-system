@@ -42,11 +42,18 @@ VALUES
   (DATE '2026-08-28'),
   (DATE '2026-08-31');
 
+-- Fresh installations intentionally start without lunch-box operational data.
+-- Skip this historical correction only when both source tables are empty.
 DO $$
 DECLARE
   target_rows INTEGER;
   august_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF (SELECT COUNT(*) FROM "_lunch_box_iri_dates") <> 20 THEN
     RAISE EXCEPTION '이리초 보정 대상 날짜는 정확히 20일이어야 합니다.';
   END IF;
@@ -123,6 +130,11 @@ DO $$
 DECLARE
   affected_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   UPDATE "LunchBoxCount" AS count
   SET
     "linkedCount" = 20,
@@ -149,6 +161,11 @@ DO $$
 DECLARE
   august_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM "_lunch_box_iri_dates" AS expected

@@ -12,12 +12,19 @@ CREATE TEMP TABLE "_lunch_box_baekje_kindergarten_before"
 ON COMMIT DROP
 AS SELECT * FROM "LunchBoxCount";
 
+-- Fresh installations intentionally start without lunch-box operational data.
+-- Skip this historical correction only when both source tables are empty.
 DO $$
 DECLARE
   target_rows INTEGER;
   august_total BIGINT;
   daily_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF (
     SELECT COUNT(*)
     FROM "LunchBoxSchool"
@@ -82,6 +89,11 @@ DO $$
 DECLARE
   affected_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   UPDATE "LunchBoxCount" AS count
   SET
     "class1Count" = 0,
@@ -113,6 +125,11 @@ DECLARE
   august_total BIGINT;
   daily_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM "LunchBoxCount" AS count

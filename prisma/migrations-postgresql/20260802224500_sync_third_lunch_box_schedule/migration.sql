@@ -117,6 +117,8 @@ VALUES
   (DATE '2026-08-28', 84),
   (DATE '2026-08-31', 84);
 
+-- Fresh installations intentionally start without lunch-box operational data.
+-- Skip this historical correction only when both source tables are empty.
 DO $$
 DECLARE
   target_rows INTEGER;
@@ -124,6 +126,11 @@ DECLARE
   iri_rows INTEGER;
   august_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF (SELECT COUNT(*) FROM "_lunch_box_third_target") <> 33 THEN
     RAISE EXCEPTION '3차 공급표 신규 보정 대상은 정확히 33행이어야 합니다.';
   END IF;
@@ -236,6 +243,11 @@ DO $$
 DECLARE
   affected_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   UPDATE "LunchBoxCount" AS count
   SET
     "class1Count" = expected."newClass1",
@@ -285,6 +297,11 @@ DECLARE
   iri_rows INTEGER;
   august_total BIGINT;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM "_lunch_box_third_target" AS expected

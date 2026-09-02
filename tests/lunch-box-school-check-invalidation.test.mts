@@ -190,7 +190,7 @@ describe("lunch-box fixed school-check invalidation", () => {
     );
     assert.match(
       setSchoolActiveActionSource,
-      /if \(!active\) \{[\s\S]*?lunchBoxCount\.updateMany[\s\S]*?\n    \}\n\n    if \(invalidatedSchoolCheck\) \{\n      await tx\.lunchBoxSchoolCheck\.delete/,
+      /if \(!active\) \{[\s\S]*?lunchBoxCount\.updateMany[\s\S]*?\r?\n    \}\r?\n\r?\n    if \(invalidatedSchoolCheck\) \{\r?\n      await tx\.lunchBoxSchoolCheck\.delete/,
     );
   });
 });

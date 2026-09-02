@@ -25,11 +25,18 @@ CREATE TEMP TABLE "_lunch_box_iri_school_check_before"
 ON COMMIT DROP
 AS SELECT * FROM "LunchBoxSchoolCheck";
 
+-- Fresh installations intentionally start without lunch-box operational data.
+-- Skip this historical correction only when both source tables are empty.
 DO $$
 DECLARE
   target_schools INTEGER;
   corrected_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   SELECT COUNT(*)
   INTO target_schools
   FROM "_lunch_box_iri_school_check_target";
@@ -83,6 +90,11 @@ DO $$
 DECLARE
   deleted_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "LunchBoxSchool")
+    AND NOT EXISTS (SELECT 1 FROM "LunchBoxCount") THEN
+    RETURN;
+  END IF;
+
   SELECT COUNT(*)
   INTO deleted_rows
   FROM "_lunch_box_iri_deleted_school_check";
