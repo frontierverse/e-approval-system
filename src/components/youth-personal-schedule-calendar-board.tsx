@@ -78,6 +78,43 @@ const fieldClassName =
 const secondaryButtonClassName =
   "inline-flex h-11 min-w-0 items-center justify-center rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60";
 
+type YouthPersonalScheduleStudentSelectProps = Pick<
+  YouthPersonalScheduleCalendarBoardProps,
+  "selectedMonth" | "selectedYouthId" | "youths"
+>;
+
+export function YouthPersonalScheduleStudentSelect({
+  selectedMonth,
+  selectedYouthId,
+  youths,
+}: YouthPersonalScheduleStudentSelectProps) {
+  return (
+    <label className="block min-w-0">
+      <span className="sr-only">학생</span>
+      <select
+        aria-label="개인 일정표 학생 선택"
+        className="h-11 w-36 max-w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-lg font-semibold text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-40"
+        disabled={youths.length === 0}
+        value={selectedYouthId}
+        onChange={(event) => {
+          window.location.assign(
+            createPersonalScheduleHref(event.currentTarget.value, selectedMonth),
+          );
+        }}
+      >
+        {youths.length === 0 ? (
+          <option value="">재원 중인 학생 없음</option>
+        ) : null}
+        {youths.map((youth) => (
+          <option key={youth.id} value={youth.id}>
+            {youth.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function YouthPersonalScheduleCalendarBoard(
   props: YouthPersonalScheduleCalendarBoardProps,
 ) {
@@ -347,7 +384,7 @@ function YouthPersonalScheduleCalendarBoardContent({
       className="min-w-0 max-w-full space-y-4"
     >
       <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-        <div className="grid min-w-0 gap-3 border-b border-[var(--border)] px-3 py-3 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid min-w-0 gap-3 border-b border-[var(--border)] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)] sm:items-center sm:px-4">
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -359,51 +396,19 @@ function YouthPersonalScheduleCalendarBoardContent({
                 </span>
               ) : null}
             </div>
-            <p className="mt-1 truncate text-sm text-[var(--text-muted)]">
-              {selectedYouth
-                ? `${selectedYouth.name} 학생의 월간 개인 일정`
-                : "학생을 선택하면 개인 일정을 확인할 수 있습니다."}
-            </p>
           </div>
 
-          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,11rem)_minmax(0,10rem)] lg:flex lg:items-end">
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-semibold text-[var(--text-muted)]">
-                학생
-              </span>
-              <select
-                aria-label="개인 일정표 학생 선택"
-                className={fieldClassName}
-                value={selectedYouthId}
-                onChange={(event) => {
-                  window.location.assign(
-                    createPersonalScheduleHref(event.currentTarget.value, selectedMonth),
-                  );
-                }}
-              >
-                {youths.length === 0 ? (
-                  <option value="">등록된 학생 없음</option>
-                ) : null}
-                {youths.map((youth) => (
-                  <option key={youth.id} value={youth.id}>
-                    {youth.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-semibold text-[var(--text-muted)]">
-                월 이동
-              </span>
-              <DatePickerInput
-                aria-label="개인 일정표 월 이동"
-                className={`${fieldClassName} tabular-nums`}
-                value={`${selectedMonth}-01`}
-                onChange={(event) => navigateToMonth(event.currentTarget.value)}
-              />
-            </label>
-          </div>
+          <label className="block min-w-0">
+            <span className="mb-1 block text-xs font-semibold text-[var(--text-muted)]">
+              월 이동
+            </span>
+            <DatePickerInput
+              aria-label="개인 일정표 월 이동"
+              className={`${fieldClassName} tabular-nums`}
+              value={`${selectedMonth}-01`}
+              onChange={(event) => navigateToMonth(event.currentTarget.value)}
+            />
+          </label>
         </div>
 
         <div className="grid grid-cols-3 gap-2 border-b border-[var(--border)] px-3 py-2 sm:flex sm:justify-end sm:px-4">
@@ -544,10 +549,10 @@ function YouthPersonalScheduleCalendarBoardContent({
         ) : (
           <div className="px-4 py-10 text-center">
             <p className="text-sm font-semibold text-[var(--foreground)]">
-              등록된 학생이 없습니다.
+              재원 중인 학생이 없습니다.
             </p>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              청소년 명단에 학생을 등록하면 개인 일정표를 사용할 수 있습니다.
+              청소년 명단에서 재원 중인 학생을 확인해 주세요.
             </p>
           </div>
         )}
@@ -850,15 +855,9 @@ export function YouthPersonalScheduleCalendarSkeleton() {
       aria-label="개인 일정표 로딩"
       className="min-w-0 max-w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-sm"
     >
-      <div className="grid min-w-0 gap-3 border-b border-[var(--border)] px-3 py-3 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div>
-          <span className="block h-6 w-28 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
-          <span className="mt-2 block h-4 w-48 max-w-full animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
-        </div>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-          <span className="block h-11 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none sm:w-44" />
-          <span className="block h-11 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none sm:w-40" />
-        </div>
+      <div className="grid min-w-0 gap-3 border-b border-[var(--border)] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)] sm:items-center sm:px-4">
+        <span className="block h-6 w-28 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+        <span className="block h-11 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
       </div>
       <div className="grid grid-cols-3 gap-2 border-b border-[var(--border)] px-3 py-2 sm:flex sm:justify-end sm:px-4">
         {Array.from({ length: 3 }, (_, index) => (

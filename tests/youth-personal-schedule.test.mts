@@ -44,6 +44,10 @@ const pageSource = readFileSync(
   new URL("../src/app/youth/personal-schedule/page.tsx", import.meta.url),
   "utf8",
 );
+const youthManagementSource = readFileSync(
+  new URL("../src/lib/youth-management.ts", import.meta.url),
+  "utf8",
+);
 
 function createInput(
   overrides: Partial<YouthPersonalScheduleInput> = {},
@@ -379,7 +383,7 @@ describe("youth personal schedule persistence contracts", () => {
 
   test("guards the page read and derives write controls from effective permission", () => {
     assert.match(pageSource, /const user = await requireYouthBasicAccess\(\)/);
-    assert.match(pageSource, /getYouthDirectory\(\)/);
+    assert.match(pageSource, /getAdmittedYouthDirectory\(\)/);
     assert.match(
       pageSource,
       /youths\.find\(\(youth\) => youth\.id === requestedYouthId\)\?\.id/,
@@ -389,6 +393,33 @@ describe("youth personal schedule persistence contracts", () => {
       /const permissions = getEffectiveYouthPermissions\(user\)/,
     );
     assert.match(pageSource, /canManage=\{permissions\.canManageYouth\}/);
+  });
+
+  test("excludes discharged youths from the personal schedule directory", () => {
+    const start = youthManagementSource.indexOf(
+      "export async function getAdmittedYouthDirectory",
+    );
+    const end = youthManagementSource.indexOf(
+      "export function mapYouthDecisionDocument",
+      start,
+    );
+
+    assert.notEqual(start, -1);
+    assert.notEqual(end, -1);
+
+    const admittedDirectorySource = youthManagementSource.slice(start, end);
+
+    assert.match(admittedDirectorySource, /getYouthLearningScheduleToday\(\)/);
+    assert.match(admittedDirectorySource, /dischargeDate: null/);
+    assert.match(admittedDirectorySource, /dischargeDate: ""/);
+    assert.match(
+      admittedDirectorySource,
+      /dischargeDate:\s*\{\s*gte: referenceDate/,
+    );
+    assert.match(
+      admittedDirectorySource,
+      /select:\s*\{\s*id: true,\s*name: true/,
+    );
   });
 
   test("rechecks management permission for every mutation", () => {

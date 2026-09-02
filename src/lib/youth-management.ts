@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getYouthDisplayAge,
+  getYouthLearningScheduleToday,
   type YouthDecisionDocumentItem,
   type YouthFamilyContact,
   normalizeYouthNoteCategory,
@@ -118,6 +119,33 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
 
 export async function getYouthDirectory() {
   return prisma.youth.findMany({
+    orderBy: [{ name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}
+
+export async function getAdmittedYouthDirectory(
+  referenceDate = getYouthLearningScheduleToday(),
+) {
+  return prisma.youth.findMany({
+    where: {
+      OR: [
+        {
+          dischargeDate: null,
+        },
+        {
+          dischargeDate: "",
+        },
+        {
+          dischargeDate: {
+            gte: referenceDate,
+          },
+        },
+      ],
+    },
     orderBy: [{ name: "asc" }],
     select: {
       id: true,

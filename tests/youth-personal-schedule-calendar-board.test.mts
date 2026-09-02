@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { PageTitle } from "../src/components/page-title.tsx";
 import {
   createPersonalScheduleEndMinuteOptions,
   createPersonalScheduleStartMinuteOptions,
@@ -12,6 +13,7 @@ import {
   occursOnPersonalScheduleDate,
   YouthPersonalScheduleCalendarBoard,
   YouthPersonalScheduleCalendarSkeleton,
+  YouthPersonalScheduleStudentSelect,
 } from "../src/components/youth-personal-schedule-calendar-board.tsx";
 import type { YouthPersonalScheduleInput } from "../src/lib/youth-personal-schedule-core.ts";
 import type { YouthPersonalSchedule } from "../src/lib/youth-personal-schedules.ts";
@@ -21,6 +23,10 @@ const componentSource = readFileSync(
     "../src/components/youth-personal-schedule-calendar-board.tsx",
     import.meta.url,
   ),
+  "utf8",
+);
+const pageSource = readFileSync(
+  new URL("../src/app/youth/personal-schedule/page.tsx", import.meta.url),
   "utf8",
 );
 
@@ -111,9 +117,8 @@ describe("youth personal schedule calendar board", () => {
 
     assert.match(html, /aria-label="김하늘 개인 일정표"/);
     assert.match(html, /2026년 6월/);
-    assert.match(html, /개인 일정표 학생 선택/);
     assert.match(html, /김하늘/);
-    assert.match(html, /최예담/);
+    assert.doesNotMatch(html, /개인 일정표 학생 선택/);
     assert.match(html, /grid-cols-7/);
     assert.match(html, /max-w-full/);
     assert.doesNotMatch(html, /min-w-\[(?:8|9)\d{2}px\]/);
@@ -130,6 +135,49 @@ describe("youth personal schedule calendar board", () => {
       html,
       /href="\/youth\/personal-schedule\?youthId=youth-001&amp;month=2026-07"/,
     );
+  });
+
+  test("places the student selector directly before the personal schedule title", () => {
+    const studentSelect = React.createElement(
+      YouthPersonalScheduleStudentSelect,
+      {
+        selectedMonth: "2026-06",
+        selectedYouthId: "youth-001",
+        youths,
+      },
+    );
+    const html = renderToStaticMarkup(studentSelect);
+    const titleHtml = renderToStaticMarkup(
+      React.createElement(PageTitle, {
+        title: "개인 일정표",
+        titleAccessory: studentSelect,
+      }),
+    );
+
+    assert.match(html, /aria-label="개인 일정표 학생 선택"/);
+    assert.match(html, /h-11/);
+    assert.match(html, /text-lg/);
+    assert.match(html, /<option value="youth-001" selected="">김하늘<\/option>/);
+    assert.match(html, /<option value="youth-002">최예담<\/option>/);
+    assert.ok(
+      titleHtml.indexOf('aria-label="개인 일정표 학생 선택"') <
+        titleHtml.indexOf(">개인 일정표</h1>"),
+    );
+    assert.match(
+      pageSource,
+      /<PageTitle\s+title="개인 일정표"\s+titleAccessory=\{[\s\S]*?<YouthPersonalScheduleStudentSelect/,
+    );
+
+    const emptyHtml = renderToStaticMarkup(
+      React.createElement(YouthPersonalScheduleStudentSelect, {
+        selectedMonth: "2026-06",
+        selectedYouthId: "",
+        youths: [],
+      }),
+    );
+
+    assert.match(emptyHtml, /재원 중인 학생 없음/);
+    assert.match(emptyHtml, /disabled=""/);
   });
 
   test("renders a genuinely read-only calendar without registration controls", () => {

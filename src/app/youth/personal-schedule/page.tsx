@@ -5,8 +5,11 @@ import {
   updateYouthPersonalScheduleAction,
 } from "@/app/youth/personal-schedule/actions";
 import { PageTitle } from "@/components/page-title";
-import { YouthPersonalScheduleCalendarBoard } from "@/components/youth-personal-schedule-calendar-board";
-import { getYouthDirectory } from "@/lib/youth-management";
+import {
+  YouthPersonalScheduleCalendarBoard,
+  YouthPersonalScheduleStudentSelect,
+} from "@/components/youth-personal-schedule-calendar-board";
+import { getAdmittedYouthDirectory } from "@/lib/youth-management";
 import { getYouthPersonalSchedules } from "@/lib/youth-personal-schedules";
 import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
@@ -29,7 +32,10 @@ export default async function YouthPersonalSchedulePage({
   searchParams,
 }: YouthPersonalSchedulePageProps) {
   const user = await requireYouthBasicAccess();
-  const [params, youths] = await Promise.all([searchParams, getYouthDirectory()]);
+  const [params, youths] = await Promise.all([
+    searchParams,
+    getAdmittedYouthDirectory(),
+  ]);
   const selectedMonth = normalizeWorkScheduleMonth(getSingleParam(params.month));
   const requestedYouthId = getSingleParam(params.youthId);
   const selectedYouthId =
@@ -43,7 +49,16 @@ export default async function YouthPersonalSchedulePage({
 
   return (
     <>
-      <PageTitle title="개인 일정표" />
+      <PageTitle
+        title="개인 일정표"
+        titleAccessory={
+          <YouthPersonalScheduleStudentSelect
+            selectedMonth={selectedMonth}
+            selectedYouthId={selectedYouthId}
+            youths={youths}
+          />
+        }
+      />
       <YouthPersonalScheduleCalendarBoard
         canManage={permissions.canManageYouth}
         createSchedule={createYouthPersonalScheduleAction}
