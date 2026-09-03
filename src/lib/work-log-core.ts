@@ -11,7 +11,9 @@ export type WorkLogEntry = {
   workDate: string;
   keyword: string;
   content: string;
+  authorName: string;
   createdAt: string;
+  updatedByName: string | null;
   updatedAt: string;
 };
 
@@ -26,10 +28,19 @@ export type WorkLogFormFieldErrors = Partial<
 >;
 
 export type WorkLogFormState = {
+  conflictUpdatedAt?: string;
+  entry?: WorkLogEntry;
   error?: string;
   fieldErrors?: WorkLogFormFieldErrors;
   success?: string;
   values?: WorkLogFormValues;
+};
+
+export type WorkLogDeleteFormState = {
+  conflict?: boolean;
+  deletedId?: string;
+  error?: string;
+  success?: string;
 };
 
 export type WorkLogContributionDay = {
@@ -88,6 +99,13 @@ export function validateWorkLogFormValues(
 
 export function hasWorkLogFormErrors(errors: WorkLogFormFieldErrors) {
   return Object.keys(errors).length > 0;
+}
+
+export function hasWorkLogSaveConflict(
+  expectedUpdatedAt: string,
+  currentUpdatedAt: string | null,
+) {
+  return expectedUpdatedAt !== (currentUpdatedAt ?? "");
 }
 
 export function isWorkLogDate(value: string) {

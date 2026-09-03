@@ -299,7 +299,7 @@ const auditActionLabels: Record<AuditAction, string> = {
   UPDATE_RESOURCE: "자료 수정",
   DELETE_RESOURCE: "자료 삭제",
   UPDATE_WORK_SCHEDULE: "업무 일정 수정",
-  UPDATE_WORK_LOG: "업무일지 저장",
+  UPDATE_WORK_LOG: "업무일지 변경",
   UPDATE_CAFE_ITEM: "카페 물품 변경",
   CREATE_YOUTH: "청소년 등록",
   UPDATE_YOUTH: "청소년 정보 수정",

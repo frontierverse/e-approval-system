@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { saveWorkLogAction } from "@/app/work-schedule/work-log/actions";
+import {
+  deleteWorkLogAction,
+  saveWorkLogAction,
+} from "@/app/work-schedule/work-log/actions";
 import { PageTitle } from "@/components/page-title";
 import { WorkLogBoard } from "@/components/work-log-board";
 import { requireUser } from "@/lib/auth";
@@ -42,6 +45,7 @@ export default async function WorkLogPage({
       <WorkLogBoard
         key={selectedDate}
         contributionDates={pageData.contributionDates}
+        deleteAction={deleteWorkLogAction}
         recentLogs={pageData.recentLogs}
         saveAction={saveWorkLogAction}
         selectedDate={selectedDate}

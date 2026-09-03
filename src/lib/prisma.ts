@@ -44,6 +44,7 @@ const requiredYouthLearningScheduleFields = [
 ] as const;
 const requiredYouthFields = ["birthDate"] as const;
 const requiredWorkScheduleFields = ["scheduleDate"] as const;
+const requiredWorkLogFields = ["updatedById", "updatedBy"] as const;
 const requiredUserFields = ["birthDate", "hireDate", "resignationDate"] as const;
 const requiredLunchBoxSchoolFields = ["preservationClass"] as const;
 const requiredLunchBoxCountFields = [
@@ -94,6 +95,7 @@ function isReusablePrismaClient(
     hasRequiredYouthFields(client) &&
     hasRequiredYouthLearningScheduleFields(client) &&
     hasRequiredWorkScheduleFields(client) &&
+    hasRequiredWorkLogFields(client) &&
     hasRequiredLunchBoxFields(client) &&
     hasRequiredUserFields(client)
   );
@@ -189,6 +191,27 @@ function hasRequiredWorkScheduleFields(client: PrismaClient) {
   );
 
   return requiredWorkScheduleFields.every((field) => fieldNames.has(field));
+}
+
+function hasRequiredWorkLogFields(client: PrismaClient) {
+  const model = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: {
+          WorkLog?: {
+            fields?: Array<{ name?: string }>;
+          };
+        };
+      };
+    }
+  )._runtimeDataModel?.models?.WorkLog;
+  const fieldNames = new Set(
+    (model?.fields ?? [])
+      .map((field) => field.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+
+  return requiredWorkLogFields.every((field) => fieldNames.has(field));
 }
 
 function hasRequiredLunchBoxFields(client: PrismaClient) {

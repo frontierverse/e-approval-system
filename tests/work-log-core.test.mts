@@ -6,6 +6,7 @@ import {
   getWorkLogMonthLabels,
   getWorkLogToday,
   hasWorkLogFormErrors,
+  hasWorkLogSaveConflict,
   isWorkLogDate,
   normalizeWorkLogFormValues,
   validateWorkLogFormValues,
@@ -62,6 +63,28 @@ describe("work log core", () => {
       getWorkLogToday(new Date("2026-09-01T15:30:00.000Z")),
       "2026-09-02",
     );
+  });
+
+  test("detects stale and concurrently created work log saves", () => {
+    assert.equal(
+      hasWorkLogSaveConflict(
+        "2026-09-03T00:00:00.000Z",
+        "2026-09-03T00:00:00.000Z",
+      ),
+      false,
+    );
+    assert.equal(
+      hasWorkLogSaveConflict(
+        "2026-09-03T00:00:00.000Z",
+        "2026-09-03T01:00:00.000Z",
+      ),
+      true,
+    );
+    assert.equal(
+      hasWorkLogSaveConflict("", "2026-09-03T01:00:00.000Z"),
+      true,
+    );
+    assert.equal(hasWorkLogSaveConflict("", null), false);
   });
 
   test("builds a Sunday-starting 53 week contribution grid", () => {

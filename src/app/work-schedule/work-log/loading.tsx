@@ -30,8 +30,14 @@ export default function WorkLogLoading() {
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
           <section className="rounded-md border border-[var(--border)] bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
-              <div className="h-5 w-28 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
-              <div className="mt-2 h-4 w-64 max-w-full animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="h-5 w-28 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+                <div className="h-7 w-16 animate-pulse rounded-full bg-[var(--surface-muted)] motion-reduce:animate-none" />
+              </div>
+              <div className="mt-2 grid gap-1">
+                <div className="h-4 w-80 max-w-full animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+                <div className="h-4 w-96 max-w-full animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+              </div>
             </div>
             <div className="space-y-4 p-4 sm:p-5">
               <div className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)]">

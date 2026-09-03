@@ -25,7 +25,7 @@ export const auditActionLabels = {
   CREATE_RESOURCE: "자료 업로드",
   UPDATE_RESOURCE: "자료 수정",
   DELETE_RESOURCE: "자료 삭제",
-  UPDATE_WORK_LOG: "업무일지 저장",
+  UPDATE_WORK_LOG: "업무일지 변경",
   UPDATE_CAFE_ITEM: "카페 물품 변경",
   UPDATE_LUNCH_BOX_COUNT: "도시락 개수 변경",
   UPDATE_LUNCH_BOX_OPERATION: "도시락 근무·지출 변경",

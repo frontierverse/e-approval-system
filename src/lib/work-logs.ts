@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   formatWorkLogDateValue,
@@ -8,14 +9,28 @@ import {
   type WorkLogEntry,
 } from "@/lib/work-log-core";
 
-const workLogSelect = {
+export const workLogSelect = {
+  author: {
+    select: {
+      name: true,
+    },
+  },
   content: true,
   createdAt: true,
   id: true,
   keyword: true,
   updatedAt: true,
+  updatedBy: {
+    select: {
+      name: true,
+    },
+  },
   workDate: true,
-} as const;
+} as const satisfies Prisma.WorkLogSelect;
+
+export type WorkLogRecord = Prisma.WorkLogGetPayload<{
+  select: typeof workLogSelect;
+}>;
 
 export type WorkLogPageData = {
   contributionDates: string[];
@@ -34,15 +49,7 @@ export async function getWorkLogPageData({
 }): Promise<WorkLogPageData> {
   const { startDate } = getWorkLogContributionRange(today);
   const [selectedLog, contributionRecords, recentLogs] = await Promise.all([
-    prisma.workLog.findUnique({
-      where: {
-        authorId_workDate: {
-          authorId,
-          workDate: parseWorkLogDateValue(selectedDate),
-        },
-      },
-      select: workLogSelect,
-    }),
+    getWorkLogEntry({ authorId, workDate: selectedDate }),
     prisma.workLog.findMany({
       where: {
         authorId,
@@ -70,25 +77,40 @@ export async function getWorkLogPageData({
     contributionDates: contributionRecords.map((record) =>
       formatWorkLogDateValue(record.workDate),
     ),
-    recentLogs: recentLogs.map(mapWorkLog),
-    selectedLog: selectedLog ? mapWorkLog(selectedLog) : null,
+    recentLogs: recentLogs.map(mapWorkLogRecord),
+    selectedLog,
   };
 }
 
-function mapWorkLog(record: {
-  content: string;
-  createdAt: Date;
-  id: string;
-  keyword: string;
-  updatedAt: Date;
-  workDate: Date;
-}): WorkLogEntry {
+export async function getWorkLogEntry({
+  authorId,
+  workDate,
+}: {
+  authorId: string;
+  workDate: string;
+}) {
+  const record = await prisma.workLog.findUnique({
+    where: {
+      authorId_workDate: {
+        authorId,
+        workDate: parseWorkLogDateValue(workDate),
+      },
+    },
+    select: workLogSelect,
+  });
+
+  return record ? mapWorkLogRecord(record) : null;
+}
+
+export function mapWorkLogRecord(record: WorkLogRecord): WorkLogEntry {
   return {
+    authorName: record.author.name,
     content: record.content,
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     keyword: record.keyword,
     updatedAt: record.updatedAt.toISOString(),
+    updatedByName: record.updatedBy?.name ?? null,
     workDate: formatWorkLogDateValue(record.workDate),
   };
 }
