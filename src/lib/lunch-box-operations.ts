@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import {
   createEmptyLunchBoxDailyOperation,
   createLunchBoxOperationSummary,
+  createLunchBoxOperationsChartData,
   getLunchBoxOperationsMonth,
   getLunchBoxOperationsMonthRange,
   normalizeLunchBoxWorkerType,
   type LunchBoxDailyOperation,
   type LunchBoxOperationMonthSummaryRow,
+  type LunchBoxOperationsChartData,
   type LunchBoxOperationsViewData,
   type LunchBoxWorkerType,
 } from "@/lib/lunch-box-operations-core";
@@ -53,6 +55,38 @@ type LunchBoxDailyOperationRecord =
   Prisma.LunchBoxDailyOperationGetPayload<{
     select: typeof dailyOperationSelect;
   }>;
+
+export async function getLunchBoxOperationsChartData(): Promise<LunchBoxOperationsChartData> {
+  const records = await prisma.lunchBoxDailyOperation.findMany({
+    orderBy: { date: "asc" },
+    where: {
+      workShifts: {
+        some: { workerType: "TEMPORARY" },
+      },
+    },
+    select: {
+      date: true,
+      workShifts: {
+        orderBy: [{ order: "asc" }, { id: "asc" }],
+        where: { workerType: "TEMPORARY" },
+        select: {
+          workerType: true,
+          workerName: true,
+          startTime: true,
+          endTime: true,
+          laborCost: true,
+        },
+      },
+    },
+  });
+
+  return createLunchBoxOperationsChartData(
+    records.map((record) => ({
+      date: formatLunchBoxDateValue(record.date),
+      workShifts: record.workShifts,
+    })),
+  );
+}
 
 export async function getLunchBoxOperationsView({
   date,

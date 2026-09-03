@@ -7,6 +7,7 @@ import { LunchBoxOperationsBoard } from "../src/components/lunch-box-operations-
 import {
   createEmptyLunchBoxDailyOperation,
   createLunchBoxOperationSummary,
+  createLunchBoxOperationsChartData,
   formatLunchBoxWorkMinutes,
   getLunchBoxOperationsMonthRange,
   getLunchBoxShiftMinutes,
@@ -413,6 +414,180 @@ describe("lunch box operation input", () => {
   });
 });
 
+describe("lunch box operations chart data", () => {
+  test("tracks only hired workers by date and person without mutating rows", () => {
+    const rows = [
+      {
+        date: "2026-08-03",
+        workShifts: [
+          {
+            workerType: "TEMPORARY" as const,
+            workerName: "김하늘",
+            startTime: "07:30",
+            endTime: "12:00",
+            laborCost: 70_000,
+          },
+          {
+            workerType: "STAFF" as const,
+            workerName: "이바다",
+            startTime: "08:00",
+            endTime: "17:00",
+            laborCost: null,
+          },
+        ],
+      },
+      {
+        date: "2026-08-01",
+        workShifts: [
+          {
+            workerType: "TEMPORARY" as const,
+            workerName: "박지민",
+            startTime: "08:00",
+            endTime: "12:00",
+            laborCost: 60_000,
+          },
+          {
+            workerType: "TEMPORARY" as const,
+            workerName: "김하늘",
+            startTime: "09:00",
+            endTime: "13:30",
+            laborCost: 80_000,
+          },
+          {
+            workerType: "TEMPORARY" as const,
+            workerName: "김하늘",
+            startTime: "14:00",
+            endTime: "16:00",
+            laborCost: 30_000,
+          },
+        ],
+      },
+      {
+        date: "2026-08-02",
+        workShifts: [
+          {
+            workerType: "STAFF" as const,
+            workerName: "이바다",
+            startTime: "08:00",
+            endTime: "17:00",
+            laborCost: null,
+          },
+        ],
+      },
+    ];
+
+    const chartData = createLunchBoxOperationsChartData(rows);
+
+    assert.deepEqual(
+      chartData.points.map((point) => point.date),
+      ["2026-08-01", "2026-08-03"],
+    );
+    assert.deepEqual(chartData.points[0], {
+      date: "2026-08-01",
+      hiredWorkers: [
+        {
+          laborCost: 110_000,
+          shifts: [
+            {
+              endTime: "13:30",
+              laborCost: 80_000,
+              startTime: "09:00",
+              totalMinutes: 270,
+            },
+            {
+              endTime: "16:00",
+              laborCost: 30_000,
+              startTime: "14:00",
+              totalMinutes: 120,
+            },
+          ],
+          totalMinutes: 390,
+          workerName: "김하늘",
+        },
+        {
+          laborCost: 60_000,
+          shifts: [
+            {
+              endTime: "12:00",
+              laborCost: 60_000,
+              startTime: "08:00",
+              totalMinutes: 240,
+            },
+          ],
+          totalMinutes: 240,
+          workerName: "박지민",
+        },
+      ],
+      laborCost: 170_000,
+      totalMinutes: 630,
+    });
+    assert.deepEqual(chartData.workerSummaries, [
+      {
+        laborCost: 180_000,
+        totalMinutes: 660,
+        workdayCount: 2,
+        workerName: "김하늘",
+      },
+      {
+        laborCost: 60_000,
+        totalMinutes: 240,
+        workdayCount: 1,
+        workerName: "박지민",
+      },
+    ]);
+    assert.deepEqual(chartData.workerNames, ["김하늘", "박지민"]);
+    assert.equal(chartData.totalLaborCost, 240_000);
+    assert.equal(chartData.totalMinutes, 900);
+    assert.equal(chartData.startDate, "2026-08-01");
+    assert.equal(chartData.endDate, "2026-08-03");
+    assert.doesNotMatch(JSON.stringify(chartData), /이바다/);
+    assert.deepEqual(
+      rows.map((row) => row.date),
+      ["2026-08-03", "2026-08-01", "2026-08-02"],
+      "chart creation must not mutate query rows",
+    );
+    assert.equal(rows[1].workShifts.length, 3);
+  });
+
+  test("returns an empty aggregate when there are no hired workers", () => {
+    assert.deepEqual(createLunchBoxOperationsChartData([]), {
+      endDate: null,
+      points: [],
+      startDate: null,
+      totalLaborCost: 0,
+      totalMinutes: 0,
+      workerNames: [],
+      workerSummaries: [],
+    });
+
+    assert.deepEqual(
+      createLunchBoxOperationsChartData([
+        {
+          date: "2026-08-04",
+          workShifts: [
+            {
+              workerType: "STAFF",
+              workerName: "월급직원",
+              startTime: "08:00",
+              endTime: "17:00",
+              laborCost: null,
+            },
+          ],
+        },
+      ]),
+      {
+        endDate: null,
+        points: [],
+        startDate: null,
+        totalLaborCost: 0,
+        totalMinutes: 0,
+        workerNames: [],
+        workerSummaries: [],
+      },
+    );
+  });
+});
+
 describe("lunch box operations board", () => {
   test("renders dense month totals and date-variable work and purchase details", () => {
     const html = renderToStaticMarkup(
@@ -465,6 +640,51 @@ describe("lunch box operations board", () => {
 });
 
 describe("lunch box operation persistence contracts", () => {
+  test("loads only hired-worker history using exact chart fields", () => {
+    const chartQuerySource = querySource.match(
+      /export async function getLunchBoxOperationsChartData[\s\S]*?(?=export async function getLunchBoxOperationsView)/,
+    )?.[0];
+
+    assert.ok(chartQuerySource);
+    assert.match(chartQuerySource, /lunchBoxDailyOperation\.findMany/);
+    assert.match(chartQuerySource, /orderBy: \{ date: "asc" \}/);
+    assert.match(
+      chartQuerySource,
+      /some: \{ workerType: "TEMPORARY" \}/,
+    );
+    assert.match(
+      chartQuerySource,
+      /where: \{ workerType: "TEMPORARY" \}/,
+    );
+    assert.match(chartQuerySource, /createLunchBoxOperationsChartData/);
+    assert.doesNotMatch(chartQuerySource, /createLunchBoxOperationSummary/);
+
+    for (const field of [
+      "date",
+      "workerType",
+      "workerName",
+      "startTime",
+      "endTime",
+      "laborCost",
+    ]) {
+      assert.match(chartQuerySource, new RegExp(`${field}: true`));
+    }
+
+    for (const field of [
+      "updatedAt",
+      "updatedBy",
+      "version",
+      "itemName",
+      "quantity",
+      "unit",
+      "note",
+      "purchaseAmount",
+      "ingredientPurchases",
+    ]) {
+      assert.doesNotMatch(chartQuerySource, new RegExp(`${field}: true`));
+    }
+  });
+
   test("adds the operations tab immediately after daily counts", () => {
     const countIndex = pageSource.indexOf('label="일자별 개수"');
     const operationsIndex = pageSource.indexOf('label="근무·지출"');

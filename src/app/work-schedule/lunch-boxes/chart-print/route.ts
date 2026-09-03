@@ -6,6 +6,10 @@ import {
   type LunchBoxChartPdfOrientation,
 } from "@/lib/lunch-box-chart-pdf";
 import { getLunchBoxChartData } from "@/lib/lunch-box-counts";
+import { createLunchBoxHiredWorkerPdf } from "@/lib/lunch-box-hired-worker-pdf";
+import { getLunchBoxOperationsChartData } from "@/lib/lunch-box-operations";
+
+type LunchBoxPrintableChart = LunchBoxChartPdfKind | "operations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,13 +29,33 @@ export async function GET(request: NextRequest) {
   const orientation = getChartOrientation(
     request.nextUrl.searchParams.get("orientation"),
   );
+  const generatedAt = new Date();
+
+  if (chart === "operations") {
+    const data = await getLunchBoxOperationsChartData();
+    const pdf = await createLunchBoxHiredWorkerPdf({
+      data,
+      generatedAt,
+      orientation,
+    });
+    const range =
+      data.startDate && data.endDate
+        ? `${data.startDate}-to-${data.endDate}`
+        : "empty";
+
+    return createPdfResponse(
+      pdf,
+      `lunch-box-hired-workers-${range}-${orientation}.pdf`,
+    );
+  }
+
   const includePreservation =
     request.nextUrl.searchParams.get("preservation") !== "exclude";
   const data = await getLunchBoxChartData();
   const pdf = await createLunchBoxChartPdf({
     chart,
     data,
-    generatedAt: new Date(),
+    generatedAt,
     includePreservation,
     orientation,
   });
@@ -41,19 +65,30 @@ export async function GET(request: NextRequest) {
       : "empty";
   const preservation = includePreservation ? "include" : "exclude";
 
+  return createPdfResponse(
+    pdf,
+    `lunch-box-chart-${chart}-${range}-${preservation}-${orientation}.pdf`,
+  );
+}
+
+function createPdfResponse(pdf: Uint8Array, fileName: string) {
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Cache-Control": "no-store",
       "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(
-        `lunch-box-chart-${chart}-${range}-${preservation}-${orientation}.pdf`,
+        fileName,
       )}`,
       "Content-Type": "application/pdf",
     },
   });
 }
 
-function getChartKind(value: string | null): LunchBoxChartPdfKind | null {
-  return value === "total" || value === "schools" ? value : null;
+function getChartKind(value: string | null): LunchBoxPrintableChart | null {
+  return value === "total" ||
+    value === "schools" ||
+    value === "operations"
+    ? value
+    : null;
 }
 
 function getChartOrientation(

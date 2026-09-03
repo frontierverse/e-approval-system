@@ -95,6 +95,44 @@ export type LunchBoxOperationMonthSummaryRow = {
   }>;
 };
 
+export type LunchBoxHiredWorkerShift = {
+  endTime: string;
+  laborCost: number;
+  startTime: string;
+  totalMinutes: number;
+};
+
+export type LunchBoxHiredWorkerDay = {
+  laborCost: number;
+  shifts: LunchBoxHiredWorkerShift[];
+  totalMinutes: number;
+  workerName: string;
+};
+
+export type LunchBoxHiredWorkerSummary = {
+  laborCost: number;
+  totalMinutes: number;
+  workdayCount: number;
+  workerName: string;
+};
+
+export type LunchBoxOperationChartPoint = {
+  date: string;
+  hiredWorkers: LunchBoxHiredWorkerDay[];
+  laborCost: number;
+  totalMinutes: number;
+};
+
+export type LunchBoxOperationsChartData = {
+  endDate: string | null;
+  points: LunchBoxOperationChartPoint[];
+  startDate: string | null;
+  totalLaborCost: number;
+  totalMinutes: number;
+  workerNames: string[];
+  workerSummaries: LunchBoxHiredWorkerSummary[];
+};
+
 export type LunchBoxOperationsViewData = {
   dailyOperation: LunchBoxDailyOperation;
   month: string;
@@ -365,6 +403,114 @@ export function createLunchBoxOperationSummary({
     totalMinutes,
     workerCount: workerNames.length,
     workerNames,
+  };
+}
+
+export function createLunchBoxOperationsChartData(
+  rows: readonly {
+    date: string;
+    workShifts: readonly Pick<
+      NormalizedLunchBoxWorkShift,
+      "endTime" | "laborCost" | "startTime" | "workerName" | "workerType"
+    >[];
+  }[],
+): LunchBoxOperationsChartData {
+  const points = rows
+    .map(({ date, workShifts }) => {
+      const hiredWorkersByName = new Map<string, LunchBoxHiredWorkerDay>();
+
+      for (const shift of workShifts) {
+        if (shift.workerType !== "TEMPORARY") {
+          continue;
+        }
+
+        const workerName = normalizeSingleLineText(shift.workerName);
+
+        if (!workerName) {
+          continue;
+        }
+
+        const totalMinutes = Math.max(
+          0,
+          getLunchBoxShiftMinutes(shift.startTime, shift.endTime),
+        );
+        const laborCost = Math.max(0, Math.floor(shift.laborCost ?? 0));
+        const worker = hiredWorkersByName.get(workerName) ?? {
+          laborCost: 0,
+          shifts: [],
+          totalMinutes: 0,
+          workerName,
+        };
+
+        worker.laborCost += laborCost;
+        worker.totalMinutes += totalMinutes;
+        worker.shifts.push({
+          endTime: shift.endTime,
+          laborCost,
+          startTime: shift.startTime,
+          totalMinutes,
+        });
+        hiredWorkersByName.set(workerName, worker);
+      }
+
+      const hiredWorkers = Array.from(hiredWorkersByName.values()).sort(
+        (left, right) => left.workerName.localeCompare(right.workerName, "ko"),
+      );
+
+      return {
+        date,
+        hiredWorkers,
+        laborCost: hiredWorkers.reduce(
+          (sum, worker) => sum + worker.laborCost,
+          0,
+        ),
+        totalMinutes: hiredWorkers.reduce(
+          (sum, worker) => sum + worker.totalMinutes,
+          0,
+        ),
+      };
+    })
+    .filter((point) => point.hiredWorkers.length > 0)
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const workerSummariesByName = new Map<
+    string,
+    LunchBoxHiredWorkerSummary
+  >();
+
+  for (const point of points) {
+    for (const worker of point.hiredWorkers) {
+      const summary = workerSummariesByName.get(worker.workerName) ?? {
+        laborCost: 0,
+        totalMinutes: 0,
+        workdayCount: 0,
+        workerName: worker.workerName,
+      };
+
+      summary.laborCost += worker.laborCost;
+      summary.totalMinutes += worker.totalMinutes;
+      summary.workdayCount += 1;
+      workerSummariesByName.set(worker.workerName, summary);
+    }
+  }
+
+  const workerSummaries = Array.from(workerSummariesByName.values()).sort(
+    (left, right) => left.workerName.localeCompare(right.workerName, "ko"),
+  );
+
+  return {
+    endDate: points.at(-1)?.date ?? null,
+    points,
+    startDate: points[0]?.date ?? null,
+    totalLaborCost: points.reduce(
+      (sum, point) => sum + point.laborCost,
+      0,
+    ),
+    totalMinutes: points.reduce(
+      (sum, point) => sum + point.totalMinutes,
+      0,
+    ),
+    workerNames: workerSummaries.map((worker) => worker.workerName),
+    workerSummaries,
   };
 }
 

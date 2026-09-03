@@ -32,7 +32,10 @@ import {
   getLunchBoxSchoolChecklistPanelData,
   getLunchBoxSchools,
 } from "@/lib/lunch-box-counts";
-import { getLunchBoxOperationsView } from "@/lib/lunch-box-operations";
+import {
+  getLunchBoxOperationsChartData,
+  getLunchBoxOperationsView,
+} from "@/lib/lunch-box-operations";
 import {
   getLunchBoxCountToday,
   isLunchBoxDate,
@@ -223,9 +226,17 @@ async function LunchBoxSchoolPanel() {
 }
 
 async function LunchBoxChartPanel() {
-  const chartData = await getLunchBoxChartData();
+  const [chartData, operationsChartData] = await Promise.all([
+    getLunchBoxChartData(),
+    getLunchBoxOperationsChartData(),
+  ]);
 
-  return <LunchBoxChartBoard chartData={chartData} />;
+  return (
+    <LunchBoxChartBoard
+      chartData={chartData}
+      operationsChartData={operationsChartData}
+    />
+  );
 }
 
 function LunchBoxManagementTabs({
