@@ -10,6 +10,9 @@ import {
   normalizeYouthPersonalScheduleInput,
   parseYouthPersonalScheduleWeekdays,
   youthPersonalScheduleContentMaxLength,
+  youthPersonalScheduleEscortNameMaxLength,
+  youthPersonalScheduleHospitalContent,
+  youthPersonalScheduleHospitalNameMaxLength,
   youthPersonalScheduleOccurrenceMaxCount,
   type YouthPersonalScheduleInput,
 } from "../src/lib/youth-personal-schedule-core.ts";
@@ -21,6 +24,13 @@ const schemaSource = readFileSync(
 const migrationSource = readFileSync(
   new URL(
     "../prisma/migrations-postgresql/20260901170000_add_youth_personal_schedules/migration.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const hospitalMigrationSource = readFileSync(
+  new URL(
+    "../prisma/migrations-postgresql/20260904120000_add_youth_hospital_schedules/migration.sql",
     import.meta.url,
   ),
   "utf8",
@@ -95,6 +105,12 @@ describe("youth personal schedule normalization", () => {
           recurrenceWeekdayValues: [],
           recurrenceStartDate: null,
           recurrenceEndDate: null,
+          scheduleType: "GENERAL",
+          hospitalName: null,
+          escortType: null,
+          escortUserId: null,
+          escortOtherName: null,
+          nextAppointmentDate: null,
         },
       },
     );
@@ -130,8 +146,200 @@ describe("youth personal schedule normalization", () => {
         recurrenceWeekdayValues: [1, 3, 5],
         recurrenceStartDate: "2026-09-01",
         recurrenceEndDate: "2026-09-14",
+        scheduleType: "GENERAL",
+        hospitalName: null,
+        escortType: null,
+        escortUserId: null,
+        escortOtherName: null,
+        nextAppointmentDate: null,
       },
     });
+  });
+
+  test("keeps legacy payloads general and clears stale hospital-only fields", () => {
+    const result = normalizeYouthPersonalScheduleInput(
+      createInput({
+        hospitalName: "사용하지 않을 병원",
+        escortType: "OTHER",
+        escortUserId: "stale-user-id",
+        escortOtherName: "사용하지 않을 인솔자",
+        nextAppointmentDate: "2026-09-30",
+      }),
+    );
+
+    assert.equal(result.ok, true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    assert.deepEqual(
+      {
+        scheduleType: result.value.scheduleType,
+        hospitalName: result.value.hospitalName,
+        escortType: result.value.escortType,
+        escortUserId: result.value.escortUserId,
+        escortOtherName: result.value.escortOtherName,
+        nextAppointmentDate: result.value.nextAppointmentDate,
+      },
+      {
+        scheduleType: "GENERAL",
+        hospitalName: null,
+        escortType: null,
+        escortUserId: null,
+        escortOtherName: null,
+        nextAppointmentDate: null,
+      },
+    );
+  });
+
+  test("normalizes a staff-escorted hospital appointment", () => {
+    assert.deepEqual(
+      normalizeYouthPersonalScheduleInput(
+        createInput({
+          content: "클라이언트가 보낸 내용은 사용하지 않음",
+          scheduleType: "HOSPITAL",
+          hospitalName: "  전북   대학\n병원  ",
+          escortType: "STAFF",
+          escortUserId: "  user-escort-1  ",
+          escortOtherName: "숨겨진 이전 입력값",
+          occurrenceDates: ["2026-09-10"],
+          nextAppointmentDate: " 2026-10-08 ",
+        }),
+      ),
+      {
+        ok: true,
+        value: {
+          content: youthPersonalScheduleHospitalContent,
+          startMinute: 540,
+          endMinute: 600,
+          selectionMode: "DATES",
+          occurrenceDates: ["2026-09-10"],
+          recurrenceWeekdays: null,
+          recurrenceWeekdayValues: [],
+          recurrenceStartDate: null,
+          recurrenceEndDate: null,
+          scheduleType: "HOSPITAL",
+          hospitalName: "전북 대학 병원",
+          escortType: "STAFF",
+          escortUserId: "user-escort-1",
+          escortOtherName: null,
+          nextAppointmentDate: "2026-10-08",
+        },
+      },
+    );
+  });
+
+  test("normalizes a directly entered non-staff escort name", () => {
+    const result = normalizeYouthPersonalScheduleInput(
+      createInput({
+        content: "",
+        scheduleType: "HOSPITAL",
+        hospitalName: "익산병원",
+        escortType: "OTHER",
+        escortUserId: "stale-user-id",
+        escortOtherName: "  보호자\n김 씨  ",
+        occurrenceDates: ["2026-09-10"],
+        nextAppointmentDate: " ",
+      }),
+    );
+
+    assert.equal(result.ok, true);
+
+    if (!result.ok) {
+      return;
+    }
+
+    assert.equal(result.value.content, youthPersonalScheduleHospitalContent);
+    assert.equal(result.value.escortUserId, null);
+    assert.equal(result.value.escortOtherName, "보호자 김 씨");
+    assert.equal(result.value.nextAppointmentDate, null);
+  });
+
+  test("enforces hospital appointment subtype requirements", () => {
+    const hospitalBase: Partial<YouthPersonalScheduleInput> = {
+      scheduleType: "HOSPITAL",
+      hospitalName: "익산병원",
+      escortType: "STAFF",
+      escortUserId: "user-escort-1",
+    };
+    const rejectedInputs: unknown[] = [
+      createInput({
+        ...hospitalBase,
+        selectionMode: "WEEKDAYS",
+        recurrenceWeekdays: [1],
+        recurrenceStartDate: "2026-09-01",
+        recurrenceEndDate: "2026-09-30",
+      }),
+      createInput({
+        ...hospitalBase,
+        occurrenceDates: ["2026-09-10", "2026-09-11"],
+      }),
+      createInput({ ...hospitalBase, hospitalName: " " }),
+      createInput({
+        ...hospitalBase,
+        hospitalName: "가".repeat(
+          youthPersonalScheduleHospitalNameMaxLength + 1,
+        ),
+      }),
+      createInput({ ...hospitalBase, escortType: "" }),
+      createInput({ ...hospitalBase, escortUserId: " " }),
+      createInput({
+        ...hospitalBase,
+        escortType: "OTHER",
+        escortOtherName: " ",
+      }),
+      createInput({
+        ...hospitalBase,
+        escortType: "OTHER",
+        escortOtherName: "가".repeat(
+          youthPersonalScheduleEscortNameMaxLength + 1,
+        ),
+      }),
+      createInput({
+        ...hospitalBase,
+        occurrenceDates: ["2026-09-10"],
+        nextAppointmentDate: "2026-02-29",
+      }),
+      createInput({
+        ...hospitalBase,
+        occurrenceDates: ["2026-09-10"],
+        nextAppointmentDate: "2026-09-10",
+      }),
+      createInput({
+        ...hospitalBase,
+        occurrenceDates: ["2026-09-10"],
+        nextAppointmentDate: "2026-09-09",
+      }),
+      {
+        ...createInput(),
+        scheduleType: "MEDICAL",
+      },
+      {
+        ...createInput(hospitalBase),
+        nextAppointmentDate: 20260911,
+      },
+    ];
+
+    for (const input of rejectedInputs) {
+      assert.equal(normalizeYouthPersonalScheduleInput(input).ok, false);
+    }
+
+    assert.equal(
+      normalizeYouthPersonalScheduleInput(
+        createInput({
+          ...hospitalBase,
+          hospitalName: "가".repeat(youthPersonalScheduleHospitalNameMaxLength),
+          escortType: "OTHER",
+          escortOtherName: "나".repeat(
+            youthPersonalScheduleEscortNameMaxLength,
+          ),
+          occurrenceDates: ["2026-09-10"],
+          nextAppointmentDate: "2026-09-11",
+        }),
+      ).ok,
+      true,
+    );
   });
 
   test("accepts a 366-day leap-year range and rejects the 367th day", () => {
@@ -338,6 +546,12 @@ describe("youth personal schedule persistence contracts", () => {
       "recurrenceWeekdays",
       "recurrenceStartDate",
       "recurrenceEndDate",
+      "scheduleType",
+      "hospitalName",
+      "escortType",
+      "escortUserId",
+      "escortName",
+      "nextAppointmentDate",
       "youthId",
     ]) {
       assert.match(modelSource, new RegExp(`\\b${field}\\b`));
@@ -345,9 +559,30 @@ describe("youth personal schedule persistence contracts", () => {
 
     assert.match(modelSource, /occurrenceDates\s+String\[\]/);
     assert.match(modelSource, /@@index\(\[youthId\]\)/);
+    assert.match(modelSource, /@@index\(\[escortUserId\]\)/);
     assert.match(modelSource, /@@index\(\[occurrenceDates\],\s*type:\s*Gin/);
     assert.match(modelSource, /onDelete:\s*Cascade/);
+    assert.match(
+      modelSource,
+      /escortUser\s+User\?[\s\S]*?@relation\("YouthPersonalScheduleEscort"[\s\S]*?onDelete:\s*SetNull/,
+    );
+    assert.match(
+      schemaSource,
+      /enum YouthPersonalScheduleType\s*\{\s*GENERAL\s*HOSPITAL\s*\}/,
+    );
+    assert.match(
+      schemaSource,
+      /enum YouthPersonalScheduleEscortType\s*\{\s*STAFF\s*OTHER\s*\}/,
+    );
+    assert.match(
+      modelSource,
+      /scheduleType\s+YouthPersonalScheduleType\s+@default\(GENERAL\)/,
+    );
     assert.match(schemaSource, /personalSchedules\s+YouthPersonalSchedule\[\]/);
+    assert.match(
+      schemaSource,
+      /escortedYouthPersonalSchedules\s+YouthPersonalSchedule\[\]\s+@relation\("YouthPersonalScheduleEscort"\)/,
+    );
     assert.match(
       prismaSource,
       /requiredPrismaDelegates[\s\S]*?"youthPersonalSchedule"/,
@@ -369,6 +604,52 @@ describe("youth personal schedule persistence contracts", () => {
       );
     }
     assert.match(migrationSource, /ENABLE ROW LEVEL SECURITY/);
+
+    assert.match(
+      hospitalMigrationSource,
+      /CREATE TYPE "YouthPersonalScheduleType" AS ENUM \('GENERAL', 'HOSPITAL'\)/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /CREATE TYPE "YouthPersonalScheduleEscortType" AS ENUM \('STAFF', 'OTHER'\)/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"scheduleType" "YouthPersonalScheduleType" NOT NULL DEFAULT 'GENERAL'/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /FOREIGN KEY \("escortUserId"\) REFERENCES "User"\("id"\)[\s\S]*?ON DELETE SET NULL/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"scheduleType" = 'GENERAL'[\s\S]*?"hospitalName" IS NULL[\s\S]*?"escortUserId" IS NULL[\s\S]*?"nextAppointmentDate" IS NULL/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"scheduleType" = 'HOSPITAL'[\s\S]*?"selectionMode" = 'DATES'[\s\S]*?cardinality\("occurrenceDates"\) = 1/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /char_length\(btrim\("hospitalName"\)\) BETWEEN 1 AND 100/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"escortName" IS NOT NULL\s*AND char_length\(btrim\("escortName"\)\) >= 1/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"escortType" = 'STAFF'\s*OR \([\s\S]*?"escortType" = 'OTHER'[\s\S]*?"escortUserId" IS NULL[\s\S]*?char_length\(btrim\("escortName"\)\) BETWEEN 1 AND 80/,
+    );
+    assert.match(
+      hospitalMigrationSource,
+      /"nextAppointmentDate" > \("occurrenceDates"\)\[1\]/,
+    );
+    assert.match(hospitalMigrationSource, /NOT VALID/);
+    assert.match(
+      hospitalMigrationSource,
+      /VALIDATE CONSTRAINT "YouthPersonalSchedule_hospital_fields_check"/,
+    );
   });
 
   test("queries only the selected youth and month through array overlap", () => {

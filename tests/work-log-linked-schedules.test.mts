@@ -317,7 +317,7 @@ describe("work-log linked schedule integration contracts", () => {
 
     assert.doesNotMatch(
       selectSource,
-      /birthDate|phone|familyContact|occurrenceDates|recurrence|createdAt|updatedAt/,
+      /birthDate|phone|familyContact|occurrenceDates|recurrence|hospitalName|escortType|escortUserId|escortName|nextAppointmentDate|createdAt|updatedAt/,
     );
   });
 

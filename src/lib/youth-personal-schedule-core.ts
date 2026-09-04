@@ -1,7 +1,20 @@
 export const youthPersonalScheduleContentMaxLength = 200;
+export const youthPersonalScheduleHospitalNameMaxLength = 100;
+export const youthPersonalScheduleEscortNameMaxLength = 80;
+export const youthPersonalScheduleHospitalContent = "병원 진료 예약";
 export const youthPersonalScheduleOccurrenceMaxCount = 366;
 export const youthPersonalScheduleMinuteStep = 10;
 export const youthPersonalScheduleDayEndMinute = 24 * 60;
+
+export const youthPersonalScheduleTypes = ["GENERAL", "HOSPITAL"] as const;
+
+export type YouthPersonalScheduleType =
+  (typeof youthPersonalScheduleTypes)[number];
+
+export const youthPersonalScheduleEscortTypes = ["STAFF", "OTHER"] as const;
+
+export type YouthPersonalScheduleEscortType =
+  (typeof youthPersonalScheduleEscortTypes)[number];
 
 export const youthPersonalScheduleSelectionModes = [
   "DATES",
@@ -22,6 +35,12 @@ export type YouthPersonalScheduleInput = {
   recurrenceWeekdays: number[];
   recurrenceStartDate: string;
   recurrenceEndDate: string;
+  scheduleType?: YouthPersonalScheduleType;
+  hospitalName?: string;
+  escortType?: YouthPersonalScheduleEscortType | "";
+  escortUserId?: string;
+  escortOtherName?: string;
+  nextAppointmentDate?: string;
 };
 
 export type NormalizedYouthPersonalScheduleInput = {
@@ -34,6 +53,12 @@ export type NormalizedYouthPersonalScheduleInput = {
   recurrenceWeekdayValues: YouthPersonalScheduleWeekday[];
   recurrenceStartDate: string | null;
   recurrenceEndDate: string | null;
+  scheduleType: YouthPersonalScheduleType;
+  hospitalName: string | null;
+  escortType: YouthPersonalScheduleEscortType | null;
+  escortUserId: string | null;
+  escortOtherName: string | null;
+  nextAppointmentDate: string | null;
 };
 
 export type NormalizeYouthPersonalScheduleInputResult =
@@ -45,6 +70,15 @@ export type NormalizeYouthPersonalScheduleInputResult =
       ok: false;
       error: string;
     };
+
+type NormalizedYouthPersonalScheduleHospitalFields = Pick<
+  NormalizedYouthPersonalScheduleInput,
+  | "hospitalName"
+  | "escortType"
+  | "escortUserId"
+  | "escortOtherName"
+  | "nextAppointmentDate"
+>;
 
 const weekdayDisplayOrder: YouthPersonalScheduleWeekday[] = [
   1, 2, 3, 4, 5, 6, 0,
@@ -59,8 +93,23 @@ export function normalizeYouthPersonalScheduleInput(
   }
 
   const value = input as Record<string, unknown>;
+  const scheduleType =
+    value.scheduleType === undefined
+      ? "GENERAL"
+      : isYouthPersonalScheduleType(value.scheduleType)
+        ? value.scheduleType
+        : null;
+
+  if (!scheduleType) {
+    return invalid("일정 종류를 다시 선택하세요.");
+  }
+
   const content =
-    typeof value.content === "string" ? value.content.trim() : "";
+    scheduleType === "HOSPITAL"
+      ? youthPersonalScheduleHospitalContent
+      : typeof value.content === "string"
+        ? value.content.trim()
+        : "";
 
   if (!content) {
     return invalid("일정 내용을 입력하세요.");
@@ -86,11 +135,25 @@ export function normalizeYouthPersonalScheduleInput(
     return invalid("일정 등록 방식을 다시 선택하세요.");
   }
 
+  if (scheduleType === "HOSPITAL" && value.selectionMode !== "DATES") {
+    return invalid("병원 진료 예약은 날짜를 하나 직접 선택하세요.");
+  }
+
   if (value.selectionMode === "DATES") {
     const dates = normalizeYouthPersonalScheduleDates(value.occurrenceDates);
 
     if (!dates.ok) {
       return dates;
+    }
+
+    const hospitalFields = normalizeYouthPersonalScheduleHospitalFields({
+      occurrenceDates: dates.value,
+      scheduleType,
+      value,
+    });
+
+    if (!hospitalFields.ok) {
+      return hospitalFields;
     }
 
     return {
@@ -105,6 +168,8 @@ export function normalizeYouthPersonalScheduleInput(
         recurrenceWeekdayValues: [],
         recurrenceStartDate: null,
         recurrenceEndDate: null,
+        scheduleType,
+        ...hospitalFields.value,
       },
     };
   }
@@ -164,6 +229,134 @@ export function normalizeYouthPersonalScheduleInput(
       recurrenceWeekdayValues: weekdays.value,
       recurrenceStartDate,
       recurrenceEndDate,
+      scheduleType,
+      hospitalName: null,
+      escortType: null,
+      escortUserId: null,
+      escortOtherName: null,
+      nextAppointmentDate: null,
+    },
+  };
+}
+
+export function isYouthPersonalScheduleType(
+  value: unknown,
+): value is YouthPersonalScheduleType {
+  return youthPersonalScheduleTypes.some((type) => type === value);
+}
+
+export function isYouthPersonalScheduleEscortType(
+  value: unknown,
+): value is YouthPersonalScheduleEscortType {
+  return youthPersonalScheduleEscortTypes.some((type) => type === value);
+}
+
+function normalizeYouthPersonalScheduleHospitalFields({
+  occurrenceDates,
+  scheduleType,
+  value,
+}: {
+  occurrenceDates: readonly string[];
+  scheduleType: YouthPersonalScheduleType;
+  value: Record<string, unknown>;
+}):
+  | { ok: true; value: NormalizedYouthPersonalScheduleHospitalFields }
+  | { ok: false; error: string } {
+  if (scheduleType === "GENERAL") {
+    return {
+      ok: true,
+      value: {
+        hospitalName: null,
+        escortType: null,
+        escortUserId: null,
+        escortOtherName: null,
+        nextAppointmentDate: null,
+      },
+    };
+  }
+
+  if (occurrenceDates.length !== 1) {
+    return invalid("병원 진료 예약 날짜는 하나만 선택하세요.");
+  }
+
+  const appointmentDate = occurrenceDates[0];
+
+  if (!appointmentDate) {
+    return invalid("병원 진료 예약 날짜를 선택하세요.");
+  }
+
+  const hospitalName = normalizeSingleLineText(value.hospitalName);
+
+  if (!hospitalName) {
+    return invalid("병원명을 입력하세요.");
+  }
+
+  if (hospitalName.length > youthPersonalScheduleHospitalNameMaxLength) {
+    return invalid(
+      `병원명은 ${youthPersonalScheduleHospitalNameMaxLength}자 이내로 입력하세요.`,
+    );
+  }
+
+  if (!isYouthPersonalScheduleEscortType(value.escortType)) {
+    return invalid("인솔자 구분을 다시 선택하세요.");
+  }
+
+  let escortUserId: string | null = null;
+  let escortOtherName: string | null = null;
+
+  if (value.escortType === "STAFF") {
+    escortUserId =
+      typeof value.escortUserId === "string" ? value.escortUserId.trim() : "";
+
+    if (!escortUserId) {
+      return invalid("인솔할 직원을 선택하세요.");
+    }
+  } else {
+    escortOtherName = normalizeSingleLineText(value.escortOtherName);
+
+    if (!escortOtherName) {
+      return invalid("기타 인솔자 이름을 입력하세요.");
+    }
+
+    if (escortOtherName.length > youthPersonalScheduleEscortNameMaxLength) {
+      return invalid(
+        `기타 인솔자 이름은 ${youthPersonalScheduleEscortNameMaxLength}자 이내로 입력하세요.`,
+      );
+    }
+  }
+
+  if (
+    value.nextAppointmentDate !== undefined &&
+    value.nextAppointmentDate !== null &&
+    typeof value.nextAppointmentDate !== "string"
+  ) {
+    return invalid("다음 예약일 형식이 올바르지 않습니다.");
+  }
+
+  const nextAppointmentDateText =
+    typeof value.nextAppointmentDate === "string"
+      ? value.nextAppointmentDate.trim()
+      : "";
+  const nextAppointmentDate = nextAppointmentDateText
+    ? normalizeDateValue(nextAppointmentDateText)
+    : null;
+
+  if (nextAppointmentDateText && !nextAppointmentDate) {
+    return invalid("다음 예약일 형식이 올바르지 않습니다.");
+  }
+
+  if (nextAppointmentDate && nextAppointmentDate <= appointmentDate) {
+    return invalid("다음 예약일은 진료 예약일보다 늦어야 합니다.");
+  }
+
+  return {
+    ok: true,
+    value: {
+      hospitalName,
+      escortType: value.escortType,
+      escortUserId,
+      escortOtherName,
+      nextAppointmentDate,
     },
   };
 }
@@ -432,6 +625,10 @@ function normalizeDateValue(value: unknown) {
   const normalized = value.trim();
 
   return isYouthPersonalScheduleDate(normalized) ? normalized : null;
+}
+
+function normalizeSingleLineText(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\s+/gu, " ") : "";
 }
 
 function getInclusiveDateCount(startDate: string, endDate: string) {

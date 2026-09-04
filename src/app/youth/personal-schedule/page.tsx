@@ -10,7 +10,10 @@ import {
   YouthPersonalScheduleStudentSelect,
 } from "@/components/youth-personal-schedule-calendar-board";
 import { getAdmittedYouthDirectory } from "@/lib/youth-management";
-import { getYouthPersonalSchedules } from "@/lib/youth-personal-schedules";
+import {
+  getYouthPersonalSchedules,
+  getYouthPersonalScheduleStaffDirectory,
+} from "@/lib/youth-personal-schedules";
 import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import { normalizeWorkScheduleMonth } from "@/lib/work-schedule-calendar";
@@ -32,9 +35,13 @@ export default async function YouthPersonalSchedulePage({
   searchParams,
 }: YouthPersonalSchedulePageProps) {
   const user = await requireYouthBasicAccess();
-  const [params, youths] = await Promise.all([
+  const permissions = getEffectiveYouthPermissions(user);
+  const [params, youths, staffDirectory] = await Promise.all([
     searchParams,
     getAdmittedYouthDirectory(),
+    permissions.canManageYouth
+      ? getYouthPersonalScheduleStaffDirectory()
+      : Promise.resolve([]),
   ]);
   const selectedMonth = normalizeWorkScheduleMonth(getSingleParam(params.month));
   const requestedYouthId = getSingleParam(params.youthId);
@@ -45,7 +52,6 @@ export default async function YouthPersonalSchedulePage({
   const schedules = selectedYouthId
     ? await getYouthPersonalSchedules(selectedYouthId, selectedMonth)
     : [];
-  const permissions = getEffectiveYouthPermissions(user);
 
   return (
     <>
@@ -66,6 +72,7 @@ export default async function YouthPersonalSchedulePage({
         schedules={schedules}
         selectedMonth={selectedMonth}
         selectedYouthId={selectedYouthId}
+        staffDirectory={staffDirectory}
         updateSchedule={updateYouthPersonalScheduleAction}
         youths={youths}
       />

@@ -7,7 +7,9 @@ import {
   isYouthPersonalScheduleMonth,
   isYouthPersonalScheduleSelectionMode,
   parseYouthPersonalScheduleWeekdays,
+  type YouthPersonalScheduleEscortType,
   type YouthPersonalScheduleSelectionMode,
+  type YouthPersonalScheduleType,
   type YouthPersonalScheduleWeekday,
 } from "@/lib/youth-personal-schedule-core";
 
@@ -15,6 +17,12 @@ export type YouthPersonalSchedule = {
   id: string;
   youthId: string;
   content: string;
+  scheduleType: YouthPersonalScheduleType;
+  hospitalName: string | null;
+  escortType: YouthPersonalScheduleEscortType | null;
+  escortUserId: string | null;
+  escortName: string | null;
+  nextAppointmentDate: string | null;
   startMinute: number;
   endMinute: number;
   selectionMode: YouthPersonalScheduleSelectionMode;
@@ -28,6 +36,12 @@ export const youthPersonalScheduleSelect = {
   id: true,
   youthId: true,
   content: true,
+  scheduleType: true,
+  hospitalName: true,
+  escortType: true,
+  escortUserId: true,
+  escortName: true,
+  nextAppointmentDate: true,
   startMinute: true,
   endMinute: true,
   selectionMode: true,
@@ -40,6 +54,61 @@ export const youthPersonalScheduleSelect = {
 type YouthPersonalScheduleRecord = Prisma.YouthPersonalScheduleGetPayload<{
   select: typeof youthPersonalScheduleSelect;
 }>;
+
+export type YouthPersonalScheduleStaffDirectoryItem = {
+  id: string;
+  name: string;
+  departmentName: string;
+  positionName: string;
+  hireDate: string | null;
+  resignationDate: string | null;
+};
+
+export async function getYouthPersonalScheduleStaffDirectory(): Promise<
+  YouthPersonalScheduleStaffDirectoryItem[]
+> {
+  const staff = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      hireDate: true,
+      resignationDate: true,
+      department: {
+        select: {
+          name: true,
+        },
+      },
+      position: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: [
+      {
+        department: {
+          sortOrder: "asc",
+        },
+      },
+      {
+        position: {
+          level: "desc",
+        },
+      },
+      { name: "asc" },
+      { id: "asc" },
+    ],
+  });
+
+  return staff.map((member) => ({
+    id: member.id,
+    name: member.name,
+    departmentName: member.department.name,
+    positionName: member.position.name,
+    hireDate: member.hireDate,
+    resignationDate: member.resignationDate,
+  }));
+}
 
 export async function getYouthPersonalSchedules(
   youthId: string,
@@ -87,6 +156,16 @@ export function mapYouthPersonalSchedule(
     id: schedule.id,
     youthId: schedule.youthId,
     content: schedule.content,
+    scheduleType:
+      schedule.scheduleType === "HOSPITAL" ? "HOSPITAL" : "GENERAL",
+    hospitalName: schedule.hospitalName,
+    escortType:
+      schedule.escortType === "STAFF" || schedule.escortType === "OTHER"
+        ? schedule.escortType
+        : null,
+    escortUserId: schedule.escortUserId,
+    escortName: schedule.escortName,
+    nextAppointmentDate: schedule.nextAppointmentDate,
     startMinute: schedule.startMinute,
     endMinute: schedule.endMinute,
     selectionMode: isYouthPersonalScheduleSelectionMode(schedule.selectionMode)

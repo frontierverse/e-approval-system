@@ -35,9 +35,16 @@ class YouthPersonalScheduleConflictError extends Error {
 }
 
 class YouthPersonalScheduleNotFoundError extends Error {
-  constructor(readonly target: "schedule" | "youth") {
+  constructor(readonly target: "escort" | "schedule" | "youth") {
     super(`Youth personal schedule ${target} not found`);
     this.name = "YouthPersonalScheduleNotFoundError";
+  }
+}
+
+class YouthPersonalScheduleStalePayloadError extends Error {
+  constructor() {
+    super("Youth personal schedule type is missing from a hospital update");
+    this.name = "YouthPersonalScheduleStalePayloadError";
   }
 }
 
@@ -80,6 +87,12 @@ export async function createYouthPersonalScheduleAction(
           throw new YouthPersonalScheduleNotFoundError("youth");
         }
 
+        const escortSnapshot =
+          await resolveYouthPersonalScheduleEscortSnapshot(
+            tx,
+            normalizedInput.value,
+          );
+
         const conflict = await findConflictingYouthPersonalSchedule(tx, {
           youthId: youth.id,
           input: normalizedInput.value,
@@ -92,7 +105,10 @@ export async function createYouthPersonalScheduleAction(
         const createdSchedule = await tx.youthPersonalSchedule.create({
           data: {
             youthId: youth.id,
-            ...createYouthPersonalScheduleData(normalizedInput.value),
+            ...createYouthPersonalScheduleData(
+              normalizedInput.value,
+              escortSnapshot,
+            ),
           },
           select: youthPersonalScheduleSelect,
         });
@@ -111,7 +127,10 @@ export async function createYouthPersonalScheduleAction(
               youthId: youth.id,
               youthName: youth.name,
               next: createYouthPersonalScheduleAuditSnapshot(
-                normalizedInput.value,
+                {
+                  ...normalizedInput.value,
+                  ...escortSnapshot,
+                },
               ),
             },
           },
@@ -142,6 +161,11 @@ export async function updateYouthPersonalScheduleAction(
   input: YouthPersonalScheduleInput,
 ): Promise<YouthActionResult<{ schedule: YouthPersonalSchedule }>> {
   const user = await requireYouthPermission("canManageYouth");
+  const hasExplicitScheduleType =
+    input !== null &&
+    typeof input === "object" &&
+    Object.prototype.hasOwnProperty.call(input, "scheduleType") &&
+    input.scheduleType !== undefined;
   const normalizedInput = normalizeYouthPersonalScheduleInput(input);
   const normalizedScheduleId =
     typeof scheduleId === "string" ? scheduleId.trim() : "";
@@ -180,6 +204,25 @@ export async function updateYouthPersonalScheduleAction(
           throw new YouthPersonalScheduleNotFoundError("schedule");
         }
 
+        if (
+          existingSchedule.scheduleType === "HOSPITAL" &&
+          !hasExplicitScheduleType
+        ) {
+          throw new YouthPersonalScheduleStalePayloadError();
+        }
+
+        const escortSnapshot =
+          await resolveYouthPersonalScheduleEscortSnapshot(
+            tx,
+            normalizedInput.value,
+            {
+              escortName: existingSchedule.escortName,
+              escortType: existingSchedule.escortType,
+              escortUserId: existingSchedule.escortUserId,
+              scheduleType: existingSchedule.scheduleType,
+            },
+          );
+
         const conflict = await findConflictingYouthPersonalSchedule(tx, {
           youthId: existingSchedule.youthId,
           input: normalizedInput.value,
@@ -194,7 +237,10 @@ export async function updateYouthPersonalScheduleAction(
           where: {
             id: existingSchedule.id,
           },
-          data: createYouthPersonalScheduleData(normalizedInput.value),
+          data: createYouthPersonalScheduleData(
+            normalizedInput.value,
+            escortSnapshot,
+          ),
           select: youthPersonalScheduleSelect,
         });
 
@@ -215,7 +261,10 @@ export async function updateYouthPersonalScheduleAction(
                 mapYouthPersonalSchedule(existingSchedule),
               ),
               next: createYouthPersonalScheduleAuditSnapshot(
-                normalizedInput.value,
+                {
+                  ...normalizedInput.value,
+                  ...escortSnapshot,
+                },
               ),
             },
           },
@@ -325,6 +374,7 @@ export async function deleteYouthPersonalScheduleAction(
 
 function createYouthPersonalScheduleData(
   input: NormalizedYouthPersonalScheduleInput,
+  escortSnapshot: YouthPersonalScheduleEscortSnapshot,
 ) {
   return {
     content: input.content,
@@ -335,6 +385,99 @@ function createYouthPersonalScheduleData(
     recurrenceWeekdays: input.recurrenceWeekdays,
     recurrenceStartDate: input.recurrenceStartDate,
     recurrenceEndDate: input.recurrenceEndDate,
+    scheduleType: input.scheduleType,
+    hospitalName: input.hospitalName,
+    escortType: input.escortType,
+    escortUserId: escortSnapshot.escortUserId,
+    escortName: escortSnapshot.escortName,
+    nextAppointmentDate: input.nextAppointmentDate,
+  };
+}
+
+type YouthPersonalScheduleEscortSnapshot = {
+  escortUserId: string | null;
+  escortName: string | null;
+};
+
+type ExistingYouthPersonalScheduleEscort = Pick<
+  YouthPersonalSchedule,
+  "escortName" | "escortType" | "escortUserId" | "scheduleType"
+>;
+
+async function resolveYouthPersonalScheduleEscortSnapshot(
+  tx: Prisma.TransactionClient,
+  input: NormalizedYouthPersonalScheduleInput,
+  existingSchedule?: ExistingYouthPersonalScheduleEscort,
+): Promise<YouthPersonalScheduleEscortSnapshot> {
+  if (input.scheduleType !== "HOSPITAL") {
+    return {
+      escortUserId: null,
+      escortName: null,
+    };
+  }
+
+  if (input.escortType === "OTHER") {
+    if (!input.escortOtherName) {
+      throw new YouthPersonalScheduleNotFoundError("escort");
+    }
+
+    return {
+      escortUserId: null,
+      escortName: input.escortOtherName,
+    };
+  }
+
+  const appointmentDate = input.occurrenceDates[0];
+
+  if (
+    input.escortType !== "STAFF" ||
+    !input.escortUserId ||
+    !appointmentDate
+  ) {
+    throw new YouthPersonalScheduleNotFoundError("escort");
+  }
+
+  const escortUser = await tx.user.findFirst({
+    where: {
+      id: input.escortUserId,
+      AND: [
+        {
+          OR: [
+            { hireDate: null },
+            { hireDate: "" },
+            { hireDate: { lte: appointmentDate } },
+          ],
+        },
+        {
+          OR: [
+            { resignationDate: null },
+            { resignationDate: "" },
+            { resignationDate: { gte: appointmentDate } },
+          ],
+        },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!escortUser) {
+    throw new YouthPersonalScheduleNotFoundError("escort");
+  }
+
+  const existingEscortName =
+    existingSchedule?.scheduleType === "HOSPITAL" &&
+    existingSchedule.escortType === "STAFF" &&
+    existingSchedule.escortUserId === escortUser.id &&
+    existingSchedule.escortName?.trim()
+      ? existingSchedule.escortName
+      : null;
+
+  return {
+    escortUserId: escortUser.id,
+    escortName: existingEscortName ?? escortUser.name,
   };
 }
 
@@ -393,8 +536,14 @@ async function findConflictingYouthPersonalSchedule(
 
 function createYouthPersonalScheduleAuditSnapshot(input: {
   content: string;
+  escortName: string | null;
+  escortType: string | null;
+  escortUserId: string | null;
   startMinute: number;
   endMinute: number;
+  hospitalName: string | null;
+  nextAppointmentDate: string | null;
+  scheduleType: string;
   selectionMode: string;
   occurrenceDates: readonly string[];
   recurrenceWeekdays:
@@ -408,6 +557,12 @@ function createYouthPersonalScheduleAuditSnapshot(input: {
 
   return {
     content: input.content,
+    scheduleType: input.scheduleType,
+    hospitalName: input.hospitalName,
+    escortType: input.escortType,
+    escortUserId: input.escortUserId,
+    escortName: input.escortName,
+    nextAppointmentDate: input.nextAppointmentDate,
     startMinute: input.startMinute,
     endMinute: input.endMinute,
     selectionMode: input.selectionMode,
@@ -425,6 +580,14 @@ function createYouthPersonalScheduleAuditSnapshot(input: {
 function mapYouthPersonalScheduleMutationError(
   error: unknown,
 ): YouthActionResult<never> {
+  if (error instanceof YouthPersonalScheduleStalePayloadError) {
+    return {
+      ok: false,
+      error:
+        "병원 진료 예약 수정 정보에 일정 종류가 누락되었습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",
+    };
+  }
+
   if (error instanceof YouthPersonalScheduleConflictError) {
     const conflictDate = error.conflict.occurrenceDates[0];
     const dateLabel = conflictDate ? `${conflictDate} ` : "";
@@ -441,10 +604,7 @@ function mapYouthPersonalScheduleMutationError(
   if (error instanceof YouthPersonalScheduleNotFoundError) {
     return {
       ok: false,
-      error:
-        error.target === "youth"
-          ? "선택한 청소년을 찾을 수 없습니다."
-          : "일정을 찾을 수 없습니다. 새로고침 후 다시 시도하세요.",
+      error: getYouthPersonalScheduleNotFoundMessage(error.target),
     };
   }
 
@@ -461,6 +621,20 @@ function mapYouthPersonalScheduleMutationError(
   }
 
   throw error;
+}
+
+function getYouthPersonalScheduleNotFoundMessage(
+  target: YouthPersonalScheduleNotFoundError["target"],
+) {
+  if (target === "youth") {
+    return "선택한 청소년을 찾을 수 없습니다.";
+  }
+
+  if (target === "escort") {
+    return "선택한 인솔자를 찾을 수 없거나 진료일에 재직 중이 아닙니다.";
+  }
+
+  return "일정을 찾을 수 없습니다. 새로고침 후 다시 시도하세요.";
 }
 
 function formatMinuteRange(startMinute: number, endMinute: number) {

@@ -17,6 +17,16 @@ enum UserStatus {
   INACTIVE
 }
 
+enum YouthPersonalScheduleType {
+  GENERAL
+  HOSPITAL
+}
+
+enum YouthPersonalScheduleEscortType {
+  STAFF
+  OTHER
+}
+
 enum DocumentStatus {
   DRAFT
   SUBMITTED
@@ -148,6 +158,7 @@ model User {
   updatedWorkLogs                WorkLog[]                 @relation("WorkLogUpdater")
   youthDecisionDocuments         YouthDecisionDocument[]   @relation("YouthDecisionDocumentUploader")
   youthDischargeExtensions       YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
+  escortedYouthPersonalSchedules YouthPersonalSchedule[]   @relation("YouthPersonalScheduleEscort")
   cafeComplianceNotes            CafeComplianceNote[]      @relation("CafeComplianceNoteCreator")
   checkedLunchBoxCounts          LunchBoxCount[]           @relation("LunchBoxCountChecker")
   checkedLunchBoxSchools         LunchBoxSchoolCheck[]     @relation("LunchBoxSchoolCheckChecker")
@@ -445,7 +456,7 @@ model YouthAcademySchedule {
 }
 
 model YouthPersonalSchedule {
-  id                    String   @id @default(cuid())
+  id                    String                          @id @default(cuid())
   content               String
   startMinute           Int
   endMinute             Int
@@ -454,14 +465,22 @@ model YouthPersonalSchedule {
   recurrenceWeekdays    String?
   recurrenceStartDate   String?
   recurrenceEndDate     String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  scheduleType          YouthPersonalScheduleType      @default(GENERAL)
+  hospitalName          String?
+  escortType            YouthPersonalScheduleEscortType?
+  escortName            String?
+  nextAppointmentDate   String?
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
 
-  youthId String
+  youthId      String
+  escortUserId String?
 
-  youth Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+  youth      Youth @relation(fields: [youthId], references: [id], onDelete: Cascade)
+  escortUser User? @relation("YouthPersonalScheduleEscort", fields: [escortUserId], references: [id], onDelete: SetNull)
 
   @@index([youthId])
+  @@index([escortUserId])
   @@index([occurrenceDates], type: Gin, map: "YouthPersonalSchedule_occurrenceDates_gin_idx")
 }
 
