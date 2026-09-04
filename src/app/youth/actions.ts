@@ -1591,5 +1591,7 @@ function revalidateYouthPaths() {
   revalidatePath("/youth");
   revalidatePath("/youth/roster");
   revalidatePath("/youth/learning-progress");
+  revalidatePath("/work-schedule");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath("/company-info");
 }

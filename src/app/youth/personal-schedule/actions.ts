@@ -20,6 +20,8 @@ import type { YouthActionResult } from "@/lib/youth-management-core";
 import { requireYouthPermission } from "@/lib/youth-permissions";
 
 const youthPersonalSchedulePath = "/youth/personal-schedule";
+const workSchedulePath = "/work-schedule";
+const workLogPath = "/work-schedule/work-log";
 
 class YouthPersonalScheduleConflictError extends Error {
   constructor(
@@ -143,7 +145,7 @@ export async function createYouthPersonalScheduleAction(
       },
     );
 
-    revalidatePath(youthPersonalSchedulePath);
+    revalidatePersonalScheduleConsumers();
 
     return {
       ok: true,
@@ -277,7 +279,7 @@ export async function updateYouthPersonalScheduleAction(
       },
     );
 
-    revalidatePath(youthPersonalSchedulePath);
+    revalidatePersonalScheduleConsumers();
 
     return {
       ok: true,
@@ -359,7 +361,7 @@ export async function deleteYouthPersonalScheduleAction(
       },
     );
 
-    revalidatePath(youthPersonalSchedulePath);
+    revalidatePersonalScheduleConsumers();
 
     return {
       ok: true,
@@ -370,6 +372,12 @@ export async function deleteYouthPersonalScheduleAction(
   } catch (error) {
     return mapYouthPersonalScheduleMutationError(error);
   }
+}
+
+function revalidatePersonalScheduleConsumers() {
+  revalidatePath(youthPersonalSchedulePath);
+  revalidatePath(workSchedulePath);
+  revalidatePath(workLogPath);
 }
 
 function createYouthPersonalScheduleData(

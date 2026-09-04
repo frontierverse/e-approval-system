@@ -754,9 +754,13 @@ describe("youth personal schedule persistence contracts", () => {
     assert.equal(
       countMatches(
         actionsSource,
-        /revalidatePath\(youthPersonalSchedulePath\)/g,
+        /revalidatePersonalScheduleConsumers\(\);/g,
       ),
       3,
+    );
+    assert.match(
+      actionsSource,
+      /function revalidatePersonalScheduleConsumers\(\)\s*\{[\s\S]*?revalidatePath\(youthPersonalSchedulePath\)/,
     );
   });
 });

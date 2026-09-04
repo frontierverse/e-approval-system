@@ -133,18 +133,10 @@ function WorkScheduleCalendarBoardContent({
 
     return nextMap;
   }, [scheduleItems]);
-  const scheduleMap = useMemo(() => {
-    const nextMap = new Map<string, WorkSchedule>();
-
-    for (const schedule of scheduleItems) {
-      nextMap.set(
-        createScheduleKey(schedule.scheduleDate, schedule.startMinute),
-        schedule,
-      );
-    }
-
-    return nextMap;
-  }, [scheduleItems]);
+  const scheduleMap = useMemo(
+    () => createEditableWorkScheduleMap(scheduleItems),
+    [scheduleItems],
+  );
   const scheduleIdMap = useMemo(() => {
     const nextMap = new Map<string, WorkSchedule>();
 
@@ -395,7 +387,12 @@ function WorkScheduleCalendarBoardContent({
     event: KeyboardEvent<HTMLDivElement>,
     scheduleDate: string,
   ) {
-    if (event.key !== "Enter" && event.key !== " ") {
+    if (
+      !shouldOpenWorkScheduleCellWithKeyboard(
+        event.key,
+        event.target === event.currentTarget,
+      )
+    ) {
       return;
     }
 
@@ -521,6 +518,7 @@ function WorkScheduleCalendarBoardContent({
                       <button
                         key={schedule.id}
                         type="button"
+                        aria-label={createWorkScheduleCardAriaLabel(schedule)}
                         onClick={(event) => {
                           event.stopPropagation();
                           openScheduleModal(
@@ -530,18 +528,33 @@ function WorkScheduleCalendarBoardContent({
                           );
                         }}
                         className={[
-                          "block w-full rounded-md border px-2 py-1.5 text-left text-xs shadow-sm transition",
-                          schedule.readOnly
-                            ? "border-[#f0d28a] bg-[#fff8e8] text-[#72512a] hover:border-[#e8bc5f] hover:bg-[#fff3d0]"
-                            : "border-[#d6e6e4] bg-[#f5fbfa] text-[#1f3f3d] hover:border-[#7fb5ae] hover:bg-[#eaf6f4]",
+                          "block min-h-11 w-full rounded-md border px-2 py-1.5 text-left text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1",
+                          getWorkScheduleCardClassName(schedule),
                         ].join(" ")}
                       >
-                        <span className="block font-semibold">
-                          {schedule.timeLabel ??
-                            formatScheduleRangeLabel(
-                              schedule.startMinute,
-                              schedule.endMinute,
-                            )}
+                        <span className="flex min-w-0 items-center justify-between gap-1.5 font-semibold">
+                          <span className="min-w-0 truncate">
+                            {schedule.timeLabel ??
+                              formatScheduleRangeLabel(
+                                schedule.startMinute,
+                                schedule.endMinute,
+                              )}
+                          </span>
+                          {schedule.readOnly ? (
+                            <span
+                              aria-hidden="true"
+                              className={[
+                                "inline-flex h-5 shrink-0 items-center rounded px-1.5 text-[0.625rem] font-semibold",
+                                getReadOnlySchedulePresentation(schedule)
+                                  .cardBadgeClassName,
+                              ].join(" ")}
+                            >
+                              {
+                                getReadOnlySchedulePresentation(schedule)
+                                  .cardBadgeLabel
+                              }
+                            </span>
+                          ) : null}
                         </span>
                         <span className="mt-0.5 line-clamp-2 break-words leading-4 [overflow-wrap:anywhere]">
                           {schedule.content}
@@ -580,55 +593,10 @@ function WorkScheduleCalendarBoardContent({
           onClose={closeScheduleModal}
         >
           {selectedScheduleReadOnly && selectedSchedule ? (
-            <>
-              <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
-                <div className="px-6 pb-6 pt-6">
-                  <p className="text-xs font-semibold text-[#72512a]">
-                    승인된 휴가
-                  </p>
-                  <h3
-                    id="work-schedule-modal-title"
-                    className="mt-2 break-words text-2xl font-semibold leading-tight text-[#16181d]"
-                  >
-                    {formatWorkScheduleDateLabel(selectedSchedule.scheduleDate)}
-                  </h3>
-                  <dl className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5] text-sm">
-                    <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
-                      <dt className="font-medium text-[#697386]">직원</dt>
-                      <dd className="font-semibold text-[#16181d]">
-                        {selectedSchedule.content}
-                      </dd>
-                    </div>
-                    {selectedSchedule.detailLabel ? (
-                      <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
-                        <dt className="font-medium text-[#697386]">상세</dt>
-                        <dd className="break-words text-[#394150] [overflow-wrap:anywhere]">
-                          {selectedSchedule.detailLabel}
-                        </dd>
-                      </div>
-                    ) : null}
-                    <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
-                      <dt className="font-medium text-[#697386]">구분</dt>
-                      <dd>
-                        <span className="inline-flex h-7 items-center rounded-md border border-[#f0d28a] bg-[#fff8e8] px-2.5 text-xs font-semibold text-[#72512a]">
-                          {selectedSchedule.timeLabel ?? "휴가"}
-                        </span>
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-
-              <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
-                <button
-                  type="button"
-                  onClick={closeScheduleModal}
-                  className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
-                >
-                  닫기
-                </button>
-              </footer>
-            </>
+            <WorkScheduleReadOnlyDetail
+              schedule={selectedSchedule}
+              onClose={closeScheduleModal}
+            />
           ) : (
             <>
               <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
@@ -771,6 +739,150 @@ function WorkScheduleCalendarBoardContent({
       ) : null}
     </section>
   );
+}
+
+export function WorkScheduleReadOnlyDetail({
+  onClose,
+  schedule,
+}: {
+  onClose: () => void;
+  schedule: WorkSchedule;
+}) {
+  const presentation = getReadOnlySchedulePresentation(schedule);
+  const timeLabel = presentation.isHospitalAppointment
+    ? schedule.timeLabel
+    : (schedule.timeLabel ?? "휴가");
+
+  return (
+    <>
+      <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+        <div className="px-6 pb-6 pt-6">
+          <p
+            className={`text-xs font-semibold ${presentation.eyebrowClassName}`}
+          >
+            {presentation.eyebrow}
+          </p>
+          <h3
+            id="work-schedule-modal-title"
+            className="mt-2 break-words text-2xl font-semibold leading-tight text-[var(--foreground)]"
+          >
+            {formatWorkScheduleDateLabel(schedule.scheduleDate)}{" "}
+            {presentation.title}
+          </h3>
+          <dl className="mt-5 divide-y divide-[var(--border)] border-y border-[var(--border)] text-sm">
+            <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
+              <dt className="font-medium text-[var(--text-muted)]">
+                {presentation.contentLabel}
+              </dt>
+              <dd className="break-words font-semibold text-[var(--foreground)] [overflow-wrap:anywhere]">
+                {schedule.content}
+              </dd>
+            </div>
+            {schedule.detailLabel ? (
+              <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr]">
+                <dt className="font-medium text-[var(--text-muted)]">
+                  {presentation.detailLabel}
+                </dt>
+                <dd className="break-words text-[var(--foreground)] [overflow-wrap:anywhere]">
+                  {schedule.detailLabel}
+                </dd>
+              </div>
+            ) : null}
+            {timeLabel ? (
+              <div className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
+                <dt className="font-medium text-[var(--text-muted)]">
+                  {presentation.timeLabel}
+                </dt>
+                <dd>
+                  <span
+                    className={`inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-semibold ${presentation.detailBadgeClassName}`}
+                  >
+                    {timeLabel}
+                  </span>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      </div>
+
+      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
+        <button
+          type="button"
+          data-modal-initial-focus="true"
+          onClick={onClose}
+          className="h-11 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1"
+        >
+          닫기
+        </button>
+      </footer>
+    </>
+  );
+}
+
+function getWorkScheduleCardClassName(schedule: WorkSchedule) {
+  if (!schedule.readOnly) {
+    return "border-[#d6e6e4] bg-[#f5fbfa] text-[#1f3f3d] hover:border-[#7fb5ae] hover:bg-[#eaf6f4]";
+  }
+
+  return getReadOnlySchedulePresentation(schedule).cardClassName;
+}
+
+function createWorkScheduleCardAriaLabel(schedule: WorkSchedule) {
+  const timeLabel =
+    schedule.timeLabel ??
+    formatScheduleRangeLabel(schedule.startMinute, schedule.endMinute);
+  const detailLabel = schedule.detailLabel ? ` · ${schedule.detailLabel}` : "";
+
+  if (!schedule.readOnly) {
+    return `${timeLabel} · ${schedule.content}${detailLabel} 업무 일정 수정`;
+  }
+
+  const presentation = getReadOnlySchedulePresentation(schedule);
+
+  return `${presentation.accessibleLabel}: ${timeLabel} · ${schedule.content}${detailLabel} 상세 보기`;
+}
+
+function getReadOnlySchedulePresentation(schedule: WorkSchedule) {
+  const isHospitalAppointment = schedule.sourceType === "hospitalAppointment";
+
+  if (isHospitalAppointment) {
+    return {
+      accessibleLabel: "병원 진료 예약",
+      cardBadgeClassName:
+        "border border-[#b9d8e4] bg-[#dff1f6] text-[#1d5f78] dark:border-[#4a8bc2] dark:bg-[#20384a] dark:text-[#a8d5f5]",
+      cardBadgeLabel: "병원",
+      cardClassName:
+        "border-[#b9d8e4] bg-[#edf8fb] text-[#17475a] hover:border-[#94c4d5] hover:bg-[#dff1f6] dark:border-[#4a8bc2] dark:bg-[#172b3b] dark:text-[#a8d5f5] dark:hover:border-[#79c0ff] dark:hover:bg-[#20384a]",
+      contentLabel: "일정",
+      detailBadgeClassName:
+        "border-[#b9d8e4] bg-[#edf8fb] text-[#1d5f78] dark:border-[#4a8bc2] dark:bg-[#172b3b] dark:text-[#a8d5f5]",
+      detailLabel: "상세",
+      eyebrow: "청소년 개인일정 연동",
+      eyebrowClassName: "text-[#1d5f78] dark:text-[#79c0ff]",
+      isHospitalAppointment: true,
+      timeLabel: "진료 시간",
+      title: "병원 진료 예약",
+    } as const;
+  }
+
+  return {
+    accessibleLabel: "승인된 휴가",
+    cardBadgeClassName:
+      "border border-[#f0d28a] bg-[#fff3d0] text-[#72512a] dark:border-[#8a6b26] dark:bg-[#3a301a] dark:text-[#f0cb6d]",
+    cardBadgeLabel: "승인 휴가",
+    cardClassName:
+      "border-[#f0d28a] bg-[#fff8e8] text-[#72512a] hover:border-[#e8bc5f] hover:bg-[#fff3d0] dark:border-[#8a6b26] dark:bg-[#302817] dark:text-[#f0cb6d] dark:hover:border-[#d29922] dark:hover:bg-[#3a301a]",
+    contentLabel: "직원",
+    detailBadgeClassName:
+      "border-[#f0d28a] bg-[#fff8e8] text-[#72512a] dark:border-[#8a6b26] dark:bg-[#302817] dark:text-[#f0cb6d]",
+    detailLabel: "소속",
+    eyebrow: "전자결재 연동",
+    eyebrowClassName: "text-[#72512a] dark:text-[#e3b341]",
+    isHospitalAppointment: false,
+    timeLabel: "휴가 구분",
+    title: "승인된 휴가",
+  } as const;
 }
 
 function WorkScheduleChangeLogSection({
@@ -1344,6 +1456,30 @@ function mergeWorkScheduleItems(
   return schedule
     ? [...withoutCurrent, schedule].sort(sortWorkScheduleItems)
     : withoutCurrent;
+}
+
+export function createEditableWorkScheduleMap(schedules: WorkSchedule[]) {
+  const scheduleMap = new Map<string, WorkSchedule>();
+
+  for (const schedule of schedules) {
+    if (schedule.readOnly) {
+      continue;
+    }
+
+    scheduleMap.set(
+      createScheduleKey(schedule.scheduleDate, schedule.startMinute),
+      schedule,
+    );
+  }
+
+  return scheduleMap;
+}
+
+export function shouldOpenWorkScheduleCellWithKeyboard(
+  key: string,
+  isDirectCellTarget: boolean,
+) {
+  return isDirectCellTarget && (key === "Enter" || key === " ");
 }
 
 function createScheduleKey(scheduleDate: string, startMinute: number) {

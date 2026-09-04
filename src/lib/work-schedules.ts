@@ -6,8 +6,10 @@ import {
   normalizeWorkScheduleMonth,
   shiftWorkScheduleDate,
 } from "@/lib/work-schedule-calendar";
+import { createHospitalAppointmentWorkSchedules } from "@/lib/work-schedule-hospital-appointments";
 import { prisma } from "@/lib/prisma";
 import { getApprovedStaffVacationDateEntries } from "@/lib/staff-vacations";
+import { getYouthPersonalScheduleMonthDates } from "@/lib/youth-personal-schedule-core";
 import {
   getYouthLearningScheduleWeekday,
   isYouthLearningScheduleDate,
@@ -25,7 +27,7 @@ export type WorkSchedule = {
   content: string;
   detailLabel?: string;
   readOnly?: boolean;
-  sourceType?: "approvedVacation" | "manual";
+  sourceType?: "approvedVacation" | "hospitalAppointment" | "manual";
   timeLabel?: string;
 };
 
@@ -80,25 +82,47 @@ const workScheduleChangeLogPageSize = 5;
 export async function getWorkSchedules(
   month?: string,
 ): Promise<WorkSchedule[]> {
-  const { endDate, startDate } = getWorkScheduleMonthRange(
-    normalizeWorkScheduleMonth(month),
+  const normalizedMonth = normalizeWorkScheduleMonth(month);
+  const { endDate, startDate } = getWorkScheduleMonthRange(normalizedMonth);
+  const appointmentDates = getYouthPersonalScheduleMonthDates(
+    normalizedMonth,
   );
-  const [schedules, vacationEntries] = await Promise.all([
-    prisma.workSchedule.findMany({
-      where: {
-        scheduleDate: {
-          gte: startDate,
-          lt: endDate,
+  const [schedules, vacationEntries, hospitalAppointmentRecords] =
+    await Promise.all([
+      prisma.workSchedule.findMany({
+        where: {
+          scheduleDate: {
+            gte: startDate,
+            lt: endDate,
+          },
         },
-      },
-      orderBy: [{ scheduleDate: "asc" }, { startMinute: "asc" }],
-      select: workScheduleSelect,
-    }),
-    getApprovedStaffVacationDateEntries({
-      fromDate: startDate,
-      toDate: shiftWorkScheduleDate(endDate, -1),
-    }),
-  ]);
+        orderBy: [{ scheduleDate: "asc" }, { startMinute: "asc" }],
+        select: workScheduleSelect,
+      }),
+      getApprovedStaffVacationDateEntries({
+        fromDate: startDate,
+        toDate: shiftWorkScheduleDate(endDate, -1),
+      }),
+      prisma.youthPersonalSchedule.findMany({
+        where: {
+          occurrenceDates: {
+            hasSome: appointmentDates,
+          },
+          scheduleType: "HOSPITAL",
+          youth: {
+            is: {
+              OR: [
+                { dischargeDate: null },
+                { dischargeDate: "" },
+                { dischargeDate: { gte: startDate } },
+              ],
+            },
+          },
+        },
+        orderBy: [{ startMinute: "asc" }, { endMinute: "asc" }, { id: "asc" }],
+        select: workScheduleHospitalAppointmentSelect,
+      }),
+    ]);
 
   return [
     ...schedules.map(mapWorkSchedule),
@@ -116,8 +140,27 @@ export async function getWorkSchedules(
       sourceType: "approvedVacation" as const,
       timeLabel: entry.vacationLabel,
     })),
+    ...createHospitalAppointmentWorkSchedules(
+      hospitalAppointmentRecords,
+      appointmentDates,
+    ),
   ].sort(sortWorkSchedules);
 }
+
+export const workScheduleHospitalAppointmentSelect = {
+  endMinute: true,
+  escortName: true,
+  hospitalName: true,
+  id: true,
+  occurrenceDates: true,
+  startMinute: true,
+  youth: {
+    select: {
+      dischargeDate: true,
+      name: true,
+    },
+  },
+} as const satisfies Prisma.YouthPersonalScheduleSelect;
 
 export async function getWorkScheduleChangeLogs({
   actorId = "all",
@@ -233,7 +276,8 @@ function sortWorkSchedules(first: WorkSchedule, second: WorkSchedule) {
   return (
     first.scheduleDate.localeCompare(second.scheduleDate) ||
     first.startMinute - second.startMinute ||
-    first.endMinute - second.endMinute
+    first.endMinute - second.endMinute ||
+    first.id.localeCompare(second.id)
   );
 }
 

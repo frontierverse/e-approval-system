@@ -54,7 +54,7 @@ export default async function WorkSchedulePage({
     <>
       <PageTitle
         title="업무 일정"
-        description="날짜별 업무 일정을 월간 달력으로 기록합니다."
+        description="날짜별 업무와 승인 휴가·병원 진료 예약을 한 달력에서 확인합니다."
       />
 
       <WorkScheduleCalendarBoard

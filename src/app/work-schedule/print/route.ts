@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
   const month = normalizeWorkScheduleMonth(
     request.nextUrl.searchParams.get("month") ?? undefined,
   );
-  const schedules = await getWorkSchedules(month);
+  // The current PDF grid supports one lane from 09:00 to 18:00. Hospital
+  // appointments may span the full day and overlap manual work, so including
+  // them here would render a misleading time or hide another schedule.
+  const schedules = (await getWorkSchedules(month)).filter(
+    (schedule) => schedule.sourceType !== "hospitalAppointment",
+  );
   const pdf = await createWorkSchedulePdf({ orientation, schedules });
 
   return createPdfResponse(pdf, `work-schedule-${month}-${orientation}.pdf`);
