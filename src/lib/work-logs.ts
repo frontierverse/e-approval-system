@@ -8,6 +8,8 @@ import {
   parseWorkLogDateValue,
   type WorkLogEntry,
 } from "@/lib/work-log-core";
+import type { WorkLogLinkedScheduleLoadState } from "@/lib/work-log-linked-schedule-core";
+import { getWorkLogLinkedScheduleLoadState } from "@/lib/work-log-linked-schedules";
 
 export const workLogSelect = {
   author: {
@@ -34,6 +36,7 @@ export type WorkLogRecord = Prisma.WorkLogGetPayload<{
 
 export type WorkLogPageData = {
   contributionDates: string[];
+  linkedScheduleState: WorkLogLinkedScheduleLoadState;
   recentLogs: WorkLogEntry[];
   selectedLog: WorkLogEntry | null;
 };
@@ -48,35 +51,38 @@ export async function getWorkLogPageData({
   today: string;
 }): Promise<WorkLogPageData> {
   const { startDate } = getWorkLogContributionRange(today);
-  const [selectedLog, contributionRecords, recentLogs] = await Promise.all([
-    getWorkLogEntry({ authorId, workDate: selectedDate }),
-    prisma.workLog.findMany({
-      where: {
-        authorId,
-        workDate: {
-          gte: parseWorkLogDateValue(startDate),
-          lte: parseWorkLogDateValue(today),
+  const [selectedLog, linkedScheduleState, contributionRecords, recentLogs] =
+    await Promise.all([
+      getWorkLogEntry({ authorId, workDate: selectedDate }),
+      getWorkLogLinkedScheduleLoadState(selectedDate),
+      prisma.workLog.findMany({
+        where: {
+          authorId,
+          workDate: {
+            gte: parseWorkLogDateValue(startDate),
+            lte: parseWorkLogDateValue(today),
+          },
         },
-      },
-      orderBy: [{ workDate: "asc" }],
-      select: {
-        workDate: true,
-      },
-    }),
-    prisma.workLog.findMany({
-      where: {
-        authorId,
-      },
-      orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
-      take: 12,
-      select: workLogSelect,
-    }),
-  ]);
+        orderBy: [{ workDate: "asc" }],
+        select: {
+          workDate: true,
+        },
+      }),
+      prisma.workLog.findMany({
+        where: {
+          authorId,
+        },
+        orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+        take: 12,
+        select: workLogSelect,
+      }),
+    ]);
 
   return {
     contributionDates: contributionRecords.map((record) =>
       formatWorkLogDateValue(record.workDate),
     ),
+    linkedScheduleState,
     recentLogs: recentLogs.map(mapWorkLogRecord),
     selectedLog,
   };

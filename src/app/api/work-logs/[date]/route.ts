@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkLogToday, isWorkLogDate } from "@/lib/work-log-core";
+import { getWorkLogLinkedScheduleLoadState } from "@/lib/work-log-linked-schedules";
 import { getWorkLogEntry } from "@/lib/work-logs";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,13 @@ export async function GET(
     );
   }
 
-  const entry = await getWorkLogEntry({
-    authorId: user.id,
-    workDate: date,
-  });
+  const [entry, linkedScheduleState] = await Promise.all([
+    getWorkLogEntry({
+      authorId: user.id,
+      workDate: date,
+    }),
+    getWorkLogLinkedScheduleLoadState(date),
+  ]);
 
   if (!entry) {
     return NextResponse.json(
@@ -41,7 +45,7 @@ export async function GET(
   }
 
   return NextResponse.json(
-    { entry },
+    { entry, linkedScheduleState },
     { headers: noStoreHeaders },
   );
 }

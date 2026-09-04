@@ -46,6 +46,7 @@ export default async function WorkLogPage({
         key={selectedDate}
         contributionDates={pageData.contributionDates}
         deleteAction={deleteWorkLogAction}
+        linkedScheduleState={pageData.linkedScheduleState}
         recentLogs={pageData.recentLogs}
         saveAction={saveWorkLogAction}
         selectedDate={selectedDate}

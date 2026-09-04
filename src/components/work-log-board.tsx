@@ -32,6 +32,16 @@ import {
   type WorkLogEntry,
   type WorkLogFormState,
 } from "@/lib/work-log-core";
+import {
+  formatWorkLogLinkedScheduleCount,
+  formatWorkLogLinkedScheduleMergeFeedback,
+  formatWorkLogLinkedScheduleTimeRange,
+  mergeWorkLogLinkedSchedulesIntoContent,
+  normalizeWorkLogLinkedScheduleText,
+  type WorkLogLinkedSchedule,
+  type WorkLogLinkedScheduleLoadState,
+  type WorkLogLinkedScheduleMergeResult,
+} from "@/lib/work-log-linked-schedule-core";
 
 const initialWorkLogFormState: WorkLogFormState = {};
 const initialWorkLogDeleteFormState: WorkLogDeleteFormState = {};
@@ -78,6 +88,7 @@ type WorkLogDetailRequest = {
 export function WorkLogBoard({
   contributionDates,
   deleteAction,
+  linkedScheduleState,
   recentLogs,
   saveAction,
   selectedDate,
@@ -86,6 +97,7 @@ export function WorkLogBoard({
 }: {
   contributionDates: string[];
   deleteAction: DeleteWorkLogAction;
+  linkedScheduleState: WorkLogLinkedScheduleLoadState;
   recentLogs: WorkLogEntry[];
   saveAction: SaveWorkLogAction;
   selectedDate: string;
@@ -136,6 +148,7 @@ export function WorkLogBoard({
         <WorkLogEntryForm
           key={`${selectedDate}:${selectedLog?.updatedAt ?? "new"}`}
           existingLog={selectedLog}
+          linkedScheduleState={linkedScheduleState}
           saveAction={saveAction}
           selectedDate={selectedDate}
           today={today}
@@ -158,6 +171,9 @@ export function WorkLogBoard({
             hasUnsavedChanges && detailRequest.date === selectedDate
           }
           initialEntry={detailRequest.initialEntry}
+          initialLinkedScheduleState={
+            detailRequest.date === selectedDate ? linkedScheduleState : null
+          }
           onClose={() => setDetailRequest(null)}
           onDeleted={() => {
             const deletedDate = detailRequest.date;
@@ -729,11 +745,17 @@ type WorkLogDetailLoadState =
 
 type WorkLogDetailMode = "delete" | "edit" | "view";
 
+type WorkLogDetailLoadRequest = {
+  id: number;
+  mode: "all" | "schedules";
+};
+
 export function WorkLogDetailModal({
   date,
   deleteAction,
   hasUnderlyingDraft,
   initialEntry,
+  initialLinkedScheduleState,
   onClose,
   onDeleted,
   onSaved,
@@ -744,6 +766,7 @@ export function WorkLogDetailModal({
   deleteAction: DeleteWorkLogAction;
   hasUnderlyingDraft: boolean;
   initialEntry: WorkLogEntry | null;
+  initialLinkedScheduleState: WorkLogLinkedScheduleLoadState | null;
   onClose: () => void;
   onDeleted: () => void;
   onSaved: (entry: WorkLogEntry) => void;
@@ -760,22 +783,47 @@ export function WorkLogDetailModal({
       ? { entry: initialEntry, status: "ready" }
       : { status: "loading" },
   );
+  const [linkedScheduleState, setLinkedScheduleState] =
+    useState<WorkLogLinkedScheduleLoadState>(
+      initialLinkedScheduleState === null
+        ? { status: "loading" }
+        : initialLinkedScheduleState,
+    );
   const [mode, setMode] = useState<WorkLogDetailMode>("view");
-  const [reloadVersion, setReloadVersion] = useState(0);
+  const nextLoadRequestIdRef = useRef(1);
+  const [loadRequest, setLoadRequest] =
+    useState<WorkLogDetailLoadRequest | null>(() => {
+      if (!initialEntry) {
+        return { id: 0, mode: "all" };
+      }
+
+      if (initialLinkedScheduleState === null) {
+        return { id: 0, mode: "schedules" };
+      }
+
+      return null;
+    });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editDirty, setEditDirty] = useState(false);
   const [mutationPending, setMutationPending] = useState(false);
 
   useEffect(() => {
-    if (initialEntry && reloadVersion === 0) {
+    if (!loadRequest) {
       return;
     }
 
     const controller = new AbortController();
+    const shouldLoadEntry = loadRequest.mode === "all";
+    const requestId = loadRequest.id;
 
     async function loadEntry() {
       const fallbackMessage = "업무일지를 불러오지 못했습니다.";
-      setDetailState({ status: "loading" });
+
+      if (shouldLoadEntry) {
+        setDetailState({ status: "loading" });
+      }
+
+      setLinkedScheduleState({ status: "loading" });
 
       try {
         const response = await fetch(
@@ -788,33 +836,60 @@ export function WorkLogDetailModal({
         const payload = (await response.json().catch(() => null)) as {
           entry?: WorkLogEntry;
           error?: string;
+          linkedScheduleState?: WorkLogLinkedScheduleLoadState;
         } | null;
 
         if (!response.ok || !payload?.entry) {
-          setDetailState({
-            message: payload?.error ?? fallbackMessage,
-            status: "error",
-          });
+          if (shouldLoadEntry) {
+            setDetailState({
+              message: payload?.error ?? fallbackMessage,
+              status: "error",
+            });
+          }
+
+          setLinkedScheduleState({ status: "error" });
+
           return;
         }
 
-        setDetailState({ entry: payload.entry, status: "ready" });
+        if (shouldLoadEntry) {
+          setDetailState({ entry: payload.entry, status: "ready" });
+        }
+
+        const nextLinkedScheduleState = payload.linkedScheduleState;
+
+        setLinkedScheduleState(
+          nextLinkedScheduleState?.status === "ready" &&
+            Array.isArray(nextLinkedScheduleState.schedules)
+            ? nextLinkedScheduleState
+            : { status: "error" },
+        );
       } catch {
         if (controller.signal.aborted) {
           return;
         }
 
-        setDetailState({
-          message: fallbackMessage,
-          status: "error",
-        });
+        if (shouldLoadEntry) {
+          setDetailState({
+            message: fallbackMessage,
+            status: "error",
+          });
+        }
+
+        setLinkedScheduleState({ status: "error" });
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadRequest((current) =>
+            current?.id === requestId ? null : current,
+          );
+        }
       }
     }
 
     void loadEntry();
 
     return () => controller.abort();
-  }, [date, initialEntry, reloadVersion]);
+  }, [date, loadRequest]);
 
   useEffect(() => {
     if (detailState.status === "error") {
@@ -853,6 +928,12 @@ export function WorkLogDetailModal({
     setMutationPending(false);
     onDeleted();
   }, [onDeleted]);
+
+  function requestDetailLoad(mode: WorkLogDetailLoadRequest["mode"]) {
+    const requestId = nextLoadRequestIdRef.current;
+    nextLoadRequestIdRef.current += 1;
+    setLoadRequest({ id: requestId, mode });
+  }
 
   function requestClose() {
     if (mutationPending) {
@@ -897,7 +978,7 @@ export function WorkLogDetailModal({
 
     if (reload) {
       setFeedback(null);
-      setReloadVersion((current) => current + 1);
+      requestDetailLoad("all");
     }
   }
 
@@ -988,7 +1069,7 @@ export function WorkLogDetailModal({
               )}
               onClick={() => {
                 titleRef.current?.focus({ preventScroll: true });
-                setReloadVersion((current) => current + 1);
+                requestDetailLoad("all");
               }}
               type="button"
             >
@@ -1000,9 +1081,11 @@ export function WorkLogDetailModal({
         <WorkLogModalEditForm
           entry={entry}
           hasUnderlyingDraft={hasUnderlyingDraft}
+          linkedScheduleState={linkedScheduleState}
           onCancel={cancelEdit}
           onDirtyChange={setEditDirty}
           onPendingChange={setMutationPending}
+          onRetryLinkedSchedules={() => requestDetailLoad("schedules")}
           onSaved={handleSaved}
           saveAction={saveAction}
         />
@@ -1123,17 +1206,21 @@ export function WorkLogDetailView({
 function WorkLogModalEditForm({
   entry,
   hasUnderlyingDraft,
+  linkedScheduleState,
   onCancel,
   onDirtyChange,
   onPendingChange,
+  onRetryLinkedSchedules,
   onSaved,
   saveAction,
 }: {
   entry: WorkLogEntry;
   hasUnderlyingDraft: boolean;
+  linkedScheduleState: WorkLogLinkedScheduleLoadState;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
   onPendingChange: (pending: boolean) => void;
+  onRetryLinkedSchedules: () => void;
   onSaved: (entry: WorkLogEntry, message: string) => void;
   saveAction: SaveWorkLogAction;
 }) {
@@ -1240,6 +1327,26 @@ function WorkLogModalEditForm({
           ) : null}
         </label>
 
+        <div className="mt-4">
+          <WorkLogLinkedSchedulePanel
+            disabled={pending}
+            loadState={linkedScheduleState}
+            onMerge={(schedules) => {
+              const result = mergeWorkLogLinkedSchedulesIntoContent({
+                content,
+                schedules,
+              });
+
+              if (result.addedCount > 0) {
+                setContent(result.content);
+              }
+
+              return result;
+            }}
+            onRetry={onRetryLinkedSchedules}
+          />
+        </div>
+
         <label className="mt-4 block min-w-0">
           <span className="block text-xs font-semibold text-[var(--text-muted)]">
             내용 <RequiredMark />
@@ -1306,6 +1413,202 @@ function WorkLogModalEditForm({
         </button>
       </footer>
     </form>
+  );
+}
+
+export function WorkLogLinkedSchedulePanel({
+  disabled = false,
+  loadState,
+  onMerge,
+  onRetry,
+}: {
+  disabled?: boolean;
+  loadState: WorkLogLinkedScheduleLoadState;
+  onMerge: (
+    schedules: readonly WorkLogLinkedSchedule[],
+  ) => WorkLogLinkedScheduleMergeResult;
+  onRetry?: () => void;
+}) {
+  const titleId = useId();
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const previousLoadStatusRef = useRef(loadState.status);
+  const restoreFocusAfterRetryRef = useRef(false);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    warning: boolean;
+  } | null>(null);
+  const schedules =
+    loadState.status === "ready" ? loadState.schedules : [];
+
+  useEffect(() => {
+    const previousStatus = previousLoadStatusRef.current;
+    previousLoadStatusRef.current = loadState.status;
+
+    if (
+      !restoreFocusAfterRetryRef.current ||
+      previousStatus !== "loading" ||
+      loadState.status === "loading"
+    ) {
+      return;
+    }
+
+    restoreFocusAfterRetryRef.current = false;
+    const focusFrame = window.requestAnimationFrame(() => {
+      (actionRef.current ?? panelRef.current)?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [loadState.status]);
+
+  function mergeSchedules() {
+    if (schedules.length === 0) {
+      return;
+    }
+
+    const result = onMerge(schedules);
+
+    setFeedback({
+      message: formatWorkLogLinkedScheduleMergeFeedback(result),
+      warning: result.skippedCount > 0,
+    });
+  }
+
+  return (
+    <section
+      aria-busy={loadState.status === "loading" || undefined}
+      aria-labelledby={titleId}
+      className="min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+      ref={panelRef}
+      tabIndex={-1}
+    >
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h3
+            className="text-xs font-semibold text-[var(--foreground)]"
+            id={titleId}
+          >
+            개인 일정
+          </h3>
+          {loadState.status === "ready" ? (
+            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+              {formatWorkLogLinkedScheduleCount(schedules.length)}
+            </span>
+          ) : null}
+        </div>
+
+        {loadState.status === "ready" && schedules.length > 0 ? (
+          <button
+            aria-label={`개인 일정 ${formatWorkLogLinkedScheduleCount(
+              schedules.length,
+            )}을 업무 내용에 추가`}
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.neutral,
+              "h-11 shrink-0 px-3 text-xs",
+            )}
+            disabled={disabled}
+            onClick={mergeSchedules}
+            ref={actionRef}
+            type="button"
+          >
+            내용에 추가
+          </button>
+        ) : onRetry && loadState.status !== "ready" ? (
+          <button
+            aria-disabled={
+              disabled || loadState.status === "loading" || undefined
+            }
+            className={buttonClass(
+              buttonStyles.base,
+              buttonStyles.neutral,
+              "h-11 shrink-0 px-3 text-xs",
+              loadState.status === "loading" ? "cursor-wait opacity-60" : "",
+            )}
+            disabled={disabled}
+            onClick={() => {
+              if (loadState.status === "loading") {
+                return;
+              }
+
+              restoreFocusAfterRetryRef.current = true;
+              setFeedback(null);
+              onRetry();
+            }}
+            ref={actionRef}
+            type="button"
+          >
+            {loadState.status === "loading"
+              ? "불러오는 중"
+              : "다시 불러오기"}
+          </button>
+        ) : null}
+      </div>
+
+      {loadState.status === "loading" ? (
+        <p
+          aria-live="polite"
+          className="mt-2 text-sm text-[var(--text-muted)]"
+          role="status"
+        >
+          개인 일정을 불러오는 중입니다.
+        </p>
+      ) : loadState.status === "error" ? (
+        <p className="mt-2 text-sm text-[var(--text-muted)]" role="alert">
+          개인 일정을 불러오지 못했습니다. 업무일지는 계속 작성할 수
+          있습니다.
+        </p>
+      ) : schedules.length === 0 ? (
+        <p
+          className="mt-2 text-sm text-[var(--text-muted)]"
+          role="status"
+        >
+          선택한 날짜에 등록된 개인 일정이 없습니다.
+        </p>
+      ) : (
+        <ul
+          aria-label="업무 내용에 추가할 수 있는 개인 일정"
+          className="mt-2 divide-y divide-[var(--border)] border-t border-[var(--border)]"
+        >
+          {schedules.map((schedule) => (
+            <li
+              className="grid min-w-0 gap-x-2 py-2 text-xs leading-5 sm:grid-cols-[6.75rem_minmax(0,1fr)]"
+              key={schedule.id}
+            >
+              <span className="tabular-nums text-[var(--text-muted)]">
+                {formatWorkLogLinkedScheduleTimeRange(
+                  schedule.startMinute,
+                  schedule.endMinute,
+                )}
+              </span>
+              <span className="min-w-0 break-words text-[var(--foreground)] [overflow-wrap:anywhere]">
+                <span className="font-semibold">
+                  {normalizeWorkLogLinkedScheduleText(schedule.youthName)}
+                </span>
+                <span aria-hidden="true"> · </span>
+                <span>
+                  {normalizeWorkLogLinkedScheduleText(schedule.content)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {feedback ? (
+        <p
+          aria-live={feedback.warning ? "assertive" : "polite"}
+          className={
+            feedback.warning
+              ? "mt-2 text-xs font-medium text-[#82620d] dark:text-[#e3b341]"
+              : "mt-2 text-xs font-medium text-[var(--brand)]"
+          }
+          role={feedback.warning ? "alert" : "status"}
+        >
+          {feedback.message}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -1450,6 +1753,7 @@ function WorkLogDeleteConfirmation({
 
 function WorkLogEntryForm({
   existingLog,
+  linkedScheduleState,
   saveAction,
   selectedDate,
   today,
@@ -1457,6 +1761,7 @@ function WorkLogEntryForm({
   onUnsavedChangesChange,
 }: {
   existingLog: WorkLogEntry | null;
+  linkedScheduleState: WorkLogLinkedScheduleLoadState;
   saveAction: SaveWorkLogAction;
   selectedDate: string;
   today: string;
@@ -1464,9 +1769,11 @@ function WorkLogEntryForm({
   onUnsavedChangesChange: (hasUnsavedChanges: boolean) => void;
 }) {
   const router = useRouter();
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [isDatePending, startDateTransition] = useTransition();
+  const [isScheduleRefreshPending, startScheduleRefresh] = useTransition();
   const [state, formAction, pending] = useActionState(
     saveAction,
     initialWorkLogFormState,
@@ -1539,6 +1846,26 @@ function WorkLogEntryForm({
     onUnsavedChangesChange(
       hasWorkLogDraftChanges(currentValues, savedKeyword, savedContent),
     );
+  }
+
+  function mergeLinkedSchedules(schedules: readonly WorkLogLinkedSchedule[]) {
+    const result = mergeWorkLogLinkedSchedulesIntoContent({
+      content: contentRef.current?.value ?? content,
+      schedules,
+    });
+
+    if (result.addedCount > 0 && contentRef.current) {
+      contentRef.current.value = result.content;
+      onUnsavedChangesChange(
+        hasWorkLogDraftChanges(
+          formRef.current ? new FormData(formRef.current) : null,
+          savedKeyword,
+          savedContent,
+        ),
+      );
+    }
+
+    return result;
   }
 
   return (
@@ -1628,6 +1955,23 @@ function WorkLogEntryForm({
           </label>
         </div>
 
+        <div className="mt-4">
+          <WorkLogLinkedSchedulePanel
+            disabled={pending || isDatePending}
+            loadState={
+              isScheduleRefreshPending
+                ? { status: "loading" }
+                : linkedScheduleState
+            }
+            onMerge={mergeLinkedSchedules}
+            onRetry={() => {
+              startScheduleRefresh(() => {
+                router.refresh();
+              });
+            }}
+          />
+        </div>
+
         <label className="mt-4 block min-w-0">
           <span className="block text-xs font-semibold text-[var(--text-muted)]">
             내용 <RequiredMark />
@@ -1642,6 +1986,7 @@ function WorkLogEntryForm({
             defaultValue={content}
             onChange={handleDraftChange}
             placeholder="진행한 업무, 결과, 다음에 이어서 할 내용을 기록해 주세요."
+            ref={contentRef}
             className="mt-2 min-h-36 w-full resize-y rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm leading-6 text-[var(--foreground)] outline-none transition placeholder:text-[#9aa4b2] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)]"
           />
           {state.fieldErrors?.content ? (

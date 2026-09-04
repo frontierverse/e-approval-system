@@ -44,6 +44,13 @@ export default function WorkLogLoading() {
                 <div className="h-16 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
                 <div className="h-16 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
               </div>
+              <div className="rounded-md border border-[var(--border)] px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="h-4 w-32 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+                  <div className="h-11 w-20 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+                </div>
+                <div className="mt-2 h-9 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
+              </div>
               <div className="h-36 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
               <div className="h-11 animate-pulse rounded bg-[var(--surface-muted)] motion-reduce:animate-none" />
             </div>
