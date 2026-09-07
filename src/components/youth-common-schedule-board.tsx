@@ -24,16 +24,18 @@ import type {
 import type { YouthCommonScheduleChangeLogsResult } from "@/lib/youth-common-schedules";
 import {
   getYouthLearningScheduleEndHourFromMinute,
-  getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartHourFromMinute,
   getYouthLearningScheduleStartMinute,
   isYouthCommonScheduleWeekday,
   normalizeYouthCommonScheduleWeekdays,
   youthCommonScheduleWeekdays,
-  youthLearningScheduleEndHour,
   youthLearningScheduleMinuteStep,
   youthLearningScheduleStartHour,
 } from "@/lib/youth-management-core";
+import {
+  getYouthCommonScheduleEndMinute,
+  youthCommonScheduleEndHour,
+} from "@/lib/youth-common-schedule-time";
 
 type YouthCommonScheduleBoardProps = {
   changeLogActors: YouthCommonScheduleChangeLogActor[];
@@ -122,7 +124,7 @@ type ScheduleDragState = {
 const commonScheduleSlotHeight = 88;
 const commonScheduleMinuteHeight = commonScheduleSlotHeight / 60;
 const commonScheduleTimelineHeight =
-  (youthLearningScheduleEndHour - youthLearningScheduleStartHour) *
+  (youthCommonScheduleEndHour - youthLearningScheduleStartHour) *
   commonScheduleSlotHeight;
 
 const defaultCommonScheduleBoardLabels: CommonScheduleBoardLabels = {
@@ -130,7 +132,7 @@ const defaultCommonScheduleBoardLabels: CommonScheduleBoardLabels = {
   boardAriaLabel: "청소년 공통 일정표",
   changeLogAriaLabel: "공통 일정표 변경내역",
   changeLogFallbackMessage: "공통 일정표 변경내역을 기록했습니다.",
-  description: "청소년 공통 일정을 오전 9시부터 오후 6시까지 요일별로 관리합니다.",
+  description: "청소년 공통 일정을 오전 9시부터 오후 10시까지 요일별로 관리합니다.",
   loadingLabel: "공통 일정표 불러오는 중",
   noMatchingChangeLogsMessage: "조건에 맞는 변경내역이 없습니다.",
   paginationAriaLabel: "공통 일정표 변경내역 페이지",
@@ -149,7 +151,7 @@ function resolveCommonScheduleBoardLabels(
 }
 
 const commonTimeSlots: CommonTimeSlot[] = Array.from(
-  { length: youthLearningScheduleEndHour - youthLearningScheduleStartHour },
+  { length: youthCommonScheduleEndHour - youthLearningScheduleStartHour },
   (_, index) => {
     const startHour = youthLearningScheduleStartHour + index;
     const endHour = startHour + 1;
@@ -633,7 +635,7 @@ export function YouthCommonScheduleBoard({
       endMinuteDraft - startMinuteDraft,
     );
     const nextEndMinute = Math.min(
-      getYouthLearningScheduleEndMinute(),
+      getYouthCommonScheduleEndMinute(),
       nextStartMinute + currentDuration,
     );
 
@@ -791,6 +793,19 @@ export function YouthCommonScheduleBoard({
                           commonScheduleMinuteHeight -
                           8,
                       );
+                      const timeConfirmationLabel = schedule.content.includes(
+                        "종료 시간 확인 필요",
+                      )
+                        ? "종료 시간 확인 필요"
+                        : schedule.content.includes("시간 확인 필요")
+                          ? "시간 확인 필요"
+                          : null;
+                      const visibleContent = timeConfirmationLabel
+                        ? schedule.content
+                            .split("\n")
+                            .filter((line) => !line.includes("시간 확인 필요"))
+                            .join("\n")
+                        : schedule.content;
 
                       return (
                         <div
@@ -830,6 +845,8 @@ export function YouthCommonScheduleBoard({
                           </button>
                           <button
                             type="button"
+                            aria-label={`${formatScheduleRangeLabel(previewStartMinute, previewEndMinute)} ${schedule.content}`}
+                            title={`${formatScheduleRangeLabel(previewStartMinute, previewEndMinute)}\n${schedule.content}`}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
@@ -847,16 +864,16 @@ export function YouthCommonScheduleBoard({
                               finishScheduleDrag(event, schedule)
                             }
                             onPointerCancel={cancelScheduleDrag}
-                            className="relative z-10 block h-full w-full cursor-move touch-none px-3 pb-5 pt-5 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
+                            className="relative z-10 block h-full w-full cursor-move touch-none px-3 py-3.5 text-left transition hover:bg-[#ecf7f6] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
                           >
-                            <span className="block text-[11px] font-semibold text-[#196b69]">
-                              {formatScheduleRangeLabel(
+                            <span className="block text-[11px] font-semibold leading-4 text-[#26333f]">
+                              {timeConfirmationLabel ?? formatScheduleRangeLabel(
                                 previewStartMinute,
                                 previewEndMinute,
                               )}
                             </span>
-                            <span className="mt-1 line-clamp-2 whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#26333f] [overflow-wrap:anywhere]">
-                              {schedule.content}
+                            <span className="mt-0.5 line-clamp-2 whitespace-pre-line break-words text-sm font-semibold leading-4 text-[#26333f] [overflow-wrap:anywhere]">
+                              {visibleContent}
                             </span>
                           </button>
                           <button
@@ -1013,12 +1030,13 @@ export function YouthCommonScheduleBoard({
           onClose={closeScheduleModal}
         >
           <form
+            className="flex max-h-[calc(100dvh-3rem)] flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               saveSelectedSchedule();
             }}
           >
-            <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+            <div className="min-h-0 overflow-y-auto">
               <div className="px-6 pb-6 pt-6">
                 <p className="text-xs font-semibold text-[#697386]">
                   일정 입력
@@ -1135,7 +1153,7 @@ export function YouthCommonScheduleBoard({
               </div>
             </div>
 
-            <footer className="flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:justify-between">
+            <footer className="flex shrink-0 flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:justify-between">
               <button
                 type="button"
                 onClick={removeSelectedSchedule}
@@ -1846,14 +1864,14 @@ function CommonScheduleSkeletonBlock({ className }: { className: string }) {
 export function createCommonScheduleStartMinuteOptions() {
   return createMinuteOptions(
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
-    getYouthLearningScheduleEndMinute(),
+    getYouthCommonScheduleEndMinute(),
   );
 }
 
 export function createCommonScheduleEndMinuteOptions(startMinute: number) {
   return createMinuteOptions(
     startMinute + youthLearningScheduleMinuteStep,
-    getYouthLearningScheduleEndMinute() + youthLearningScheduleMinuteStep,
+    getYouthCommonScheduleEndMinute() + youthLearningScheduleMinuteStep,
   );
 }
 
@@ -1942,7 +1960,7 @@ function getScheduleAdjacentBounds(
     youthLearningScheduleStartHour,
   );
   let previousEndMinute = dayStartMinute;
-  let nextStartMinute = getYouthLearningScheduleEndMinute();
+  let nextStartMinute = getYouthCommonScheduleEndMinute();
 
   for (const item of schedules) {
     if (item.id === schedule.id || item.weekday !== schedule.weekday) {

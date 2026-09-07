@@ -81,6 +81,22 @@ const commonScheduleWeekdayLabels = [
 ];
 
 describe("youth schedule PDFs", () => {
+  test("prints evening common schedules in both page orientations", async () => {
+    for (const orientation of ["portrait", "landscape"] as const) {
+      const buffer = await createYouthCommonSchedulePdf({
+        orientation,
+        schedules: [{
+          id: "evening", weekday: 2, startHour: 20, startMinute: 1200,
+          endHour: 21, endMinute: 1260, content: "원장님 특별수업\n시간 확인 필요",
+        }],
+      });
+      const text = (await extractPdfText(buffer)).replaceAll("|", "");
+      assert.match(text, /원장님 특별수업/);
+      assert.match(text, /21:00/);
+      assert.match(text, /시간 확인 필요/);
+    }
+  });
+
   test("creates an inline-printable common schedule PDF", async () => {
     const buffer = await createYouthCommonSchedulePdf({
       schedules: commonSchedules,

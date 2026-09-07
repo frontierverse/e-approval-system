@@ -17,8 +17,6 @@ import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
   isYouthCommonScheduleWeekday,
-  isYouthLearningScheduleEndMinute,
-  isYouthLearningScheduleStartMinute,
   normalizeYouthCommonScheduleWeekdays,
   youthCommonScheduleWeekdays,
   type YouthActionResult,
@@ -26,6 +24,10 @@ import {
   type YouthCommonScheduleChangeLogFilters,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
+import {
+  isYouthCommonScheduleEndMinute,
+  isYouthCommonScheduleStartMinute,
+} from "@/lib/youth-common-schedule-time";
 
 const commonSchedulePath = "/youth/common-schedule";
 
@@ -92,21 +94,21 @@ export async function saveYouthCommonScheduleAction(
     };
   }
 
-  if (!isYouthLearningScheduleStartMinute(startMinute)) {
+  if (!isYouthCommonScheduleStartMinute(startMinute)) {
     return {
       ok: false,
       error: "시작 시간을 다시 선택하세요.",
     };
   }
 
-  if (!isYouthLearningScheduleStartMinute(sourceStartMinute)) {
+  if (!isYouthCommonScheduleStartMinute(sourceStartMinute)) {
     return {
       ok: false,
       error: "기존 시작 시간을 다시 선택하세요.",
     };
   }
 
-  if (!isYouthLearningScheduleEndMinute(endMinute, startMinute)) {
+  if (!isYouthCommonScheduleEndMinute(endMinute, startMinute)) {
     return {
       ok: false,
       error: "종료 시간을 다시 선택하세요.",
@@ -345,7 +347,7 @@ export async function deleteYouthCommonScheduleAction(
     };
   }
 
-  if (!isYouthLearningScheduleStartMinute(startMinute)) {
+  if (!isYouthCommonScheduleStartMinute(startMinute)) {
     return {
       ok: false,
       error: "시작 시간을 다시 선택하세요.",

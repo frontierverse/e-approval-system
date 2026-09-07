@@ -156,16 +156,29 @@ function createBoardProps({
 }
 
 describe("YouthCommonScheduleBoard", () => {
+  test("keeps provisional evening times identifiable in the card and accessible name", () => {
+    const props = createBoardProps();
+    const html = renderToStaticMarkup(React.createElement(YouthCommonScheduleBoard, {
+      ...props,
+      schedules: [{ id: "evening", weekday: 2, startHour: 20, startMinute: 1200,
+        endHour: 21, endMinute: 1260, content: "원장님 특별수업\n종료 시간 확인 필요" }],
+    }));
+    assert.match(html, /오후 8시 - 오후 9시 원장님 특별수업/);
+    assert.match(html, /leading-4[^>]*>종료 시간 확인 필요<\/span>/);
+    assert.match(html, /원장님 특별수업<\/span>/);
+  });
+
   test("creates start and end time options in ten-minute steps", () => {
     const startOptions = createCommonScheduleStartMinuteOptions();
     const endOptionsFromNine = createCommonScheduleEndMinuteOptions(540);
-    const endOptionsFromLastStart = createCommonScheduleEndMinuteOptions(1070);
+    const endOptionsFromLastStart = createCommonScheduleEndMinuteOptions(1310);
 
     assert.deepEqual(startOptions.slice(0, 3), [540, 550, 560]);
-    assert.equal(startOptions.at(-1), 1070);
+    assert.equal(startOptions.at(-1), 1310);
+    assert.ok(startOptions.includes(1200));
     assert.deepEqual(endOptionsFromNine.slice(0, 3), [550, 560, 570]);
-    assert.equal(endOptionsFromNine.at(-1), 1080);
-    assert.deepEqual(endOptionsFromLastStart, [1080]);
+    assert.equal(endOptionsFromNine.at(-1), 1320);
+    assert.deepEqual(endOptionsFromLastStart, [1320]);
   });
 
   test("renders a stable common timetable skeleton", () => {
@@ -184,7 +197,7 @@ describe("YouthCommonScheduleBoard", () => {
       /grid-template-columns:6\.5rem repeat\(5, minmax\(10rem, 1fr\)\)/,
     );
     assert.match(html, /오전 9시 -/);
-    assert.match(html, /오후 6시/);
+    assert.match(html, /오후 10시/);
     assert.match(overlayHtml, /absolute inset-0/);
   });
 

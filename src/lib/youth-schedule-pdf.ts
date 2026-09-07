@@ -11,7 +11,6 @@ import {
   rgb,
 } from "pdf-lib";
 import {
-  getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartMinute,
   type YouthCommonSchedule,
   type YouthLearningSchedule,
@@ -50,6 +49,7 @@ type SchedulePdfPage = {
 export type SchedulePdfOrientation = "landscape" | "portrait";
 
 type SchedulePdfRenderOptions = {
+  endHour?: number;
   cardSchedules?: boolean;
   cellFontSize?: number;
   cellLineHeight?: number;
@@ -121,6 +121,10 @@ export async function createYouthCommonSchedulePdf({
     orientation,
     schedules,
     title: "공통 일정표",
+    endHour: Math.max(
+      youthLearningScheduleEndHour,
+      ...schedules.map((schedule) => Math.ceil(schedule.endMinute / 60)),
+    ),
   });
 }
 
@@ -139,10 +143,12 @@ export async function createWorkSchedulePdf({
 }
 
 async function createWeeklySchedulePdf({
+  endHour = youthLearningScheduleEndHour,
   orientation,
   schedules,
   title,
 }: {
+  endHour?: number;
   orientation: SchedulePdfOrientation;
   schedules: WeeklySchedulePdfSchedule[];
   title: string;
@@ -161,17 +167,21 @@ async function createWeeklySchedulePdf({
         endMinute: schedule.endMinute,
         startMinute: schedule.startMinute,
       })),
-      subtitle: "오전 9시부터 오후 6시까지",
+      subtitle: `오전 9시부터 오후 ${endHour - 12}시까지`,
       title,
     },
   ], {
+    endHour,
     cardSchedules: true,
     cellFontSize: commonScheduleCellFontSize,
     cellLineHeight: commonScheduleCellLineHeight,
     headerBackgroundColor: commonScheduleHeaderBackgroundColor,
     headerFontSize: 11,
     headerTextColor: commonScheduleHeaderTextColor,
-    lunchRowHeightScale: commonScheduleLunchRowHeightScale,
+    lunchRowHeightScale:
+      endHour > youthLearningScheduleEndHour
+        ? 0.5
+        : commonScheduleLunchRowHeightScale,
     lunchRowBackgroundColor: commonScheduleLunchRowBackgroundColor,
     orientation,
     pageBackgroundColor: commonSchedulePageBackgroundColor,
@@ -273,6 +283,7 @@ function drawSchedulePage(
   { columns, schedules, subtitle, title }: SchedulePdfPage,
   {
     cardSchedules = false,
+    endHour = youthLearningScheduleEndHour,
     cellFontSize = defaultCellFontSize,
     cellLineHeight = defaultCellLineHeight,
     headerBackgroundColor: tableHeaderBackgroundColor = headerBackgroundColor,
@@ -302,7 +313,7 @@ function drawSchedulePage(
   const tableBottom = pageMargin + tableBottomOffset;
   const tableWidth = width - pageMargin * 2;
   const tableHeight = tableTop - tableBottom;
-  const rowSlots = createSchedulePdfTimeSlots();
+  const rowSlots = createSchedulePdfTimeSlots(endHour);
   const rowHeights = createSchedulePdfRowHeights(
     rowSlots,
     tableHeight - resolvedTableHeaderHeight,
@@ -634,7 +645,11 @@ function drawScheduleCards(
       schedule.content,
       {
         maxFontSize: cellFontSize,
-        maxLines: Math.max(1, Math.floor(availableTextHeight / cellLineHeight)),
+        maxLines: Math.max(
+          1,
+          Math.floor(availableTextHeight / Math.min(cellLineHeight, 12)),
+        ),
+        maxHeight: availableTextHeight,
         maxWidth: cardTextBoxWidth,
         minFontSize: 9,
       },
@@ -675,11 +690,13 @@ function resolveScheduleCardTextStyle(
   text: string,
   {
     maxFontSize,
+    maxHeight,
     maxLines,
     maxWidth,
     minFontSize,
   }: {
     maxFontSize: number;
+    maxHeight: number;
     maxLines: number;
     maxWidth: number;
     minFontSize: number;
@@ -689,7 +706,10 @@ function resolveScheduleCardTextStyle(
     const lineHeight = fontSize + 3;
     const lines = wrapText(font, text, fontSize, maxWidth, Number.MAX_SAFE_INTEGER);
 
-    if (lines.length <= maxLines) {
+    if (
+      lines.length <= maxLines &&
+      fontSize + lineHeight * (lines.length - 1) <= maxHeight
+    ) {
       return {
         fontSize,
         lineHeight,
@@ -860,7 +880,7 @@ function wrapText(
   return lines.slice(0, maxLines);
 }
 
-function createSchedulePdfTimeSlots() {
+function createSchedulePdfTimeSlots(endHour: number) {
   const slots: Array<{
     endMinute: number;
     label: string;
@@ -869,13 +889,13 @@ function createSchedulePdfTimeSlots() {
 
   for (
     let hour = youthLearningScheduleStartHour;
-    hour < youthLearningScheduleEndHour;
+    hour < endHour;
     hour += 1
   ) {
     const startMinute = getYouthLearningScheduleStartMinute(hour);
     const endMinute = Math.min(
       getYouthLearningScheduleStartMinute(hour + 1),
-      getYouthLearningScheduleEndMinute(),
+      endHour * 60,
     );
 
     slots.push({
