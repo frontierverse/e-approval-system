@@ -74,6 +74,7 @@ enum AuditAction {
   DELETE_RESOURCE
   UPDATE_WORK_SCHEDULE
   UPDATE_WORK_LOG
+  UPDATE_STAFF_TASK
   UPDATE_CAFE_ITEM
   CREATE_YOUTH
   UPDATE_YOUTH
@@ -156,6 +157,8 @@ model User {
   workFeatureUpdates             WorkFeatureUpdate[]       @relation("WorkFeatureUpdateCreator")
   workLogs                       WorkLog[]                 @relation("WorkLogAuthor")
   updatedWorkLogs                WorkLog[]                 @relation("WorkLogUpdater")
+  assignedStaffTasks             StaffTask[]               @relation("StaffTaskAssignee")
+  createdStaffTasks              StaffTask[]               @relation("StaffTaskCreator")
   youthDecisionDocuments         YouthDecisionDocument[]   @relation("YouthDecisionDocumentUploader")
   youthDischargeExtensions       YouthDischargeExtension[] @relation("YouthDischargeExtensionProcessor")
   escortedYouthPersonalSchedules YouthPersonalSchedule[]   @relation("YouthPersonalScheduleEscort")
@@ -697,6 +700,28 @@ model WorkFeatureUpdate {
   createdBy   User?   @relation("WorkFeatureUpdateCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+  @@index([createdById])
+}
+
+model StaffTask {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  meetingTitle String?
+  dueDate      String?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  version      Int       @default(0)
+  requestId    String    @unique
+
+  assigneeId  String
+  createdById String
+  assignee    User @relation("StaffTaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  createdBy   User @relation("StaffTaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([assigneeId, completedAt, dueDate])
+  @@index([completedAt, dueDate])
   @@index([createdById])
 }
 

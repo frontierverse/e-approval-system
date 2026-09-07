@@ -29,6 +29,7 @@ const requiredPrismaDelegates = [
   "studyConceptCheck",
   "youthRule",
   "staffLeaveLedger",
+  "staffTask",
   "loginHistory",
   "lunchBoxCount",
   "lunchBoxDailyOperation",

@@ -67,11 +67,13 @@ const companyNavigationItems: NavigationItem[] = [
 ];
 
 const accountNavigationItems: NavigationItem[] = [
+  { label: "내 할 일", href: "/tasks" },
   { label: "내 계정", href: "/account" },
   { label: "알림", href: "/notifications" },
 ];
 
 const adminNavigationItems: NavigationItem[] = [
+  { label: "직원 할 일", href: "/admin/tasks" },
   { label: "직원 정보", href: "/admin/staff" },
   { label: "관리 설정", href: "/admin" },
 ];

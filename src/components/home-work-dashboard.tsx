@@ -10,10 +10,12 @@ export function HomeWorkDashboard({
   dashboard,
   relatedActivity,
   showApprovalQueue,
+  personalTasks,
 }: {
   dashboard: HomeDashboardData;
   relatedActivity?: React.ReactNode;
   showApprovalQueue: boolean;
+  personalTasks?: React.ReactNode;
 }) {
   const { counts } = dashboard;
   const approvalMetrics = [
@@ -81,9 +83,10 @@ export function HomeWorkDashboard({
             total={counts.activeInbox}
           />
           <aside
-            aria-label="내 기안 진행 및 최근 변경"
+            aria-label="내 할 일, 기안 진행 및 최근 변경"
             className="grid min-w-0 gap-3"
           >
+            {personalTasks}
             <SentDocumentOverview
               documents={dashboard.sentDocuments}
               generatedAt={dashboard.generatedAt}
@@ -95,15 +98,21 @@ export function HomeWorkDashboard({
       ) : (
         <div
           className={`mt-3 grid gap-3 xl:items-start ${
-            relatedActivity ? "xl:grid-cols-2" : ""
+            relatedActivity || personalTasks ? "xl:grid-cols-2" : ""
           }`}
         >
-          <SentDocumentOverview
-            documents={dashboard.sentDocuments}
-            generatedAt={dashboard.generatedAt}
-            total={counts.activeSent}
-          />
-          {relatedActivity}
+          {personalTasks}
+          {personalTasks ? (
+            <div className="grid min-w-0 gap-3">
+              <SentDocumentOverview documents={dashboard.sentDocuments} generatedAt={dashboard.generatedAt} total={counts.activeSent} />
+              {relatedActivity}
+            </div>
+          ) : (
+            <>
+              <SentDocumentOverview documents={dashboard.sentDocuments} generatedAt={dashboard.generatedAt} total={counts.activeSent} />
+              {relatedActivity}
+            </>
+          )}
         </div>
       )}
     </section>

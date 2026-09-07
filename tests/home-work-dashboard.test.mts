@@ -69,6 +69,33 @@ const dashboard: HomeDashboardData = {
 };
 
 describe("HomeWorkDashboard", () => {
+  test("places personal tasks before progress and history for employees", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(HomeWorkDashboard, {
+        dashboard,
+        showApprovalQueue: false,
+        personalTasks: React.createElement("section", null, "내 할 일 체크리스트"),
+        relatedActivity: React.createElement("section", null, "최근 변경 이력"),
+      }),
+    );
+    assert.ok(html.indexOf("내 할 일 체크리스트") < html.indexOf(">내 기안 진행</h2>"));
+    assert.ok(html.indexOf(">내 기안 진행</h2>") < html.indexOf("최근 변경 이력"));
+    assert.doesNotMatch(html, /지금 처리할 결재/);
+  });
+
+  test("keeps personal tasks available alongside the approval queue", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(HomeWorkDashboard, {
+        dashboard,
+        showApprovalQueue: true,
+        personalTasks: React.createElement("section", null, "내 할 일 체크리스트"),
+      }),
+    );
+    assert.match(html, /지금 처리할 결재/);
+    assert.match(html, /내 할 일 체크리스트/);
+    assert.ok(html.indexOf("내 할 일 체크리스트") < html.indexOf(">내 기안 진행</h2>"));
+  });
+
   test("renders actionable metrics and oldest approval work first", () => {
     const html = renderToStaticMarkup(
       React.createElement(HomeWorkDashboard, {

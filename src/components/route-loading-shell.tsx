@@ -1,4 +1,5 @@
 import { PageTitle } from "@/components/page-title";
+import { MyStaffTasksSkeleton } from "@/components/my-staff-tasks";
 
 export function RouteLoadingShell({
   title,
@@ -97,8 +98,11 @@ function HomeSkeleton() {
       </section>
 
       <section className="mt-3 grid gap-3 xl:grid-cols-2 xl:items-start">
-        <HomePanelSkeleton title="내 기안 진행" rows={2} />
-        <HomePanelSkeleton title="내 관련 문서의 최근 변경" rows={2} />
+        <MyStaffTasksSkeleton />
+        <div className="grid gap-3">
+          <HomePanelSkeleton title="내 기안 진행" rows={2} />
+          <HomePanelSkeleton title="내 관련 문서의 최근 변경" rows={2} />
+        </div>
       </section>
     </>
   );

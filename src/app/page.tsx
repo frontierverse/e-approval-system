@@ -13,6 +13,9 @@ import { RouteContentSkeleton } from "@/components/route-loading-shell";
 import { getHomeDashboardData } from "@/lib/home-dashboard";
 import { canViewHomeApprovalQueue } from "@/lib/home-dashboard-visibility";
 import { getRecentWorkFeatureUpdates } from "@/lib/work-feature-updates";
+import { MyStaffTasks, MyStaffTasksSkeleton } from "@/components/my-staff-tasks";
+import { getMyStaffTaskDashboard } from "@/lib/staff-tasks";
+import { getKoreanDateValue } from "@/lib/document-archive-policy";
 
 export const metadata: Metadata = {
   title: "오늘의 업무",
@@ -96,6 +99,11 @@ async function HomeContent() {
     <HomeWorkDashboard
       dashboard={dashboard}
       showApprovalQueue={showApprovalQueue}
+      personalTasks={
+        <Suspense fallback={<MyStaffTasksSkeleton />}>
+          <HomeStaffTasks />
+        </Suspense>
+      }
       relatedActivity={
         <HomeRecentApprovalActivity
           personalHistoryPage={recentPersonalHistoryPage}
@@ -103,6 +111,11 @@ async function HomeContent() {
       }
     />
   );
+}
+
+async function HomeStaffTasks() {
+  const data = await getMyStaffTaskDashboard();
+  return <MyStaffTasks {...data} today={getKoreanDateValue()} />;
 }
 
 function FeatureUpdateListSkeleton() {
