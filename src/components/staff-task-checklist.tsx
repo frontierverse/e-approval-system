@@ -25,6 +25,7 @@ export function StaffTaskChecklist({
   const locked = useRef(false);
   const [deleting, setDeleting] = useState<{ task: StaffTaskItem; trigger: HTMLElement } | null>(null);
   const [feedback, setFeedback] = useState<{ error?: string; success?: string }>({});
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(() => new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -128,8 +129,8 @@ export function StaffTaskChecklist({
             const overdue = !task.deletedAt && !completed && Boolean(task.dueDate && task.dueDate < today);
             const dueToday = !task.deletedAt && !completed && task.dueDate === today;
             return (
-              <li key={task.id} className="flex items-start gap-1 px-2 py-2 sm:px-3">
-                {!task.deletedAt ? <label className="flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--focus-ring)]">
+              <li key={task.id} className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-start px-2 py-1 sm:px-3">
+                {!task.deletedAt ? <label className="col-start-1 row-start-1 flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--focus-ring)]">
                   <input
                     type="checkbox"
                     data-task-id={task.id}
@@ -140,28 +141,42 @@ export function StaffTaskChecklist({
                     className="size-5 cursor-pointer accent-[var(--brand)] disabled:cursor-wait"
                   />
                 </label> : null}
-                <div className="min-w-0 flex-1 py-2">
-                  <p className={`break-words text-sm font-semibold [overflow-wrap:anywhere] ${completed ? "text-[var(--text-muted)] line-through" : "text-[var(--foreground)]"}`}>
-                    {task.title}
-                  </p>
-                  <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-muted)] ${task.description ? "" : "mt-1"}`}>
-                    <span className={overdue ? "font-semibold text-[var(--danger)]" : dueToday ? "font-semibold text-[var(--brand)]" : ""}>
+                <div className="col-start-2 row-start-1 min-w-0">
+                  {task.description || task.meetingTitle ? (
+                    <button
+                      type="button"
+                      aria-label={`${task.title} 업무 상세`}
+                      aria-expanded={expandedTasks.has(task.id)}
+                      aria-controls={`staff-task-details-${task.id}`}
+                      onClick={() => setExpandedTasks((current) => {
+                        const next = new Set(current);
+                        if (next.has(task.id)) next.delete(task.id); else next.add(task.id);
+                        return next;
+                      })}
+                      className="flex min-h-11 w-full items-center gap-1 rounded-md py-1 pr-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
+                    >
+                      <span className={`min-w-0 break-words text-sm font-semibold [overflow-wrap:anywhere] ${completed ? "text-[var(--text-muted)] line-through" : "text-[var(--foreground)]"}`}>{task.title}</span>
+                      <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className={`size-3 shrink-0 text-[var(--text-muted)] ${expandedTasks.has(task.id) ? "rotate-180" : ""}`}><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                  ) : <p className={`flex min-h-11 items-center break-words py-1 pr-1 text-sm font-semibold [overflow-wrap:anywhere] ${completed ? "text-[var(--text-muted)] line-through" : "text-[var(--foreground)]"}`}>{task.title}</p>}
+                </div>
+                <div className="col-start-3 row-start-1 flex items-center text-xs">
+                  <Link href={`/tasks/${task.id}/history`} aria-label={`${task.title} 이력`} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-[var(--text-muted)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">이력</Link>
+                  {!task.deletedAt ? <button type="button" disabled={pending} aria-label={`${task.title} 삭제`} aria-haspopup="dialog" onClick={(event) => setDeleting({ task, trigger: event.currentTarget })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-[var(--danger)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50">삭제</button> : null}
+                </div>
+                <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pb-1 text-xs text-[var(--text-muted)]">
+                    <span className={`shrink-0 ${overdue ? "font-semibold text-[var(--danger)]" : dueToday ? "font-semibold text-[var(--brand)]" : ""}`}>
                       {task.deletedAt ? "삭제됨" : completed ? "완료" : overdue ? "기한 초과" : dueToday ? "오늘 마감" : "미완료"}
                     </span>
-                    {task.dueDate ? <time dateTime={task.dueDate} className="tabular-nums">기한 {task.dueDate}</time> : <span>기한 없음</span>}
-                    {task.meetingTitle ? <span className="break-words [overflow-wrap:anywhere]">{task.meetingTitle}</span> : null}
+                    {task.dueDate ? <time dateTime={task.dueDate} className="shrink-0 tabular-nums">기한 {task.dueDate}</time> : <span className="shrink-0">기한 없음</span>}
+                    {task.meetingTitle ? <span className="min-w-0 flex-1 truncate" title={task.meetingTitle}>{task.meetingTitle}</span> : null}
                     {task.completedAt ? <time dateTime={task.completedAt} className="tabular-nums">{formatCompletionTime(task.completedAt)} 완료</time> : null}
                     {task.deletedAt ? <time dateTime={task.deletedAt} className="tabular-nums">{formatCompletionTime(task.deletedAt)} 삭제</time> : null}
-                    <Link href={`/tasks/${task.id}/history`} aria-label={`${task.title} 이력`} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">이력</Link>
-                    {!task.deletedAt ? <button type="button" disabled={pending} aria-label={`${task.title} 삭제`} aria-haspopup="dialog" onClick={(event) => setDeleting({ task, trigger: event.currentTarget })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-[var(--danger)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50">삭제</button> : null}
-                  {task.description ? (
-                    <details className="min-w-0 text-xs text-[var(--text-muted)] open:basis-full">
-                      <summary aria-label={`${task.title} 업무 상세`} className="flex min-h-11 w-fit cursor-pointer items-center rounded-md px-1 font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">업무 상세</summary>
-                      <p className="whitespace-pre-wrap break-words pb-2 leading-relaxed text-[var(--foreground)] [overflow-wrap:anywhere]">{task.description}</p>
-                    </details>
-                  ) : null}
-                  </div>
                 </div>
+                {task.description || task.meetingTitle ? <div id={`staff-task-details-${task.id}`} hidden={!expandedTasks.has(task.id)} className="col-span-2 col-start-2 row-start-3 min-w-0 border-t border-[var(--border)] py-2 text-xs leading-relaxed">
+                  {task.meetingTitle ? <p className="break-words text-[var(--text-muted)] [overflow-wrap:anywhere]">회의 · {task.meetingTitle}</p> : null}
+                  {task.description ? <p className="whitespace-pre-wrap break-words text-[var(--foreground)] [overflow-wrap:anywhere]">{task.description}</p> : null}
+                </div> : null}
               </li>
             );
           })}

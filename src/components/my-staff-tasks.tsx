@@ -30,7 +30,7 @@ export function MyStaffTasksSkeleton() {
     <section aria-label="내 할 일 불러오는 중" aria-busy="true" className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex min-h-12 items-center border-b border-[var(--border)] px-4 text-sm font-semibold">내 할 일</div>
       <div className="h-8 border-b border-[var(--border)] bg-[var(--surface-muted)]" />
-      {[0, 1, 2].map((row) => <div key={row} className="flex min-h-16 items-center gap-3 border-b border-[var(--border)] px-4 last:border-b-0"><span className="size-5 rounded bg-[var(--surface-muted)]" /><span className="h-4 w-2/3 rounded bg-[var(--surface-muted)]" /></div>)}
+      {[0, 1, 2].map((row) => <div key={row} className="flex min-h-[4.5rem] items-center gap-3 border-b border-[var(--border)] px-4 last:border-b-0"><span className="size-5 rounded bg-[var(--surface-muted)]" /><span className="h-4 w-2/3 rounded bg-[var(--surface-muted)]" /></div>)}
     </section>
   );
 }
