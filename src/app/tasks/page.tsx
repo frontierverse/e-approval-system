@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MyStaffTaskCreateButton } from "@/components/my-staff-task-create-button";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/page-title";
 import { StaffTaskChecklist } from "@/components/staff-task-checklist";
@@ -15,7 +16,7 @@ type Params = { page?: string; status?: string };
 export default function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   return (
     <>
-      <PageTitle title="내 할 일" description="완료한 업무에 체크해 주세요." compact action={<Link href="/" className={buttonClass(buttonStyles.base, buttonStyles.neutral, "min-h-11 px-3 text-sm")}>오늘의 업무</Link>} />
+      <PageTitle title="내 할 일" compact action={<div className="flex gap-2"><MyStaffTaskCreateButton /><Link href="/" className={buttonClass(buttonStyles.base, buttonStyles.neutral, "min-h-11 px-3 text-sm")}>오늘의 업무</Link></div>} />
       <Suspense fallback={<MyStaffTasksSkeleton />}><TasksContent searchParams={searchParams} /></Suspense>
     </>
   );
@@ -33,7 +34,7 @@ async function TasksContent({ searchParams }: { searchParams: Promise<Params> })
         <span className="text-[var(--text-muted)]">완료 {data.counts.completed}건</span>
       </div>
       <nav aria-label="할 일 상태 필터" className="flex flex-wrap gap-1 border-b border-[var(--border)] p-2">
-        {staffTaskStatusOptions.map((item) => <Link key={item.value} href={`/tasks?status=${item.value}`} aria-current={item.value === status ? "page" : undefined} className={buttonClass(buttonStyles.base, item.value === status ? buttonStyles.primary : buttonStyles.neutral, "min-h-11 px-3 text-sm")}>{item.label}</Link>)}
+        {staffTaskStatusOptions.map((item) => <Link key={item.value} href={`/tasks?status=${item.value}`} aria-current={item.value === status ? "page" : undefined} className={buttonClass(buttonStyles.base, item.value === status ? buttonStyles.primary : buttonStyles.neutral, "min-h-11 min-w-11 px-2 text-sm")}>{item.label}</Link>)}
       </nav>
       <StaffTaskChecklist tasks={data.tasks} today={getKoreanDateValue()} emptyMessage="선택한 상태의 할 일이 없습니다." />
       <nav aria-label="할 일 페이지" className="flex items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-2 text-xs">

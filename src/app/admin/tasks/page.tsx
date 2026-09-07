@@ -18,7 +18,7 @@ async function AdminStaffTasksContent({ searchParams }: { searchParams: SearchPa
   await requireAdmin();
   const params = await searchParams;
   const requestedStatus = singleValue(params.status);
-  const status = requestedStatus === "pending" || requestedStatus === "completed" || requestedStatus === "overdue" ? requestedStatus : "all";
+  const status = requestedStatus === "pending" || requestedStatus === "completed" || requestedStatus === "overdue" || requestedStatus === "deleted" ? requestedStatus : "all";
   const filters: StaffTaskAdminFilters = {
     status,
     assigneeId: singleValue(params.assigneeId),

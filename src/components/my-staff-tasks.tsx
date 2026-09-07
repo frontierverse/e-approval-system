@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MyStaffTaskCreateButton } from "@/components/my-staff-task-create-button";
 import { StaffTaskChecklist } from "@/components/staff-task-checklist";
 import type { StaffTaskCounts, StaffTaskItem } from "@/lib/staff-tasks-core";
 
@@ -12,7 +13,7 @@ export function MyStaffTasks({ tasks, counts, today }: {
     <section aria-labelledby="my-staff-tasks-heading" className="min-w-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
       <header className="flex min-h-12 items-center justify-between gap-2 border-b border-[var(--border)] px-4">
         <h2 id="my-staff-tasks-heading" className="text-sm font-semibold sm:text-base">내 할 일 <span className="ml-1 text-[var(--brand)] tabular-nums">{counts.pending}건</span></h2>
-        <Link href="/tasks" aria-label="내 할 일 전체 보기" className="inline-flex min-h-11 items-center rounded-md px-1 text-xs font-semibold text-[var(--brand)]">전체 보기</Link>
+        <div className="flex items-center gap-2"><MyStaffTaskCreateButton /><Link href="/tasks" aria-label="내 할 일 전체 보기" className="inline-flex min-h-11 items-center rounded-md px-1 text-xs font-semibold text-[var(--brand)]">전체 보기</Link></div>
       </header>
       <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-xs tabular-nums">
         <span className={counts.overdue ? "font-semibold text-[var(--danger)]" : "text-[var(--text-muted)]"}>기한 초과 {counts.overdue}건</span>

@@ -710,6 +710,7 @@ model StaffTask {
   meetingTitle String?
   dueDate      String?
   completedAt  DateTime?
+  deletedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   version      Int       @default(0)
@@ -722,6 +723,7 @@ model StaffTask {
 
   @@index([assigneeId, completedAt, dueDate])
   @@index([completedAt, dueDate])
+  @@index([assigneeId, deletedAt])
   @@index([createdById])
 }
 

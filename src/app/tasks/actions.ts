@@ -24,9 +24,21 @@ export async function createStaffTaskAction(
   _state: StaffTaskFormState,
   formData: FormData,
 ): Promise<StaffTaskFormState> {
+  return createTask(formData, false);
+}
+
+export async function createMyStaffTaskAction(
+  _state: StaffTaskFormState,
+  formData: FormData,
+): Promise<StaffTaskFormState> {
+  return createTask(formData, true);
+}
+
+async function createTask(formData: FormData, selfOnly: boolean): Promise<StaffTaskFormState> {
   const user = await requireUser();
   const values = normalizeStaffTaskFormValues(formData);
-  if (user.role !== UserRole.ADMIN) return { error: "관리자만 할 일을 등록할 수 있습니다.", values };
+  if (selfOnly) values.assigneeId = user.id;
+  else if (user.role !== UserRole.ADMIN) return { error: "관리자만 할 일을 등록할 수 있습니다.", values };
   const error = validateStaffTaskFormValues(values);
   if (error) return { error, values };
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(values.requestId)) {
@@ -38,6 +50,7 @@ export async function createStaffTaskAction(
     const savedTask = await runStaffTaskTransaction(async (tx) => {
       const existing = await tx.staffTask.findUnique({ where: { requestId: values.requestId } });
       if (existing) {
+        if (existing.deletedAt) throw new StaffTaskInputError("이미 삭제된 등록 요청입니다. 새 등록 창에서 다시 추가해 주세요.");
         if (existing.createdById !== user.id || !matchesTaskValues(existing, values)) {
           throw new StaffTaskInputError("이미 처리된 등록 요청입니다. 새 할 일 등록 화면에서 다시 입력해 주세요.");
         }
@@ -55,7 +68,7 @@ export async function createStaffTaskAction(
           targetType: "StaffTask",
           targetId: task.id,
           message: "직원 할 일을 등록했습니다.",
-          metadata: { changeType: "staffTask.create", assigneeId: task.assigneeId, dueDate: task.dueDate },
+          metadata: { changeType: "staffTask.create", assigneeId: task.assigneeId, dueDate: task.dueDate, before: null, after: taskSnapshot(task) },
         },
       });
       return task;
@@ -88,6 +101,7 @@ export async function updateStaffTaskAction(
     await runStaffTaskTransaction(async (tx) => {
       const existing = await tx.staffTask.findUnique({ where: { id } });
       if (!existing) throw new StaffTaskInputError("할 일을 찾을 수 없습니다. 목록을 새로고침해 주세요.");
+      if (existing.deletedAt) throw new StaffTaskInputError("삭제된 할 일은 수정할 수 없습니다. 목록을 새로고침해 주세요.");
       if (existing.version !== version) throw new StaffTaskInputError(conflictMessage);
       if (existing.assigneeId !== values.assigneeId) {
         if (existing.completedAt) throw new StaffTaskInputError("완료한 할 일의 담당자는 변경할 수 없습니다. 새 할 일로 등록해 주세요.");
@@ -95,7 +109,7 @@ export async function updateStaffTaskAction(
       }
       if (matchesTaskValues(existing, values)) return;
       const updated = await tx.staffTask.updateMany({
-        where: { id, version },
+        where: { id, version, deletedAt: null },
         data: { ...taskData(values), version: { increment: 1 } },
       });
       if (updated.count !== 1) throw new StaffTaskInputError(conflictMessage);
@@ -112,6 +126,8 @@ export async function updateStaffTaskAction(
             previousAssigneeId: existing.assigneeId,
             assigneeId: values.assigneeId,
             dueDate: values.dueDate || null,
+            before: taskSnapshot(existing),
+            after: taskSnapshot({ ...existing, ...taskData(values), version: version + 1 }),
           },
         },
       });
@@ -136,13 +152,13 @@ export async function setStaffTaskCompletedAction(input: {
   try {
     const requestData = await getCurrentAuditLogRequestData();
     await runStaffTaskTransaction(async (tx) => {
-      const existing = await tx.staffTask.findFirst({ where: { id: input.id, assigneeId: user.id } });
+      const existing = await tx.staffTask.findFirst({ where: { id: input.id, assigneeId: user.id, deletedAt: null } });
       if (!existing) throw new StaffTaskInputError("본인에게 배정된 할 일만 변경할 수 있습니다. 목록을 새로고침해 주세요.");
       if (existing.version !== input.version) throw new StaffTaskInputError(conflictMessage);
       if (Boolean(existing.completedAt) === input.completed) return;
       const completedAt = input.completed ? new Date() : null;
       const updated = await tx.staffTask.updateMany({
-        where: { id: input.id, assigneeId: user.id, version: input.version },
+        where: { id: input.id, assigneeId: user.id, version: input.version, deletedAt: null },
         data: { completedAt, version: { increment: 1 } },
       });
       if (updated.count !== 1) throw new StaffTaskInputError(conflictMessage);
@@ -154,7 +170,7 @@ export async function setStaffTaskCompletedAction(input: {
           targetType: "StaffTask",
           targetId: input.id,
           message: input.completed ? "본인 할 일을 완료했습니다." : "본인 할 일의 완료를 취소했습니다.",
-          metadata: { changeType: input.completed ? "staffTask.complete" : "staffTask.reopen", completedAt: completedAt?.toISOString() ?? null },
+          metadata: { changeType: input.completed ? "staffTask.complete" : "staffTask.reopen", completedAt: completedAt?.toISOString() ?? null, before: taskSnapshot(existing), after: taskSnapshot({ ...existing, completedAt, version: existing.version + 1 }) },
         },
       });
     });
@@ -165,6 +181,50 @@ export async function setStaffTaskCompletedAction(input: {
     console.error("Failed to change staff task completion", error);
     return { error: "완료 상태를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." };
   }
+}
+
+export async function deleteMyStaffTaskAction(input: { id: string; version: number }): Promise<{ error?: string; success?: string }> {
+  const user = await requireUser();
+  if (!input || !isValidStaffTaskId(input.id) || !isValidStaffTaskVersion(input.version)) {
+    return { error: "할 일 정보를 확인할 수 없습니다. 목록을 새로고침해 주세요." };
+  }
+  try {
+    const requestData = await getCurrentAuditLogRequestData();
+    await runStaffTaskTransaction(async (tx) => {
+      const task = await tx.staffTask.findFirst({ where: { id: input.id, assigneeId: user.id } });
+      if (!task) throw new StaffTaskInputError("본인에게 배정된 할 일만 삭제할 수 있습니다.");
+      if (task.deletedAt) return;
+      if (task.version !== input.version) throw new StaffTaskInputError(conflictMessage);
+      const deletedAt = new Date();
+      const result = await tx.staffTask.updateMany({
+        where: { id: input.id, assigneeId: user.id, version: input.version, deletedAt: null },
+        data: { deletedAt, version: { increment: 1 } },
+      });
+      if (result.count !== 1) throw new StaffTaskInputError(conflictMessage);
+      await tx.auditLog.create({ data: {
+        ...requestData, actorId: user.id, action: AuditAction.UPDATE_STAFF_TASK,
+        targetType: "StaffTask", targetId: task.id, message: "본인 할 일을 삭제했습니다. 업무 내용과 이력은 보존됩니다.",
+        metadata: { changeType: "staffTask.delete", before: taskSnapshot(task), after: taskSnapshot({ ...task, deletedAt, version: task.version + 1 }) },
+      } });
+    });
+    revalidateStaffTasks();
+    revalidatePath(`/tasks/${input.id}/history`);
+    return { success: "삭제했습니다. 삭제된 업무와 이력은 ‘삭제됨’에서 확인할 수 있습니다." };
+  } catch (error) {
+    if (error instanceof StaffTaskInputError) return { error: error.message };
+    console.error("Failed to delete staff task", error);
+    return { error: "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요." };
+  }
+}
+
+function taskSnapshot(task: {
+  title: string; description: string | null; meetingTitle: string | null;
+  assigneeId: string; dueDate: string | null; completedAt: Date | null;
+  deletedAt: Date | null; version: number;
+}) {
+  return { title: task.title, description: task.description, meetingTitle: task.meetingTitle,
+    assigneeId: task.assigneeId, dueDate: task.dueDate, completedAt: task.completedAt?.toISOString() ?? null,
+    deletedAt: task.deletedAt?.toISOString() ?? null, version: task.version };
 }
 
 async function assertEligibleAssignee(tx: Prisma.TransactionClient, assigneeId: string) {
@@ -213,6 +273,7 @@ function revalidateStaffTasks() {
   revalidatePath("/");
   revalidatePath("/tasks");
   revalidatePath("/admin/tasks");
+  revalidatePath("/tasks/[id]/history", "page");
 }
 
 class StaffTaskInputError extends Error {}

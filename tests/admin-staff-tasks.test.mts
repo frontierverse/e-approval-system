@@ -10,7 +10,7 @@ import type { StaffTaskItem } from "../src/lib/staff-tasks-core.ts";
 const task: StaffTaskItem = {
   id: "task-a", title: "회의 결과 정리", description: "확정된 업무와 기한 정리",
   meetingTitle: "주간 회의", dueDate: "2026-09-01", assigneeId: "staff-a",
-  assigneeName: "직원 가", departmentName: "업무팀", completedAt: null,
+  assigneeName: "직원 가", departmentName: "업무팀", completedAt: null, deletedAt: null,
   createdAt: "2026-08-30T01:00:00.000Z", updatedAt: "2026-08-30T01:00:00.000Z", version: 4,
 };
 const assignees = [{ id: "staff-a", name: "직원 가", departmentName: "업무팀" }];
@@ -20,9 +20,9 @@ describe("admin staff tasks", () => {
   test("shows overdue work and employee totals without allowing admin completion", () => {
     const html = renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router },
       React.createElement(AdminStaffTaskBoard, {
-        data: { tasks: [task], counts: { pending: 5, completed: 2, overdue: 3 }, page: 2, totalPages: 4, total: 5 },
+        data: { tasks: [task], counts: { pending: 5, completed: 2, overdue: 3, deleted: 0 }, page: 2, totalPages: 4, total: 5 },
         assignees,
-        employees: [{ assigneeId: "staff-a", assigneeName: "직원 가", departmentName: "업무팀", pending: 5, completed: 2, overdue: 3 }],
+        employees: [{ assigneeId: "staff-a", assigneeName: "직원 가", departmentName: "업무팀", pending: 5, completed: 2, overdue: 3, deleted: 0 }],
         filters: { status: "pending", assigneeId: "staff-a", query: "회의" },
         referenceDate: "2026-09-07",
       }),
@@ -40,7 +40,7 @@ describe("admin staff tasks", () => {
   test("uses the completed status even when the task has an old deadline", () => {
     const html = renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router },
       React.createElement(AdminStaffTaskBoard, {
-        data: { tasks: [{ ...task, completedAt: "2026-09-06T02:03:00.000Z" }], counts: { pending: 0, completed: 1, overdue: 0 }, page: 1, totalPages: 1, total: 1 },
+        data: { tasks: [{ ...task, completedAt: "2026-09-06T02:03:00.000Z" }], counts: { pending: 0, completed: 1, overdue: 0, deleted: 0 }, page: 1, totalPages: 1, total: 1 },
         assignees, employees: [], filters: { status: "all", assigneeId: "", query: "" }, referenceDate: "2026-09-07",
       }),
     ));

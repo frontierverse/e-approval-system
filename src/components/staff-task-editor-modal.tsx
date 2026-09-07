@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import {
   createStaffTaskAction,
+  createMyStaffTaskAction,
   updateStaffTaskAction,
   type StaffTaskFormState,
 } from "@/app/tasks/actions";
@@ -18,6 +19,7 @@ const labelClass = "text-xs font-semibold text-[var(--text-muted)]";
 
 export function StaffTaskEditorModal({
   task,
+  selfOnly = false,
   assignees,
   requestId,
   returnFocusTo,
@@ -26,6 +28,7 @@ export function StaffTaskEditorModal({
   onSaved,
 }: {
   task: StaffTaskItem | null;
+  selfOnly?: boolean;
   assignees: StaffTaskAssignee[];
   requestId: string;
   returnFocusTo?: HTMLElement;
@@ -33,7 +36,7 @@ export function StaffTaskEditorModal({
   onReload?: () => void;
   onSaved: (message: string) => void;
 }) {
-  const [state, formAction, pending] = useActionState(task ? updateStaffTaskAction : createStaffTaskAction, initialState);
+  const [state, formAction, pending] = useActionState(task ? updateStaffTaskAction : selfOnly ? createMyStaffTaskAction : createStaffTaskAction, initialState);
   const [values, setValues] = useState({
     title: task?.title ?? "",
     description: task?.description ?? "",
@@ -79,7 +82,8 @@ export function StaffTaskEditorModal({
             <span className={labelClass}>할 일 <span className="text-[var(--danger)]">(필수)</span></span>
             <input data-modal-initial-focus name="title" value={values.title} onChange={(event) => changeValue("title", event.target.value)} required maxLength={160} placeholder="예: 다음 회의 전 활동 계획안 정리" className={fieldClass} />
           </label>
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <div className={`grid min-w-0 gap-3 ${selfOnly ? "" : "sm:grid-cols-2"}`}>
+            {selfOnly ? <p className="text-xs text-[var(--text-muted)]">내 할 일로 등록됩니다.</p> : (
             <label className="block min-w-0">
               <span className={labelClass}>담당 직원 <span className="text-[var(--danger)]">(필수)</span></span>
               <select name="assigneeId" value={values.assigneeId} onChange={(event) => changeValue("assigneeId", event.target.value)} required disabled={Boolean(task?.completedAt)} aria-describedby={task?.completedAt ? assigneeHelpId : undefined} className={fieldClass}>
@@ -89,7 +93,7 @@ export function StaffTaskEditorModal({
               </select>
               {task?.completedAt ? <><input type="hidden" name="assigneeId" value={task.assigneeId} /><span id={assigneeHelpId} className="mt-1 block text-xs text-[var(--text-muted)]">완료한 업무의 담당자는 변경할 수 없습니다.</span></> : null}
             </label>
-            <label className="block min-w-0">
+            )}<label className="block min-w-0">
               <span className={labelClass}>기한 <span className="font-normal">(선택)</span></span>
               <DatePickerInput name="dueDate" value={values.dueDate} onChange={(event) => changeValue("dueDate", event.target.value)} className={fieldClass} />
             </label>
@@ -103,7 +107,7 @@ export function StaffTaskEditorModal({
             <textarea data-modal-plain-body="true" name="description" value={values.description} onChange={(event) => changeValue("description", event.target.value)} maxLength={2000} rows={4} placeholder="결과물, 참고 사항 등 담당자가 확인할 내용을 적어 주세요." className={`${fieldClass} h-auto resize-y py-2 leading-6`} />
           </label>
         </fieldset>
-        {!task && assignees.length === 0 ? <p className="mt-3 text-sm text-[var(--danger)]">담당자로 지정할 재직 직원이 없습니다. 직원 정보를 먼저 등록해 주세요.</p> : null}
+        {!selfOnly && !task && assignees.length === 0 ? <p className="mt-3 text-sm text-[var(--danger)]">담당자로 지정할 재직 직원이 없습니다. 직원 정보를 먼저 등록해 주세요.</p> : null}
         {state.error?.startsWith("다른 창에서") && onReload ? (
           <div className="mt-3 rounded-md border border-[var(--border)] p-3">
             <p className="text-xs leading-5 text-[var(--text-muted)]">입력 내용은 이 창에 보존되어 있습니다. 필요한 내용을 복사한 뒤 목록을 새로고침하고 해당 할 일을 다시 열어 최신 내용을 확인해 주세요.</p>
@@ -112,7 +116,7 @@ export function StaffTaskEditorModal({
         ) : null}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onClose} disabled={pending} className={buttonClass(buttonStyles.base, buttonStyles.neutral, "min-h-11 px-4 text-sm")}>취소</button>
-          <button type="submit" disabled={pending || (!task && assignees.length === 0)} className={buttonClass(buttonStyles.base, buttonStyles.save, "min-h-11 px-4 text-sm")}>{pending ? "저장 중…" : task ? "변경 저장" : "할 일 등록"}</button>
+          <button type="submit" disabled={pending || (!selfOnly && !task && assignees.length === 0)} className={buttonClass(buttonStyles.base, buttonStyles.save, "min-h-11 px-4 text-sm")}>{pending ? "저장 중…" : task ? "변경 저장" : "할 일 등록"}</button>
         </div>
       </form>
     </AppModal>

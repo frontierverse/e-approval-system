@@ -39,6 +39,7 @@ function matches(row: Row, where: Row = {}): boolean {
     if (key === "OR") return value.some((part: Row) => matches(row, part));
     if (value === null || typeof value !== "object") return row[key] === value;
     if ("not" in value && row[key] === value.not) return false;
+    if ("in" in value && !value.in.includes(row[key])) return false;
     if ("lt" in value && !(row[key] !== null && row[key] < value.lt)) return false;
     if ("gt" in value && !(row[key] !== null && row[key] > value.gt)) return false;
     if ("contains" in value && !String(row[key] ?? "").toLowerCase().includes(value.contains.toLowerCase())) return false;
@@ -49,9 +50,12 @@ function matches(row: Row, where: Row = {}): boolean {
 const fakeTx = {
   staffTask: {
     async findUnique({ where }: Row) { return structuredClone(harness.tasks.find((row) => matches(row, where)) ?? null); },
-    async findFirst({ where }: Row) { return structuredClone(harness.tasks.find((row) => matches(row, where)) ?? null); },
+    async findFirst({ where }: Row) {
+      const row = harness.tasks.find((row) => matches(row, where));
+      return row ? structuredClone({ ...row, assignee: harness.users.find(user => user.id === row.assigneeId) }) : null;
+    },
     async create({ data }: Row) {
-      const row = { id: `task-${harness.tasks.length + 1}`, completedAt: null, version: 0, createdAt: new Date(), updatedAt: new Date(), ...data };
+      const row = { id: `task-${harness.tasks.length + 1}`, completedAt: null, deletedAt: null, version: 0, createdAt: new Date(), updatedAt: new Date(), ...data };
       harness.tasks.push(row);
       harness.writes.push({ create: data });
       return structuredClone(row);
@@ -81,6 +85,10 @@ const fakeTx = {
     async findMany({ where }: Row) { return harness.users.filter((row) => matches(row, where)); },
   },
   auditLog: {
+    async count({ where }: Row) { return harness.audit.filter(row => matches(row, where)).length; },
+    async findMany({ where, skip, take }: Row) {
+      return harness.audit.filter(row => matches(row, where)).slice(skip, skip + take).map((row, index) => ({ ...row, id: `log-${index}`, createdAt: new Date(), actor: harness.users.find(user => user.id === row.actorId) }));
+    },
     async create({ data }: Row) {
       if (harness.failAudit) throw new Error("simulated audit failure");
       harness.audit.push(data);
@@ -206,7 +214,7 @@ describe("staff task action authorization and persistence", () => {
     assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 })).success);
     assert.ok(row.completedAt instanceof Date && row.completedAt.getTime() >= before);
     assert.equal(row.version, 1);
-    assert.deepEqual(harness.writes.at(-1)?.where, { id: row.id, assigneeId: "employee", version: 0 });
+    assert.deepEqual(harness.writes.at(-1)?.where, { id: row.id, assigneeId: "employee", version: 0, deletedAt: null });
     assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: false, version: 1 })).success);
     assert.equal(row.completedAt, null);
     assert.equal(row.version, 2);
@@ -238,7 +246,7 @@ describe("staff task action authorization and persistence", () => {
   test("admin reassignment invalidates an old owner's checkbox and stale edits", async () => {
     const row = await create();
     assert.ok((await actions.updateStaffTaskAction({}, form({ id: row.id, version: 0, assigneeId: "second" }))).success);
-    assert.deepEqual(harness.writes.at(-1)?.where, { id: row.id, version: 0 });
+    assert.deepEqual(harness.writes.at(-1)?.where, { id: row.id, version: 0, deletedAt: null });
     assert.match((await actions.updateStaffTaskAction({}, form({ id: row.id, version: 0, title: "덮어쓰기" }))).error, /변경/);
     harness.currentUser = { id: "employee", role: "USER" };
     assert.match((await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 })).error, /본인/);
@@ -275,7 +283,7 @@ describe("staff task query privacy", () => {
     const personal = await queries.getMyStaffTasks();
     assert.equal(personal.tasks.length, 1);
     assert.equal(personal.tasks[0].title, "자료 정리");
-    assert.deepEqual(personal.counts, { pending: 1, completed: 0, overdue: 0 });
+    assert.deepEqual(personal.counts, { pending: 1, completed: 0, overdue: 0, deleted: 0 });
     const dashboard = await queries.getMyStaffTaskDashboard();
     assert.deepEqual(dashboard.tasks.map((row: Row) => row.assigneeId), ["employee"]);
     for (const read of harness.reads) assert.match(JSON.stringify(read.where), /"assigneeId":"employee"/);
@@ -293,7 +301,7 @@ describe("staff task query privacy", () => {
     await create({ requestId: "second-request-123456", assigneeId: "second", title: "비공개 업무" });
     await create({ requestId: "third-request-123456", title: "다른 회의 업무", description: "별도 논의", meetingTitle: "다른 회의" });
     const result = await queries.getAdminStaffTasks({ assigneeId: "employee", query: "자료", status: "pending", page: 999 });
-    assert.deepEqual(result.counts, { pending: 0, completed: 1, overdue: 0 });
+    assert.deepEqual(result.counts, { pending: 0, completed: 1, overdue: 0, deleted: 0 });
     assert.equal(result.total, 0);
     assert.equal(result.page, 1);
     assert.equal(result.tasks.length, 0);
@@ -312,4 +320,115 @@ test("staff task migration protects direct API access and concurrent versions", 
   assert.match(migration, /CREATE UNIQUE INDEX "StaffTask_requestId_key"/);
   assert.match(migration, /CHECK \("version" >= 0\)/);
   assert.match(migration, /ON DELETE RESTRICT ON UPDATE CASCADE/);
+});
+
+describe("personal task creation, deletion, and history", () => {
+  test("history paginates and preserves older messages without inventing snapshots", async () => {
+    const row = await create();
+    for (let index = 0; index < 24; index += 1) harness.audit.push({ targetType: "StaffTask", targetId: row.id, actorId: "admin", message: "이전 기록", metadata: null });
+    harness.currentUser = { id: "employee", role: "USER" };
+    const first = await queries.getStaffTaskHistory(row.id);
+    assert.equal(first.total, 25);
+    assert.equal(first.logs.length, 20);
+    const last = await queries.getStaffTaskHistory(row.id, 999);
+    assert.equal(last.page, 2);
+    assert.equal(last.logs.length, 5);
+    assert.equal(last.logs[0].metadata, null);
+    harness.currentUser = null;
+    await assert.rejects(() => queries.getStaffTaskHistory(row.id), /Unauthenticated/);
+  });
+  test("self creation fixes assignee to the signed-in employee and remains idempotent", async () => {
+    harness.currentUser = { id: "employee", role: "USER" };
+    const result = await actions.createMyStaffTaskAction({}, form({ assigneeId: "second" }));
+    assert.ok(result.success);
+    assert.equal(harness.tasks[0].assigneeId, "employee");
+    assert.equal(harness.tasks[0].createdById, "employee");
+    assert.ok((await actions.createMyStaffTaskAction({}, form({ assigneeId: "admin" }))).success);
+    assert.equal(harness.tasks.length, 1);
+    assert.equal(harness.audit.length, 1);
+    assert.equal(harness.audit[0].metadata.before, null);
+    assert.equal(harness.audit[0].metadata.after.title, "자료 정리");
+  });
+  test("deletion preserves completed work and records before/after once", async () => {
+    const row = await create();
+    harness.currentUser = { id: "employee", role: "USER" };
+    await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 });
+    const completedAt = row.completedAt.toISOString();
+    assert.ok((await actions.deleteMyStaffTaskAction({ id: row.id, version: 1 })).success);
+    assert.equal(harness.tasks.length, 1);
+    assert.equal(row.completedAt.toISOString(), completedAt);
+    assert.ok(row.deletedAt instanceof Date);
+    assert.equal(row.version, 2);
+    const audit = harness.audit.at(-1)!;
+    assert.equal(audit.actorId, "employee");
+    assert.equal(audit.metadata.before.deletedAt, null);
+    assert.equal(audit.metadata.after.deletedAt, row.deletedAt.toISOString());
+    assert.equal(audit.metadata.after.completedAt, completedAt);
+    assert.ok((await actions.deleteMyStaffTaskAction({ id: row.id, version: 1 })).success);
+    assert.equal(harness.audit.length, 3);
+    assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, version: 2, completed: false })).error);
+    harness.currentUser = { id: "admin", role: "ADMIN" };
+    assert.match((await actions.updateStaffTaskAction({}, form({ id: row.id, version: 2 }))).error, /삭제/);
+  });
+  test("denies deletion by others, malformed input, stale versions and concurrent changes", async () => {
+    const row = await create();
+    for (const user of [{ id: "second", role: "USER" }, { id: "admin", role: "ADMIN" }]) {
+      harness.currentUser = user;
+      assert.match((await actions.deleteMyStaffTaskAction({ id: row.id, version: 0 })).error, /본인/);
+    }
+    harness.currentUser = { id: "employee", role: "USER" };
+    for (const input of [null, { id: row.id, version: -1 }, { id: row.id, version: 0.5 }]) assert.ok((await actions.deleteMyStaffTaskAction(input)).error);
+    assert.match((await actions.deleteMyStaffTaskAction({ id: row.id, version: 1 })).error, /변경/);
+    harness.race = true;
+    assert.match((await actions.deleteMyStaffTaskAction({ id: row.id, version: 0 })).error, /변경/);
+    assert.equal(harness.tasks[0].deletedAt, null);
+    assert.equal(harness.audit.length, 1);
+  });
+  test("audit failure rolls back deletion", async () => {
+    const row = await create();
+    harness.currentUser = { id: "employee", role: "USER" };
+    harness.failAudit = true;
+    const original = console.error;
+    console.error = () => undefined;
+    try { assert.ok((await actions.deleteMyStaffTaskAction({ id: row.id, version: 0 })).error); }
+    finally { console.error = original; }
+    assert.equal(harness.tasks[0].deletedAt, null);
+    assert.equal(harness.tasks[0].version, 0);
+    assert.equal(harness.audit.length, 1);
+  });
+  test("deleted tasks leave active counts and lists but remain in authorized history", async () => {
+    const row = await create({ dueDate: "2020-01-01" });
+    await create({ assigneeId: "second", requestId: "another-request-12345" });
+    harness.currentUser = { id: "employee", role: "USER" };
+    await actions.deleteMyStaffTaskAction({ id: row.id, version: 0 });
+    for (const status of ["all", "pending", "overdue", "completed"]) {
+      const result = await queries.getMyStaffTasks({ status });
+      assert.equal(result.tasks.length, 0);
+      assert.deepEqual(result.counts, { pending: 0, completed: 0, overdue: 0, deleted: 1 });
+    }
+    assert.equal((await queries.getMyStaffTaskDashboard()).tasks.length, 0);
+    assert.equal((await queries.getMyStaffTasks({ status: "deleted" })).tasks[0].id, row.id);
+    assert.equal((await queries.getStaffTaskHistory(row.id)).logs.length, 2);
+    harness.currentUser = { id: "second", role: "USER" };
+    assert.equal(await queries.getStaffTaskHistory(row.id), null);
+    assert.equal((await queries.getMyStaffTasks({ status: "deleted" })).total, 0);
+    harness.currentUser = { id: "admin", role: "ADMIN" };
+    assert.equal((await queries.getStaffTaskHistory(row.id)).task.deletedAt, harness.tasks[0].deletedAt.toISOString());
+    assert.equal((await queries.getAdminStaffTasks({ status: "deleted" })).total, 1);
+  });
+  test("update and completion snapshots preserve actual previous values", async () => {
+    const row = await create();
+    await actions.updateStaffTaskAction({}, form({ id: row.id, version: 0, title: "수정한 업무", dueDate: "2026-09-08" }));
+    const edit = harness.audit.at(-1)!.metadata;
+    assert.equal(edit.before.title, "자료 정리");
+    assert.equal(edit.after.title, "수정한 업무");
+    assert.equal(edit.before.dueDate, "9999-12-31");
+    assert.equal(edit.after.dueDate, "2026-09-08");
+    harness.currentUser = { id: "employee", role: "USER" };
+    await actions.setStaffTaskCompletedAction({ id: row.id, version: 1, completed: true });
+    await actions.setStaffTaskCompletedAction({ id: row.id, version: 2, completed: false });
+    const reopen = harness.audit.at(-1)!.metadata;
+    assert.ok(reopen.before.completedAt);
+    assert.equal(reopen.after.completedAt, null);
+  });
 });

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { UserStatus, type Prisma } from "@/generated/prisma/client";
+import { UserStatus, UserRole, type Prisma } from "@/generated/prisma/client";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -23,6 +23,7 @@ const staffTaskSelect = {
   dueDate: true,
   assigneeId: true,
   completedAt: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   version: true,
@@ -38,6 +39,34 @@ const pendingOrder = [
 type StaffTaskPageOptions = { page?: number; status?: StaffTaskStatus };
 type AdminStaffTaskOptions = StaffTaskPageOptions & { assigneeId?: string; query?: string };
 
+export async function getStaffTaskHistory(id: string, requestedPage = 1) {
+  const user = await requireUser();
+  const task = await prisma.staffTask.findFirst({
+    where: { id, ...(user.role === UserRole.ADMIN ? {} : { assigneeId: user.id }) },
+    select: staffTaskSelect,
+  });
+  if (!task) return null;
+  const where = { targetType: "StaffTask", targetId: task.id };
+  const total = await prisma.auditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / staffTaskPageSize));
+  const page = Math.min(totalPages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
+  const logs = await prisma.auditLog.findMany({ where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: staffTaskPageSize, skip: (page - 1) * staffTaskPageSize,
+    select: { id: true, createdAt: true, message: true, metadata: true, actor: { select: { name: true } } },
+  });
+  // Resolve only assignees actually present in this authorized task's history.
+  const ids = new Set<string>();
+  for (const log of logs) {
+    const metadata = log.metadata as Record<string, unknown> | null;
+    for (const key of ["before", "after"]) {
+      const snapshot = metadata?.[key] as Record<string, unknown> | undefined;
+      if (typeof snapshot?.assigneeId === "string") ids.add(snapshot.assigneeId);
+    }
+  }
+  const assignees = ids.size ? await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true } }) : [];
+  return { task: mapStaffTask(task), logs, assignees, page, totalPages, total, isAdmin: user.role === UserRole.ADMIN };
+}
+
 export async function getMyStaffTasks(options: StaffTaskPageOptions = {}): Promise<StaffTaskPage> {
   const user = await requireUser();
   return getStaffTaskPage({ assigneeId: user.id }, options);
@@ -48,13 +77,13 @@ export async function getMyStaffTaskDashboard(): Promise<{ tasks: StaffTaskItem[
   const where = { assigneeId: user.id };
   const [pending, completed, counts] = await Promise.all([
     prisma.staffTask.findMany({
-      where: { ...where, completedAt: null },
+      where: { ...where, deletedAt: null, completedAt: null },
       orderBy: pendingOrder,
       take: 5,
       select: staffTaskSelect,
     }),
     prisma.staffTask.findMany({
-      where: { ...where, completedAt: { not: null } },
+      where: { ...where, deletedAt: null, completedAt: { not: null } },
       orderBy: [{ completedAt: "desc" }, { id: "desc" }],
       take: 3,
       select: staffTaskSelect,
@@ -85,7 +114,7 @@ export async function getStaffTaskEmployeeSummaries(
   await requireAdmin();
   const where = getAdminStaffTaskWhere(options);
   const today = getStaffTaskToday();
-  const [users, pending, completed, overdue] = await Promise.all([
+  const [users, pending, completed, overdue, deleted] = await Promise.all([
     prisma.user.findMany({
       where: {
         ...(options.assigneeId ? { id: options.assigneeId } : {}),
@@ -98,10 +127,12 @@ export async function getStaffTaskEmployeeSummaries(
       select: { id: true, name: true, department: { select: { name: true } } },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     }),
-    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { completedAt: null }] }, _count: { _all: true } }),
-    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { completedAt: { not: null } }] }, _count: { _all: true } }),
-    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { completedAt: null, dueDate: { lt: today } }] }, _count: { _all: true } }),
+    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { deletedAt: null, completedAt: null }] }, _count: { _all: true } }),
+    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { deletedAt: null, completedAt: { not: null } }] }, _count: { _all: true } }),
+    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { deletedAt: null, completedAt: null, dueDate: { lt: today } }] }, _count: { _all: true } }),
+    prisma.staffTask.groupBy({ by: ["assigneeId"], where: { AND: [where, { deletedAt: { not: null } }] }, _count: { _all: true } }),
   ]);
+  const deletedById = new Map(deleted.map(row => [row.assigneeId, row._count._all]));
   const pendingById = new Map(pending.map((row) => [row.assigneeId, row._count._all]));
   const completedById = new Map(completed.map((row) => [row.assigneeId, row._count._all]));
   const overdueById = new Map(overdue.map((row) => [row.assigneeId, row._count._all]));
@@ -112,6 +143,7 @@ export async function getStaffTaskEmployeeSummaries(
     pending: pendingById.get(user.id) ?? 0,
     completed: completedById.get(user.id) ?? 0,
     overdue: overdueById.get(user.id) ?? 0,
+    deleted: deletedById.get(user.id) ?? 0,
   })).sort((left, right) => right.overdue - left.overdue || right.pending - left.pending);
 }
 
@@ -149,8 +181,8 @@ async function getStaffTaskPage(baseWhere: Prisma.StaffTaskWhereInput, options: 
     status === "overdue" ? { completedAt: null, dueDate: { lt: today } } :
     status === "pending" ? { completedAt: null } : {};
   const tasks = await prisma.staffTask.findMany({
-    where: { AND: [baseWhere, statusWhere] },
-    orderBy: status === "completed"
+    where: { AND: [baseWhere, statusWhere, { deletedAt: status === "deleted" ? { not: null } : null }] },
+    orderBy: status === "deleted" ? [{ deletedAt: "desc" }, { id: "desc" }] : status === "completed"
       ? [{ completedAt: "desc" }, { id: "desc" }]
       : status === "all"
         ? [{ completedAt: { sort: "asc", nulls: "first" } }, ...pendingOrder]
@@ -163,12 +195,13 @@ async function getStaffTaskPage(baseWhere: Prisma.StaffTaskWhereInput, options: 
 }
 
 async function getStaffTaskCounts(where: Prisma.StaffTaskWhereInput, today: string): Promise<StaffTaskCounts> {
-  const [pending, completed, overdue] = await Promise.all([
-    prisma.staffTask.count({ where: { AND: [where, { completedAt: null }] } }),
-    prisma.staffTask.count({ where: { AND: [where, { completedAt: { not: null } }] } }),
-    prisma.staffTask.count({ where: { AND: [where, { completedAt: null, dueDate: { lt: today } }] } }),
+  const [pending, completed, overdue, deleted] = await Promise.all([
+    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: null }] } }),
+    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: { not: null } }] } }),
+    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: null, dueDate: { lt: today } }] } }),
+    prisma.staffTask.count({ where: { AND: [where, { deletedAt: { not: null } }] } }),
   ]);
-  return { pending, completed, overdue };
+  return { pending, completed, overdue, deleted };
 }
 
 function mapStaffTask(task: Prisma.StaffTaskGetPayload<{ select: typeof staffTaskSelect }>): StaffTaskItem {
@@ -182,6 +215,7 @@ function mapStaffTask(task: Prisma.StaffTaskGetPayload<{ select: typeof staffTas
     assigneeName: task.assignee.name,
     departmentName: task.assignee.department.name,
     completedAt: task.completedAt?.toISOString() ?? null,
+    deletedAt: task.deletedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
     version: task.version,

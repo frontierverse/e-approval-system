@@ -107,8 +107,16 @@ function isReusablePrismaClient(
     hasRequiredWorkScheduleFields(client) &&
     hasRequiredWorkLogFields(client) &&
     hasRequiredLunchBoxFields(client) &&
-    hasRequiredUserFields(client)
+    hasRequiredUserFields(client) &&
+    hasRequiredStaffTaskFields(client)
   );
+}
+
+function hasRequiredStaffTaskFields(client: PrismaClient) {
+  const model = (client as unknown as {
+    _runtimeDataModel?: { models?: { StaffTask?: { fields?: Array<{ name?: string }> } } };
+  })._runtimeDataModel?.models?.StaffTask;
+  return model?.fields?.some((field) => field.name === "deletedAt") ?? false;
 }
 
 function hasRequiredPrismaDelegates(client: PrismaClient) {

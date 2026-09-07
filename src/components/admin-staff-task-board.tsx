@@ -15,7 +15,7 @@ import type {
 } from "@/lib/staff-tasks-core";
 
 export type StaffTaskAdminFilters = {
-  status: "all" | "pending" | "completed" | "overdue";
+  status: "all" | "pending" | "completed" | "overdue" | "deleted";
   assigneeId: string;
   query: string;
 };
@@ -128,7 +128,7 @@ export function AdminStaffTaskBoard({
             >
               {hasFilters ? "필터 적용됨" : "필터"}
             </button>
-            <span className="hidden text-xs text-[var(--text-muted)] lg:inline">{filters.status === "completed" ? "최근 완료한 업무부터 표시" : "기한이 지난 미완료 업무부터 표시"}</span>
+            <Link href={taskHref({ ...filters, status: "deleted" })} className="inline-flex min-h-11 items-center rounded-md px-2 text-xs text-[var(--brand)] underline underline-offset-4">삭제됨 {data.counts.deleted}건</Link>
           </div>
 
           <form
@@ -155,6 +155,7 @@ export function AdminStaffTaskBoard({
                 <option value="pending">미완료</option>
                 <option value="overdue">기한 초과</option>
                 <option value="completed">완료</option>
+                <option value="deleted">삭제됨</option>
               </select>
             </label>
             <label className="min-w-0">
@@ -168,7 +169,7 @@ export function AdminStaffTaskBoard({
             <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[var(--border)] px-3 text-xs sm:px-4">
               <p className="min-w-0 truncate text-[var(--text-muted)]">
                 {filterAssignees.find((assignee) => assignee.id === filters.assigneeId)?.name ?? (filters.assigneeId ? "선택 직원" : "전체 직원")}
-                {` · ${metrics.find((metric) => metric.status === filters.status)?.label}`}
+                {` · ${filters.status === "deleted" ? "삭제됨" : metrics.find((metric) => metric.status === filters.status)?.label}`}
                 {filters.query ? ` · “${filters.query}”` : ""}
               </p>
               <Link href="/admin/tasks" className={buttonClass(buttonStyles.base, "min-h-11 shrink-0 px-2 text-[var(--foreground)] underline underline-offset-4")}>초기화</Link>
@@ -178,24 +179,25 @@ export function AdminStaffTaskBoard({
           {data.tasks.length > 0 ? (
             <ul className="divide-y divide-[var(--border)]">
               {data.tasks.map((task) => {
-                const overdue = !task.completedAt && Boolean(task.dueDate && task.dueDate < referenceDate);
+                const overdue = !task.deletedAt && !task.completedAt && Boolean(task.dueDate && task.dueDate < referenceDate);
                 return (
-                  <li key={task.id}>
+                  <li key={task.id} className="flex items-center">
                     <button
                       type="button"
                       aria-haspopup="dialog"
-                      aria-label={`${task.title} · ${task.assigneeName} · ${task.completedAt ? "완료" : overdue ? "기한 초과" : "미완료"} 상세 및 수정`}
+                      disabled={Boolean(task.deletedAt)}
+                      aria-label={`${task.title} · ${task.assigneeName} · ${task.deletedAt ? "삭제됨" : task.completedAt ? "완료" : overdue ? "기한 초과" : "미완료"} 상세 및 수정`}
                       onClick={(event) => {
                         setMessage("");
                         setEditor({ task, requestId: "", trigger: event.currentTarget });
                       }}
-                      className="flex min-h-[4.5rem] w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)] sm:px-4"
+                      className="flex min-h-[4.5rem] min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-2.5 text-left hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)] sm:px-4"
                     >
                       <span className="min-w-0 flex-1">
                         <span className="flex items-start justify-between gap-2">
                           <span className="line-clamp-2 min-w-0 text-sm font-semibold break-words text-[var(--foreground)] [overflow-wrap:anywhere]">{task.title}</span>
                           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${overdue ? "bg-[var(--surface-muted)] text-[var(--danger)]" : "bg-[var(--surface-muted)] text-[var(--foreground)]"}`}>
-                            {task.completedAt ? "완료" : overdue ? "기한 초과" : "미완료"}
+                            {task.deletedAt ? "삭제됨" : task.completedAt ? "완료" : overdue ? "기한 초과" : "미완료"}
                           </span>
                         </span>
                         <span className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--text-muted)]">
@@ -205,8 +207,9 @@ export function AdminStaffTaskBoard({
                           {task.meetingTitle ? <span className="max-w-full truncate">회의 · {task.meetingTitle}</span> : null}
                         </span>
                       </span>
-                      <span aria-hidden="true" className="shrink-0 text-xs text-[var(--text-muted)]">수정</span>
+                      <span aria-hidden="true" className="shrink-0 text-xs text-[var(--text-muted)]">{task.deletedAt ? "" : "수정"}</span>
                     </button>
+                    <Link href={`/tasks/${task.id}/history`} aria-label={`${task.title} 이력`} className="mr-2 inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs text-[var(--brand)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">이력</Link>
                   </li>
                 );
               })}

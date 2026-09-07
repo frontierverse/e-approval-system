@@ -1,6 +1,6 @@
 import { getKoreanDateTimeParts } from "@/lib/korean-date";
 
-export type StaffTaskStatus = "all" | "pending" | "completed" | "overdue";
+export type StaffTaskStatus = "all" | "pending" | "completed" | "overdue" | "deleted";
 
 export type StaffTaskItem = {
   id: string;
@@ -12,6 +12,7 @@ export type StaffTaskItem = {
   assigneeName: string;
   departmentName: string;
   completedAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -27,6 +28,7 @@ export type StaffTaskCounts = {
   pending: number;
   completed: number;
   overdue: number;
+  deleted: number;
 };
 
 export type StaffTaskPage = {
@@ -64,10 +66,11 @@ export const staffTaskStatusOptions = [
   { value: "overdue", label: "기한 초과" },
   { value: "completed", label: "완료" },
   { value: "all", label: "전체" },
+  { value: "deleted", label: "삭제됨" },
 ] as const;
 
 export function normalizeStaffTaskStatus(value: unknown): StaffTaskStatus {
-  return value === "all" || value === "completed" || value === "overdue"
+  return value === "all" || value === "completed" || value === "overdue" || value === "deleted"
     ? value
     : "pending";
 }
