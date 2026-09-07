@@ -25,6 +25,7 @@ import { getCurrentCommonScheduleTopbarData } from "@/lib/current-common-schedul
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { getNotificationSummary } from "@/lib/notifications";
 import { getStaffLeaveBalanceLabel } from "@/lib/staff-leave";
+import { getStaffLeaveBalanceDisplay } from "@/lib/staff-leave-core";
 import { getStaffVacationTopbarAlert } from "@/lib/staff-vacations";
 import { getYouthDischargeTopbarAlert } from "@/lib/youth-discharge-alerts";
 
@@ -350,24 +351,34 @@ async function ShellUserSummary() {
 
   const roleLabel = user.role === UserRole.ADMIN ? "관리자" : "사용자";
   const leaveBalance = await getStaffLeaveBalanceLabel(user.id);
+  const leaveDisplay = getStaffLeaveBalanceDisplay({
+    hireDate: user.hireDate,
+    today: getKoreanDateValue(),
+  });
+  const leaveSummary = `${leaveDisplay.label} ${leaveBalance}일`;
+  const leaveHelp = `${leaveSummary}. ${leaveDisplay.description}`;
 
   return (
     <>
       <Link
         href="/account"
         aria-label={`${user.name} 계정 열기`}
+        aria-description={leaveHelp}
+        title={leaveHelp}
         className="hidden min-w-0 rounded-md sm:block"
       >
         <UserIdentity
           user={user}
           size="sm"
-          meta={`${user.department.name} · ${user.position.name} · ${roleLabel} · 연차 ${leaveBalance}일`}
+          meta={`${user.department.name} · ${user.position.name} · ${roleLabel} · ${leaveSummary}`}
           nameClassName="text-[#16181d]"
         />
       </Link>
       <Link
         href="/account"
         aria-label={`${user.name} 계정 열기`}
+        aria-description={leaveHelp}
+        title={leaveHelp}
         className="grid size-10 shrink-0 place-items-center rounded-full sm:hidden"
       >
         <UserAvatar user={user} />

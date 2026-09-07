@@ -305,6 +305,28 @@ export function formatStaffLeaveDays(amountHalfDays: number) {
   return Number.isInteger(days) ? String(days) : days.toFixed(1);
 }
 
+export function getStaffLeaveBalanceDisplay({
+  hireDate,
+  today,
+}: {
+  hireDate: string | null;
+  today: string;
+}) {
+  const isMonthlyLeave =
+    hireDate !== null &&
+    isDateValue(hireDate) &&
+    isDateValue(today) &&
+    hireDate <= today &&
+    today < addYears(hireDate, 1);
+
+  return {
+    label: isMonthlyLeave ? "월차" : "연차",
+    description: isMonthlyLeave
+      ? "입사 1년 미만 기간에 매월 개근 시 발생하는 연차 유급휴가입니다."
+      : "연차 유급휴가 잔여 일수입니다.",
+  };
+}
+
 export function isDateValue(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;

@@ -5,11 +5,40 @@ import {
   getAnnualLeaveGrantDays,
   getLegacyVacationLeaveDeductionFromContent,
   getStaffLeaveAccrualEntries,
+  getStaffLeaveBalanceDisplay,
   getVacationLeaveDeduction,
   getVacationLeaveUsage,
 } from "../src/lib/staff-leave-core.ts";
 
 describe("staff leave core", () => {
+  test("switches the balance label on the first employment anniversary", () => {
+    const display = (today: string) =>
+      getStaffLeaveBalanceDisplay({ hireDate: "2026-06-01", today });
+
+    assert.equal(display("2026-09-07").label, "월차");
+    assert.match(display("2026-09-07").description, /매월 개근/);
+    assert.equal(display("2027-05-31").label, "월차");
+    assert.equal(display("2027-06-01").label, "연차");
+    assert.equal(display("2028-06-01").label, "연차");
+  });
+
+  test("uses the accrual anniversary for leap-day hires and avoids guessing missing employment dates", () => {
+    assert.equal(
+      getStaffLeaveBalanceDisplay({ hireDate: "2024-02-29", today: "2025-02-27" }).label,
+      "월차",
+    );
+    assert.equal(
+      getStaffLeaveBalanceDisplay({ hireDate: "2024-02-29", today: "2025-02-28" }).label,
+      "연차",
+    );
+    for (const hireDate of [null, "", "2026-02-30", "2027-06-01"]) {
+      assert.equal(
+        getStaffLeaveBalanceDisplay({ hireDate, today: "2026-09-07" }).label,
+        "연차",
+      );
+    }
+  });
+
   test("creates monthly and annual accrual entries without duplicates", () => {
     const entries = getStaffLeaveAccrualEntries({
       existingSourceKeys: ["leave:monthly:2026-02-10"],
