@@ -31,6 +31,7 @@ const requiredPrismaDelegates = [
   "staffLeaveLedger",
   "staffTask",
   "staffChatMessage",
+  "staffChatAttachment",
   "loginHistory",
   "lunchBoxCount",
   "lunchBoxDailyOperation",

@@ -16,14 +16,18 @@ import {
 import { publishStaffChatChange } from "@/lib/staff-chat-events";
 import type { ChatEmployee, ChatMessage, ChatMessagePage, ChatSummary } from "@/lib/staff-chat-types";
 
-const messageSelect = {
+export const messageSelect = {
   id: true, sequence: true, senderId: true, recipientId: true,
   body: true, createdAt: true, readAt: true,
+  attachment: { select: {
+    id: true, originalName: true, size: true,
+    downloadExpiresAt: true, deletionRequestedAt: true, deletedAt: true,
+  } },
 } satisfies Prisma.StaffChatMessageSelect;
 
 type MessageRecord = Prisma.StaffChatMessageGetPayload<{ select: typeof messageSelect }>;
 
-function mapMessage(message: MessageRecord): ChatMessage {
+export function mapMessage(message: MessageRecord): ChatMessage {
   return {
     id: message.id,
     sequence: message.sequence.toString(),
@@ -32,12 +36,22 @@ function mapMessage(message: MessageRecord): ChatMessage {
     body: message.body,
     createdAt: message.createdAt.toISOString(),
     readAt: message.readAt?.toISOString() ?? null,
+    attachment: message.attachment ? {
+      id: message.attachment.id,
+      originalName: message.attachment.originalName,
+      size: message.attachment.size,
+      status: message.attachment.deletedAt ? "deleted"
+        : message.attachment.deletionRequestedAt ? "deleting"
+        : message.attachment.downloadExpiresAt && message.attachment.downloadExpiresAt > new Date() ? "downloading"
+        : "available",
+    } : null,
   };
 }
 
 // Every caller is authenticated by withStaffChatUser. The actor id is always
 // supplied by the session, never by a request body or an administrator override.
 export async function getStaffChatSummary(userId: string): Promise<ChatSummary> {
+  await retryPendingFileDeletes(userId);
   const today = getStaffChatToday();
   const users = await prisma.user.findMany({
     where: {
@@ -94,6 +108,7 @@ function conversationWhere(userId: string, peerId: string): Prisma.StaffChatMess
 
 export async function getStaffChatMessages(userId: string, requestedPeerId: unknown, before?: unknown): Promise<ChatMessagePage> {
   const peerId = parseStaffChatPeerId(requestedPeerId, userId);
+  await retryPendingFileDeletes(userId);
   const where = conversationWhere(userId, peerId);
   let beforeSequence: bigint | undefined;
   if (before !== undefined && before !== null) {
@@ -153,7 +168,7 @@ export async function sendStaffChatMessage(userId: string, value: unknown): Prom
 }
 
 function reuseMessage(existing: MessageRecord, peerId: string, body: string): ChatMessage {
-  if (existing.recipientId !== peerId || existing.body !== body) {
+  if (existing.recipientId !== peerId || existing.body !== body || existing.attachment) {
     throw new StaffChatError("전송 요청이 다른 메시지에 이미 사용되었습니다. 다시 전송해 주세요.", 409);
   }
   return mapMessage(existing);
@@ -179,7 +194,8 @@ export async function withStaffChatUser(handler: (userId: string) => Promise<unk
   try {
     const user = await getCurrentUser();
     if (!user || !isStaffChatEmployeeActive(user)) throw new StaffChatError("인증이 필요합니다.", 401);
-    return staffChatJson(await handler(user.id));
+    const result = await handler(user.id);
+    return result instanceof Response ? result : staffChatJson(result);
   } catch (error) {
     if (error instanceof StaffChatError) return staffChatJson({ error: error.message }, error.status);
     console.error("Staff chat request failed", error instanceof Error ? error.name : "UnknownError");
@@ -189,4 +205,15 @@ export async function withStaffChatUser(handler: (userId: string) => Promise<unk
 
 function staffChatJson(value: unknown, status = 200): Response {
   return Response.json(value, { status, headers: { "Cache-Control": "private, no-store", "Vary": "Cookie" } });
+}
+
+async function retryPendingFileDeletes(userId: string): Promise<void> {
+  // A completed download remains unavailable while storage deletion is pending.
+  // Reconcile it on later personal chat reads even if the original tab closed.
+  try {
+    const { retryPendingStaffChatFileDeletes } = await import("@/lib/staff-chat-files");
+    await retryPendingStaffChatFileDeletes(userId);
+  } catch {
+    console.error("Staff chat pending file cleanup failed");
+  }
 }

@@ -6,6 +6,15 @@ export type ChatEmployee = {
   active: boolean;
 };
 
+export type ChatAttachment = {
+  id: string;
+  originalName: string;
+  size: number;
+  status: "available" | "downloading" | "deleting" | "deleted";
+};
+
+export type ChatFilePolicy = { maxFileSize: number; maxFileCount: 1; allowedExtensions: string[] };
+
 export type ChatMessage = {
   id: string;
   sequence: string;
@@ -14,6 +23,7 @@ export type ChatMessage = {
   body: string;
   createdAt: string;
   readAt: string | null;
+  attachment?: ChatAttachment | null;
 };
 
 export type ChatConversation = {

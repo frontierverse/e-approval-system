@@ -4,12 +4,12 @@
   right: max(1rem, env(safe-area-inset-right));
   bottom: 0;
   padding-bottom: env(safe-area-inset-bottom);
-  max-width: calc(100vw - 2rem);
+  max-width: calc(100% - 2rem);
 }
 
 .staff-chat-window {
   width: 360px;
-  max-width: calc(100vw - 2rem);
+  max-width: 100%;
   height: min(540px, calc(100dvh - 128px));
   margin-bottom: 8px;
 }
@@ -17,13 +17,38 @@
 @media (max-width: 639px) {
   .staff-chat-dock {
     right: max(8px, env(safe-area-inset-right));
-    max-width: calc(100vw - 16px);
+    max-width: calc(100% - 16px);
   }
 
   .staff-chat-window {
-    width: min(360px, calc(100vw - 16px));
-    max-width: calc(100vw - 16px);
+    width: 360px;
+    max-width: 100%;
     height: min(580px, calc(100dvh - 128px - env(safe-area-inset-bottom)));
+  }
+}
+
+@media (max-height: 500px) {
+  .staff-chat-window {
+    height: calc(100dvh - 60px - env(safe-area-inset-bottom));
+  }
+
+  .staff-chat-composer {
+    padding: 8px;
+  }
+
+  .staff-chat-composer textarea {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .staff-chat-thread {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .staff-chat-thread [role="log"] {
+    min-height: 160px;
+    flex-shrink: 0;
   }
 }
 

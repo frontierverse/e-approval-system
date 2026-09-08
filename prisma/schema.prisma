@@ -981,8 +981,31 @@ model StaffChatMessage {
 
   sender    User @relation("StaffChatSender", fields: [senderId], references: [id], onDelete: Restrict)
   recipient User @relation("StaffChatRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  attachment StaffChatAttachment?
 
   @@unique([senderId, requestId])
   @@index([senderId, recipientId, sequence])
   @@index([recipientId, readAt, sequence])
+}
+
+model StaffChatAttachment {
+  id                  String    @id @default(cuid())
+  messageId           String    @unique
+  originalName        String    @db.VarChar(180)
+  mimeType            String    @db.VarChar(255)
+  size                Int
+  fileDigest          String    @db.VarChar(64)
+  storageProvider     String?
+  storageKey          String?
+  downloadRequestId   String?   @db.VarChar(128)
+  downloadToken       String?   @db.VarChar(128)
+  downloadExpiresAt   DateTime?
+  downloadedAt        DateTime?
+  deletionRequestedAt DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+
+  message StaffChatMessage @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@index([deletionRequestedAt, deletedAt])
 }

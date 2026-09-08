@@ -254,7 +254,9 @@ export async function persistAttachmentFiles(files: PreparedAttachmentFile[]) {
 
 export async function removeStoredAttachmentFiles(
   attachments: Array<string | StoredAttachmentRef>,
+  options: { signal?: AbortSignal } = {},
 ) {
+  options.signal?.throwIfAborted();
   const refs = attachments.map(toStoredAttachmentRef);
   const localKeys = refs
     .filter(
@@ -282,11 +284,12 @@ export async function removeStoredAttachmentFiles(
   if (vercelBlobKeys.length > 0) {
     await del(vercelBlobKeys, {
       token: getVercelBlobToken(),
+      abortSignal: options.signal,
     });
   }
 
   if (supabaseStorageKeys.length > 0) {
-    await deleteSupabaseStorageFiles(supabaseStorageKeys);
+    await deleteSupabaseStorageFiles(supabaseStorageKeys, options.signal);
   }
 }
 
@@ -543,9 +546,10 @@ function getVercelBlobToken() {
   return token;
 }
 
-async function deleteSupabaseStorageFiles(storageKeys: string[]) {
+async function deleteSupabaseStorageFiles(storageKeys: string[], signal?: AbortSignal) {
   const response = await fetch(getSupabaseStorageBucketObjectUrl(), {
     method: "DELETE",
+    signal,
     headers: {
       ...getSupabaseStorageHeaders(),
       "Content-Type": "application/json",

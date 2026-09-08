@@ -10,7 +10,7 @@ export type ChatOverview = {
 };
 type Thread = { peerId: string; messages: ChatMessage[]; hasMore: boolean };
 
-class ChatRequestError extends Error {
+export class ChatRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
@@ -24,6 +24,10 @@ export async function chatRequest<T>(url: string, body?: unknown): Promise<T> {
       body: JSON.stringify(body),
     }),
   });
+  return readChatResponse<T>(response);
+}
+
+export async function readChatResponse<T>(response: Response): Promise<T> {
   const result = await response.json().catch(() => null);
   if (!response.ok) {
     throw new ChatRequestError(response.status === 401

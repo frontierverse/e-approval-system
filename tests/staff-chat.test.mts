@@ -101,6 +101,7 @@ const mocks = moduleUrl(`
   export const prisma = state.prisma;
   export async function getCurrentUser() { return state.harness.currentUser; }
   export async function publishStaffChatChange(ids) { state.harness.changes.push(ids); }
+  export async function retryPendingStaffChatFileDeletes() {}
 `);
 function compileModule(path: string, aliases: Record<string, string>) {
   let source = readFileSync(new URL(path, import.meta.url), "utf8");
@@ -108,7 +109,7 @@ function compileModule(path: string, aliases: Record<string, string>) {
   return moduleUrl(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
 }
 const serviceModule = compileModule("../src/lib/staff-chat.ts", {
-  "@/lib/prisma": mocks, "@/lib/auth": mocks, "@/lib/staff-chat-events": mocks,
+  "@/lib/prisma": mocks, "@/lib/auth": mocks, "@/lib/staff-chat-events": mocks, "@/lib/staff-chat-files": mocks,
 });
 const service = await import(serviceModule);
 const messageRoutes = await import(compileModule("../src/app/api/chat/messages/route.ts", { "@/lib/staff-chat": serviceModule }));

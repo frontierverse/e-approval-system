@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useStaffChatSync } from "@/hooks/use-staff-chat-sync";
-import { chatRequest, useStaffChatData } from "@/hooks/use-staff-chat-data";
+import { chatRequest, readChatResponse, useStaffChatData } from "@/hooks/use-staff-chat-data";
+import { formatChatFileSize, useStaffChatFilePolicy } from "@/hooks/use-staff-chat-file-policy";
+import { StaffChatFile } from "@/components/staff-chat-file";
 import type { ChatEmployee, ChatMessage } from "@/lib/staff-chat-types";
 
 const iconButton = "grid size-11 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
@@ -12,12 +14,14 @@ const dayFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "num
 export function StaffChatDock({ userId }: { userId: string }) {
   const data = useStaffChatData();
   const { refresh, loading: threadLoading } = data;
+  const filePolicy = useStaffChatFilePolicy(data.handleFailure);
   const { status, statusLabel } = useStaffChatSync({ userId, refresh: data.refresh });
   const [open, setOpen] = useState(false);
   const [peer, setPeer] = useState<ChatEmployee | null>(null);
   const [list, setList] = useState<"conversations" | "employees">("conversations");
   const [search, setSearch] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | undefined>>({});
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [atBottom, setAtBottom] = useState(true);
@@ -25,14 +29,16 @@ export function StaffChatDock({ userId }: { userId: string }) {
   const launcherRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const busyRef = useRef(false);
   const readRef = useRef<Record<string, string>>({});
-  const attemptsRef = useRef<Record<string, { body: string; requestId: string }>>({});
+  const attemptsRef = useRef<Record<string, { body: string; requestId: string; file?: File }>>({});
   const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
   const messages = data.thread?.peerId === peer?.id ? data.thread?.messages ?? [] : [];
   const draft = peer ? drafts[peer.id] ?? "" : "";
+  const selectedFile = peer ? selectedFiles[peer.id] : undefined;
   const currentPeer = data.overview?.employees.find((employee) => employee.id === peer?.id)
     ?? data.overview?.conversations.find((conversation) => conversation.peer.id === peer?.id)?.peer ?? peer;
   const unreadCount = data.overview?.unreadCount ?? 0;
@@ -107,29 +113,59 @@ export function StaffChatDock({ userId }: { userId: string }) {
     void data.refresh().catch(() => {});
   }
 
+  function selectFile(file: File | undefined) {
+    if (!file || !peer || !filePolicy.policy || busyRef.current) return;
+    const policy = filePolicy.policy;
+    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (!policy.allowedExtensions.includes(extension)) {
+      setSendError("허용되지 않는 파일 형식입니다. 문서나 이미지 파일을 선택해 주세요.");
+      return;
+    }
+    if (!file.size || file.size > policy.maxFileSize) {
+      setSendError(`파일은 0바이트보다 크고 ${formatChatFileSize(policy.maxFileSize)} 이하여야 합니다.`);
+      return;
+    }
+    setSelectedFiles((previous) => ({ ...previous, [peer.id]: file }));
+    setSendError("");
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!peer || !currentPeer?.active || !draft.trim() || busyRef.current) return;
+    if (!peer || !currentPeer?.active || (!draft.trim() && !selectedFile) || busyRef.current) return;
     const peerId = peer.id;
     const body = draft.trim();
     let attempt = attemptsRef.current[peerId];
-    if (!attempt || attempt.body !== body) {
-      attempt = { body, requestId: crypto.randomUUID() };
+    if (!attempt || attempt.body !== body || attempt.file !== selectedFile) {
+      attempt = { body, requestId: crypto.randomUUID(), file: selectedFile };
       attemptsRef.current[peerId] = attempt;
     }
     busyRef.current = true;
     setSending(true);
     setSendError("");
     try {
-      const result = await chatRequest<{ message: ChatMessage }>("/api/chat/messages", { peerId, ...attempt });
+      let result: { message: ChatMessage };
+      if (attempt.file) {
+        const form = new FormData();
+        form.set("peerId", peerId);
+        form.set("body", body);
+        form.set("requestId", attempt.requestId);
+        form.set("file", attempt.file);
+        const response = await fetch("/api/chat/files", {
+          method: "POST", body: form, cache: "no-store", signal: AbortSignal.timeout(90_000),
+        });
+        result = await readChatResponse<{ message: ChatMessage }>(response);
+      } else {
+        result = await chatRequest<{ message: ChatMessage }>("/api/chat/messages", { peerId, body, requestId: attempt.requestId });
+      }
       data.appendMessage(result.message, peerId);
       setDrafts((previous) => previous[peerId]?.trim() === body ? { ...previous, [peerId]: "" } : previous);
+      setSelectedFiles((previous) => previous[peerId] === attempt.file ? { ...previous, [peerId]: undefined } : previous);
       delete attemptsRef.current[peerId];
       if (data.isPeerActive(peerId)) setAtBottom(true);
       void data.refresh().catch(() => {});
     } catch (cause) {
       data.handleFailure(cause);
-      setSendError(cause instanceof Error ? cause.message : "전송하지 못했습니다. 내용을 확인하고 다시 전송해 주세요.");
+      setSendError(cause instanceof Error && !["TypeError", "TimeoutError", "AbortError"].includes(cause.name) ? cause.message : "전송하지 못했습니다. 연결을 확인하고 다시 전송해 주세요.");
     } finally {
       busyRef.current = false;
       setSending(false);
@@ -140,7 +176,12 @@ export function StaffChatDock({ userId }: { userId: string }) {
   const query = search.trim().toLocaleLowerCase("ko-KR");
   const matches = (employee: ChatEmployee) => `${employee.name} ${employee.departmentName} ${employee.positionName}`.toLocaleLowerCase("ko-KR").includes(query);
   const employees = data.overview?.employees.filter(matches) ?? [];
-  const conversations = data.overview?.conversations.filter((conversation) => matches(conversation.peer)) ?? [];
+  const conversations = (data.overview?.conversations.filter((conversation) => matches(conversation.peer)) ?? []).map((conversation) => {
+    const file = conversation.lastMessage.attachment;
+    if (!file) return conversation;
+    const prefix = file.status === "deleted" ? "파일 삭제됨" : file.status === "deleting" ? "원본 삭제 중" : "파일";
+    return { ...conversation, lastMessage: { ...conversation.lastMessage, body: `${prefix} · ${file.originalName}` } };
+  });
 
   return (
     <aside className="staff-chat-dock print:hidden" aria-label="직원 메신저">
@@ -166,7 +207,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
           </div>
           {data.error && !data.authExpired ? <div className="shrink-0 border-b border-[var(--border)] px-3 py-2"><p role="alert" className="text-xs text-[var(--danger)]">{data.error}</p><button type="button" onClick={() => { void data.refresh().catch(() => {}); }} className="min-h-11 rounded-md px-2 text-xs font-semibold">다시 시도</button></div> : null}
           {data.authExpired ? <div className="p-4"><p role="alert" className="text-sm">로그인이 만료되었습니다.</p><a href="/login" className="mt-2 inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold underline">다시 로그인</a></div> : peer ? (
-            <>
+            <div className="staff-chat-thread flex min-h-0 flex-1 flex-col">
               <div
                 ref={logRef}
                 role="log"
@@ -195,16 +236,20 @@ export function StaffChatDock({ userId }: { userId: string }) {
                   return <div key={message.id}>
                     {showDay ? <p className="mb-3 mt-2 text-center text-xs text-[var(--text-muted)]">{dayFormatter.format(date)}</p> : null}
                     <div className={`mb-3 flex flex-col ${mine ? "items-end" : "items-start"}`}>
-                      <p className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-5 [overflow-wrap:anywhere] ${mine ? "bg-[var(--brand)] text-white" : "border border-[var(--border)] bg-[var(--surface-muted)]"}`}><span className="sr-only">{mine ? "나" : peer.name}: </span>{message.body}</p>
+                      {message.attachment ? <div className="w-[94%] max-w-80"><StaffChatFile attachment={message.attachment} mine={mine} onFailure={data.handleFailure} onUpdated={(updated) => { data.appendMessage(updated, peer.id); void refresh().catch(() => {}); }} /></div> : null}
+                      {(!message.attachment || message.body !== `파일: ${message.attachment.originalName}`) && message.body ? <p className={`${message.attachment ? "mt-1 " : ""}max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-5 [overflow-wrap:anywhere] ${mine ? "bg-[var(--brand)] text-white" : "border border-[var(--border)] bg-[var(--surface-muted)]"}`}><span className="sr-only">{mine ? "나" : peer.name}: </span>{message.body}</p> : null}
                       <div className="mt-1 flex gap-1.5 text-[11px] tabular-nums text-[var(--text-muted)]">{mine ? <span>{message.readAt ? "읽음" : "안 읽음"}</span> : null}<time dateTime={message.createdAt}>{timeFormatter.format(date)}</time></div>
                     </div>
                   </div>;
                 })}
               </div>
               {!atBottom && messages.length > 0 ? <button type="button" onClick={() => setAtBottom(true)} className="mx-3 mb-2 min-h-11 shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] text-xs font-semibold">최근 메시지로 이동</button> : null}
-              <form onSubmit={sendMessage} className="shrink-0 border-t border-[var(--border)] p-3" aria-busy={sending}>
+              <form onSubmit={sendMessage} className="staff-chat-composer shrink-0 border-t border-[var(--border)] p-3" aria-busy={sending}>
                 {sendError ? <p role="alert" ref={errorRef} tabIndex={-1} className="mb-2 text-xs text-[var(--danger)]">{sendError}</p> : null}
+                {filePolicy.error ? <div className="mb-2 flex items-center gap-2"><p className="text-xs text-[var(--danger)]">{filePolicy.error}</p><button type="button" onClick={filePolicy.reload} className="min-h-11 shrink-0 rounded-md px-2 text-xs font-semibold">설정 다시 불러오기</button></div> : null}
                 {!currentPeer?.active ? <p className="mb-2 text-xs text-[var(--text-muted)]">현재 메시지를 받을 수 없는 직원입니다. 이전 대화는 확인할 수 있습니다.</p> : null}
+                <input ref={fileInputRef} type="file" aria-label="채팅 파일 선택" accept={filePolicy.policy?.allowedExtensions.join(",")} disabled={sending || !currentPeer?.active || !filePolicy.policy} className="hidden" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+                {selectedFile ? <div className="mb-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] pl-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p className="text-[11px] tabular-nums text-[var(--text-muted)]">{formatChatFileSize(selectedFile.size)}</p></div><button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={iconButton}><ChatIcon kind="close" /></button></div> : null}
                 <label htmlFor="staff-chat-message" className="sr-only">메시지</label>
                 <textarea
                   id="staff-chat-message"
@@ -223,11 +268,11 @@ export function StaffChatDock({ userId }: { userId: string }) {
                   className="block min-h-16 w-full resize-none rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-base leading-5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] disabled:opacity-60 sm:text-sm"
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span></p>
-                  <button type="submit" disabled={sending || !draft.trim() || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : "전송"}<ChatIcon kind="send" /></button>
+                  <div className="flex min-w-0 items-center gap-1"><button type="button" aria-label="파일 첨부" title={filePolicy.policy ? `파일 1개 · 최대 ${formatChatFileSize(filePolicy.policy.maxFileSize)}` : "파일 첨부 설정 불러오는 중"} disabled={sending || !currentPeer?.active || !filePolicy.policy} onClick={() => fileInputRef.current?.click()} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="attach" /></button><p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span>{filePolicy.policy ? ` · 파일 ${formatChatFileSize(filePolicy.policy.maxFileSize)}까지` : ""}</p></div>
+                  <button type="submit" disabled={sending || (!draft.trim() && !selectedFile) || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : "전송"}<ChatIcon kind="send" /></button>
                 </div>
               </form>
-            </>
+            </div>
           ) : (
             <>
               <div className="shrink-0 border-b border-[var(--border)] px-3 pt-2">
@@ -269,6 +314,14 @@ function ChatLoading() {
   return <div role="status" className="space-y-3 px-2 py-3"><span className="sr-only">채팅 불러오는 중</span>{[0, 1, 2].map((item) => <div key={item} className="h-12 rounded-md bg-[var(--surface-muted)] motion-safe:animate-pulse" />)}</div>;
 }
 
-function ChatIcon({ kind }: { kind: "chat" | "search" | "back" | "send" | "minimize" | "up" }) {
-  return <svg className="size-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{kind === "chat" ? <><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5Z" /><path d="M7 9h8M7 13h5" /></> : kind === "search" ? <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></> : kind === "back" ? <path d="m14 6-6 6 6 6" /> : kind === "send" ? <><path d="m22 2-7 20-4-9L2 9Z" /><path d="M22 2 11 13" /></> : kind === "minimize" ? <path d="M5 12h14" /> : <path d="m6 14 6-6 6 6" />}</svg>;
+function ChatIcon({ kind }: { kind: "chat" | "search" | "back" | "send" | "minimize" | "up" | "attach" | "close" }) {
+  return <svg className="size-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    {kind === "attach" ? <path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7L14 1M6 15l9-9" />
+      : kind === "close" ? <path d="m6 6 12 12M6 18 18 6" />
+      : kind === "chat" ? <><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5Z" /><path d="M7 9h8M7 13h5" /></>
+      : kind === "search" ? <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></>
+      : kind === "back" ? <path d="m14 6-6 6 6 6" />
+      : kind === "send" ? <><path d="m22 2-7 20-4-9L2 9Z" /><path d="M22 2 11 13" /></>
+      : kind === "minimize" ? <path d="M5 12h14" /> : <path d="m6 14 6-6 6 6" />}
+  </svg>;
 }
