@@ -37,7 +37,7 @@ test("로그인 후 청소년 명단 다단계 경로를 오류 없이 연다", 
   await expect(
     page.getByRole("heading", { name: "청소년 명단", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("region", { name: "청소년 명단" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "청소년 명단", exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "요청한 화면을 찾을 수 없습니다" }),
   ).toHaveCount(0);
