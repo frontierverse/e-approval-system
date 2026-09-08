@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { chatRequest, readChatResponse } from "@/hooks/use-staff-chat-data";
 import { formatChatFileSize } from "@/hooks/use-staff-chat-file-policy";
 import type { ChatMessage } from "@/lib/staff-chat-types";
+import { StaffChatPreview } from "@/components/staff-chat-preview";
 
 type Attachment = NonNullable<ChatMessage["attachment"]>;
 type Props = {
@@ -108,8 +109,10 @@ export function StaffChatFile({ attachment, mine, onUpdated, onFailure }: Props)
 
   const deleted = attachment.status === "deleted";
   const deleting = attachment.status === "deleting";
+  const requestDownload = () => { if (busy.current) return; if (mine) void download(); else setConfirming(true); };
   return (
     <div className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface-muted)] p-3 text-[var(--foreground)]" aria-label={`첨부파일 ${attachment.originalName}`} aria-busy={pending}>
+      {!deleted && !deleting && !cleanupPending ? <StaffChatPreview attachment={attachment} downloadDisabled={pending} onFailure={onFailure} onDownload={requestDownload} /> : null}
       <div className="flex items-start gap-2">
         <svg aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></svg>
         <div className="min-w-0"><p className="text-sm font-medium leading-5 [overflow-wrap:anywhere]">{attachment.originalName}</p><p className="mt-1 text-xs tabular-nums text-[var(--text-muted)]">{formatChatFileSize(attachment.size)}</p></div>
@@ -122,7 +125,7 @@ export function StaffChatFile({ attachment, mine, onUpdated, onFailure }: Props)
             confirming ? <div className="mt-2" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setConfirming(false); downloadRef.current?.focus(); } }}>
               <p className="text-xs leading-5">파일을 받으면 원본이 삭제됩니다. 저장 창에서 취소하면 다시 받을 수 없습니다.</p>
               <div className="mt-2 flex flex-wrap gap-2"><button ref={confirmRef} type="button" onClick={() => { void download(); }} className={actionClass}>다운로드하고 원본 삭제</button><button type="button" onClick={() => { setConfirming(false); downloadRef.current?.focus(); }} className={actionClass}>취소</button></div>
-            </div> : <button ref={downloadRef} type="button" aria-label={`${attachment.originalName} 다운로드`} disabled={pending} onClick={() => { if (mine) void download(); else setConfirming(true); }} className={`${actionClass} mt-2`}>{pending ? "다운로드 중…" : "다운로드"}</button>
+            </div> : <button ref={downloadRef} type="button" aria-label={`${attachment.originalName} 다운로드`} disabled={pending} onClick={requestDownload} className={`${actionClass} mt-2`}>{pending ? "다운로드 중…" : "다운로드"}</button>
           ) : null}
         </>
       )}

@@ -21,6 +21,7 @@ const harness = {
   policy: { maxFileCount: 10, maxFileSizeMb: 30, allowedExtensions: [".txt", ".pdf", ".png"] },
   failWrite: false, failRead: false, failDelete: false, failInsert: false,
   race: false, locked: false, fileService: null as Row | null,
+  onRead: null as (() => void) | null,
 };
 
 function matches(row: Row, where: Row = {}): boolean {
@@ -177,6 +178,7 @@ const mocks = moduleUrl(`
     if (state.harness.failRead) throw new Error("storage read unavailable");
     const buffer = state.harness.objects.get(file.storageKey);
     if (!buffer) throw new Error("object missing");
+    state.harness.onRead?.();
     return { body: new Response(new Uint8Array(buffer)).body, size: buffer.byteLength, mimeType: "text/plain" };
   }
 `);
@@ -200,6 +202,7 @@ const routeAliases = { "@/lib/staff-chat": baseModule, "@/lib/staff-chat-files":
 const uploadRoutes = await import(compileModule("../src/app/api/chat/files/route.ts", routeAliases));
 const downloadRoutes = await import(compileModule("../src/app/api/chat/files/[id]/download/route.ts", routeAliases));
 const completeRoutes = await import(compileModule("../src/app/api/chat/files/[id]/complete/route.ts", routeAliases));
+const previewRoutes = await import(compileModule("../src/app/api/chat/files/[id]/preview/route.ts", routeAliases));
 
 function user(id: string, overrides: Row = {}): Row {
   return { id, name: id, status: "ACTIVE", role: "USER", resignationDate: null,
@@ -237,6 +240,7 @@ beforeEach(() => {
   harness.writes = []; harness.deletes = []; harness.reads = [];
   harness.failWrite = false; harness.failRead = false; harness.failDelete = false; harness.failInsert = false;
   harness.race = false; harness.locked = false;
+  harness.onRead = null;
   harness.policy = { maxFileCount: 10, maxFileSizeMb: 30, allowedExtensions: [".txt", ".pdf", ".png"] };
 });
 after(() => {
@@ -438,6 +442,148 @@ describe("staff chat file API privacy and one-time delivery", () => {
     assert.equal(harness.objects.size, 0); assert.ok(harness.attachments[0].deletedAt);
     assert.equal(harness.attachments[0].storageKey, null);
     assert.equal((await service.completeStaffChatFileDownload("peer", id, { token })).attachment.status, "deleted");
+  });
+});
+
+describe("staff chat nonconsuming file previews", () => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=", "base64");
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
+  const preview = (id: string) => previewRoutes.GET(new Request(`https://work.example/api/chat/files/${id}/preview`), { params: Promise.resolve({ id }) });
+
+  test("both participants can preview image and PDF without leases, read receipts, deletion or broadcasts", async () => {
+    for (const [filename, contents, contentType] of [["photo.png", png, "image/png"], ["report.pdf", pdf, "application/pdf"]] as const) {
+      const message = await service.sendStaffChatFile("actor", form({ filename, contents, requestId: `request-preview-${filename.replaceAll(".", "-")}` }));
+      const before = { ...structuredClone({ messages: harness.messages, attachments: harness.attachments, changes: harness.changes }), objects: new Map(harness.objects) };
+      for (const actor of ["actor", "peer"]) {
+        harness.currentUser = user(actor);
+        const response = await preview(message.attachment.id);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("Content-Type"), contentType, "stored text/plain MIME cannot override verified bytes");
+        assert.equal(response.headers.get("X-Chat-Download-Token"), null);
+        assert.equal(response.headers.get("Content-Length"), String(contents.byteLength));
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), contents);
+      }
+      assert.deepEqual({ messages: harness.messages, attachments: harness.attachments, objects: harness.objects, changes: harness.changes }, before);
+      assert.equal(harness.deletes.length, 0);
+    }
+  });
+
+  test("inline previews enforce no-store, nosniff and same-origin isolation", async () => {
+    const { id } = await send({ filename: "사진 (확인).png", contents: png });
+    const response = await preview(id);
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+    assert.equal(response.headers.get("Vary"), "Cookie");
+    assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+    assert.equal(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
+    assert.equal(response.headers.get("X-Frame-Options"), "SAMEORIGIN");
+    assert.match(response.headers.get("Content-Security-Policy")!, /default-src 'none'; sandbox; frame-ancestors 'self'/);
+    assert.match(response.headers.get("Content-Disposition")!, /^inline;.*filename\*=UTF-8''/);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+    assert.equal(response.headers.get("X-Chat-Download-Token"), null);
+    await response.arrayBuffer();
+  });
+
+  test("signed-out, inactive and resigned sessions are denied before storage access; unrelated admins get404", async () => {
+    const { id } = await send({ filename: "photo.png", contents: png });
+    for (const actor of [null, user("actor", { status: "INACTIVE" }), user("peer", { resignationDate: "2000-01-01" })]) {
+      harness.currentUser = actor;
+      assert.equal((await preview(id)).status, 401);
+    }
+    harness.currentUser = user("admin", { role: "ADMIN" });
+    assert.equal((await preview(id)).status, 404);
+    assert.equal((await preview("unknown-file")).status, 404);
+    assert.equal(harness.reads.length, 0); assert.equal(harness.deletes.length, 0);
+  });
+
+  test("previews preserve an existing recipient lease and its token", async () => {
+    const { id } = await send({ filename: "photo.png", contents: png });
+    const { token } = await receive(id);
+    const before = structuredClone(harness.attachments[0]);
+    harness.currentUser = user("peer");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await preview(id);
+      assert.equal(response.status, 200); assert.equal(response.headers.get("X-Chat-Download-Token"), null);
+      await response.arrayBuffer();
+    }
+    assert.deepEqual(harness.attachments[0], before);
+    assert.equal(harness.attachments[0].downloadToken, token);
+    assert.equal(harness.messages[0].readAt, null); assert.equal(harness.deletes.length, 0);
+  });
+
+  test("deleted and deletion-pending files return410 without reading storage or retrying deletion", async () => {
+    const { id } = await send({ filename: "photo.png", contents: png });
+    const { token } = await receive(id);
+    harness.failDelete = true;
+    await assert.rejects(service.completeStaffChatFileDownload("peer", id, { token }), { status: 503 });
+    const priorReads = harness.reads.length;
+    for (const actor of ["actor", "peer"]) {
+      harness.currentUser = user(actor);
+      assert.equal((await preview(id)).status, 410);
+    }
+    assert.equal(harness.reads.length, priorReads); assert.equal(harness.deletes.length, 0);
+    harness.failDelete = false;
+    await service.completeStaffChatFileDownload("peer", id, { token });
+    assert.equal((await preview(id)).status, 410);
+    assert.equal(harness.reads.length, priorReads); assert.equal(harness.deletes.length, 1);
+  });
+
+  test("rejects HTML/SVG disguised as images or PDF and rejects extension/content mismatch", async () => {
+    const invalid = [
+      ["html.png", "<!doctype html><script>alert(1)</script>"],
+      ["vector.png", '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'],
+      ["html.pdf", "<html><body>not a PDF</body></html>"],
+      ["wrong.png", pdf], ["wrong.pdf", png],
+    ] as const;
+    for (let index = 0; index < invalid.length; index++) {
+      const [filename, contents] = invalid[index];
+      const message = await service.sendStaffChatFile("actor", form({ filename, contents, requestId: `request-disguised-${index}` }));
+      const response = await preview(message.attachment.id);
+      assert.equal(response.status, 415);
+      noPrivateMetadata(await response.json());
+    }
+    assert.equal(harness.deletes.length, 0);
+    assert.ok(harness.attachments.every((attachment) => attachment.downloadToken === null && attachment.deletedAt === null));
+  });
+
+  test("filename allowlist ignores forged image/PDF MIME types on unsupported extensions", async () => {
+    const { id, attachment } = await send({ filename: "unsupported.txt", contents: png });
+    for (const mimeType of ["image/png", "application/pdf"]) {
+      attachment.mimeType = mimeType;
+      assert.equal((await preview(id)).status, 415);
+    }
+    assert.equal(harness.reads.length, 0); assert.equal(harness.deletes.length, 0);
+  });
+
+  test("accepts JPEG, GIF and WebP signatures only for their corresponding extensions", async () => {
+    harness.policy.allowedExtensions.push(".jpg", ".jpeg", ".gif", ".webp");
+    const supported = [
+      ["image.JPG", Buffer.from([0xff, 0xd8, 0xff, 0xe0]), "image/jpeg"],
+      ["image.jpeg", Buffer.from([0xff, 0xd8, 0xff, 0xdb]), "image/jpeg"],
+      ["image.gif", Buffer.from("GIF89a"), "image/gif"],
+      ["image.webp", Buffer.from("RIFF\0\0\0\0WEBP"), "image/webp"],
+    ] as const;
+    for (let index = 0; index < supported.length; index++) {
+      const [filename, contents, contentType] = supported[index];
+      const message = await service.sendStaffChatFile("actor", form({ filename, contents, requestId: `request-signature-${index}` }));
+      const response = await preview(message.attachment.id);
+      assert.equal(response.status, 200); assert.equal(response.headers.get("Content-Type"), contentType);
+      await response.arrayBuffer();
+    }
+  });
+
+  test("corrupt storage size returns503 and preserves the file and any lease", async () => {
+    const { id, attachment } = await send({ filename: "photo.png", contents: png });
+    harness.objects.set(attachment.storageKey, Buffer.from("truncated"));
+    assert.equal((await preview(id)).status, 503);
+    assert.equal(harness.attachments[0].downloadToken, null); assert.equal(harness.attachments[0].deletionRequestedAt, null);
+    assert.equal(harness.deletes.length, 0);
+  });
+
+  test("a file consumed during its storage read is not released as a preview", async () => {
+    const { id } = await send({ filename: "photo.png", contents: png });
+    harness.onRead = () => { harness.attachments[0].deletionRequestedAt = new Date(); };
+    assert.equal((await preview(id)).status, 410);
+    assert.equal(harness.attachments[0].downloadToken, null); assert.equal(harness.deletes.length, 0);
   });
 });
 

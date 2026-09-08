@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
+import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getAttachmentPolicy } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles, prepareAttachmentFiles, readStoredAttachmentFile,
@@ -12,6 +13,7 @@ import { mapMessage, messageSelect } from "@/lib/staff-chat";
 import { getStaffChatToday, parseStaffChatId, parseStaffChatSend, StaffChatError } from "@/lib/staff-chat-core";
 import { publishStaffChatChange } from "@/lib/staff-chat-events";
 import { staffChatFileLeaseMs, staffChatFileMaxBytes } from "@/lib/staff-chat-file-core";
+import { getStaffChatPreviewContentType } from "@/lib/staff-chat-preview-core";
 import type { ChatFilePolicy, ChatMessage } from "@/lib/staff-chat-types";
 
 const attachmentSelect = {
@@ -138,6 +140,46 @@ function parseDownloadValue(value: unknown, key: "requestId" | "token"): string 
   const parsed = parseStaffChatId((value as Record<string, unknown>)[key]);
   if (parsed.length < 8) throw new StaffChatError("파일 요청 정보가 올바르지 않습니다.");
   return parsed;
+}
+
+export async function previewStaffChatFile(userId: string, requestedId: unknown): Promise<Response> {
+  const id = parseStaffChatId(requestedId);
+  const attachment = await prisma.$transaction(async (tx) => {
+    const attachment = await lockParticipantAttachment(tx, userId, id);
+    assertPreviewAvailable(attachment);
+    return attachment;
+  });
+  if (!getAttachmentPreviewKind(attachment.originalName)) {
+    throw new StaffChatError("이 파일 형식은 미리보기를 지원하지 않습니다.", 415);
+  }
+  const file = await readStoredAttachmentFile({ storageKey: attachment.storageKey!, storageProvider: attachment.storageProvider });
+  if (file.size !== attachment.size || file.size > staffChatFileMaxBytes) {
+    await file.body.cancel();
+    throw new StaffChatError("미리보기 파일을 온전히 읽지 못했습니다. 다시 시도해 주세요.", 503);
+  }
+  const bytes = new Uint8Array(await new Response(file.body).arrayBuffer());
+  if (bytes.byteLength !== attachment.size) {
+    throw new StaffChatError("미리보기 파일을 온전히 읽지 못했습니다. 다시 시도해 주세요.", 503);
+  }
+  const contentType = getStaffChatPreviewContentType(attachment.originalName, bytes);
+  if (!contentType) throw new StaffChatError("파일 내용이 지원하는 미리보기 형식과 일치하지 않습니다.", 415);
+  // Storage reads happen outside a transaction. Re-check after reading to avoid
+  // publishing a preview when a concurrent completed download consumed the file.
+  await prisma.$transaction(async (tx) => assertPreviewAvailable(await lockParticipantAttachment(tx, userId, id)));
+  return new Response(bytes, { headers: {
+    "Cache-Control": "private, no-store", "Vary": "Cookie",
+    "Content-Type": contentType, "Content-Length": String(bytes.byteLength),
+    "Content-Disposition": `inline; filename="preview"; filename*=UTF-8''${encodeURIComponent(attachment.originalName).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)}`,
+    "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "same-origin",
+    "Content-Security-Policy": "default-src 'none'; sandbox; frame-ancestors 'self'",
+    "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "no-referrer",
+  } });
+}
+
+function assertPreviewAvailable(attachment: AttachmentRecord): void {
+  if (attachment.deletedAt || attachment.deletionRequestedAt || !attachment.storageKey) {
+    throw new StaffChatError("수신자가 다운로드하여 삭제된 파일입니다.", 410);
+  }
 }
 
 export async function downloadStaffChatFile(userId: string, requestedId: unknown, value: unknown): Promise<Response> {

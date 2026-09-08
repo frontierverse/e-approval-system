@@ -9,6 +9,8 @@ import tailwindcss from "@tailwindcss/postcss";
 // environment/database. Every API request must be intercepted by the test.
 export async function startStaffChatFixture() {
   const root = process.cwd();
+  const pdfRoot = path.join(root, "node_modules/pdfjs-dist");
+  const pdfVersion = (JSON.parse(await readFile(path.join(pdfRoot, "package.json"), "utf8")) as { version: string }).version;
   const [bundle, stylesheet] = await Promise.all([
     build({
       stdin: {
@@ -25,7 +27,7 @@ export async function startStaffChatFixture() {
       write: false,
       format: "iife",
       platform: "browser",
-      define: { "process.env.NODE_ENV": '"production"' },
+      define: { "process.env.NODE_ENV": '"production"', "import.meta.url": "location.href" },
       logLevel: "silent",
     }),
     Promise.all([
@@ -37,13 +39,27 @@ export async function startStaffChatFixture() {
       }),
     ),
   ]);
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     if (request.url === "/fixture.js") {
       response.writeHead(200, { "Content-Type": "text/javascript" });
       response.end(bundle.outputFiles[0].contents);
     } else if (request.url === "/fixture.css") {
       response.writeHead(200, { "Content-Type": "text/css" });
       response.end(stylesheet.css);
+    } else if (request.url?.startsWith(`/pdfjs/${pdfVersion}/`)) {
+      const asset = request.url.slice(`/pdfjs/${pdfVersion}/`.length);
+      // Serve only the public PDF runtime assets, never arbitrary local paths.
+      if (!/^(?:pdf\.worker\.min\.mjs|(?:cmaps|standard_fonts|wasm)\/[a-zA-Z0-9_.-]+)$/.test(asset)) {
+        response.writeHead(404); response.end("PDF fixture asset not found"); return;
+      }
+      try {
+        const assetPath = asset === "pdf.worker.min.mjs" ? path.join(pdfRoot, "build", asset) : path.join(pdfRoot, asset);
+        const bytes = await readFile(assetPath);
+        response.writeHead(200, { "Content-Type": asset.endsWith(".mjs") ? "text/javascript" : asset.endsWith(".wasm") ? "application/wasm" : "application/octet-stream" });
+        response.end(bytes);
+      } catch {
+        response.writeHead(404); response.end("PDF fixture asset not found");
+      }
     } else if (request.url === "/" || request.url?.startsWith("/?")) {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(`<!doctype html><html lang="ko"><head>

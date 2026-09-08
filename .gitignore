@@ -54,6 +54,9 @@ next-env.d.ts
 # generated test and preview outputs
 /outputs/
 
+# Installed PDF.js library assets copied during postinstall
+/public/pdfjs/
+
 # prisma
 *.db
 *.db-journal

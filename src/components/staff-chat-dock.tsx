@@ -191,7 +191,12 @@ export function StaffChatDock({ userId }: { userId: string }) {
           role="dialog"
           aria-label="직원 채팅"
           className="staff-chat-window flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] shadow-lg"
-          onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); close(); } }}
+          onKeyDown={(event) => {
+            // Portal events still bubble through this React tree. Let a preview
+            // modal handle Escape and Tab without also closing its conversation.
+            if (event.target instanceof Element && event.target.closest("[data-app-modal='true']")) return;
+            if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); close(); }
+          }}
         >
           <header className="flex min-h-14 shrink-0 items-center gap-1 border-b border-[var(--border)] px-2">
             {peer && !data.authExpired ? <button type="button" aria-label="대화 목록으로" disabled={sending} onClick={backToList} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="back" /></button> : null}
