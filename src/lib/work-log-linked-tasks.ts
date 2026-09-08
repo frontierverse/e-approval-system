@@ -7,7 +7,7 @@ import { getWorkLogTaskDateRange } from "@/lib/work-log-linked-tasks-core";
 
 export type WorkLogReadClient = Pick<
   Prisma.TransactionClient,
-  "$queryRaw" | "staffTask" | "workLog"
+  "$queryRaw" | "approvalDocument" | "staffTask" | "workLog"
 >;
 
 export const workLogCompletedTaskSelect = {

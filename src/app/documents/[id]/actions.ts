@@ -59,6 +59,7 @@ export async function submitDocumentAction(documentId: string) {
   revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -72,6 +73,7 @@ export async function submitDocumentAction(documentId: string) {
       console.error("Failed to attach generated approval PDF", error);
     },
   );
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${result.documentId}`);
 
   redirect(`/documents/${result.documentId}`);
@@ -84,6 +86,7 @@ export async function deleteDraftDocumentAction(documentId: string) {
   revalidatePath("/");
   revalidatePath("/drafts");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -206,6 +209,7 @@ export async function uploadSignedAttachmentAction(
     revalidatePath("/");
     revalidatePath("/inbox");
     revalidatePath("/sent");
+    revalidatePath("/work-schedule/work-log");
     revalidatePath(`/documents/${documentId}`);
     redirect(`/documents/${documentId}#signed-${createdAttachment.id}`);
   } catch (error) {
@@ -227,6 +231,7 @@ export async function recallDocumentAction(documentId: string) {
   revalidatePath("/drafts");
   revalidatePath("/inbox");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -245,6 +250,7 @@ export async function discardDocumentAction(documentId: string) {
   revalidatePath("/");
   revalidatePath("/drafts");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -263,6 +269,7 @@ export async function restoreDocumentAction(documentId: string) {
   revalidatePath("/");
   revalidatePath("/drafts");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -328,6 +335,7 @@ export async function decideDocumentAction(
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath("/completed");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
   redirect(`/documents/${result.documentId}`);
 }
@@ -366,6 +374,7 @@ export async function proxyApproveDocumentAction(
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath("/completed");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
   redirect(`/documents/${result.documentId}`);
 }
@@ -405,6 +414,7 @@ export async function rejectProxyApprovalAction(
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath("/completed");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
   redirect(`/documents/${result.documentId}`);
 }
@@ -423,6 +433,7 @@ export async function deleteAttachmentAction(
   revalidatePath("/");
   revalidatePath("/drafts");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
 
   if (!result.ok) {
@@ -547,6 +558,7 @@ export async function deleteSignedAttachmentAction(
   revalidatePath("/inbox");
   revalidatePath("/sent");
   revalidatePath("/completed");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${documentId}`);
   redirect(`/documents/${documentId}`);
 }

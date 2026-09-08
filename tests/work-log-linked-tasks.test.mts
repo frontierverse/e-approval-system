@@ -59,6 +59,9 @@ function findMany(rows: Row[], options: Row): Row[] {
 }
 
 const database = {
+  approvalDocument: {
+    async findMany() { return []; },
+  },
   workLog: {
     async findUnique(options: Row) {
       harness.reads.push({ model: "workLog", ...options });

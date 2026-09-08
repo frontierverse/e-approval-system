@@ -9,6 +9,26 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+let bodyScrollLockCount = 0;
+let bodyOverflowBeforeModals = "";
+
+function lockBodyScroll() {
+  if (bodyScrollLockCount === 0) {
+    bodyOverflowBeforeModals = document.body.style.overflow;
+  }
+  bodyScrollLockCount += 1;
+  document.body.style.overflow = "hidden";
+
+  return () => {
+    bodyScrollLockCount -= 1;
+    // Nested dialogs can unmount together in either order during navigation.
+    // Restore the original value only after the last dialog releases its lock.
+    if (bodyScrollLockCount === 0) {
+      document.body.style.overflow = bodyOverflowBeforeModals;
+    }
+  };
+}
+
 export function AppModal({
   children,
   className = "",
@@ -44,7 +64,7 @@ export function AppModal({
         ? document.activeElement
         : null;
     const focusReturnTarget = returnFocusTo ?? previouslyFocusedElement;
-    const previousBodyOverflow = document.body.style.overflow;
+    const unlockBodyScroll = lockBodyScroll();
     const focusFrame = window.requestAnimationFrame(() => {
       const focusableElements = getFocusableElements(dialog);
       const initialFocusTarget =
@@ -54,8 +74,6 @@ export function AppModal({
 
       initialFocusTarget?.focus({ preventScroll: true });
     });
-
-    document.body.style.overflow = "hidden";
 
     function handleDialogKeyboard(event: globalThis.KeyboardEvent) {
       const dialogs = Array.from(
@@ -106,7 +124,7 @@ export function AppModal({
     return () => {
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", handleDialogKeyboard);
-      document.body.style.overflow = previousBodyOverflow;
+      unlockBodyScroll();
 
       if (focusReturnTarget?.isConnected) {
         focusReturnTarget.focus({ preventScroll: true });

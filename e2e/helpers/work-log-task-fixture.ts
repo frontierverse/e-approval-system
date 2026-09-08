@@ -9,6 +9,8 @@ import tailwindcss from "@tailwindcss/postcss";
 // Prisma, or an actual employee session. Tests intercept every data request.
 export async function startWorkLogTaskFixture() {
   const root = process.cwd();
+  const pdfRoot = path.join(root, "node_modules/pdfjs-dist");
+  const pdfVersion = (JSON.parse(await readFile(path.join(pdfRoot, "package.json"), "utf8")) as { version: string }).version;
   const [bundle, stylesheet] = await Promise.all([
     build({
       stdin: {
@@ -67,7 +69,7 @@ export async function startWorkLogTaskFixture() {
       write: false,
       format: "iife",
       platform: "browser",
-      define: { "process.env.NODE_ENV": '"production"' },
+      define: { "process.env.NODE_ENV": '"production"', "import.meta.url": "location.href" },
       logLevel: "silent",
       plugins: [{
         name: "isolated-work-log-next-boundaries",
@@ -101,13 +103,26 @@ export async function startWorkLogTaskFixture() {
       postcss([tailwindcss({ base: root })]).process(css, { from: path.join(root, "src/app/globals.css") }),
     ),
   ]);
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     if (request.url === "/fixture.js") {
       response.writeHead(200, { "Content-Type": "text/javascript" });
       response.end(bundle.outputFiles[0].contents);
     } else if (request.url === "/fixture.css") {
       response.writeHead(200, { "Content-Type": "text/css" });
       response.end(stylesheet.css);
+    } else if (request.url?.startsWith(`/pdfjs/${pdfVersion}/`)) {
+      const asset = request.url.slice(`/pdfjs/${pdfVersion}/`.length);
+      // Public PDF runtime assets only; requests never map to employee files.
+      if (!/^(?:pdf\.worker\.min\.mjs|(?:cmaps|standard_fonts|wasm)\/[a-zA-Z0-9_.-]+)$/.test(asset)) {
+        response.writeHead(404); response.end("PDF fixture asset not found"); return;
+      }
+      try {
+        const bytes = await readFile(asset === "pdf.worker.min.mjs" ? path.join(pdfRoot, "build", asset) : path.join(pdfRoot, asset));
+        response.writeHead(200, { "Content-Type": asset.endsWith(".mjs") ? "text/javascript" : asset.endsWith(".wasm") ? "application/wasm" : "application/octet-stream" });
+        response.end(bytes);
+      } catch {
+        response.writeHead(404); response.end("PDF fixture asset not found");
+      }
     } else if (request.url === "/" || request.url === "/tasks" || request.url?.startsWith("/work-schedule/work-log")) {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(`<!doctype html><html lang="ko"><head><meta charset="utf-8">

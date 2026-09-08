@@ -14,6 +14,23 @@ export type WorkLogCompletedTask = {
   completedAt: string;
 };
 
+export type WorkLogMeetingAttachment = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  isSigned: boolean;
+};
+
+export type WorkLogMeetingDocument = {
+  id: string;
+  title: string;
+  meetingDate: string;
+  documentNo: string | null;
+  status: string;
+  attachments: WorkLogMeetingAttachment[];
+};
+
 export type WorkLogEntry = {
   id: string;
   workDate: string;
@@ -24,6 +41,7 @@ export type WorkLogEntry = {
   updatedByName: string | null;
   updatedAt: string;
   completedTasks?: WorkLogCompletedTask[];
+  meetingDocuments?: WorkLogMeetingDocument[];
   manualLogId?: string | null;
   manualUpdatedAt?: string | null;
 };

@@ -194,6 +194,7 @@ export async function createSignedAttachmentAction(
   revalidatePath("/");
   revalidatePath("/inbox");
   revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
   revalidatePath(`/documents/${attachment.document.id}`);
   revalidatePath(`/attachments/${attachment.id}/sign`);
   redirect(`/documents/${attachment.document.id}`);

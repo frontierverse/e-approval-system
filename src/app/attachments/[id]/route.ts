@@ -42,6 +42,8 @@ export async function GET(
 
     return new Response(storedFile.body, {
       headers: {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
         "Content-Type":
           storedFile.mimeType || attachment.mimeType || "application/octet-stream",
         "Content-Length": String(storedFile.size ?? attachment.size),

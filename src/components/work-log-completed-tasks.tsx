@@ -66,6 +66,10 @@ export function hasManualWorkLog(entry: WorkLogEntry | null) {
   return !!entry && entry.manualLogId !== null;
 }
 
+export function hasAutomaticWorkLog(entry: WorkLogEntry | null) {
+  return Boolean(entry?.completedTasks?.length || entry?.meetingDocuments?.length);
+}
+
 export function getManualWorkLogUpdatedAt(entry: WorkLogEntry | null) {
   return hasManualWorkLog(entry) ? entry!.manualUpdatedAt ?? entry!.updatedAt : "";
 }

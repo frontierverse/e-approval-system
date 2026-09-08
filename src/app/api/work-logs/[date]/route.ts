@@ -57,7 +57,7 @@ export async function GET(
     });
 
     return NextResponse.json(
-      { error: "업무일지와 완료한 할 일을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      { error: "업무일지와 자동 연동 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { headers: noStoreHeaders, status: 503 },
     );
   }

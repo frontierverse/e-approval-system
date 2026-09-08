@@ -20,9 +20,11 @@ import { createPortal } from "react-dom";
 import { AppModal } from "@/components/app-modal";
 import {
   getManualWorkLogUpdatedAt,
+  hasAutomaticWorkLog,
   hasManualWorkLog,
   WorkLogCompletedTaskPanel,
 } from "@/components/work-log-completed-tasks";
+import { WorkLogMeetingFilesPanel } from "@/components/work-log-meeting-files";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import { formatKoreanDateTime } from "@/lib/korean-date";
 import {
@@ -115,6 +117,9 @@ export function WorkLogBoard({
   const canNavigateToTask = () => canLeaveWorkLog(hasUnsavedChanges, () =>
     window.confirm("작성 중인 내용이 사라집니다. 할 일 이력으로 이동할까요?"),
   );
+  const canNavigateToDocument = () => canLeaveWorkLog(hasUnsavedChanges, () =>
+    window.confirm("작성 중인 내용이 사라집니다. 회의록 원문으로 이동할까요?"),
+  );
 
   const openWorkLogDetail = useCallback(
     (date: string, returnFocusTo: HTMLElement) => {
@@ -146,6 +151,7 @@ export function WorkLogBoard({
   return (
     <div className="space-y-4">
       <WorkLogCompletedTaskPanel key={selectedDate} entry={selectedLog} canNavigateToTask={canNavigateToTask} />
+      <WorkLogMeetingFilesPanel key={`meetings:${selectedDate}`} entry={selectedLog} canNavigateToDocument={canNavigateToDocument} />
       <WorkLogContributionGraph
         key={today}
         onOpenLog={openWorkLogDetail}
@@ -173,6 +179,7 @@ export function WorkLogBoard({
 
       {detailRequest ? (
         <WorkLogDetailModal
+          canNavigateToDocument={canNavigateToDocument}
           canNavigateToTask={canNavigateToTask}
           key={`${detailRequest.date}:${getManualWorkLogUpdatedAt(detailRequest.initialEntry) || "load"}`}
           date={detailRequest.date}
@@ -761,6 +768,7 @@ type WorkLogDetailLoadRequest = {
 };
 
 export function WorkLogDetailModal({
+  canNavigateToDocument,
   canNavigateToTask,
   date,
   deleteAction,
@@ -773,6 +781,7 @@ export function WorkLogDetailModal({
   returnFocusTo,
   saveAction,
 }: {
+  canNavigateToDocument?: () => boolean;
   canNavigateToTask?: () => boolean;
   date: string;
   deleteAction: DeleteWorkLogAction;
@@ -1015,7 +1024,7 @@ export function WorkLogDetailModal({
             {formatWorkLogDateLabel(date)}
           </h2>
           <p className="sr-only" id={descriptionId}>
-            완료한 할 일과 직접 작성한 업무 내용을 확인할 수 있습니다.
+            완료한 할 일, 회의록 파일과 직접 작성한 업무 내용을 확인할 수 있습니다.
           </p>
         </div>
         <button
@@ -1102,6 +1111,7 @@ export function WorkLogDetailModal({
         />
       ) : entry ? (
         <WorkLogDetailView
+          canNavigateToDocument={canNavigateToDocument}
           canNavigateToTask={canNavigateToTask}
           entry={entry}
           feedback={feedback}
@@ -1118,6 +1128,7 @@ export function WorkLogDetailModal({
 }
 
 export function WorkLogDetailView({
+  canNavigateToDocument,
   canNavigateToTask,
   entry,
   feedback,
@@ -1125,6 +1136,7 @@ export function WorkLogDetailView({
   onDelete,
   onEdit,
 }: {
+  canNavigateToDocument?: () => boolean;
   canNavigateToTask?: () => boolean;
   entry: WorkLogEntry;
   feedback: string | null;
@@ -1133,7 +1145,7 @@ export function WorkLogDetailView({
   onEdit: () => void;
 }) {
   const hasManual = hasManualWorkLog(entry);
-  const hasCompletedTasks = Boolean(entry.completedTasks?.length);
+  const hasAutomatic = hasAutomaticWorkLog(entry);
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
@@ -1148,7 +1160,10 @@ export function WorkLogDetailView({
 
         <article className="min-w-0">
           <WorkLogCompletedTaskPanel entry={entry} headingLevel="h3" canNavigateToTask={canNavigateToTask} />
-          {hasManual ? <div className={hasCompletedTasks ? "mt-4" : undefined}>
+          {entry.meetingDocuments?.length ? <div className={entry.completedTasks?.length ? "mt-3" : undefined}>
+            <WorkLogMeetingFilesPanel entry={entry} headingLevel="h3" canNavigateToDocument={canNavigateToDocument} />
+          </div> : null}
+          {hasManual ? <div className={hasAutomatic ? "mt-4" : undefined}>
           <p className="text-xs font-semibold text-[var(--text-muted)]">
             키워드
           </p>
@@ -1182,7 +1197,7 @@ export function WorkLogDetailView({
           onClick={onDelete}
           type="button"
         >
-          {hasCompletedTasks ? "직접 작성 내용 삭제" : "삭제"}
+          {hasAutomatic ? "직접 작성 내용 삭제" : "삭제"}
         </button> : null}
         <div className="ml-auto flex items-center justify-end gap-2">
           <button
@@ -1309,7 +1324,7 @@ function WorkLogModalEditForm({
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-        {entry.completedTasks?.length ? <p className="mb-3 text-sm leading-6 text-[var(--text-muted)]">완료한 할 일은 자동으로 기록되어 있습니다. 필요한 내용만 추가로 작성하세요.</p> : null}
+        {hasAutomaticWorkLog(entry) ? <p className="mb-3 text-sm leading-6 text-[var(--text-muted)]">자동 기록은 이미 반영되어 있습니다. 필요한 내용만 추가로 작성하세요.</p> : null}
         {hasUnderlyingDraft ? (
           <p className="mb-3 rounded-md border border-[#ead8a8] bg-[#fff8df] px-3 py-2 text-sm text-[#82620d] dark:border-[#d2992266] dark:bg-[#bb800926] dark:text-[#e3b341]">
             아래 작성 폼의 저장하지 않은 내용은 이 기록을 저장하면 사라집니다.
@@ -1707,12 +1722,12 @@ function WorkLogDeleteConfirmation({
           className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-4 py-4 text-[#8a1f1f] dark:border-[#f851498c] dark:bg-[#da363329] dark:text-[#ff7b72]"
           id={warningId}
         >
-          <p className="text-sm font-semibold">{entry.completedTasks?.length ? "직접 작성한 내용을 삭제할까요?" : "업무일지를 삭제할까요?"}</p>
+          <p className="text-sm font-semibold">{hasAutomaticWorkLog(entry) ? "직접 작성한 내용을 삭제할까요?" : "업무일지를 삭제할까요?"}</p>
           <p className="mt-2 break-words text-sm leading-6 [overflow-wrap:anywhere]">
             {formatWorkLogDateLabel(entry.workDate)} · {entry.keyword}
           </p>
           <p className="mt-2 text-sm font-medium">
-            {entry.completedTasks?.length ? "직접 작성한 내용은 복구할 수 없습니다. 완료한 할 일의 자동 기록은 유지됩니다." : "삭제한 업무일지는 복구할 수 없습니다."}
+            {hasAutomaticWorkLog(entry) ? "직접 작성한 내용은 복구할 수 없습니다. 완료한 할 일과 회의록의 자동 기록은 유지됩니다." : "삭제한 업무일지는 복구할 수 없습니다."}
           </p>
           {hasUnderlyingDraft ? (
             <p className="mt-2 text-sm">
@@ -1904,7 +1919,7 @@ function WorkLogEntryForm({
           <WorkLogAuditMetadata entry={manualLog} />
         ) : (
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {existingLog ? "완료한 할 일은 이미 반영되었습니다. 필요한 내용만 추가로 기록하세요." : "같은 날짜로 저장하면 기존 업무일지가 수정됩니다."}
+            {existingLog ? "자동 기록은 이미 반영되었습니다. 필요한 내용만 추가로 기록하세요." : "같은 날짜로 저장하면 기존 업무일지가 수정됩니다."}
           </p>
         )}
       </header>
@@ -2063,7 +2078,7 @@ function WorkLogEntryForm({
 
 export function WorkLogAuditMetadata({ entry }: { entry: WorkLogEntry }) {
   if (!hasManualWorkLog(entry)) {
-    return <p className="mt-2 break-words text-xs text-[var(--text-muted)] [overflow-wrap:anywhere]">{entry.authorName} · 할 일 완료로 자동 기록됨</p>;
+    return <p className="mt-2 break-words text-xs text-[var(--text-muted)] [overflow-wrap:anywhere]">{entry.authorName} · {entry.meetingDocuments?.length ? "자동 연동된 업무 기록" : "할 일 완료로 자동 기록됨"}</p>;
   }
   const createdAt = formatKoreanDateTime(entry.createdAt) ?? entry.createdAt;
   const updatedAt = formatKoreanDateTime(entry.updatedAt) ?? entry.updatedAt;
@@ -2189,9 +2204,9 @@ export function WorkLogRecentList({
                       {entry.keyword}
                     </span>
                     <span className="mt-1 line-clamp-2 block whitespace-pre-wrap break-words text-sm leading-5 text-[var(--text-muted)] [overflow-wrap:anywhere]">
-                      {entry.content || entry.completedTasks?.map((task) => task.title).join(" · ")}
+                      {entry.content || [...(entry.completedTasks ?? []).map((task) => task.title), ...(entry.meetingDocuments ?? []).map((meeting) => meeting.title)].join(" · ")}
                     </span>
-                    {hasManualWorkLog(entry) && entry.completedTasks?.length ? <span className="mt-1 block text-xs font-medium text-[var(--brand)] dark:text-[var(--foreground)]">완료한 할 일 {entry.completedTasks.length}건 자동 기록</span> : null}
+                    {hasManualWorkLog(entry) && hasAutomaticWorkLog(entry) ? <span className="mt-1 block text-xs font-medium text-[var(--brand)] dark:text-[var(--foreground)]">{[entry.completedTasks?.length ? `완료한 할 일 ${entry.completedTasks.length}건` : "", entry.meetingDocuments?.length ? `회의록 ${entry.meetingDocuments.length}건` : ""].filter(Boolean).join(" · ")} 자동 기록</span> : null}
                   </span>
                 </Link>
               </li>

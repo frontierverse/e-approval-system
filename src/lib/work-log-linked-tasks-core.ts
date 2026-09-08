@@ -3,6 +3,7 @@ import {
   parseWorkLogDateValue,
   type WorkLogCompletedTask,
   type WorkLogEntry,
+  type WorkLogMeetingDocument,
 } from "@/lib/work-log-core";
 
 const dayInMs = 24 * 60 * 60 * 1000;
@@ -24,12 +25,16 @@ export function combineWorkLogEntry({
   authorName,
   completedTasks,
   manualEntry,
+  meetingDocuments = [],
+  meetingRecordedAt = [],
   workDate,
 }: {
   authorId: string;
   authorName: string;
   completedTasks: readonly WorkLogCompletedTask[];
   manualEntry: WorkLogEntry | null;
+  meetingDocuments?: readonly WorkLogMeetingDocument[];
+  meetingRecordedAt?: readonly string[];
   workDate: string;
 }): WorkLogEntry | null {
   const tasksById = new Map<string, WorkLogCompletedTask>();
@@ -51,25 +56,43 @@ export function combineWorkLogEntry({
       first.completedAt.localeCompare(second.completedAt) ||
       first.id.localeCompare(second.id),
   );
+  const meetings = [...new Map(
+    meetingDocuments
+      .filter((meeting) =>
+        meeting.meetingDate === workDate && meeting.attachments.length > 0,
+      )
+      .map((meeting) => [meeting.id, meeting]),
+  ).values()];
 
   if (manualEntry) {
-    return { ...manualEntry, completedTasks: tasks };
+    return { ...manualEntry, completedTasks: tasks, meetingDocuments: meetings };
   }
 
-  if (tasks.length === 0) {
+  if (tasks.length === 0 && meetings.length === 0) {
     return null;
   }
+
+  const recordedTimes = [
+    ...tasks.map((task) => task.completedAt),
+    ...(meetings.length > 0 ? meetingRecordedAt : []),
+  ].sort();
+  const fallbackRecordedAt = getWorkLogTaskDateRange(workDate).gte.toISOString();
+  const keyword = [
+    ...(tasks.length > 0 ? [`할 일 완료 ${tasks.length}건`] : []),
+    ...(meetings.length > 0 ? [`회의록 ${meetings.length}건`] : []),
+  ].join(" · ");
 
   return {
     authorName,
     completedTasks: tasks,
+    meetingDocuments: meetings,
     content: "",
-    createdAt: tasks[0].completedAt,
-    id: `tasks:${authorId}:${workDate}`,
-    keyword: `할 일 완료 ${tasks.length}건`,
+    createdAt: recordedTimes[0] ?? fallbackRecordedAt,
+    id: `${meetings.length > 0 ? "auto" : "tasks"}:${authorId}:${workDate}`,
+    keyword,
     manualLogId: null,
     manualUpdatedAt: null,
-    updatedAt: tasks[tasks.length - 1].completedAt,
+    updatedAt: recordedTimes[recordedTimes.length - 1] ?? fallbackRecordedAt,
     updatedByName: null,
     workDate,
   };
