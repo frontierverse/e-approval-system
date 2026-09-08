@@ -6,6 +6,14 @@ export const workLogContributionWeekCount = 53;
 
 const dayInMs = 24 * 60 * 60 * 1000;
 
+export type WorkLogCompletedTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  meetingTitle: string | null;
+  completedAt: string;
+};
+
 export type WorkLogEntry = {
   id: string;
   workDate: string;
@@ -15,6 +23,9 @@ export type WorkLogEntry = {
   createdAt: string;
   updatedByName: string | null;
   updatedAt: string;
+  completedTasks?: WorkLogCompletedTask[];
+  manualLogId?: string | null;
+  manualUpdatedAt?: string | null;
 };
 
 export type WorkLogFormValues = {

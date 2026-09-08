@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { getSafeErrorDigest, logServerEvent } from "@/lib/observability";
 import { getWorkLogToday, isWorkLogDate } from "@/lib/work-log-core";
 import { getWorkLogLinkedScheduleLoadState } from "@/lib/work-log-linked-schedules";
 import { getWorkLogEntry } from "@/lib/work-logs";
@@ -29,23 +30,35 @@ export async function GET(
     );
   }
 
-  const [entry, linkedScheduleState] = await Promise.all([
-    getWorkLogEntry({
-      authorId: user.id,
-      workDate: date,
-    }),
-    getWorkLogLinkedScheduleLoadState(date),
-  ]);
+  try {
+    const [entry, linkedScheduleState] = await Promise.all([
+      getWorkLogEntry({
+        authorId: user.id,
+        workDate: date,
+      }),
+      getWorkLogLinkedScheduleLoadState(date),
+    ]);
 
-  if (!entry) {
+    if (!entry) {
+      return NextResponse.json(
+        { error: "업무일지를 찾을 수 없습니다." },
+        { headers: noStoreHeaders, status: 404 },
+      );
+    }
+
     return NextResponse.json(
-      { error: "업무일지를 찾을 수 없습니다." },
-      { headers: noStoreHeaders, status: 404 },
+      { entry, linkedScheduleState },
+      { headers: noStoreHeaders },
+    );
+  } catch (error) {
+    logServerEvent("error", "work_log.load_failed", {
+      errorDigest: getSafeErrorDigest(error),
+      workDate: date,
+    });
+
+    return NextResponse.json(
+      { error: "업무일지와 완료한 할 일을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      { headers: noStoreHeaders, status: 503 },
     );
   }
-
-  return NextResponse.json(
-    { entry, linkedScheduleState },
-    { headers: noStoreHeaders },
-  );
 }

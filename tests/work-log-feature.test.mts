@@ -405,7 +405,7 @@ describe("work log feature", () => {
     assert.match(boardSource, /onNavigate=\{[\s\S]*?canLeaveWorkLog[\s\S]*?event\.preventDefault/);
     assert.match(boardSource, /beforeunload/);
     assert.match(boardSource, /hasUnsavedChanges[\s\S]*?state\.success/);
-    assert.match(boardSource, /<WorkLogAuditMetadata entry=\{existingLog\}/);
+    assert.match(boardSource, /<WorkLogAuditMetadata entry=\{manualLog\}/);
     assert.match(boardSource, /name="expectedUpdatedAt"[\s\S]*?type="hidden"/);
     assert.match(boardSource, /현재 내용으로 덮어쓰기/);
     assert.match(boardSource, /role="alert"/);

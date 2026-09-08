@@ -197,7 +197,7 @@ describe("staff task action authorization and persistence", () => {
     harness.currentUser = { id: "other-admin", role: "ADMIN" };
     assert.match((await actions.createStaffTaskAction({}, form())).error, /이미 처리/);
     assert.equal(harness.tasks.length, 1);
-    assert.deepEqual(harness.invalidated.slice(0, 3), ["/", "/tasks", "/admin/tasks"]);
+    for (const path of ["/", "/tasks", "/admin/tasks", "/work-schedule/work-log"]) assert.ok(harness.invalidated.includes(path));
   });
   test("preserves entered values after validation failure and rejects invalid assignees", async () => {
     const invalid = await actions.createStaffTaskAction({}, form({ dueDate: "2026-02-30" }));
@@ -215,10 +215,28 @@ describe("staff task action authorization and persistence", () => {
     assert.ok(row.completedAt instanceof Date && row.completedAt.getTime() >= before);
     assert.equal(row.version, 1);
     assert.deepEqual(harness.writes.at(-1)?.where, { id: row.id, assigneeId: "employee", version: 0, deletedAt: null });
+    assert.ok(harness.invalidated.includes("/work-schedule/work-log"));
+    harness.invalidated = [];
     assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: false, version: 1 })).success);
     assert.equal(row.completedAt, null);
     assert.equal(row.version, 2);
+    assert.ok(harness.invalidated.includes("/work-schedule/work-log"));
     assert.equal(harness.audit.at(-1)?.metadata.changeType, "staffTask.reopen");
+  });
+  test("a repeated completion preserves the original completion day and adds no audit or write", async () => {
+    const row = await create();
+    harness.currentUser = { id: "employee", role: "USER" };
+    assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 })).success);
+    const completedAt = row.completedAt.toISOString();
+    const writes = harness.writes.length;
+    const audits = harness.audit.length;
+    assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 1 })).success);
+    assert.equal(row.completedAt.toISOString(), completedAt);
+    assert.equal(row.version, 1);
+    assert.equal(harness.writes.length, writes);
+    assert.equal(harness.audit.length, audits);
+    assert.ok((await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 })).error);
+    assert.equal(row.completedAt.toISOString(), completedAt);
   });
   test("neither another employee nor an administrator can check someone else's work", async () => {
     const row = await create();
@@ -354,11 +372,13 @@ describe("personal task creation, deletion, and history", () => {
     harness.currentUser = { id: "employee", role: "USER" };
     await actions.setStaffTaskCompletedAction({ id: row.id, completed: true, version: 0 });
     const completedAt = row.completedAt.toISOString();
+    harness.invalidated = [];
     assert.ok((await actions.deleteMyStaffTaskAction({ id: row.id, version: 1 })).success);
     assert.equal(harness.tasks.length, 1);
     assert.equal(row.completedAt.toISOString(), completedAt);
     assert.ok(row.deletedAt instanceof Date);
     assert.equal(row.version, 2);
+    assert.ok(harness.invalidated.includes("/work-schedule/work-log"));
     const audit = harness.audit.at(-1)!;
     assert.equal(audit.actorId, "employee");
     assert.equal(audit.metadata.before.deletedAt, null);

@@ -270,6 +270,7 @@ function staffTaskFormFailure(error: unknown, values: StaffTaskFormValues, fallb
 }
 
 function revalidateStaffTasks() {
+  revalidatePath("/work-schedule/work-log");
   revalidatePath("/");
   revalidatePath("/tasks");
   revalidatePath("/admin/tasks");

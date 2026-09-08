@@ -17,7 +17,7 @@ import {
   type WorkLogEntry,
   type WorkLogFormState,
 } from "@/lib/work-log-core";
-import { mapWorkLogRecord, workLogSelect } from "@/lib/work-logs";
+import { getWorkLogEntry, mapWorkLogRecord, workLogSelect } from "@/lib/work-logs";
 
 const workLogPath = "/work-schedule/work-log";
 const workLogTransactionMaxAttempts = 3;
@@ -85,7 +85,7 @@ export async function saveWorkLogAction(
             ) {
               return {
                 change: "unchanged" as const,
-                entry: mapWorkLogRecord(existingLog),
+                entry: (await getWorkLogEntry({ authorId: user.id, workDate: values.workDate }, tx))!,
               };
             }
 
@@ -130,7 +130,7 @@ export async function saveWorkLogAction(
 
             return {
               change: changeType,
-              entry: mapWorkLogRecord(savedLog),
+              entry: (await getWorkLogEntry({ authorId: user.id, workDate: values.workDate }, tx))!,
             };
           },
           {
