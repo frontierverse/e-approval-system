@@ -13,6 +13,14 @@ export function proxy(request: NextRequest) {
     publicApiPrefixes.some((prefix) => pathname.startsWith(prefix));
 
   if (!hasSession && !isPublicPath) {
+    // A background chat request must receive 401 so it clears private state;
+    // redirecting to an HTML login page would look like a successful fetch.
+    if (pathname === "/api/chat" || pathname.startsWith("/api/chat/")) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, {
+        status: 401,
+        headers: { "Cache-Control": "private, no-store", Vary: "Cookie" },
+      });
+    }
     const url = request.nextUrl.clone();
     url.pathname = loginPath;
     url.searchParams.set("next", pathname);

@@ -1,0 +1,274 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useStaffChatSync } from "@/hooks/use-staff-chat-sync";
+import { chatRequest, useStaffChatData } from "@/hooks/use-staff-chat-data";
+import type { ChatEmployee, ChatMessage } from "@/lib/staff-chat-types";
+
+const iconButton = "grid size-11 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
+const timeFormatter = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" });
+const dayFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+
+export function StaffChatDock({ userId }: { userId: string }) {
+  const data = useStaffChatData();
+  const { refresh, loading: threadLoading } = data;
+  const { status, statusLabel } = useStaffChatSync({ userId, refresh: data.refresh });
+  const [open, setOpen] = useState(false);
+  const [peer, setPeer] = useState<ChatEmployee | null>(null);
+  const [list, setList] = useState<"conversations" | "employees">("conversations");
+  const [search, setSearch] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [atBottom, setAtBottom] = useState(true);
+  const [pageActive, setPageActive] = useState(true);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const busyRef = useRef(false);
+  const readRef = useRef<Record<string, string>>({});
+  const attemptsRef = useRef<Record<string, { body: string; requestId: string }>>({});
+  const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
+  const messages = data.thread?.peerId === peer?.id ? data.thread?.messages ?? [] : [];
+  const draft = peer ? drafts[peer.id] ?? "" : "";
+  const currentPeer = data.overview?.employees.find((employee) => employee.id === peer?.id)
+    ?? data.overview?.conversations.find((conversation) => conversation.peer.id === peer?.id)?.peer ?? peer;
+  const unreadCount = data.overview?.unreadCount ?? 0;
+
+  useEffect(() => {
+    if (open) (peer ? inputRef.current : searchRef.current)?.focus();
+  }, [open, peer]);
+
+  useEffect(() => {
+    const update = () => setPageActive(document.visibilityState === "visible" && document.hasFocus());
+    update();
+    window.addEventListener("focus", update);
+    window.addEventListener("blur", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.removeEventListener("focus", update);
+      window.removeEventListener("blur", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sendError) errorRef.current?.focus();
+  }, [sendError]);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (!log || !open) return;
+    if (scrollAnchor.current) {
+      log.scrollTop = scrollAnchor.current.top + log.scrollHeight - scrollAnchor.current.height;
+      scrollAnchor.current = null;
+    } else if (atBottom) {
+      log.scrollTop = log.scrollHeight;
+    }
+  }, [data.thread, open, atBottom]);
+
+  const latestUnread = [...messages].reverse().find((message) => message.recipientId === userId && !message.readAt);
+  useEffect(() => {
+    if (!open || !peer || !atBottom || !pageActive || !latestUnread || threadLoading) return;
+    if (readRef.current[peer.id] === latestUnread.id) return;
+    readRef.current[peer.id] = latestUnread.id;
+    void chatRequest("/api/chat/read", { peerId: peer.id, messageId: latestUnread.id })
+      .then(() => refresh())
+      .catch(() => { delete readRef.current[peer.id]; });
+  }, [open, peer, atBottom, pageActive, latestUnread, threadLoading, refresh]);
+
+  function close() {
+    setOpen(false);
+    data.setActive(false, peer?.id ?? null);
+    launcherRef.current?.focus();
+  }
+
+  function toggleOpen() {
+    if (open) { close(); return; }
+    setOpen(true);
+    data.setActive(true, peer?.id ?? null);
+    void data.refresh().catch(() => {});
+  }
+
+  function choosePeer(employee: ChatEmployee) {
+    setPeer(employee);
+    setSendError("");
+    setAtBottom(true);
+    scrollAnchor.current = null;
+    void data.openThread(employee.id);
+  }
+
+  function backToList() {
+    setPeer(null);
+    setSendError("");
+    data.setActive(true, null);
+    void data.refresh().catch(() => {});
+  }
+
+  async function sendMessage(event: FormEvent) {
+    event.preventDefault();
+    if (!peer || !currentPeer?.active || !draft.trim() || busyRef.current) return;
+    const peerId = peer.id;
+    const body = draft.trim();
+    let attempt = attemptsRef.current[peerId];
+    if (!attempt || attempt.body !== body) {
+      attempt = { body, requestId: crypto.randomUUID() };
+      attemptsRef.current[peerId] = attempt;
+    }
+    busyRef.current = true;
+    setSending(true);
+    setSendError("");
+    try {
+      const result = await chatRequest<{ message: ChatMessage }>("/api/chat/messages", { peerId, ...attempt });
+      data.appendMessage(result.message, peerId);
+      setDrafts((previous) => previous[peerId]?.trim() === body ? { ...previous, [peerId]: "" } : previous);
+      delete attemptsRef.current[peerId];
+      if (data.isPeerActive(peerId)) setAtBottom(true);
+      void data.refresh().catch(() => {});
+    } catch (cause) {
+      data.handleFailure(cause);
+      setSendError(cause instanceof Error ? cause.message : "전송하지 못했습니다. 내용을 확인하고 다시 전송해 주세요.");
+    } finally {
+      busyRef.current = false;
+      setSending(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  const query = search.trim().toLocaleLowerCase("ko-KR");
+  const matches = (employee: ChatEmployee) => `${employee.name} ${employee.departmentName} ${employee.positionName}`.toLocaleLowerCase("ko-KR").includes(query);
+  const employees = data.overview?.employees.filter(matches) ?? [];
+  const conversations = data.overview?.conversations.filter((conversation) => matches(conversation.peer)) ?? [];
+
+  return (
+    <aside className="staff-chat-dock print:hidden" aria-label="직원 메신저">
+      {open ? (
+        <section
+          id="staff-chat-window"
+          role="dialog"
+          aria-label="직원 채팅"
+          className="staff-chat-window flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] shadow-lg"
+          onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.stopPropagation(); close(); } }}
+        >
+          <header className="flex min-h-14 shrink-0 items-center gap-1 border-b border-[var(--border)] px-2">
+            {peer && !data.authExpired ? <button type="button" aria-label="대화 목록으로" disabled={sending} onClick={backToList} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="back" /></button> : null}
+            <div className="min-w-0 flex-1 px-2 py-2">
+              <h2 className="truncate text-sm font-semibold">{peer && !data.authExpired ? peer.name : "직원 채팅"}</h2>
+              <p className="truncate text-xs text-[var(--text-muted)]">{peer && !data.authExpired ? `${peer.departmentName} · ${peer.positionName}` : "직원 간 1:1 대화"}</p>
+            </div>
+            <button type="button" aria-label="채팅창 최소화" onClick={close} className={iconButton}><ChatIcon kind="minimize" /></button>
+          </header>
+          <div role="status" className="flex min-h-8 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-muted)] px-4 py-1 text-xs text-[var(--text-muted)]">
+            <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${status === "connected" ? "bg-[var(--brand)]" : "bg-[var(--text-muted)]"}`} />
+            {statusLabel}
+          </div>
+          {data.error && !data.authExpired ? <div className="shrink-0 border-b border-[var(--border)] px-3 py-2"><p role="alert" className="text-xs text-[var(--danger)]">{data.error}</p><button type="button" onClick={() => { void data.refresh().catch(() => {}); }} className="min-h-11 rounded-md px-2 text-xs font-semibold">다시 시도</button></div> : null}
+          {data.authExpired ? <div className="p-4"><p role="alert" className="text-sm">로그인이 만료되었습니다.</p><a href="/login" className="mt-2 inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold underline">다시 로그인</a></div> : peer ? (
+            <>
+              <div
+                ref={logRef}
+                role="log"
+                aria-label={`${peer.name}님과의 메시지`}
+                aria-live="polite"
+                aria-relevant="additions"
+                aria-busy={data.loading}
+                tabIndex={0}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3"
+                onScroll={(event) => {
+                  const element = event.currentTarget;
+                  setAtBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 32);
+                }}
+              >
+                {data.thread?.hasMore ? <button type="button" disabled={data.loadingOlder} className="mb-2 min-h-11 w-full rounded-md border border-[var(--border)] text-xs disabled:opacity-60" onClick={() => {
+                  const log = logRef.current;
+                  if (log) scrollAnchor.current = { height: log.scrollHeight, top: log.scrollTop };
+                  void data.loadOlder();
+                }}>{data.loadingOlder ? "이전 대화 불러오는 중…" : "이전 대화 보기"}</button> : null}
+                {data.loading ? <ChatLoading /> : !messages.length && !data.error ? <div className="py-6 text-center"><p className="text-sm font-medium">첫 메시지를 보내 보세요.</p><p className="mt-1 text-xs text-[var(--text-muted)]">{peer.name}님과 주고받은 대화가 여기에 표시됩니다.</p></div> : null}
+                {messages.map((message, index) => {
+                  const mine = message.senderId === userId;
+                  const date = new Date(message.createdAt);
+                  const previous = messages[index - 1];
+                  const showDay = !previous || new Date(previous.createdAt).toDateString() !== date.toDateString();
+                  return <div key={message.id}>
+                    {showDay ? <p className="mb-3 mt-2 text-center text-xs text-[var(--text-muted)]">{dayFormatter.format(date)}</p> : null}
+                    <div className={`mb-3 flex flex-col ${mine ? "items-end" : "items-start"}`}>
+                      <p className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-5 [overflow-wrap:anywhere] ${mine ? "bg-[var(--brand)] text-white" : "border border-[var(--border)] bg-[var(--surface-muted)]"}`}><span className="sr-only">{mine ? "나" : peer.name}: </span>{message.body}</p>
+                      <div className="mt-1 flex gap-1.5 text-[11px] tabular-nums text-[var(--text-muted)]">{mine ? <span>{message.readAt ? "읽음" : "안 읽음"}</span> : null}<time dateTime={message.createdAt}>{timeFormatter.format(date)}</time></div>
+                    </div>
+                  </div>;
+                })}
+              </div>
+              {!atBottom && messages.length > 0 ? <button type="button" onClick={() => setAtBottom(true)} className="mx-3 mb-2 min-h-11 shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] text-xs font-semibold">최근 메시지로 이동</button> : null}
+              <form onSubmit={sendMessage} className="shrink-0 border-t border-[var(--border)] p-3" aria-busy={sending}>
+                {sendError ? <p role="alert" ref={errorRef} tabIndex={-1} className="mb-2 text-xs text-[var(--danger)]">{sendError}</p> : null}
+                {!currentPeer?.active ? <p className="mb-2 text-xs text-[var(--text-muted)]">현재 메시지를 받을 수 없는 직원입니다. 이전 대화는 확인할 수 있습니다.</p> : null}
+                <label htmlFor="staff-chat-message" className="sr-only">메시지</label>
+                <textarea
+                  id="staff-chat-message"
+                  ref={inputRef}
+                  value={draft}
+                  maxLength={2000}
+                  rows={2}
+                  disabled={!currentPeer?.active}
+                  readOnly={sending}
+                  placeholder="메시지 입력"
+                  aria-describedby="staff-chat-input-help"
+                  onChange={(event) => { setDrafts((previous) => ({ ...previous, [peer.id]: event.target.value })); setSendError(""); }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
+                  }}
+                  className="block min-h-16 w-full resize-none rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-base leading-5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] disabled:opacity-60 sm:text-sm"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span></p>
+                  <button type="submit" disabled={sending || !draft.trim() || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : "전송"}<ChatIcon kind="send" /></button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="shrink-0 border-b border-[var(--border)] px-3 pt-2">
+                <div className="flex gap-1" aria-label="채팅 목록 선택">
+                  <button type="button" aria-pressed={list === "conversations"} onClick={() => setList("conversations")} className={`min-h-11 flex-1 rounded-md px-3 text-sm font-semibold ${list === "conversations" ? "bg-[var(--brand-soft)]" : "text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"}`}>대화 <span className="ml-1 tabular-nums">{data.overview?.conversations.length ?? 0}</span></button>
+                  <button type="button" aria-pressed={list === "employees"} onClick={() => setList("employees")} className={`min-h-11 flex-1 rounded-md px-3 text-sm font-semibold ${list === "employees" ? "bg-[var(--brand-soft)]" : "text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"}`}>직원 <span className="ml-1 tabular-nums">{data.overview?.employees.length ?? 0}</span></button>
+                </div>
+                <label className="my-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--border-strong)] px-3"><ChatIcon kind="search" /><span className="sr-only">직원 검색</span><input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름·부서 검색" className="min-h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[var(--text-muted)] sm:text-sm" /></label>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" aria-busy={!data.overview && !data.error}>
+                {!data.overview && !data.error ? <ChatLoading /> : null}
+                {list === "conversations" ? (
+                  <ul aria-label="대화 목록">{conversations.map((conversation) => <li key={conversation.peer.id}><button type="button" aria-label={`${conversation.peer.name} 대화 열기`} onClick={() => choosePeer(conversation.peer)} className="flex min-h-16 w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-[var(--surface-muted)]"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{conversation.peer.name}</span><span className="truncate text-xs text-[var(--text-muted)]">{conversation.peer.departmentName}</span></div><p className="mt-1 truncate text-xs text-[var(--text-muted)]">{conversation.lastMessage.senderId === userId ? "나: " : ""}{conversation.lastMessage.body}</p></div><div className="flex shrink-0 flex-col items-end gap-1"><time className="text-[11px] tabular-nums text-[var(--text-muted)]" dateTime={conversation.lastMessage.createdAt}>{timeFormatter.format(new Date(conversation.lastMessage.createdAt))}</time>{conversation.unreadCount > 0 ? <UnreadBadge count={conversation.unreadCount} /> : null}</div></button></li>)}</ul>
+                ) : <ul aria-label="직원 목록">{employees.map((employee) => <li key={employee.id}><button type="button" aria-label={`${employee.name} 대화 열기`} onClick={() => choosePeer(employee)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left hover:bg-[var(--surface-muted)]"><div className="min-w-0"><p className="truncate text-sm font-semibold">{employee.name}</p><p className="mt-1 truncate text-xs text-[var(--text-muted)]">{employee.departmentName} · {employee.positionName}</p></div><ChatIcon kind="chat" /></button></li>)}</ul>}
+                {data.overview && !(list === "conversations" ? conversations : employees).length ? <div className="px-2 py-5 text-center"><p className="text-sm font-medium">{query ? "검색 결과가 없습니다." : list === "conversations" ? "아직 대화가 없습니다." : "대화할 직원이 없습니다."}</p><p className="mt-1 text-xs text-[var(--text-muted)]">{query ? "이름이나 부서를 다시 확인해 주세요." : "직원을 선택하면 대화를 시작할 수 있습니다."}</p>{list === "conversations" && !query ? <button type="button" onClick={() => setList("employees")} className="mt-2 min-h-11 rounded-md px-4 text-sm font-semibold hover:bg-[var(--surface-muted)]">직원 찾아 대화하기</button> : null}</div> : null}
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
+      <button
+        ref={launcherRef}
+        type="button"
+        aria-label={`직원 채팅${unreadCount ? `, 안 읽은 메시지 ${unreadCount}개` : ""}`}
+        aria-expanded={open}
+        aria-controls="staff-chat-window"
+        onClick={toggleOpen}
+        className="ml-auto flex min-h-11 min-w-36 items-center justify-between gap-3 rounded-t-lg border border-b-0 border-[var(--border-strong)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-sm hover:bg-[var(--surface-muted)]"
+      ><ChatIcon kind="chat" /><span>직원 채팅</span>{unreadCount ? <UnreadBadge count={unreadCount} /> : <ChatIcon kind={open ? "minimize" : "up"} />}</button>
+    </aside>
+  );
+}
+
+function UnreadBadge({ count }: { count: number }) {
+  return <span aria-label={`안 읽은 메시지 ${count}개`} className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 text-[11px] font-semibold tabular-nums text-white">{count > 99 ? "99+" : count}</span>;
+}
+
+function ChatLoading() {
+  return <div role="status" className="space-y-3 px-2 py-3"><span className="sr-only">채팅 불러오는 중</span>{[0, 1, 2].map((item) => <div key={item} className="h-12 rounded-md bg-[var(--surface-muted)] motion-safe:animate-pulse" />)}</div>;
+}
+
+function ChatIcon({ kind }: { kind: "chat" | "search" | "back" | "send" | "minimize" | "up" }) {
+  return <svg className="size-4 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{kind === "chat" ? <><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5Z" /><path d="M7 9h8M7 13h5" /></> : kind === "search" ? <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></> : kind === "back" ? <path d="m14 6-6 6 6 6" /> : kind === "send" ? <><path d="m22 2-7 20-4-9L2 9Z" /><path d="M22 2 11 13" /></> : kind === "minimize" ? <path d="M5 12h14" /> : <path d="m6 14 6-6 6 6" />}</svg>;
+}

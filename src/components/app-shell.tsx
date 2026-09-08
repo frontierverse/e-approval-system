@@ -9,6 +9,8 @@ import {
   type NavigationItem,
 } from "@/components/app-nav";
 import { NotificationBell } from "@/components/notification-bell";
+import { StaffChatDock } from "@/components/staff-chat-dock";
+import "@/components/staff-chat.css";
 import {
   ShellQuickStatusFallback,
   ShellQuickStatusLinks,
@@ -185,6 +187,7 @@ export function AppShell({
 
         <AppMain>{children}</AppMain>
       </div>
+      <StaffChatDock key={userId} userId={userId} />
     </div>
   );
 }

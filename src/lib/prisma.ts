@@ -30,6 +30,7 @@ const requiredPrismaDelegates = [
   "youthRule",
   "staffLeaveLedger",
   "staffTask",
+  "staffChatMessage",
   "loginHistory",
   "lunchBoxCount",
   "lunchBoxDailyOperation",

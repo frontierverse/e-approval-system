@@ -13,6 +13,7 @@
     "lint": "eslint",
     "test": "node --import ./tests/tsx-loader.mjs --test --experimental-test-isolation=none \"tests/**/*.test.mts\"",
     "test:e2e": "playwright test",
+    "test:chat": "playwright test --config playwright.chat.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "verify": "npm run test && npm run lint && npm run typecheck && npm run build",
     "deploy:check": "node scripts/check-production-env.mjs",

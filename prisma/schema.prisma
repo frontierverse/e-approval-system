@@ -166,6 +166,8 @@ model User {
   checkedLunchBoxCounts          LunchBoxCount[]           @relation("LunchBoxCountChecker")
   checkedLunchBoxSchools         LunchBoxSchoolCheck[]     @relation("LunchBoxSchoolCheckChecker")
   updatedLunchBoxDailyOperations LunchBoxDailyOperation[]  @relation("LunchBoxDailyOperationUpdater")
+  sentChatMessages              StaffChatMessage[]        @relation("StaffChatSender")
+  receivedChatMessages          StaffChatMessage[]        @relation("StaffChatRecipient")
 
   @@index([departmentId])
   @@index([positionId])
@@ -965,4 +967,22 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([documentId])
   @@index([type])
+}
+
+model StaffChatMessage {
+  id          String    @id @default(cuid())
+  sequence    BigInt    @unique @default(autoincrement())
+  senderId    String
+  recipientId String
+  body        String    @db.VarChar(2000)
+  requestId   String    @db.VarChar(128)
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+
+  sender    User @relation("StaffChatSender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient User @relation("StaffChatRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@unique([senderId, requestId])
+  @@index([senderId, recipientId, sequence])
+  @@index([recipientId, readAt, sequence])
 }
