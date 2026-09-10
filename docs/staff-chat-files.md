@@ -17,6 +17,14 @@
 실패한 드롭 파일은 대화별로 보존하며 ‘파일 다시 전송’은 같은 요청 ID로 파일만 재시도한다.
 채팅창 밖에 파일을 놓아도 열린 업무 화면이 파일로 바뀌지 않도록 기본 동작을 차단한다.
 
+파일 전송 중에는 첨부파일 아래에 진행 단계, 퍼센트, 채워지는 막대를 표시한다.
+작은 파일과 대용량 ZIP 모두 브라우저가 측정한 전송량으로 진행률을 갱신하며,
+ZIP을 이어 보낼 때는 이미 저장된 조각의 크기도 포함한다. 파일 확인 단계는 업로드와
+구분하고, 서버 응답을 기다리는 동안에는 99% 이하를 표시한다. ZIP 조각을 모두 저장하면
+100%와 ‘서버에서 전송 마무리 중…’을 표시하고 메시지 생성이 끝나면 첨부 영역을 비운다.
+막대는 퍼센트에 맞춰 부드럽게 차오르며, 모션 줄이기 설정에서는 애니메이션을 생략한다.
+화면 읽기 도구에는 진행 단계와 현재 퍼센트를 제공한다.
+
 ## 삭제 시점
 
 수신자 브라우저가 파일 전체를 받아 다운로드를 시작한 뒤 서버에 완료를 알리는 시점에
@@ -118,6 +126,7 @@ PDF는 PDF.js로 페이지를 canvas에 그린다. PDF 스크립트, XFA 및 주
 
 추가 검증은 `tests/staff-chat-uploads.test.mts`(세션·조각·완료·실패 복구),
 `tests/staff-chat-chunk-storage.test.mts`(100 MiB 스트림·무결성·암호화·삭제 재시도),
+`tests/staff-chat-upload-client.test.mts`(전송량 기반 진행률·재개한 조각 합산·인증 및 네트워크 오류),
 `e2e/staff-chat.spec.ts`(용량 경계·실패 후 이어 보내기·진행 표시)에서 수행한다.
 
 2026-09-10 로컬 검증: 파일·업로드 API 51개와 조각 저장소 9개 테스트, PC·모바일 ZIP
@@ -129,6 +138,13 @@ PDF는 PDF.js로 페이지를 canvas에 그린다. PDF 스크립트, XFA 및 주
 검수 이미지: [PC 전송 진행](../outputs/chat-files/desktop-large-zip-progress.png),
 [모바일 100 MB 선택](../outputs/chat-files/mobile-zip-100mb-selected.png),
 [320px 다크 모드](../outputs/chat-files/mobile-large-zip-progress-320.png).
+
+같은 날 진행 게이지 추가 후 클라이언트 테스트 4개와 첨부 전송 브라우저 테스트 10개,
+변경 파일 ESLint, TypeScript, 프로덕션 빌드를 통과했다. 위 네 화면 크기에서 게이지를
+다시 검수했고, 실제 렌더링 너비가 ZIP 20→65→99%, 작은 파일 25→65→99%로 늘어나는지
+측정했다. 서버 마무리 100%, 실패 시 초안·첨부 보존, 재시도, 다크 모드와 모션 줄이기도
+확인했다. [PC 65% 게이지](../outputs/chat-files/desktop-large-zip-progress-65.png),
+[모바일 65% 게이지](../outputs/chat-files/mobile-large-zip-progress-65.png).
 
 회귀 검증은 `tests/staff-chat-files.test.mts`에서 인증과 참여자 제한, 재전송 내용 충돌,
 다운로드 권한과 중복 완료, 전송·삭제 실패 복구, multipart 크기 제한을 다룬다.

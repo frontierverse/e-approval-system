@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useStaffChatSync } from "@/hooks/use-staff-chat-sync";
 import { useStaffChatPosition } from "@/hooks/use-staff-chat-position";
 import { useStaffChatFileDrop } from "@/hooks/use-staff-chat-file-drop";
-import { chatRequest, readChatResponse, useStaffChatData } from "@/hooks/use-staff-chat-data";
+import { chatRequest, useStaffChatData } from "@/hooks/use-staff-chat-data";
 import { formatChatFileSize, useStaffChatFilePolicy } from "@/hooks/use-staff-chat-file-policy";
 import { StaffChatFile } from "@/components/staff-chat-file";
 import { getStaffChatFileSizeLimit, isStaffChatZip, staffChatChunkSize } from "@/lib/staff-chat-file-limits";
-import { uploadStaffChatZip, type ChatUploadProgress } from "@/lib/staff-chat-upload-client";
+import { uploadStaffChatFile, uploadStaffChatZip, type ChatUploadProgress } from "@/lib/staff-chat-upload-client";
 import type { ChatEmployee, ChatMessage } from "@/lib/staff-chat-types";
 
 const iconButton = "grid size-11 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
@@ -192,15 +192,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
       if (attempt.file && isStaffChatZip(attempt.file.name) && attempt.file.size > staffChatChunkSize) {
         result = await uploadStaffChatZip({ file: attempt.file, peerId, body, requestId: attempt.requestId, onProgress: (progress) => setUploadProgress({ ...progress, peerId }) });
       } else if (attempt.file) {
-        const form = new FormData();
-        form.set("peerId", peerId);
-        form.set("body", body);
-        form.set("requestId", attempt.requestId);
-        form.set("file", attempt.file);
-        const response = await fetch("/api/chat/files", {
-          method: "POST", body: form, cache: "no-store", signal: AbortSignal.timeout(90_000),
-        });
-        result = await readChatResponse<{ message: ChatMessage }>(response);
+        result = await uploadStaffChatFile({ file: attempt.file, peerId, body, requestId: attempt.requestId, onProgress: (progress) => setUploadProgress({ ...progress, peerId }) });
       } else {
         result = await chatRequest<{ message: ChatMessage }>("/api/chat/messages", { peerId, body, requestId: attempt.requestId });
       }
@@ -313,7 +305,13 @@ export function StaffChatDock({ userId }: { userId: string }) {
                 {filePolicy.error ? <div className="mb-2 flex items-center gap-2"><p className="text-xs text-[var(--danger)]">{filePolicy.error}</p><button type="button" onClick={filePolicy.reload} className="min-h-11 shrink-0 rounded-md px-2 text-xs font-semibold">설정 다시 불러오기</button></div> : null}
                 {!currentPeer?.active ? <p className="mb-2 text-xs text-[var(--text-muted)]">현재 메시지를 받을 수 없는 직원입니다. 이전 대화는 확인할 수 있습니다.</p> : null}
                 <input ref={fileInputRef} type="file" aria-label="채팅 파일 선택" accept={filePolicy.policy?.allowedExtensions.join(",")} disabled={sending || !currentPeer?.active || !filePolicy.policy} className="hidden" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-                {selectedFile ? <div className="mb-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] pl-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p role={activeUploadProgress ? "status" : undefined} className="text-[11px] tabular-nums text-[var(--text-muted)]">{activeUploadProgress ? activeUploadProgress.stage === "finishing" ? "전송 마무리 중…" : `${activeUploadProgress.stage === "hashing" ? "파일 확인" : "업로드"} ${Math.floor(activeUploadProgress.completedBytes / activeUploadProgress.totalBytes * 100)}% · ${formatChatFileSize(selectedFile.size)}` : `${formatChatFileSize(selectedFile.size)}${selectedAttachment?.fileOnly ? " · 파일만 전송" : ""}`}</p></div><button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={iconButton}><ChatIcon kind="close" /></button></div> : null}
+                {selectedFile ? <div className="mb-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)]">
+                  <div className="flex min-h-11 items-center gap-2 pl-3">
+                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p className="text-[11px] tabular-nums text-[var(--text-muted)]">{formatChatFileSize(selectedFile.size)}{selectedAttachment?.fileOnly ? " · 파일만 전송" : ""}</p></div>
+                    <button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="close" /></button>
+                  </div>
+                  {activeUploadProgress ? <ChatUploadGauge progress={activeUploadProgress} fileName={selectedFile.name} /> : null}
+                </div> : null}
                 <label htmlFor="staff-chat-message" className="sr-only">메시지</label>
                 <textarea
                   id="staff-chat-message"
@@ -374,6 +372,20 @@ export function StaffChatDock({ userId }: { userId: string }) {
       ><ChatIcon kind="chat" /><span>직원 채팅</span>{unreadCount ? <UnreadBadge count={unreadCount} /> : <ChatIcon kind={open ? "minimize" : "up"} />}</button>
     </aside>
   );
+}
+
+function ChatUploadGauge({ progress, fileName }: { progress: ChatUploadProgress; fileName: string }) {
+  const percent = progress.stage === "finishing" ? 100 : Math.max(0, Math.min(progress.stage === "uploading" ? 99 : 100,
+    Math.floor(progress.completedBytes / Math.max(1, progress.totalBytes) * 100)));
+  const label = progress.stage === "hashing" ? "파일 확인 중" : progress.stage === "finishing" ? "서버에서 전송 마무리 중…" : "업로드 중";
+  return <div className="px-3 pb-2">
+    <div className="mb-1 flex items-center justify-between gap-2 text-[11px] leading-4 text-[var(--text-muted)]">
+      <span role="status">{label}</span><span className="shrink-0 font-semibold tabular-nums text-[var(--foreground)]">{percent}%</span>
+    </div>
+    <div role="progressbar" aria-label={`${fileName} ${progress.stage === "hashing" ? "파일 확인" : "업로드"} 진행률`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${label} ${percent}%`} className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+      <div aria-hidden="true" className="h-full rounded-full bg-[var(--brand)] transition-[width] duration-200 ease-out motion-reduce:transition-none" style={{ width: `${percent}%` }} />
+    </div>
+  </div>;
 }
 
 function UnreadBadge({ count }: { count: number }) {

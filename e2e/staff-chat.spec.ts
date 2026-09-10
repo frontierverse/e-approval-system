@@ -124,6 +124,43 @@ async function screenshot(page: Page, name: string, project: string) {
   await page.screenshot({ path: `outputs/chat/${project}-${name}.png`, fullPage: true });
 }
 
+async function controlUploadProgress(page: Page) {
+  // Keep the real XHR and intercepted request/response. Only control upload
+  // events, since localhost otherwise transmits each part before a frame paints.
+  await page.addInitScript(() => {
+    let current: XMLHttpRequestUpload | undefined;
+    const send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function (body) {
+      current = this.upload;
+      this.upload.addEventListener("progress", (event) => {
+        if (event.isTrusted) event.stopImmediatePropagation();
+      }, true);
+      send.call(this, body);
+    };
+    Object.defineProperty(window, "emitUploadProgress", { value: (percent: number) => {
+      if (!current) throw new Error("No upload is active");
+      current.dispatchEvent(new ProgressEvent("progress", { lengthComputable: true, loaded: percent * 100, total: 10_000 }));
+    } });
+  });
+  return (percent: number) => page.evaluate((value) => {
+    (window as unknown as { emitUploadProgress: (value: number) => void }).emitUploadProgress(value);
+  }, percent);
+}
+
+async function expectUploadGauge(page: Page, percent: number) {
+  const gauge = page.getByRole("progressbar");
+  await expect(gauge).toBeVisible();
+  await expect(gauge).toHaveAttribute("aria-valuemin", "0");
+  await expect(gauge).toHaveAttribute("aria-valuemax", "100");
+  await expect(gauge).toHaveAttribute("aria-valuenow", String(percent));
+  await expect(gauge).toHaveAttribute("aria-valuetext", new RegExp(`${percent}%$`));
+  // Measure the rendered fill after the transition, not just its inline style.
+  await expect.poll(() => gauge.evaluate((element) => {
+    const fill = element.firstElementChild!.getBoundingClientRect();
+    return Math.round(fill.width / element.getBoundingClientRect().width * 100);
+  })).toBe(percent);
+}
+
 type FileSendBody = SendBody & { fileName: string; size: number; content: string };
 type DownloadBody = { requestId: string };
 const attachmentBytes = Buffer.from("%PDF-1.4\nchat attachment test document\n%%EOF");
@@ -845,6 +882,7 @@ test("ZIP picker accepts uppercase extension and Windows MIME, sends and downloa
 });
 
 test("large ZIP upload resumes verified chunks and a lost completion without duplicate messages", async ({ page }, info) => {
+  const emitProgress = await controlUploadProgress(page);
   const state = await prepareFiles(page);
   const name = "대용량 업무 자료.ZIP";
   const bytes = Buffer.alloc(filePolicy.uploadChunkSize + 1024 * 1024, 7);
@@ -853,6 +891,7 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
   const uploaded = new Map<number, Buffer>();
   const parts: number[] = [];
   let completions = 0;
+  let releaseFirstPart!: () => void;
   let releasePart!: () => void;
   let releaseComplete!: () => void;
   let completedMessage: ChatMessage | undefined;
@@ -873,6 +912,7 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
       const chunk = request.postDataBuffer()!;
       expect(chunk.equals(bytes.subarray(index * filePolicy.uploadChunkSize, (index + 1) * filePolicy.uploadChunkSize))).toBe(true);
       expect(createHash("sha256").update(chunk).digest("hex")).toBe(initializations[0].chunkDigests[index]);
+      if (index === 0) await new Promise<void>((resolve) => { releaseFirstPart = resolve; });
       if (index === 1 && parts.length === 2) {
         await new Promise<void>((resolve) => { releasePart = resolve; });
         return route.fulfill({ status: 503, json: { error: "연결이 끊겼습니다. 다시 전송해 주세요." } });
@@ -894,8 +934,18 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
   await page.locator('input[type="file"]').setInputFiles({ name, mimeType: "application/x-zip-compressed", buffer: bytes });
   const send = page.getByRole("button", { name: "전송", exact: true });
   await send.click();
-  const progress = page.getByRole("status").filter({ hasText: "업로드 80%" });
-  await expect(progress).toBeVisible();
+  await expect.poll(() => Boolean(releaseFirstPart)).toBe(true);
+  const progress = page.getByRole("progressbar", { name: `${name} 업로드 진행률`, exact: true });
+  await emitProgress(25);
+  await expectUploadGauge(page, 20);
+  await attachmentScreenshot(page, "large-zip-progress-20", info.project.name);
+  await emitProgress(81.25);
+  await expectUploadGauge(page, 65);
+  await attachmentScreenshot(page, "large-zip-progress-65", info.project.name);
+  releaseFirstPart();
+  await expect.poll(() => Boolean(releasePart)).toBe(true);
+  await emitProgress(100);
+  await expectUploadGauge(page, 99);
   await expect(editor).toHaveAttribute("readonly", "");
   await expect(page.getByRole("button", { name: "첨부파일 제거", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "전송 중…", exact: true })).toBeDisabled();
@@ -906,6 +956,8 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
   await attachmentScreenshot(page, "large-zip-progress", info.project.name);
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await attachmentScreenshot(page, "large-zip-progress-dark", info.project.name);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(progress.locator("div")).toHaveCSS("transition-property", "none");
   const viewport = page.viewportSize()!;
   for (const size of [{ width: 320, height: 800 }, { width: 683, height: 384 }]) {
     await page.setViewportSize(size);
@@ -920,16 +972,19 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
   await page.setViewportSize(viewport);
   releasePart();
   await expect(page.getByRole("alert")).toContainText("다시 전송");
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
   await expect(editor).toHaveValue("용량이 큰 업무 자료입니다.");
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   await send.click();
   await expect(page.getByRole("status").filter({ hasText: "전송 마무리 중" })).toBeVisible();
+  await expectUploadGauge(page, 100);
   await expect.poll(() => Boolean(releaseComplete)).toBe(true);
   releaseComplete();
   await expect(page.getByRole("alert")).toContainText("다시 전송");
   await expect(editor).toHaveValue("용량이 큰 업무 자료입니다.");
   await send.click();
   await expect(page.getByRole("log").getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
   await expect(editor).toHaveValue("");
   expect(initializations).toHaveLength(3);
   expect(initializations[0]).toMatchObject({ peerId: "test-a", body: "용량이 큰 업무 자료입니다.", originalName: name, size: bytes.length, mimeType: "application/x-zip-compressed" });
@@ -939,6 +994,52 @@ test("large ZIP upload resumes verified chunks and a lost completion without dup
   expect(completions).toBe(1);
   expect(state.messages).toHaveLength(1);
   expect(state.uploads).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("multipart file upload fills its gauge and retains draft and attachment after failure", async ({ page }, info) => {
+  const emitProgress = await controlUploadProgress(page);
+  const state = await prepareFiles(page);
+  await openEmployee(page, employees[0].name);
+  const name = "부서별 회의 자료와 업무 전달 사항을 모은 첨부파일.zip";
+  const bytes = Buffer.alloc(1_000_000);
+  zipBytes.copy(bytes);
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("첨부 자료 검토 부탁드립니다.");
+  await page.getByLabel("채팅 파일 선택", { exact: true }).setInputFiles({ name, mimeType: "application/zip", buffer: bytes });
+  let releaseUpload!: () => void;
+  state.onUpload(async (route) => {
+    await new Promise<void>((resolve) => { releaseUpload = resolve; });
+    await route.fulfill({ status: 503, json: { error: "전송하지 못했습니다. 다시 전송해 주세요." } });
+    return true;
+  });
+  await page.getByRole("button", { name: "전송", exact: true }).click();
+  await expect.poll(() => Boolean(releaseUpload)).toBe(true);
+  await emitProgress(25);
+  await expectUploadGauge(page, 25);
+  await attachmentScreenshot(page, "multipart-progress-25", info.project.name);
+  await emitProgress(65);
+  await expectUploadGauge(page, 65);
+  await attachmentScreenshot(page, "multipart-progress-65", info.project.name);
+  await expectChatInViewport(page);
+  await expect(page.getByRole("button", { name: "첨부파일 제거", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "전송 중…", exact: true })).toBeDisabled();
+  await editor.press("Enter");
+  expect(state.uploads).toHaveLength(1);
+  await emitProgress(100);
+  await expectUploadGauge(page, 99);
+  releaseUpload();
+  await expect(page.getByRole("alert")).toContainText("다시 전송");
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+  await expect(editor).toHaveValue("첨부 자료 검토 부탁드립니다.");
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  state.onUpload(undefined);
+  await page.getByRole("button", { name: "전송", exact: true }).click();
+  await expect(page.getByRole("log").getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+  await expect(editor).toHaveValue("");
+  expect(state.uploads).toHaveLength(2);
+  expect(state.uploads[1]).toEqual(state.uploads[0]);
   expect(state.errors).toEqual([]);
 });
 

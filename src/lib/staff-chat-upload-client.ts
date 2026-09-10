@@ -21,6 +21,50 @@ async function uploadRequest<T>(url: string, init: RequestInit): Promise<T> {
   return readChatResponse<T>(response);
 }
 
+// fetch has no upload progress event. Use the browser's measured transmitted
+// bytes for file requests, while keeping the same response/error handling.
+function uploadWithProgress<T>(url: string, method: "POST" | "PUT", body: Blob | FormData, onProgress: (ratio: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(method, url);
+    request.timeout = 90_000;
+    if (body instanceof Blob) request.setRequestHeader("Content-Type", "application/octet-stream");
+    const cleanup = () => {
+      request.upload.onprogress = null;
+      request.onload = request.onerror = request.ontimeout = request.onabort = null;
+    };
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(Math.max(0, Math.min(1, event.loaded / event.total)));
+    };
+    request.onload = () => {
+      cleanup();
+      if (!request.status) { reject(new TypeError("File upload failed")); return; }
+      const response = new Response([204, 205, 304].includes(request.status) ? null : request.responseText, { status: request.status });
+      void readChatResponse<T>(response).then(resolve, reject);
+    };
+    request.onerror = () => { cleanup(); reject(new TypeError("File upload failed")); };
+    request.ontimeout = () => { cleanup(); reject(new DOMException("File upload timed out", "TimeoutError")); };
+    request.onabort = () => { cleanup(); reject(new DOMException("File upload aborted", "AbortError")); };
+    try { request.send(body); }
+    catch (error) { cleanup(); reject(error); }
+  });
+}
+
+export async function uploadStaffChatFile({ file, peerId, body, requestId, onProgress }: UploadOptions): Promise<{ message: ChatMessage }> {
+  const form = new FormData();
+  form.set("peerId", peerId);
+  form.set("body", body);
+  form.set("requestId", requestId);
+  form.set("file", file);
+  const progress = (stage: ChatUploadProgress["stage"], completedBytes: number) => onProgress?.({ stage, completedBytes, totalBytes: file.size });
+  progress("uploading", 0);
+  const result = await uploadWithProgress<{ message: ChatMessage }>("/api/chat/files", "POST", form, (ratio) => {
+    progress("uploading", Math.min(Math.max(0, file.size - 1), Math.floor(file.size * ratio)));
+  });
+  progress("finishing", file.size);
+  return result;
+}
+
 export async function uploadStaffChatZip({ file, peerId, body, requestId, onProgress }: UploadOptions): Promise<{ message: ChatMessage }> {
   const chunkDigests: string[] = [];
   const progress = (stage: ChatUploadProgress["stage"], completedBytes: number) => onProgress?.({ stage, completedBytes, totalBytes: file.size });
@@ -46,11 +90,11 @@ export async function uploadStaffChatZip({ file, peerId, body, requestId, onProg
   for (let index = 0; index < chunkDigests.length; index++) {
     if (uploaded.has(index)) continue;
     const start = index * staffChatChunkSize;
-    await uploadRequest<{ ok: true }>(`/api/chat/uploads/${encodeURIComponent(initialized.uploadId)}/parts/${index}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: file.slice(start, start + staffChatChunkSize),
-    });
+    await uploadWithProgress<{ ok: true }>(
+      `/api/chat/uploads/${encodeURIComponent(initialized.uploadId)}/parts/${index}`,
+      "PUT", file.slice(start, start + staffChatChunkSize),
+      (ratio) => progress("uploading", Math.min(file.size - 1, completedBytes + Math.floor(partSize(index) * ratio))),
+    );
     completedBytes += partSize(index);
     progress("uploading", completedBytes);
   }
