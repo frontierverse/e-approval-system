@@ -191,9 +191,14 @@ function compileModule(path: string, aliases: Record<string, string>) {
 const baseModule = compileModule("../src/lib/staff-chat.ts", {
   "@/lib/prisma": mocks, "@/lib/auth": mocks, "@/lib/staff-chat-events": mocks, "@/lib/staff-chat-files": mocks,
 });
+const chunkStorageModule = compileModule("../src/lib/staff-chat-chunk-storage.ts", {
+  "@/lib/attachment-storage": mocks,
+});
+const chunkStorage = await import(chunkStorageModule);
 const fileModule = compileModule("../src/lib/staff-chat-files.ts", {
   "@/lib/prisma": mocks, "@/lib/attachment-policy": mocks, "@/lib/attachment-storage": mocks,
   "@/lib/staff-chat-events": mocks, "@/lib/staff-chat": baseModule,
+  "@/lib/staff-chat-chunk-storage": chunkStorageModule,
 });
 const service = await import(fileModule);
 const baseService = await import(baseModule);
@@ -275,6 +280,8 @@ describe("staff chat file API privacy and one-time delivery", () => {
     assert.deepEqual(policy.allowedExtensions, [".txt", ".pdf", ".png", ".zip"]);
     assert.equal(policy.maxFileCount, 1);
     assert.equal(policy.maxFileSize, staffChatFileMaxBytes);
+    assert.equal(policy.zipMaxFileSize, 100 * 1024 * 1024);
+    assert.equal(policy.uploadChunkSize, 4 * 1024 * 1024);
     assert.deepEqual(harness.policy, original);
     const documentUpload = await prepareAttachmentFiles([form({ filename: "자료.zip" }).get("file")!], harness.policy);
     assert.match(documentUpload.error!, /허용되지 않는 파일 형식/);
@@ -314,15 +321,57 @@ describe("staff chat file API privacy and one-time delivery", () => {
     assert.equal(harness.deletes.length, mimeTypes.length);
   });
 
-  test("ZIP support preserves size limits and rejects disallowed suffixes regardless of MIME", async () => {
+  test("ZIP supports its own cap while preserving multipart ceiling and rejecting disallowed suffixes", async () => {
     for (const filename of ["자료.zip.exe", "자료.7z", "자료.zip.txt"]) {
       if (filename.endsWith(".txt")) harness.policy.allowedExtensions = [".pdf"];
       await assert.rejects(service.sendStaffChatFile("actor", form({ filename, mimeType: "application/zip" })), { status: 400 });
     }
     await assert.rejects(service.sendStaffChatFile("actor", form({ filename: "자료.zip", contents: new Uint8Array(staffChatFileMaxBytes + 1) })), { status: 413 });
     harness.policy.maxFileSizeMb = 1;
-    await assert.rejects(service.sendStaffChatFile("actor", form({ filename: "자료.zip", contents: new Uint8Array(1024 * 1024 + 1) })), { status: 400 });
     assert.equal(harness.writes.length, 0);
+    const sent = await service.sendStaffChatFile("actor", form({ filename: "자료.zip", contents: new Uint8Array(1024 * 1024 + 1) }));
+    assert.equal(sent.attachment.size, 1024 * 1024 + 1);
+    assert.equal(harness.writes.length, 1);
+  });
+
+  test("large ZIP download lazily streams manifest parts and recipient completion removes all stored bytes", async () => {
+    const uploadId = "17567a65-0eca-4f6c-9c59-1b01804b096f";
+    const chunks = [Buffer.alloc(staffChatFileMaxBytes, 0x50), Buffer.from("ZIP tail")];
+    const parts = [];
+    for (const [index, bytes] of chunks.entries()) {
+      parts.push(await chunkStorage.writeStaffChatChunk(uploadId, index, "local", bytes, createHash("sha256").update(bytes).digest("hex")));
+    }
+    const size = chunks.reduce((sum, bytes) => sum + bytes.length, 0);
+    const manifest = await chunkStorage.writeStaffChatManifest(uploadId, "local", parts, size);
+    const message = record(1);
+    harness.messages.push(message);
+    harness.attachments.push({
+      id: "large-zip-attachment", messageId: message.id, originalName: "큰 업무 자료.zip", mimeType: "application/zip", size,
+      fileDigest: "retained-file-fingerprint", ...manifest, downloadRequestId: null, downloadToken: null,
+      downloadExpiresAt: null, downloadedAt: null, deletionRequestedAt: null, deletedAt: null,
+    });
+    const id = harness.attachments[0].id;
+    harness.currentUser = user("peer");
+    const response = await downloadRoutes.POST(post(`files/${id}/download`, { requestId: "request-large-download" }), { params: Promise.resolve({ id }) });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Content-Length"), null);
+    assert.equal(response.headers.get("Content-Type"), "application/octet-stream");
+    assert.deepEqual(harness.reads, [manifest.storageKey], "returning the download response must read only the small manifest");
+    const reader = response.body!.getReader();
+    for (const bytes of chunks) {
+      const received = await reader.read(); assert.equal(received.done, false);
+      assert.deepEqual(Buffer.from(received.value!), bytes);
+    }
+    assert.equal((await reader.read()).done, true); reader.releaseLock();
+    assert.deepEqual(harness.reads, [manifest.storageKey, ...parts.map((part) => part.storageKey)]);
+    assert.equal(harness.objects.size, 3); assert.equal(harness.deletes.length, 0);
+    const token = response.headers.get("X-Chat-Download-Token"); assert.ok(token);
+    const completed = await completeRoutes.POST(post(`files/${id}/complete`, { token }), { params: Promise.resolve({ id }) });
+    assert.equal(completed.status, 200);
+    const value = await completed.json(); assert.equal(value.message.attachment.status, "deleted"); noPrivateMetadata(value);
+    assert.equal(harness.objects.size, 0); assert.equal(harness.deletes.at(-1), manifest.storageKey);
+    assert.ok(parts.every((part) => harness.deletes.includes(part.storageKey)));
+    assert.equal(harness.attachments[0].storageKey, null); assert.equal(harness.attachments[0].storageProvider, null);
   });
 
   test("persists a file and message together and returns only public attachment fields", async () => {

@@ -168,6 +168,8 @@ model User {
   updatedLunchBoxDailyOperations LunchBoxDailyOperation[]  @relation("LunchBoxDailyOperationUpdater")
   sentChatMessages              StaffChatMessage[]        @relation("StaffChatSender")
   receivedChatMessages          StaffChatMessage[]        @relation("StaffChatRecipient")
+  sentChatUploads               StaffChatUpload[]         @relation("StaffChatUploadSender")
+  receivedChatUploads           StaffChatUpload[]         @relation("StaffChatUploadRecipient")
 
   @@index([departmentId])
   @@index([positionId])
@@ -982,6 +984,7 @@ model StaffChatMessage {
   sender    User @relation("StaffChatSender", fields: [senderId], references: [id], onDelete: Restrict)
   recipient User @relation("StaffChatRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
   attachment StaffChatAttachment?
+  upload StaffChatUpload?
 
   @@unique([senderId, requestId])
   @@index([senderId, recipientId, sequence])
@@ -1008,4 +1011,30 @@ model StaffChatAttachment {
   message StaffChatMessage @relation(fields: [messageId], references: [id], onDelete: Restrict)
 
   @@index([deletionRequestedAt, deletedAt])
+}
+
+model StaffChatUpload {
+  id             String    @id @default(uuid())
+  senderId       String
+  recipientId    String
+  requestId      String    @db.VarChar(128)
+  body           String    @db.VarChar(2000)
+  originalName   String    @db.VarChar(180)
+  mimeType       String    @db.VarChar(255)
+  size           Int
+  chunkDigests   Json
+  uploadedParts  Json      @default("[]")
+  storageProvider String
+  fileDigest     String    @db.VarChar(64)
+  messageId      String?   @unique
+  expiresAt      DateTime
+  deletionRequestedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  sender User @relation("StaffChatUploadSender", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient User @relation("StaffChatUploadRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  message StaffChatMessage? @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@unique([senderId, requestId])
+  @@index([senderId, expiresAt])
 }

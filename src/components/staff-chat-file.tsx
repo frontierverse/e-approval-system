@@ -67,7 +67,7 @@ export function StaffChatFile({ attachment, mine, onUpdated, onFailure }: Props)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId: requestId.current }),
         cache: "no-store",
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(300_000),
       });
       if (!response.ok) await readChatResponse(response);
       const token = response.headers.get("X-Chat-Download-Token");

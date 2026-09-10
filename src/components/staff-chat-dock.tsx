@@ -7,6 +7,8 @@ import { useStaffChatFileDrop } from "@/hooks/use-staff-chat-file-drop";
 import { chatRequest, readChatResponse, useStaffChatData } from "@/hooks/use-staff-chat-data";
 import { formatChatFileSize, useStaffChatFilePolicy } from "@/hooks/use-staff-chat-file-policy";
 import { StaffChatFile } from "@/components/staff-chat-file";
+import { getStaffChatFileSizeLimit, isStaffChatZip, staffChatChunkSize } from "@/lib/staff-chat-file-limits";
+import { uploadStaffChatZip, type ChatUploadProgress } from "@/lib/staff-chat-upload-client";
 import type { ChatEmployee, ChatMessage } from "@/lib/staff-chat-types";
 
 const iconButton = "grid size-11 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
@@ -27,6 +29,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [selectedFiles, setSelectedFiles] = useState<Record<string, SelectedAttachment | undefined>>({});
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<(ChatUploadProgress & { peerId: string }) | null>(null);
   const [sendError, setSendError] = useState("");
   const [atBottom, setAtBottom] = useState(true);
   const [pageActive, setPageActive] = useState(true);
@@ -44,6 +47,8 @@ export function StaffChatDock({ userId }: { userId: string }) {
   const draft = peer ? drafts[peer.id] ?? "" : "";
   const selectedAttachment = peer ? selectedFiles[peer.id] : undefined;
   const selectedFile = selectedAttachment?.file;
+  const activeUploadProgress = uploadProgress?.peerId === peer?.id ? uploadProgress : null;
+  const fileSizeHelp = filePolicy.policy ? `ZIP ${formatChatFileSize(filePolicy.policy.zipMaxFileSize)} · 기타 ${formatChatFileSize(filePolicy.policy.maxFileSize)}` : "";
   const currentPeer = data.overview?.employees.find((employee) => employee.id === peer?.id)
     ?? data.overview?.conversations.find((conversation) => conversation.peer.id === peer?.id)?.peer ?? peer;
   const unreadCount = data.overview?.unreadCount ?? 0;
@@ -137,8 +142,9 @@ export function StaffChatDock({ userId }: { userId: string }) {
     if (!policy.allowedExtensions.includes(extension)) {
       return "허용되지 않는 파일 형식입니다. 문서, 이미지 또는 ZIP 파일을 선택해 주세요.";
     }
-    if (!file.size || file.size > policy.maxFileSize) {
-      return `파일은 0바이트보다 크고 ${formatChatFileSize(policy.maxFileSize)} 이하여야 합니다.`;
+    const sizeLimit = getStaffChatFileSizeLimit(file.name, policy);
+    if (!file.size || file.size > sizeLimit) {
+      return `파일은 0바이트보다 크고 ${formatChatFileSize(sizeLimit)} 이하여야 합니다.`;
     }
     return "";
   }
@@ -183,7 +189,9 @@ export function StaffChatDock({ userId }: { userId: string }) {
     setSendError("");
     try {
       let result: { message: ChatMessage };
-      if (attempt.file) {
+      if (attempt.file && isStaffChatZip(attempt.file.name) && attempt.file.size > staffChatChunkSize) {
+        result = await uploadStaffChatZip({ file: attempt.file, peerId, body, requestId: attempt.requestId, onProgress: (progress) => setUploadProgress({ ...progress, peerId }) });
+      } else if (attempt.file) {
         const form = new FormData();
         form.set("peerId", peerId);
         form.set("body", body);
@@ -208,6 +216,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
     } finally {
       busyRef.current = false;
       setSending(false);
+      setUploadProgress(null);
       inputRef.current?.focus();
     }
   }
@@ -304,7 +313,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
                 {filePolicy.error ? <div className="mb-2 flex items-center gap-2"><p className="text-xs text-[var(--danger)]">{filePolicy.error}</p><button type="button" onClick={filePolicy.reload} className="min-h-11 shrink-0 rounded-md px-2 text-xs font-semibold">설정 다시 불러오기</button></div> : null}
                 {!currentPeer?.active ? <p className="mb-2 text-xs text-[var(--text-muted)]">현재 메시지를 받을 수 없는 직원입니다. 이전 대화는 확인할 수 있습니다.</p> : null}
                 <input ref={fileInputRef} type="file" aria-label="채팅 파일 선택" accept={filePolicy.policy?.allowedExtensions.join(",")} disabled={sending || !currentPeer?.active || !filePolicy.policy} className="hidden" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-                {selectedFile ? <div className="mb-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] pl-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p className="text-[11px] tabular-nums text-[var(--text-muted)]">{formatChatFileSize(selectedFile.size)}{selectedAttachment?.fileOnly ? " · 파일만 전송" : ""}</p></div><button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={iconButton}><ChatIcon kind="close" /></button></div> : null}
+                {selectedFile ? <div className="mb-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] pl-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p role={activeUploadProgress ? "status" : undefined} className="text-[11px] tabular-nums text-[var(--text-muted)]">{activeUploadProgress ? activeUploadProgress.stage === "finishing" ? "전송 마무리 중…" : `${activeUploadProgress.stage === "hashing" ? "파일 확인" : "업로드"} ${Math.floor(activeUploadProgress.completedBytes / activeUploadProgress.totalBytes * 100)}% · ${formatChatFileSize(selectedFile.size)}` : `${formatChatFileSize(selectedFile.size)}${selectedAttachment?.fileOnly ? " · 파일만 전송" : ""}`}</p></div><button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={iconButton}><ChatIcon kind="close" /></button></div> : null}
                 <label htmlFor="staff-chat-message" className="sr-only">메시지</label>
                 <textarea
                   id="staff-chat-message"
@@ -323,7 +332,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
                   className="block min-h-16 w-full resize-none rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-base leading-5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] disabled:opacity-60 sm:text-sm"
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1"><button type="button" aria-label="파일 첨부" title={filePolicy.policy ? `파일 1개 · 최대 ${formatChatFileSize(filePolicy.policy.maxFileSize)}` : "파일 첨부 설정 불러오는 중"} disabled={sending || !currentPeer?.active || !filePolicy.policy} onClick={() => fileInputRef.current?.click()} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="attach" /></button><p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span>{filePolicy.policy ? ` · 파일 ${formatChatFileSize(filePolicy.policy.maxFileSize)}까지` : ""}</p></div>
+                  <div className="flex min-w-0 items-center gap-1"><button type="button" aria-label="파일 첨부" title={filePolicy.policy ? `파일 1개 · ${fileSizeHelp}` : "파일 첨부 설정 불러오는 중"} disabled={sending || !currentPeer?.active || !filePolicy.policy} onClick={() => fileInputRef.current?.click()} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="attach" /></button><p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span>{fileSizeHelp ? <><br />{fileSizeHelp}</> : null}</p></div>
                   <button type="submit" disabled={sending || (!draft.trim() && !selectedFile) || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : selectedAttachment?.fileOnly ? "파일 다시 전송" : "전송"}<ChatIcon kind="send" /></button>
                 </div>
               </form>
@@ -349,7 +358,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
           {draggingFile ? <div role="status" aria-label="파일 놓기 안내" className="staff-chat-drop-overlay">
             <div className="max-w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-4 py-3 text-center shadow-sm">
               <p className="text-sm font-semibold [overflow-wrap:anywhere]">{dropBlockedReason || `${peer?.name}님에게 파일 전송`}</p>
-              {!dropBlockedReason ? <><p className="mt-1 text-sm">여기에 놓으면 바로 전송됩니다.</p><p className="mt-1 text-xs text-[var(--text-muted)]">파일 1개 · 최대 {formatChatFileSize(filePolicy.policy!.maxFileSize)}</p></> : null}
+              {!dropBlockedReason ? <><p className="mt-1 text-sm">여기에 놓으면 바로 전송됩니다.</p><p className="mt-1 text-xs text-[var(--text-muted)]">파일 1개 · {fileSizeHelp}</p></> : null}
             </div>
           </div> : null}
         </section>

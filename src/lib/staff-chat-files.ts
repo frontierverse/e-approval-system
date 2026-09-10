@@ -13,6 +13,8 @@ import { mapMessage, messageSelect } from "@/lib/staff-chat";
 import { getStaffChatToday, parseStaffChatId, parseStaffChatSend, StaffChatError } from "@/lib/staff-chat-core";
 import { publishStaffChatChange } from "@/lib/staff-chat-events";
 import { staffChatFileLeaseMs, staffChatFileMaxBytes } from "@/lib/staff-chat-file-core";
+import { getStaffChatFileSizeLimit, staffChatChunkSize, staffChatZipMaxBytes } from "@/lib/staff-chat-file-limits";
+import { readStaffChatStoredFile, removeStoredStaffChatFiles } from "@/lib/staff-chat-chunk-storage";
 import { getStaffChatPreviewContentType } from "@/lib/staff-chat-preview-core";
 import type { ChatFilePolicy, ChatMessage } from "@/lib/staff-chat-types";
 
@@ -31,6 +33,8 @@ export async function getStaffChatFilePolicy(): Promise<ChatFilePolicy> {
   const policy = await getAttachmentPolicy();
   return {
     maxFileSize: Math.min(staffChatFileMaxBytes, Math.floor(policy.maxFileSizeMb * 1024 * 1024)),
+    zipMaxFileSize: staffChatZipMaxBytes,
+    uploadChunkSize: staffChatChunkSize,
     maxFileCount: 1,
     // Chat supports ZIP even when the saved document attachment policy predates it.
     allowedExtensions: [...new Set([...policy.allowedExtensions, ".zip"])],
@@ -52,7 +56,7 @@ export async function sendStaffChatFile(userId: string, form: FormData): Promise
   }
   const policy = await getStaffChatFilePolicy();
   const prepared = await prepareAttachmentFiles(entries, {
-    maxFileCount: 1, maxFileSizeMb: policy.maxFileSize / 1024 / 1024, allowedExtensions: policy.allowedExtensions,
+    maxFileCount: 1, maxFileSizeMb: getStaffChatFileSizeLimit(input.name, policy) / 1024 / 1024, allowedExtensions: policy.allowedExtensions,
   }, { storageKeyPrefix: "staff-chat/" });
   if (prepared.error || prepared.files.length !== 1) throw new StaffChatError(prepared.error || "전송할 파일을 선택해 주세요.");
   const file = prepared.files[0];
@@ -107,7 +111,7 @@ function reuseFileMessage(existing: UploadMessageRecord, peerId: string, body: s
   return mapMessage(existing);
 }
 
-async function lockActiveParticipants(tx: Prisma.TransactionClient, actorId: string, peerId?: string): Promise<void> {
+export async function lockActiveParticipants(tx: Prisma.TransactionClient, actorId: string, peerId?: string): Promise<void> {
   const participants = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT "id" FROM "User"
     WHERE "id" IN (${actorId}, ${peerId ?? actorId}) AND "status" = 'ACTIVE'
@@ -203,7 +207,7 @@ export async function downloadStaffChatFile(userId: string, requestedId: unknown
     return { attachment, token };
   });
   try {
-    const file = await readStoredAttachmentFile({ storageKey: attachment.storageKey!, storageProvider: attachment.storageProvider });
+    const file = await readStaffChatStoredFile({ storageKey: attachment.storageKey!, storageProvider: attachment.storageProvider });
     if (file.size !== attachment.size) {
       await file.body.cancel();
       throw new StaffChatError("파일을 온전히 읽지 못했습니다. 다시 시도해 주세요.", 503);
@@ -213,6 +217,9 @@ export async function downloadStaffChatFile(userId: string, requestedId: unknown
       "Content-Type": "application/octet-stream", "Content-Length": String(attachment.size),
       "Content-Disposition": `attachment; filename="attachment"; filename*=UTF-8''${encodeURIComponent(attachment.originalName).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)}`,
     });
+    // Large ZIPs are sent as a lazy stream; only the small manifest is loaded
+    // before returning the response. Avoid a buffered response on the host.
+    if (attachment.storageKey!.startsWith("staff-chat-manifests/")) headers.delete("Content-Length");
     if (token) headers.set("X-Chat-Download-Token", token);
     return new Response(file.body, { headers });
   } catch (error) {
@@ -251,7 +258,7 @@ async function deleteConsumedAttachment(attachment: AttachmentRecord, signal = A
   if (attachment.deletedAt) return;
   if (!attachment.deletionRequestedAt || !attachment.storageKey) throw new Error("Invalid staff chat deletion state");
   try {
-    await removeStoredAttachmentFiles([{ storageKey: attachment.storageKey, storageProvider: attachment.storageProvider }], { signal });
+    await removeStoredStaffChatFiles([{ storageKey: attachment.storageKey, storageProvider: attachment.storageProvider }], { signal });
     const changed = await prisma.staffChatAttachment.updateMany({
       where: { id: attachment.id, deletedAt: null, deletionRequestedAt: { not: null }, storageKey: attachment.storageKey },
       data: { deletedAt: new Date(), storageKey: null, storageProvider: null, downloadExpiresAt: null },

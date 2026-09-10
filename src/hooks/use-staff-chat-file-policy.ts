@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { chatRequest } from "@/hooks/use-staff-chat-data";
+import type { ChatFilePolicy } from "@/lib/staff-chat-types";
 
-export type ChatFilePolicy = { maxFileSize: number; allowedExtensions: string[]; maxFileCount: number };
+export type { ChatFilePolicy } from "@/lib/staff-chat-types";
 
 export function useStaffChatFilePolicy(onFailure: (cause: unknown) => void) {
   const [policy, setPolicy] = useState<ChatFilePolicy | null>(null);

@@ -13,7 +13,7 @@ export type ChatAttachment = {
   status: "available" | "downloading" | "deleting" | "deleted";
 };
 
-export type ChatFilePolicy = { maxFileSize: number; maxFileCount: 1; allowedExtensions: string[] };
+export type ChatFilePolicy = { maxFileSize: number; zipMaxFileSize: number; uploadChunkSize: number; maxFileCount: 1; allowedExtensions: string[] };
 
 export type ChatMessage = {
   id: string;

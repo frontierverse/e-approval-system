@@ -1,12 +1,13 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { mkdir, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { PDFDocument, rgb } from "pdf-lib";
 import sharp from "sharp";
 import { startStaffChatFixture } from "./helpers/staff-chat-fixture";
 import type { ChatEmployee, ChatMessage } from "../src/lib/staff-chat-types";
 
 type SendBody = { peerId: string; body: string; requestId: string };
-const filePolicy = { maxFileSize: 4 * 1024 * 1024, allowedExtensions: [".pdf", ".txt", ".docx", ".xlsx", ".png", ".jpg", ".zip"], maxFileCount: 1 };
+const filePolicy = { maxFileSize: 4 * 1024 * 1024, zipMaxFileSize: 100 * 1024 * 1024, uploadChunkSize: 4 * 1024 * 1024, allowedExtensions: [".pdf", ".txt", ".docx", ".xlsx", ".png", ".jpg", ".zip"], maxFileCount: 1 };
 const employees: ChatEmployee[] = [
   { id: "test-a", name: "검증직원 가", departmentName: "운영지원팀", positionName: "주임", active: true },
   { id: "test-b", name: "검증직원 나", departmentName: "생활지원팀", positionName: "대리", active: true },
@@ -667,6 +668,7 @@ test("ZIP file drop sends immediately without sending the draft and shows respon
   const overlay = page.getByRole("status", { name: "파일 놓기 안내" });
   await expect(overlay).toContainText(`${employees[0].name}님에게 파일 전송`);
   await expect(overlay).toContainText("여기에 놓으면 바로 전송됩니다.");
+  await expect(overlay).toContainText("ZIP 100.0 MB · 기타 4.0 MB");
   // Child transitions must not dismiss the window's drop guidance.
   await fileDrag(page, "dragenter", { target: "#staff-chat-message" });
   await fileDrag(page, "dragleave", { target: "#staff-chat-message", related: "#staff-chat-window header" });
@@ -838,6 +840,132 @@ test("ZIP picker accepts uppercase extension and Windows MIME, sends and downloa
   expect(state.completions).toHaveLength(0);
   await expectChatInViewport(page);
   await attachmentScreenshot(page, "zip-sent", info.project.name);
+  expect(state.sent).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("large ZIP upload resumes verified chunks and a lost completion without duplicate messages", async ({ page }, info) => {
+  const state = await prepareFiles(page);
+  const name = "대용량 업무 자료.ZIP";
+  const bytes = Buffer.alloc(filePolicy.uploadChunkSize + 1024 * 1024, 7);
+  zipBytes.copy(bytes);
+  const initializations: (SendBody & { originalName: string; mimeType: string; size: number; chunkDigests: string[] })[] = [];
+  const uploaded = new Map<number, Buffer>();
+  const parts: number[] = [];
+  let completions = 0;
+  let releasePart!: () => void;
+  let releaseComplete!: () => void;
+  let completedMessage: ChatMessage | undefined;
+  await page.route("**/api/chat/uploads**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/chat/uploads") {
+      expect(request.method()).toBe("POST");
+      initializations.push(request.postDataJSON());
+      return route.fulfill({ json: { uploadId: "large-zip", uploadedParts: [...uploaded.keys()], ...(completedMessage ? { message: completedMessage } : {}) } });
+    }
+    const match = /^\/api\/chat\/uploads\/large-zip\/parts\/(\d+)$/.exec(url.pathname);
+    if (match) {
+      expect(request.method()).toBe("PUT");
+      expect(request.headers()["content-type"]).toBe("application/octet-stream");
+      const index = Number(match[1]);
+      parts.push(index);
+      const chunk = request.postDataBuffer()!;
+      expect(chunk.equals(bytes.subarray(index * filePolicy.uploadChunkSize, (index + 1) * filePolicy.uploadChunkSize))).toBe(true);
+      expect(createHash("sha256").update(chunk).digest("hex")).toBe(initializations[0].chunkDigests[index]);
+      if (index === 1 && parts.length === 2) {
+        await new Promise<void>((resolve) => { releasePart = resolve; });
+        return route.fulfill({ status: 503, json: { error: "연결이 끊겼습니다. 다시 전송해 주세요." } });
+      }
+      uploaded.set(index, chunk);
+      return route.fulfill({ json: { ok: true } });
+    }
+    expect(url.pathname).toBe("/api/chat/uploads/large-zip/complete");
+    completions++;
+    expect(Buffer.concat([...uploaded.values()]).equals(bytes)).toBe(true);
+    completedMessage = { ...attachmentMessage({ mine: true, name, size: bytes.length }), body: initializations[0].body };
+    state.messages.push(completedMessage);
+    await new Promise<void>((resolve) => { releaseComplete = resolve; });
+    return route.abort("failed");
+  });
+  await openEmployee(page, employees[0].name);
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("용량이 큰 업무 자료입니다.");
+  await page.locator('input[type="file"]').setInputFiles({ name, mimeType: "application/x-zip-compressed", buffer: bytes });
+  const send = page.getByRole("button", { name: "전송", exact: true });
+  await send.click();
+  const progress = page.getByRole("status").filter({ hasText: "업로드 80%" });
+  await expect(progress).toBeVisible();
+  await expect(editor).toHaveAttribute("readonly", "");
+  await expect(page.getByRole("button", { name: "첨부파일 제거", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "전송 중…", exact: true })).toBeDisabled();
+  await editor.press("Enter");
+  expect(initializations).toHaveLength(1);
+  await expectChatInViewport(page);
+  await expect(progress).toBeInViewport({ ratio: 1 });
+  await attachmentScreenshot(page, "large-zip-progress", info.project.name);
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await attachmentScreenshot(page, "large-zip-progress-dark", info.project.name);
+  const viewport = page.viewportSize()!;
+  for (const size of [{ width: 320, height: 800 }, { width: 683, height: 384 }]) {
+    await page.setViewportSize(size);
+    await expectChatInViewport(page);
+    // The existing short-viewport layout scrolls the conversation and composer
+    // together, so verify every upload control remains reachable there.
+    await page.getByRole("button", { name: "전송 중…", exact: true }).scrollIntoViewIfNeeded();
+    await expect(progress).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("button", { name: "전송 중…", exact: true })).toBeInViewport({ ratio: 1 });
+    await attachmentScreenshot(page, `large-zip-progress-${size.width}`, info.project.name);
+  }
+  await page.setViewportSize(viewport);
+  releasePart();
+  await expect(page.getByRole("alert")).toContainText("다시 전송");
+  await expect(editor).toHaveValue("용량이 큰 업무 자료입니다.");
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await send.click();
+  await expect(page.getByRole("status").filter({ hasText: "전송 마무리 중" })).toBeVisible();
+  await expect.poll(() => Boolean(releaseComplete)).toBe(true);
+  releaseComplete();
+  await expect(page.getByRole("alert")).toContainText("다시 전송");
+  await expect(editor).toHaveValue("용량이 큰 업무 자료입니다.");
+  await send.click();
+  await expect(page.getByRole("log").getByText(name, { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue("");
+  expect(initializations).toHaveLength(3);
+  expect(initializations[0]).toMatchObject({ peerId: "test-a", body: "용량이 큰 업무 자료입니다.", originalName: name, size: bytes.length, mimeType: "application/x-zip-compressed" });
+  expect(initializations[1]).toEqual(initializations[0]);
+  expect(initializations[2]).toEqual(initializations[0]);
+  expect(parts).toEqual([0, 1, 1]);
+  expect(completions).toBe(1);
+  expect(state.messages).toHaveLength(1);
+  expect(state.uploads).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("ZIP size validation accepts exactly 100 MB and rejects larger ZIPs while other files retain 4 MB", async ({ page }, info) => {
+  const state = await prepareFiles(page);
+  await openEmployee(page, employees[0].name);
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("보존할 초안");
+  await fileDrag(page, "drop", { names: ["한도초과.ZIP"], size: filePolicy.zipMaxFileSize + 1 });
+  await expect(page.getByRole("alert")).toContainText("100.0 MB");
+  await expect(page.getByText("한도초과.ZIP", { exact: true })).toHaveCount(0);
+  await fileDrag(page, "drop", { names: ["한도초과.pdf"], size: filePolicy.maxFileSize + 1 });
+  await expect(page.getByRole("alert")).toContainText("4.0 MB");
+  await expect(editor).toHaveValue("보존할 초안");
+  await page.locator('input[type="file"]').evaluate((input, size) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([new Uint8Array(size)], "최대용량.ZIP", { type: "application/zip" }));
+    (input as HTMLInputElement).files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, filePolicy.zipMaxFileSize);
+  await expect(page.getByText("최대용량.ZIP", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeEnabled();
+  await expect(page.locator("#staff-chat-input-help")).toContainText("ZIP 100.0 MB · 기타 4.0 MB");
+  await expectChatInViewport(page);
+  await attachmentScreenshot(page, "zip-100mb-selected", info.project.name);
+  expect(state.uploads).toHaveLength(0);
   expect(state.sent).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });

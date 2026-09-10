@@ -1,8 +1,9 @@
 import { assertStaffChatSameOrigin, StaffChatError } from "@/lib/staff-chat-core";
+import { staffChatFileMaxBytes } from "@/lib/staff-chat-file-limits";
 
-export const staffChatFileMaxBytes = 4 * 1024 * 1024;
+export { staffChatFileMaxBytes } from "@/lib/staff-chat-file-limits";
 export const staffChatFileRequestMaxBytes = staffChatFileMaxBytes + 64 * 1024;
-export const staffChatFileLeaseMs = 2 * 60 * 1000;
+export const staffChatFileLeaseMs = 10 * 60 * 1000;
 
 // Bound the incoming stream before invoking the multipart parser. A forged or
 // missing Content-Length cannot make formData allocate an unbounded upload.
