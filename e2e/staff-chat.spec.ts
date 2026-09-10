@@ -225,6 +225,33 @@ async function attachmentScreenshot(page: Page, name: string, project: string) {
   await page.screenshot({ path: `outputs/chat-files/${project}-${name}.png`, fullPage: true });
 }
 
+async function fileDrag(page: Page, type: string, options: {
+  target?: string; related?: string; names?: readonly string[]; size?: number; directory?: boolean; textOnly?: boolean;
+} = {}) {
+  return page.evaluate(({ type, options }) => {
+    const transfer = new DataTransfer();
+    if (options.textOnly) transfer.setData("text/plain", "dragged text");
+    else for (const name of options.names ?? ["드롭자료.txt"]) {
+      transfer.items.add(new File([options.size === undefined ? "dragged file" : new Uint8Array(options.size)], name));
+    }
+    // Chromium can return a new wrapper each time a transfer item is read.
+    // Override the platform method only during this synthetic directory drop.
+    const entryMethod = Object.getOwnPropertyDescriptor(DataTransferItem.prototype, "webkitGetAsEntry");
+    if (options.directory) Object.defineProperty(DataTransferItem.prototype, "webkitGetAsEntry", {
+      configurable: true, value: () => ({ isDirectory: true }),
+    });
+    const target = document.querySelector(options.target ?? "#staff-chat-window")!;
+    const event = new DragEvent(type, {
+      dataTransfer: transfer, bubbles: true, cancelable: true,
+      relatedTarget: options.related ? document.querySelector(options.related) : null,
+    });
+    try { return !target.dispatchEvent(event); }
+    finally {
+      if (options.directory && entryMethod) Object.defineProperty(DataTransferItem.prototype, "webkitGetAsEntry", entryMethod);
+    }
+  }, { type, options });
+}
+
 async function startRecipientDownload(page: Page, name = attachmentName) {
   await page.getByRole("button", { name: `${name} 다운로드`, exact: true }).click();
   await expect(page.getByText("파일을 받으면 원본이 삭제됩니다. 저장 창에서 취소하면 다시 받을 수 없습니다.", { exact: true })).toBeVisible();
@@ -251,6 +278,211 @@ async function canvasColor(page: Page, name: string) {
     return pixel[1] > pixel[2] ? "green" : pixel[2] > pixel[1] ? "blue" : "blank";
   });
 }
+
+async function chatBounds(page: Page) {
+  const bounds = await page.getByRole("dialog", { name: "직원 채팅", exact: true }).boundingBox();
+  expect(bounds).not.toBeNull();
+  return bounds!;
+}
+
+async function expectChatInViewport(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "직원 채팅", exact: true });
+  await expect.poll(async () => {
+    const bounds = await dialog.boundingBox();
+    const viewport = await page.evaluate(() => ({ width: Math.min(document.documentElement.clientWidth, document.documentElement.getBoundingClientRect().width), height: document.documentElement.clientHeight }));
+    return Boolean(bounds && bounds.x >= -1 && bounds.y >= -1
+      && bounds.x + bounds.width <= viewport.width + 1
+      && bounds.y + bounds.height <= viewport.height + 1);
+  }).toBe(true);
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole("button", { name: "채팅창 이동", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole("button", { name: "채팅창 최소화", exact: true })).toBeInViewport({ ratio: 1 });
+  for (const name of ["채팅창 이동", "채팅창 위치 초기화", "채팅창 최소화"]) {
+    const bounds = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
+}
+
+test("moving the open window keeps launcher anchored and preserves draft, position and reset", async ({ page }, info) => {
+  const state = await prepare(page);
+  await openEmployee(page, employees[0].name);
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  const launcher = page.getByRole("button", { name: /^직원 채팅/ });
+  await editor.fill("위치를 옮겨도 보존할 작성 중인 메시지");
+  const original = await chatBounds(page);
+  const launcherBefore = (await launcher.boundingBox())!;
+  const handle = (await page.getByRole("button", { name: "채팅창 이동", exact: true }).boundingBox())!;
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x - Math.min(160, original.x - 8), start.y - 96, { steps: 8 });
+  await page.mouse.up();
+  const moved = await chatBounds(page);
+  expect(moved.y).toBeLessThan(original.y - 40);
+  const launcherAfter = (await launcher.boundingBox())!;
+  expect(launcherAfter.x).toBeCloseTo(launcherBefore.x, 0);
+  expect(launcherAfter.y).toBeCloseTo(launcherBefore.y, 0);
+  await expectChatInViewport(page);
+  await expect(editor).toHaveValue("위치를 옮겨도 보존할 작성 중인 메시지");
+  await screenshot(page, "dragged-thread-light", info.project.name);
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await screenshot(page, "dragged-thread-dark", info.project.name);
+  await page.getByRole("button", { name: "채팅창 최소화", exact: true }).click();
+  await expect(launcher).toBeFocused();
+  await launcher.click();
+  await expect(editor).toHaveValue("위치를 옮겨도 보존할 작성 중인 메시지");
+  const reopened = await chatBounds(page);
+  expect(reopened.x).toBeCloseTo(moved.x, 0);
+  expect(reopened.y).toBeCloseTo(moved.y, 0);
+  await page.reload();
+  await launcher.click();
+  await expect.poll(async () => Math.abs((await chatBounds(page)).x - moved.x)).toBeLessThan(1);
+  await expect.poll(async () => Math.abs((await chatBounds(page)).y - moved.y)).toBeLessThan(1);
+  await page.getByRole("button", { name: "채팅창 위치 초기화", exact: true }).click();
+  await expect.poll(async () => Math.abs((await chatBounds(page)).x - original.x)).toBeLessThan(1);
+  await expect.poll(async () => Math.abs((await chatBounds(page)).y - original.y)).toBeLessThan(1);
+  expect(state.sent).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("keyboard movement uses small and large steps and resize keeps controls in bounds", async ({ page }, info) => {
+  const state = await prepare(page);
+  await openEmployee(page, employees[0].name);
+  const handle = page.getByRole("button", { name: "채팅창 이동", exact: true });
+  await handle.focus();
+  const initial = await chatBounds(page);
+  await handle.press("ArrowUp");
+  expect((await chatBounds(page)).y).toBeCloseTo(initial.y - 16, 0);
+  await handle.press("Shift+ArrowUp");
+  expect((await chatBounds(page)).y).toBeCloseTo(initial.y - 64, 0);
+  await expect(handle).toBeFocused();
+  for (let index = 0; index < 40; index++) await handle.press("Shift+ArrowLeft");
+  for (let index = 0; index < 20; index++) await handle.press("Shift+ArrowUp");
+  await expectChatInViewport(page);
+  for (let index = 0; index < 40; index++) await handle.press("Shift+ArrowRight");
+  for (let index = 0; index < 20; index++) await handle.press("Shift+ArrowDown");
+  await expectChatInViewport(page);
+  if (info.project.name === "desktop") {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expectChatInViewport(page);
+    await screenshot(page, "moved-wide-1440", info.project.name);
+  }
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expectChatInViewport(page);
+  await expect(page.getByRole("textbox", { name: "메시지", exact: true })).toBeInViewport({ ratio: 1 });
+  await screenshot(page, "moved-small-320", info.project.name);
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await page.setViewportSize({ width: 683, height: 384 });
+  await expectChatInViewport(page);
+  await page.getByRole("button", { name: "전송", exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeInViewport({ ratio: 1 });
+  await screenshot(page, "moved-zoom-200-dark", info.project.name);
+  expect(state.errors).toEqual([]);
+});
+
+test("Escape cancels a drag before normal Escape minimizes and restores launcher focus", async ({ page }) => {
+  const state = await prepare(page);
+  await openEmployee(page, employees[0].name);
+  const original = await chatBounds(page);
+  const handle = (await page.getByRole("button", { name: "채팅창 이동", exact: true }).boundingBox())!;
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x, start.y - 80, { steps: 5 });
+  expect((await chatBounds(page)).y).toBeLessThan(original.y - 40);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "직원 채팅", exact: true })).toBeVisible();
+  expect((await chatBounds(page)).x).toBeCloseTo(original.x, 0);
+  expect((await chatBounds(page)).y).toBeCloseTo(original.y, 0);
+  await page.mouse.up();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "직원 채팅", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^직원 채팅/ })).toBeFocused();
+  expect(state.errors).toEqual([]);
+});
+
+test("touch dragging moves only the open chat without scrolling the page", async ({ page }, info) => {
+  test.skip(!info.project.use.hasTouch, "Touch input is exercised in the mobile project.");
+  const state = await prepare(page);
+  await openEmployee(page, employees[0].name);
+  const original = await chatBounds(page);
+  const launcher = (await page.getByRole("button", { name: /^직원 채팅/ }).boundingBox())!;
+  const handle = (await page.getByRole("button", { name: "채팅창 이동", exact: true }).boundingBox())!;
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...start, id: 1 }] });
+    for (let step = 1; step <= 6; step++) {
+      await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: start.x, y: start.y - step * 16, id: 1 }] });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+  expect((await chatBounds(page)).y).toBeLessThan(original.y - 40);
+  const launcherAfter = (await page.getByRole("button", { name: /^직원 채팅/ }).boundingBox())!;
+  expect(launcherAfter.x).toBeCloseTo(launcher.x, 0);
+  expect(launcherAfter.y).toBeCloseTo(launcher.y, 0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expectChatInViewport(page);
+  await screenshot(page, "touch-dragged", info.project.name);
+  expect(state.errors).toEqual([]);
+});
+
+test("blocked browser storage still preserves position through minimize and reopen", async ({ page }) => {
+  await page.addInitScript(() => {
+    for (const method of ["getItem", "setItem", "removeItem"]) {
+      Object.defineProperty(Storage.prototype, method, {
+        configurable: true,
+        value: () => { throw new DOMException("Storage is disabled for this browser session", "SecurityError"); },
+      });
+    }
+  });
+  const state = await prepare(page);
+  await openEmployee(page, employees[0].name);
+  const original = await chatBounds(page);
+  const handle = page.getByRole("button", { name: "채팅창 이동", exact: true });
+  await handle.press("Shift+ArrowUp");
+  const moved = await chatBounds(page);
+  expect(moved.y).toBeCloseTo(original.y - 48, 0);
+  await page.getByRole("button", { name: "채팅창 최소화", exact: true }).click();
+  await page.getByRole("button", { name: /^직원 채팅/ }).click();
+  expect((await chatBounds(page)).x).toBeCloseTo(moved.x, 0);
+  expect((await chatBounds(page)).y).toBeCloseTo(moved.y, 0);
+  await page.getByRole("button", { name: "채팅창 위치 초기화", exact: true }).click();
+  expect((await chatBounds(page)).y).toBeCloseTo(original.y, 0);
+  await expectChatInViewport(page);
+  expect(state.errors).toEqual([]);
+});
+
+test("malformed or offscreen saved positions recover within computed safe-area insets", async ({ page }) => {
+  const state = await prepare(page);
+  await page.evaluate(() => localStorage.setItem("staff-chat-position:v1:test-me", "{malformed saved position"));
+  await page.getByRole("button", { name: /^직원 채팅/ }).click();
+  await expectChatInViewport(page);
+  await page.evaluate(() => localStorage.setItem("staff-chat-position:v1:test-me", JSON.stringify({ x: -100_000, y: 100_000 })));
+  await page.reload();
+  await page.getByRole("button", { name: /^직원 채팅/ }).click();
+  await expectChatInViewport(page);
+  const dialog = page.getByRole("dialog", { name: "직원 채팅", exact: true });
+  await dialog.evaluate((element) => {
+    for (const edge of ["left", "right", "top", "bottom"]) {
+      (element as HTMLElement).style.setProperty(`--chat-inset-${edge}`, "max(8px, 40px)");
+    }
+    window.dispatchEvent(new Event("resize"));
+  });
+  await expect.poll(async () => {
+    const bounds = await chatBounds(page);
+    const viewport = page.viewportSize()!;
+    return bounds.x >= 39 && bounds.y >= 39
+      && bounds.x + bounds.width <= viewport.width - 39
+      && bounds.y + bounds.height <= viewport.height - 39;
+  }).toBe(true);
+  await expectChatInViewport(page);
+  expect(state.errors).toEqual([]);
+});
 
 test("unread launch, keyboard close, incoming updates and read status", async ({ page }, info) => {
   const state = await prepare(page);
@@ -420,6 +652,158 @@ test("catching up beyond one page keeps every older message reachable", async ({
   expect(await log.getByText(/연속 메시지 \d{3}/).allTextContents()).toEqual(
     Array.from({ length: 121 }, (_, index) => `${employees[0].name}: 연속 메시지 ${String(index + 1).padStart(3, "0")}`),
   );
+  expect(state.errors).toEqual([]);
+});
+
+test("file drop sends immediately without sending the draft and shows responsive recipient guidance", async ({ page }, info) => {
+  const state = await prepareFiles(page);
+  await openEmployee(page, employees[0].name);
+  await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("아직 작성 중인 글");
+  await fileDrag(page, "dragenter");
+  const overlay = page.getByRole("status", { name: "파일 놓기 안내" });
+  await expect(overlay).toContainText(`${employees[0].name}님에게 파일 전송`);
+  await expect(overlay).toContainText("여기에 놓으면 바로 전송됩니다.");
+  // Child transitions must not dismiss the window's drop guidance.
+  await fileDrag(page, "dragenter", { target: "#staff-chat-message" });
+  await fileDrag(page, "dragleave", { target: "#staff-chat-message", related: "#staff-chat-window header" });
+  await expect(overlay).toBeVisible();
+  await attachmentScreenshot(page, "drop-guidance-light", info.project.name);
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await attachmentScreenshot(page, "drop-guidance-dark", info.project.name);
+  const originalSize = page.viewportSize()!;
+  for (const viewport of [{ width: 320, height: 800 }, { width: 683, height: 384 }]) {
+    await page.setViewportSize(viewport);
+    await expect(overlay).toBeInViewport({ ratio: 1 });
+    expect(await overlay.evaluate((element) => element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight)).toBe(true);
+    await attachmentScreenshot(page, `drop-guidance-${viewport.width}`, info.project.name);
+  }
+  await page.setViewportSize(originalSize);
+  expect(await fileDrag(page, "drop", { target: "#staff-chat-message" })).toBe(true);
+  await expect(overlay).toHaveCount(0);
+  await expect(page.getByRole("log").getByText("드롭자료.txt", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue("아직 작성 중인 글");
+  expect(state.uploads).toHaveLength(1);
+  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "", fileName: "드롭자료.txt", content: "dragged file" });
+  expect(state.sent).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("file drop blocks duplicate uploads and retries the same file while preserving edited draft", async ({ page }, info) => {
+  const state = await prepareFiles(page);
+  await openEmployee(page, employees[0].name);
+  await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("전송하지 않을 초안");
+  let release!: () => void;
+  state.onUpload(async (route) => {
+    await new Promise<void>((resolve) => { release = resolve; });
+    await route.fulfill({ status: 503, json: { error: "파일을 전송하지 못했습니다. 다시 전송해 주세요." } });
+    return true;
+  });
+  await fileDrag(page, "drop");
+  await expect.poll(() => state.uploads.length).toBe(1);
+  await fileDrag(page, "drop", { names: ["추가파일.txt"] });
+  await editor.press("Enter");
+  expect(state.uploads).toHaveLength(1);
+  release();
+  const retry = page.getByRole("button", { name: "파일 다시 전송", exact: true });
+  await expect(retry).toBeEnabled();
+  await expect(editor).toHaveValue("전송하지 않을 초안");
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(retry).toBeInViewport({ ratio: 1 });
+  await attachmentScreenshot(page, "drop-retry-320", info.project.name);
+  await editor.fill("계속 작성한 초안");
+  state.onUpload(undefined);
+  await retry.click();
+  await expect(page.getByRole("log").getByText("드롭자료.txt", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue("계속 작성한 초안");
+  expect(state.uploads).toHaveLength(2);
+  expect(state.uploads[1]).toEqual(state.uploads[0]);
+  expect(state.sent).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("file drop rejects invalid files and preserves an already selected attachment", async ({ page }) => {
+  const state = await prepareFiles(page);
+  await openEmployee(page, employees[0].name);
+  await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
+  const editor = page.getByRole("textbox", { name: "메시지", exact: true });
+  await editor.fill("보존할 글");
+  for (const [options, message] of [
+    [{ names: ["one.txt", "two.txt"] }, "한 번에 1개"],
+    [{ directory: true }, "폴더"],
+    [{ names: ["unsafe.exe"] }, "허용되지 않는"],
+    [{ size: 0 }, "0바이트"],
+    [{ size: 4 * 1024 * 1024 + 1 }, "4.0 MB"],
+  ] as const) {
+    await fileDrag(page, "drop", options);
+    await expect(page.getByRole("alert")).toContainText(message);
+    await expect(editor).toHaveValue("보존할 글");
+  }
+  await selectAttachment(page);
+  await fileDrag(page, "drop");
+  await expect(page.getByRole("alert")).toContainText("첨부한 파일을 먼저");
+  await expect(page.getByText(attachmentName, { exact: true })).toBeVisible();
+  expect(state.uploads).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("file drop requires a recipient and policy and ignores text, outside and cancelled drags", async ({ page }) => {
+  const state = await prepareFiles(page);
+  await page.getByRole("button", { name: /^직원 채팅/ }).click();
+  await fileDrag(page, "drop");
+  await expect(page.getByRole("alert")).toContainText("직원을 먼저 선택");
+  const originalUrl = page.url();
+  expect(await fileDrag(page, "drop", { target: "body" })).toBe(true);
+  expect(page.url()).toBe(originalUrl);
+  await page.route("**/api/chat/files", (route) => route.fulfill({ status: 503, json: { error: "파일 설정 오류" } }));
+  await page.reload();
+  await openEmployee(page, employees[0].name);
+  await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeDisabled();
+  await fileDrag(page, "drop");
+  await expect(page.getByRole("alert")).toContainText("첨부 설정");
+  await page.unroute("**/api/chat/files");
+  await page.getByRole("button", { name: "설정 다시 불러오기" }).click();
+  await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
+  await fileDrag(page, "dragenter", { textOnly: true });
+  await fileDrag(page, "drop", { textOnly: true });
+  const overlay = page.getByRole("status", { name: "파일 놓기 안내" });
+  await expect(overlay).toHaveCount(0);
+  await fileDrag(page, "dragenter");
+  await expect(overlay).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(overlay).toHaveCount(0);
+  await fileDrag(page, "drop");
+  await expect(page.getByRole("dialog", { name: "직원 채팅", exact: true })).toBeVisible();
+  await fileDrag(page, "dragenter");
+  await fileDrag(page, "dragleave");
+  await expect(overlay).toHaveCount(0);
+  await fileDrag(page, "dragenter");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(overlay).toHaveCount(0);
+  expect(state.uploads).toHaveLength(0);
+  expect(state.sent).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("file drop cannot send after a recipient becomes inactive or authentication expires", async ({ page }) => {
+  const state = await prepareFiles(page, [{ ...firstMessage }]);
+  await openEmployee(page, employees[0].name);
+  const inactive = { ...employees[0], active: false };
+  await page.route("**/api/chat", (route) => route.fulfill({ json: {
+    employees: [], conversations: [{ peer: inactive, lastMessage: firstMessage, unreadCount: 0 }], unreadCount: 0,
+  } }));
+  await state.emit();
+  await expect(page.getByRole("textbox", { name: "메시지", exact: true })).toBeDisabled();
+  await fileDrag(page, "drop");
+  await expect(page.getByRole("alert")).toContainText("파일을 받을 수 없는 직원");
+  await page.route("**/api/chat**", (route) => route.fulfill({ status: 401, json: { error: "인증이 필요합니다." } }));
+  await state.emit("auth-expired");
+  await expect(page.getByRole("link", { name: "다시 로그인" })).toBeVisible();
+  await fileDrag(page, "drop");
+  expect(state.uploads).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
 
