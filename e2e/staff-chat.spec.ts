@@ -6,7 +6,7 @@ import { startStaffChatFixture } from "./helpers/staff-chat-fixture";
 import type { ChatEmployee, ChatMessage } from "../src/lib/staff-chat-types";
 
 type SendBody = { peerId: string; body: string; requestId: string };
-const filePolicy = { maxFileSize: 4 * 1024 * 1024, allowedExtensions: [".pdf", ".txt", ".docx", ".xlsx", ".png", ".jpg"], maxFileCount: 1 };
+const filePolicy = { maxFileSize: 4 * 1024 * 1024, allowedExtensions: [".pdf", ".txt", ".docx", ".xlsx", ".png", ".jpg", ".zip"], maxFileCount: 1 };
 const employees: ChatEmployee[] = [
   { id: "test-a", name: "검증직원 가", departmentName: "운영지원팀", positionName: "주임", active: true },
   { id: "test-b", name: "검증직원 나", departmentName: "생활지원팀", positionName: "대리", active: true },
@@ -127,6 +127,8 @@ type FileSendBody = SendBody & { fileName: string; size: number; content: string
 type DownloadBody = { requestId: string };
 const attachmentBytes = Buffer.from("%PDF-1.4\nchat attachment test document\n%%EOF");
 const attachmentName = "회의자료.pdf";
+// A valid empty ZIP archive, including its end-of-central-directory record.
+const zipBytes = Buffer.from("504b0506000000000000000000000000000000000000", "hex");
 
 function attachmentMessage(options: { mine?: boolean; status?: NonNullable<ChatMessage["attachment"]>["status"]; name?: string; size?: number } = {}): ChatMessage {
   return {
@@ -182,7 +184,7 @@ async function prepareFiles(page: Page, initial: ChatMessage[] = []) {
       uploads.push(body);
       if (uploadHandler && await uploadHandler(route, body)) return;
       const message: ChatMessage = {
-        ...attachmentMessage({ mine: true, name: body.fileName }),
+        ...attachmentMessage({ mine: true, name: body.fileName, size: body.size }),
         id: `uploaded-${uploads.length}`, sequence: String(state.messages.length + 1), recipientId: body.peerId, body: body.body,
       };
       state.messages.push(message);
@@ -226,13 +228,13 @@ async function attachmentScreenshot(page: Page, name: string, project: string) {
 }
 
 async function fileDrag(page: Page, type: string, options: {
-  target?: string; related?: string; names?: readonly string[]; size?: number; directory?: boolean; textOnly?: boolean;
+  target?: string; related?: string; names?: readonly string[]; size?: number; bytes?: readonly number[]; directory?: boolean; textOnly?: boolean;
 } = {}) {
   return page.evaluate(({ type, options }) => {
     const transfer = new DataTransfer();
     if (options.textOnly) transfer.setData("text/plain", "dragged text");
     else for (const name of options.names ?? ["드롭자료.txt"]) {
-      transfer.items.add(new File([options.size === undefined ? "dragged file" : new Uint8Array(options.size)], name));
+      transfer.items.add(new File([options.bytes ? new Uint8Array(options.bytes) : options.size === undefined ? "dragged file" : new Uint8Array(options.size)], name));
     }
     // Chromium can return a new wrapper each time a transfer item is read.
     // Override the platform method only during this synthetic directory drop.
@@ -655,7 +657,7 @@ test("catching up beyond one page keeps every older message reachable", async ({
   expect(state.errors).toEqual([]);
 });
 
-test("file drop sends immediately without sending the draft and shows responsive recipient guidance", async ({ page }, info) => {
+test("ZIP file drop sends immediately without sending the draft and shows responsive recipient guidance", async ({ page }, info) => {
   const state = await prepareFiles(page);
   await openEmployee(page, employees[0].name);
   await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
@@ -680,12 +682,13 @@ test("file drop sends immediately without sending the draft and shows responsive
     await attachmentScreenshot(page, `drop-guidance-${viewport.width}`, info.project.name);
   }
   await page.setViewportSize(originalSize);
-  expect(await fileDrag(page, "drop", { target: "#staff-chat-message" })).toBe(true);
+  expect(await fileDrag(page, "drop", { target: "#staff-chat-message", names: ["드롭자료.zip"], bytes: [...zipBytes] })).toBe(true);
   await expect(overlay).toHaveCount(0);
-  await expect(page.getByRole("log").getByText("드롭자료.txt", { exact: true })).toBeVisible();
+  await expect(page.getByRole("log").getByText("드롭자료.zip", { exact: true })).toBeVisible();
   await expect(editor).toHaveValue("아직 작성 중인 글");
   expect(state.uploads).toHaveLength(1);
-  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "", fileName: "드롭자료.txt", content: "dragged file" });
+  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "", fileName: "드롭자료.zip", size: zipBytes.length, content: zipBytes.toString() });
+  expect(state.previews).toHaveLength(0);
   expect(state.sent).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
@@ -804,6 +807,38 @@ test("file drop cannot send after a recipient becomes inactive or authentication
   await expect(page.getByRole("link", { name: "다시 로그인" })).toBeVisible();
   await fileDrag(page, "drop");
   expect(state.uploads).toHaveLength(0);
+  expect(state.errors).toEqual([]);
+});
+
+test("ZIP picker accepts uppercase extension and Windows MIME, sends and downloads unchanged bytes", async ({ page }, info) => {
+  const state = await prepareFiles(page);
+  const name = "업무 묶음.ZIP";
+  await openEmployee(page, employees[0].name);
+  await expect(page.getByLabel("채팅 파일 선택", { exact: true })).toHaveAttribute("accept", /(?:^|,)\.zip(?:,|$)/);
+  const chooserReady = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "파일 첨부", exact: true }).click();
+  await (await chooserReady).setFiles({ name, mimeType: "application/x-zip-compressed", buffer: zipBytes });
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  const send = page.getByRole("button", { name: "전송", exact: true });
+  await expect(send).toBeEnabled();
+  expect(state.uploads).toHaveLength(0);
+  await attachmentScreenshot(page, "zip-selected", info.project.name);
+  await send.click();
+  await expect(page.getByRole("log").getByText(name, { exact: true })).toBeVisible();
+  await expect(send).toBeDisabled();
+  expect(state.uploads).toHaveLength(1);
+  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "", fileName: name, size: zipBytes.length, content: zipBytes.toString() });
+  expect(state.previews).toHaveLength(0);
+  state.binaries.set("file-1", { bytes: zipBytes, contentType: "application/zip" });
+  const downloadReady = page.waitForEvent("download");
+  await page.getByRole("button", { name: `${name} 다운로드`, exact: true }).click();
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe(name);
+  expect(await readFile((await download.path())!)).toEqual(zipBytes);
+  expect(state.completions).toHaveLength(0);
+  await expectChatInViewport(page);
+  await attachmentScreenshot(page, "zip-sent", info.project.name);
+  expect(state.sent).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
 

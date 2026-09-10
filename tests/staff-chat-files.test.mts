@@ -213,12 +213,12 @@ function record(sequence: number, overrides: Row = {}): Row {
     body: "", requestId: `request-${sequence}`, createdAt: new Date("2026-09-08T00:00:00.000Z"), readAt: null,
     ...overrides };
 }
-function form(options: { contents?: string | Uint8Array; filename?: string; body?: string; requestId?: string; peerId?: string } = {}) {
+function form(options: { contents?: string | Uint8Array; filename?: string; mimeType?: string; body?: string; requestId?: string; peerId?: string } = {}) {
   const data = new FormData();
   data.set("peerId", options.peerId ?? "peer");
   data.set("requestId", options.requestId ?? "request-file-send");
   data.set("body", options.body ?? "");
-  data.set("file", new File([options.contents ?? "회의 자료"], options.filename ?? "업무 자료.txt", { type: "text/plain" }));
+  data.set("file", new File([options.contents ?? "회의 자료"], options.filename ?? "업무 자료.txt", { type: options.mimeType ?? "text/plain" }));
   return data;
 }
 function post(path: string, value: unknown, origin = "https://work.example") {
@@ -267,6 +267,64 @@ function noPrivateMetadata(value: unknown) {
 }
 
 describe("staff chat file API privacy and one-time delivery", () => {
+  test("advertises ZIP for existing attachment policies without changing document attachment rules", async () => {
+    const original = structuredClone(harness.policy);
+    const response = await uploadRoutes.GET();
+    assert.equal(response.status, 200);
+    const policy = await response.json();
+    assert.deepEqual(policy.allowedExtensions, [".txt", ".pdf", ".png", ".zip"]);
+    assert.equal(policy.maxFileCount, 1);
+    assert.equal(policy.maxFileSize, staffChatFileMaxBytes);
+    assert.deepEqual(harness.policy, original);
+    const documentUpload = await prepareAttachmentFiles([form({ filename: "자료.zip" }).get("file")!], harness.policy);
+    assert.match(documentUpload.error!, /허용되지 않는 파일 형식/);
+    harness.policy.allowedExtensions.push(".zip");
+    assert.equal((await service.getStaffChatFilePolicy()).allowedExtensions.filter((extension: string) => extension === ".zip").length, 1);
+  });
+
+  test("uploads and downloads ZIP bytes unchanged across browser MIME types and uppercase extensions", async () => {
+    // Valid empty ZIP archive (end-of-central-directory record).
+    const contents = Buffer.from("504b0506000000000000000000000000000000000000", "hex");
+    const mimeTypes = ["application/zip", "application/x-zip-compressed", "application/octet-stream", ""];
+    for (const [index, mimeType] of mimeTypes.entries()) {
+      harness.currentUser = user("actor");
+      const filename = index % 2 ? "업무 자료.ZIP" : "업무 자료.zip";
+      const upload = await uploadRoutes.POST(post("files", form({ filename, mimeType, contents, requestId: `request-zip-${index}` })));
+      assert.equal(upload.status, 200);
+      const { message } = await upload.json();
+      assert.equal(message.attachment.originalName, filename);
+      assert.equal(message.attachment.size, contents.length);
+      noPrivateMetadata(message);
+      const id = message.attachment.id;
+      const context = { params: Promise.resolve({ id }) };
+      harness.currentUser = user("peer");
+      assert.equal((await previewRoutes.GET(new Request(`https://work.example/api/chat/files/${id}/preview`), context)).status, 415);
+      const download = await downloadRoutes.POST(post(`files/${id}/download`, { requestId: `request-zip-download-${index}` }), context);
+      assert.equal(download.status, 200);
+      assert.equal(download.headers.get("Content-Type"), "application/octet-stream");
+      assert.ok(download.headers.get("Content-Disposition")?.endsWith(encodeURIComponent(filename)));
+      assert.deepEqual(Buffer.from(await download.arrayBuffer()), contents);
+      const token = download.headers.get("X-Chat-Download-Token");
+      assert.ok(token);
+      const complete = await completeRoutes.POST(post(`files/${id}/complete`, { token }), context);
+      assert.equal(complete.status, 200);
+      assert.equal((await complete.json()).message.attachment.status, "deleted");
+    }
+    assert.equal(harness.objects.size, 0);
+    assert.equal(harness.deletes.length, mimeTypes.length);
+  });
+
+  test("ZIP support preserves size limits and rejects disallowed suffixes regardless of MIME", async () => {
+    for (const filename of ["자료.zip.exe", "자료.7z", "자료.zip.txt"]) {
+      if (filename.endsWith(".txt")) harness.policy.allowedExtensions = [".pdf"];
+      await assert.rejects(service.sendStaffChatFile("actor", form({ filename, mimeType: "application/zip" })), { status: 400 });
+    }
+    await assert.rejects(service.sendStaffChatFile("actor", form({ filename: "자료.zip", contents: new Uint8Array(staffChatFileMaxBytes + 1) })), { status: 413 });
+    harness.policy.maxFileSizeMb = 1;
+    await assert.rejects(service.sendStaffChatFile("actor", form({ filename: "자료.zip", contents: new Uint8Array(1024 * 1024 + 1) })), { status: 400 });
+    assert.equal(harness.writes.length, 0);
+  });
+
   test("persists a file and message together and returns only public attachment fields", async () => {
     const { message, attachment } = await send({ contents: "테스트 자료", body: " 확인 바랍니다. " });
     assert.equal(message.body, "확인 바랍니다.");

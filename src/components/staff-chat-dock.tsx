@@ -135,7 +135,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
     if (!policy) return "파일 첨부 설정을 불러온 후 다시 시도해 주세요.";
     const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
     if (!policy.allowedExtensions.includes(extension)) {
-      return "허용되지 않는 파일 형식입니다. 문서나 이미지 파일을 선택해 주세요.";
+      return "허용되지 않는 파일 형식입니다. 문서, 이미지 또는 ZIP 파일을 선택해 주세요.";
     }
     if (!file.size || file.size > policy.maxFileSize) {
       return `파일은 0바이트보다 크고 ${formatChatFileSize(policy.maxFileSize)} 이하여야 합니다.`;

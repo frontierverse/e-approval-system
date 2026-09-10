@@ -32,7 +32,8 @@ export async function getStaffChatFilePolicy(): Promise<ChatFilePolicy> {
   return {
     maxFileSize: Math.min(staffChatFileMaxBytes, Math.floor(policy.maxFileSizeMb * 1024 * 1024)),
     maxFileCount: 1,
-    allowedExtensions: policy.allowedExtensions,
+    // Chat supports ZIP even when the saved document attachment policy predates it.
+    allowedExtensions: [...new Set([...policy.allowedExtensions, ".zip"])],
   };
 }
 
