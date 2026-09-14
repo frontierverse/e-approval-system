@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { after, beforeEach, describe, test } from "node:test";
+import { pathToFileURL } from "node:url";
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import ts from "typescript";
 
 // Exercise the real PDF stamp renderer and attachment orchestration. Only database,
@@ -161,7 +164,7 @@ const aliases = {
   "pdf-lib": import.meta.resolve("pdf-lib"),
 };
 for (const [specifier, replacement] of Object.entries(aliases)) source = source.replaceAll(`"${specifier}"`, JSON.stringify(replacement));
-const { attachStampedApprovalPdfToDocument, createStampedApprovalPdfOriginalName } = await import(moduleUrl(ts.transpileModule(source, {
+const { attachStampedApprovalPdfToDocument, createApprovalDocumentPdfBuffer, createStampedApprovalPdfOriginalName } = await import(moduleUrl(ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText));
 
@@ -208,6 +211,42 @@ beforeEach(() => {
 after(() => { delete (globalThis as Row)[harnessKey]; });
 
 describe("automatic stamped approval PDF refresh", () => {
+  test("keeps approval stamps centered above the corresponding names without overprinting", async () => {
+    GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+    const approvers = Array.from({ length: 6 }, (_, index) => ({ name: `승인자${index + 1}` }));
+    harness.document.approvalSteps = approvers.map((approver, index) => ({ order: index + 1, status: "APPROVED", approver }));
+    const originalBuffer = await createApprovalDocumentPdfBuffer({
+      documentNo: "2026-100", title: "간결한 결재 문서", category: "일반 기안", templateName: "일반 기안",
+      content: "문서 본문", drafter: { name: "기안자" }, approvers, issuedAt: new Date("2026-09-14T01:00:00Z"),
+    });
+    harness.files.set("source.pdf", originalBuffer);
+    await attachStampedApprovalPdfToDocument("document", "approver");
+    const buffer = harness.files.get(harness.persistedKeys[0])!;
+    const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+    const originalTask = getDocument({ data: new Uint8Array(originalBuffer) });
+    try {
+      const pdf = await loadingTask.promise;
+      const content = await (await pdf.getPage(1)).getTextContent();
+      const items = content.items.filter((item) => "str" in item);
+      const original = await originalTask.promise;
+      const originalContent = await (await original.getPage(1)).getTextContent();
+      const stamps = items.filter((item) => item.str === "승인");
+      for (const approver of approvers) {
+        const name = originalContent.items.find((item) => "str" in item && item.str === approver.name);
+        assert.ok(name && "transform" in name, `expected the original approval cell for ${approver.name}`);
+        const centerX = name.transform[4] + name.width / 2;
+        assert.ok(stamps.some((stamp) =>
+          Math.abs(stamp.transform[4] + stamp.width / 2 - centerX) < 2 &&
+          stamp.transform[5] - name.transform[5] > 20 &&
+          stamp.transform[5] - name.transform[5] < 40,
+        ), `stamp must remain in ${approver.name}'s reserved cell above the name`);
+      }
+    } finally {
+      await loadingTask.destroy();
+      await originalTask.destroy();
+    }
+  });
+
   test("renders the automatic approval stamp using only black DeviceGray ink", async () => {
     await attachStampedApprovalPdfToDocument("document", "approver");
     const pdf = await PDFDocument.load(harness.files.get(harness.persistedKeys[0])!);

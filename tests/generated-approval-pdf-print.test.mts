@@ -17,10 +17,10 @@ GlobalWorkerOptions.workerSrc = pathToFileURL(
 ).href;
 
 const templates = [
-  { name: "일반 기안서", header: "사내 전자결재 문서" },
-  { name: "지출결의서", header: "지출결의 전자문서" },
-  { name: "휴가신청서", header: "휴가신청 전자문서" },
-  { name: "구매요청서", header: "구매요청 전자문서" },
+  { name: "일반 기안서", header: "일반 기안서" },
+  { name: "지출결의서", header: "지출결의서" },
+  { name: "휴가신청서", header: "휴가신청서" },
+  { name: "구매요청서", header: "구매요청서" },
   { name: "회의록", header: "회의록" },
 ];
 
@@ -38,6 +38,80 @@ const baseInput = {
 };
 
 describe("generated approval PDF print output", () => {
+  test("does not repeat a form name that is already the document title", async () => {
+    const buffer = await createApprovalDocumentPdfBuffer({
+      ...baseInput, title: "구매요청서", templateName: "구매요청서",
+    });
+    const pages = await inspectPrintOutput(buffer);
+    assert.equal(pages[0].split("구매요청서").length - 1, 1);
+  });
+
+  test("keeps user-entered repetition and the same person in distinct roles", async () => {
+    const repeatedLine = "이번 주 확인 사항입니다.";
+    const buffer = await createApprovalDocumentPdfBuffer({
+      ...baseInput, templateName: "일반 기안서",
+      content: `${repeatedLine}\n${repeatedLine}`,
+      approvers: [{ name: baseInput.drafter.name, departmentName: "승인팀", positionName: "결재자" }],
+    });
+    const pages = await inspectPrintOutput(buffer);
+    assert.equal(pages[0].split(repeatedLine).length - 1, 2, "authored repeated lines must stay intact");
+    assert.equal(pages[0].split(baseInput.drafter.name).length - 1, 2, "drafter and approver are distinct roles");
+  });
+
+  test("shows a structured body label once and keeps the original field values", async () => {
+    const schema = { version: 1, fields: [
+      { name: "title", label: "제목", type: "text", required: true },
+      { name: "content", label: "기안 내용", type: "textarea", required: true },
+      { name: "amount", label: "요청 금액", type: "text", required: true },
+    ] };
+    const buffer = await createApprovalDocumentPdfBuffer({
+      ...baseInput, templateName: "일반 기안서", templateSchema: schema,
+      content: compileDocumentTemplateContent(schema, {
+        title: baseInput.title, content: baseInput.content, amount: "1,250,000원",
+      }),
+    });
+    const pages = await inspectPrintOutput(buffer);
+    assert.equal(pages[0].split("기안 내용").length - 1, 1);
+    assert.ok(pages[0].includes("요청 금액"));
+    assert.ok(pages[0].includes("1,250,000원"));
+  });
+
+  test("preserves the end of a long plain-text document across numbered pages", async () => {
+    const buffer = await createApprovalDocumentPdfBuffer({
+      ...baseInput, templateName: "일반 기안서",
+      content: [...Array.from({ length: 90 }, (_, index) => `원문 ${index + 1}번째 줄`), "원문 마지막 문장"].join("\n"),
+    });
+    const pages = await inspectPrintOutput(buffer, baseInput.documentNo);
+    assert.ok(pages.length > 1);
+    assert.ok(pages.at(-1)?.includes("원문 마지막 문장"));
+    for (const [index, page] of pages.entries()) {
+      assert.ok(page.includes(`${index + 1} / ${pages.length}`));
+    }
+  });
+
+  test("keeps all approvers and starts the body below a multi-row approval line", async () => {
+    const approvers = Array.from({ length: 12 }, (_, index) => ({
+      name: `검토자${String(index + 1).padStart(2, "0")}`, positionName: "담당",
+    }));
+    const buffer = await createApprovalDocumentPdfBuffer({
+      ...baseInput, templateName: "일반 기안서", approvers,
+    });
+    const pages = await inspectPrintOutput(buffer);
+    for (const approver of approvers) assert.ok(pages[0].includes(approver.name));
+    const loadingTask = getDocument({ data: new Uint8Array(buffer) });
+    try {
+      const pdf = await loadingTask.promise;
+      const content = await (await pdf.getPage(1)).getTextContent();
+      const lastApprover = content.items.find((item) => "str" in item && item.str === "검토자12");
+      const bodyTitle = content.items.find((item) => "str" in item && item.str === "기안 내용");
+      assert.ok(lastApprover && "transform" in lastApprover);
+      assert.ok(bodyTitle && "transform" in bodyTitle);
+      assert.ok(lastApprover.transform[5] - bodyTitle.transform[5] > 45, "body must clear the last approval row and its position label");
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
+
   for (const template of templates) {
     test(`${template.name} uses white surfaces and visible black text without color ink`, async () => {
       const buffer = await createApprovalDocumentPdfBuffer({
@@ -52,6 +126,10 @@ describe("generated approval PDF print output", () => {
       assert.ok(pages[0].includes(baseInput.title), "the document title must remain readable");
       assert.ok(pages[0].includes("김기안"), "the drafter must remain readable");
       assert.ok(pages[0].includes("이결재"), "the approval line must remain readable");
+      for (const value of [template.name, baseInput.documentNo, "문서번호", "작성일시", "김기안"]) {
+        assert.equal(pages[0].split(value).length - 1, 1, `${value} must be presented once`);
+      }
+      assert.doesNotMatch(pages[0], /문서양식|문서유형|검토 기준|유의사항|최종 승인 시 결재란/);
     });
   }
 
@@ -90,7 +168,8 @@ describe("generated approval PDF print output", () => {
         for (const [index, text] of pages.entries()) {
           assert.ok(text.includes(documentNo), `page ${index + 1} must show the document number`);
           if (index > 0) {
-            assert.ok(text.includes(`${template.header} 계속`), `page ${index + 1} must show the continuation header`);
+            assert.ok(text.includes(baseInput.title), `page ${index + 1} must identify the document title`);
+            assert.ok(!text.includes("작성일시"), "continuation sheets need no repeated issue metadata");
           }
         }
       }
@@ -119,7 +198,17 @@ async function inspectPrintOutput(buffer: Uint8Array, headerDocumentNo?: string)
     for (let number = 1; number <= readablePdf.numPages; number++) {
       const page = await readablePdf.getPage(number);
       const content = await page.getTextContent();
-      pages.push(content.items.flatMap((item) => "str" in item ? [item.str] : []).join(" "));
+      // Synthetic bold paints the same glyphs twice less than one point apart.
+      // Count logical text placements, preserving actual repeated body lines.
+      const visibleItems = content.items.filter((item) => "str" in item && item.str.trim());
+      const logicalItems = visibleItems.filter((item, index) =>
+        !visibleItems.slice(0, index).some((previous) =>
+          previous.str === item.str &&
+          Math.abs(previous.transform[4] - item.transform[4]) < 1 &&
+          Math.abs(previous.transform[5] - item.transform[5]) < 1,
+        ),
+      );
+      pages.push(logicalItems.map((item) => item.str).join(" "));
       if (headerDocumentNo) {
         const labels = content.items.filter((item) => "str" in item && item.str === "문서번호");
         const label = labels.filter((item) => "transform" in item)

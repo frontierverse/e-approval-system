@@ -134,10 +134,9 @@ describe("generated approval pdf", () => {
     const summaryHeaderTop = summaryHeader.y + summaryHeader.height;
     const heroTitleItems = items.filter(
       (item) =>
-        item.x > 70 &&
-        item.x < 300 &&
+        item.height > 13 &&
         item.y > summaryHeaderTop &&
-        item.y < 690,
+        item.y < 800,
     );
     const lowestHeroTitleBaseline = Math.min(
       ...heroTitleItems.map((item) => item.y),

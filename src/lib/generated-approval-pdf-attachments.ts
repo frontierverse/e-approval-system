@@ -13,7 +13,7 @@ import type { ApprovalPdfInput } from "@/lib/generated-approval-pdf";
 
 const historyPrefix = "[이전 결재 이력] ";
 const sourceStoragePattern = /(?:^|\/)generated-approval-pdf(?:-v\d+)?\//;
-export const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v6/";
+export const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v7/";
 
 const documentSelect = {
   id: true,

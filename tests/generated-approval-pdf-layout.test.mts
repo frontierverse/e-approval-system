@@ -11,9 +11,9 @@ describe("generated approval pdf layout", () => {
     assert.equal(getApprovalPdfLayout("회의록").kind, "meeting");
   });
 
-  test("provides different visual labels for each document layout", () => {
-    assert.equal(getApprovalPdfLayout("지출결의서").headerTitle, "지출결의 전자문서");
+  test("provides content labels without repeated document summary fields", () => {
+    assert.equal(getApprovalPdfLayout("지출결의서").bodyTitle, "지출/정산 내용");
     assert.equal(getApprovalPdfLayout("휴가신청서").bodyTitle, "휴가 신청 내용");
-    assert.equal(getApprovalPdfLayout("구매요청서").focusTitle, "구매 검토 기준");
+    assert.equal(getApprovalPdfLayout("구매요청서").bodyTitle, "구매 요청 내용");
   });
 });

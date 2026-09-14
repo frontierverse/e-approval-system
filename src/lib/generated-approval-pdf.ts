@@ -88,26 +88,23 @@ const headerMetaLabelX = 790;
 const headerMetaValueX = 1122;
 const headerMetaValueWidth = 260;
 const infoPanelX = 118;
-const infoPanelY = 414;
+const infoPanelY = 288;
 const infoPanelWidth = 560;
 const infoPanelLabelWidth = 132;
 const infoPanelRowHeight = 38;
-const infoPanelTitleY = 400;
+const infoPanelTitleY = infoPanelY - 14;
 const approvalPanelX = 718;
 const approvalPanelY = infoPanelY;
 const approvalPanelWidth = 404;
-const approvalPanelRowHeight = 150;
+const approvalPanelRowHeight = 174;
 const approvalPanelTitleY = infoPanelTitleY;
-const heroTemplateNameMaxWidth = 520;
-const heroTemplateNameFontSize = 30;
-const heroTitleMaxWidth = 430;
-const heroTitleY = 332;
-const heroTitleFontSize = 16;
-const heroTitleLineHeight = 18;
-const heroTitleMaxLines = 2;
+const documentTitleMaxWidth = 1004;
+const documentTitleY = 158;
+const documentTitleFontSize = 30;
+const documentTitleLineHeight = 34;
+const documentTitleMaxLines = 3;
 const bodyTextFontSize = 16;
 const bodyTextLineHeight = 30;
-const bodyTextMaxChars = 58;
 const templateTableX = 118;
 const templateTableWidth = 1004;
 const templateTableLabelWidth = 214;
@@ -119,8 +116,7 @@ const templateTableValueFontSize = 15;
 const templateTableLineHeight = 24;
 const templateTableMinRowHeight = 58;
 const templateTableMaxWrappedLines = 500;
-const continuationBodyTitleY = 350;
-const continuationTableY = 382;
+const continuationTableY = 256;
 const continuationTableMaxBottomY = 1548;
 const meetingTableX = 118;
 const meetingTableWidth = 1004;
@@ -137,8 +133,6 @@ const meetingTitleY = 170;
 const meetingFirstTableY = 250;
 const meetingContinuationTableY = 96;
 const meetingTableMaxBottomY = 1666;
-const approvalDocumentFooterText =
-  "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 const pdfKoreanFontPath = path.join(
   process.cwd(),
   "public",
@@ -473,12 +467,16 @@ async function stampFinalApprovalPdf(
     ) {
       const imageBuffer = await getApprovalStampImageBuffer(stamp.source);
       const embeddedStamp = await embedApprovalStampImage(pdf, imageBuffer);
-      const width = placement.size;
-      const height = embeddedStamp.height * (width / embeddedStamp.width);
-      const y = page.getHeight() - placement.top - height;
+      const scale = Math.min(
+        placement.size / embeddedStamp.width,
+        placement.size / embeddedStamp.height,
+      );
+      const width = embeddedStamp.width * scale;
+      const height = embeddedStamp.height * scale;
+      const y = page.getHeight() - placement.top - (placement.size + height) / 2;
 
       page.drawImage(embeddedStamp.image, {
-        x: placement.x,
+        x: placement.x + (placement.size - width) / 2,
         y,
         width,
         height,
@@ -524,130 +522,42 @@ function drawApprovalDocumentPage(
 
   const documentNo = input.documentNo ?? "문서번호 발급 전";
   const issuedAt = formatKoreanDateTime(input.issuedAt);
-  const approvers = input.approvers;
   const titleLines = wrapSvgTextLines(
-    fonts,
-    input.title,
-    heroTitleFontSize,
-    heroTitleMaxWidth,
-    heroTitleMaxLines,
+    fonts, input.title, documentTitleFontSize,
+    documentTitleMaxWidth, documentTitleMaxLines,
   );
-  const approvalPanelBottom = getApprovalPanelBottomY(approvers.length);
-  const summaryBottom = infoPanelY + infoPanelRowHeight * 5 + 4;
-  const focusPanelTop = Math.max(summaryBottom, approvalPanelBottom) + 34;
-  const focusPanelHeight = 118;
-  const contentTop = focusPanelTop + focusPanelHeight + 52;
-  const bodyTitleY = contentTop;
-  const bodyRectY = bodyTitleY + 28;
-  const notesTitleY = 1390;
-  const minBodyRectHeight = 80;
-  const shouldRenderNotes =
-    bodyRectY + minBodyRectHeight + 64 <= notesTitleY;
-  const bodyRectBottomLimit = shouldRenderNotes ? notesTitleY - 64 : 1548;
-  const bodyRectHeight = Math.max(
-    minBodyRectHeight,
-    bodyRectBottomLimit - bodyRectY,
-  );
+  const infoBottom = infoPanelY + infoPanelRowHeight * 4;
+  const bodyTop = Math.max(infoBottom, getApprovalPanelBottomY(input.approvers.length)) + 48;
   const templateDisplayRows = input.templateSchema
     ? getDocumentTemplateDisplayRows(input.templateSchema, input.content)
     : [];
-  const bodyTextMaxLines = Math.max(
-    1,
-    Math.floor((bodyRectHeight - 54) / bodyTextLineHeight),
-  );
-  const bodyLines = wrapLines(
-    input.content,
-    bodyTextMaxChars,
-    bodyTextMaxLines,
-  );
 
-  drawSvgRect(page, 78, 72, 1084, 1610, approvalPdfPaper, approvalPdfInk, 2);
-  drawSvgText(page, fonts, layout.headerTitle, 118, 132, 27, approvalPdfInk, {
-    fontWeight: 700,
-  });
-  drawSvgText(
-    page,
-    fonts,
-    "사회적협동조합 청소년자립학교",
-    118,
-    165,
-    17,
-    layout.subtitleFill,
-  );
-  drawApprovalHeaderMetadata(page, fonts, layout, documentNo, issuedAt);
-
-  drawSvgRect(page, 118, 232, 1004, 128, layout.heroFill, layout.heroStroke, 2);
-  drawSvgText(page, fonts, layout.badgeLabel, 154, 266, 16, layout.accentFill, {
-    fontWeight: 700,
-  });
-  drawSvgFittedText(
-    page,
-    fonts,
-    input.templateName,
-    154,
-    309,
-    heroTemplateNameFontSize,
-    approvalPdfInk,
-    heroTemplateNameMaxWidth,
-    {
-      fontWeight: 800,
-    },
-  );
-  drawSvgMultilineText(
-    page,
-    fonts,
-    titleLines,
-    154,
-    heroTitleY,
-    heroTitleFontSize,
-    heroTitleLineHeight,
-    approvalPdfInk,
-    700,
-  );
+  drawSvgText(page, fonts, "사회적협동조합 청소년자립학교", 118, 108, 17, approvalPdfInk);
+  // A document whose title is already its form name needs no second form label.
+  if (input.title.replace(/\s+/g, "") !== input.templateName.replace(/\s+/g, "")) {
+    drawSvgFittedText(page, fonts, input.templateName, 1122, 108, 19, approvalPdfInk, 460, {
+      align: "end",
+      fontWeight: 700,
+    });
+  }
+  drawSvgMultilineText(page, fonts, titleLines, 118, documentTitleY,
+    documentTitleFontSize, documentTitleLineHeight, approvalPdfInk, 700);
+  drawSvgLine(page, 118, 250, 1122, 250, approvalPdfInk, 1);
 
   drawInfoPanel(page, fonts, input, documentNo, issuedAt, layout);
-  drawApprovalPanel(page, fonts, approvers, input.approvers.length, layout);
-  drawTemplateFocusPanel(page, fonts, input, layout, focusPanelTop);
+  drawApprovalPanel(page, fonts, input.approvers, input.approvers.length, layout);
 
-  const structuredBodyBottom =
-    templateDisplayRows.length > 0
-      ? drawDocumentTemplateTablePages(
-          pdf,
-          page,
-          fonts,
-          templateDisplayRows,
-          layout,
-          bodyTitleY,
-          bodyRectY,
-          1548,
-          input,
-          documentNo,
-          issuedAt,
-        )
-      : null;
-
-  if (structuredBodyBottom === null) {
-    drawTextBodySection(
-      page,
-      fonts,
-      layout,
-      bodyLines,
-      bodyTitleY,
-      bodyRectY,
-      bodyRectHeight,
+  if (templateDisplayRows.length > 0) {
+    drawDocumentTemplateTablePages(
+      pdf, page, fonts, templateDisplayRows, layout, bodyTop, 1548, input, documentNo,
     );
+  } else {
+    drawTextBodyPages(pdf, page, fonts, input, layout, bodyTop, documentNo);
   }
 
-  if (
-    structuredBodyBottom === null
-      ? shouldRenderNotes
-      : !structuredBodyBottom.hasContinuation &&
-        structuredBodyBottom.firstPageBottomY + 64 <= notesTitleY
-  ) {
-    drawApprovalNotesSection(page, fonts, layout);
+  for (const [index, documentPage] of pdf.getPages().entries()) {
+    drawApprovalDocumentFooter(documentPage, fonts, index + 1, pdf.getPageCount());
   }
-
-  drawApprovalDocumentFooter(page, fonts);
 }
 
 type MeetingMinutesInfoCell = {
@@ -1089,47 +999,36 @@ function formatMeetingMinutesDate(value: string) {
   return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}.(${weekday})`;
 }
 
-function drawTextBodySection(
-  page: PDFPage,
+function drawTextBodyPages(
+  pdf: PDFDocument,
+  firstPage: PDFPage,
   fonts: ApprovalPdfFonts,
+  input: ApprovalPdfInput,
   layout: ApprovalPdfLayout,
-  bodyLines: string[],
-  bodyTitleY: number,
-  bodyRectY: number,
-  bodyRectHeight: number,
+  bodyTop: number,
+  documentNo: string,
 ) {
-  drawSvgText(
-    page,
-    fonts,
-    layout.bodyTitle,
-    118,
-    bodyTitleY,
-    19,
-    layout.accentFill,
-    {
-      fontWeight: 700,
-    },
-  );
-  drawSvgRect(
-    page,
-    118,
-    bodyRectY,
-    1004,
-    bodyRectHeight,
-    approvalPdfPaper,
-    approvalPdfInk,
-    2,
-  );
-  drawSvgMultilineText(
-    page,
-    fonts,
-    bodyLines,
-    150,
-    bodyRectY + 54,
-    bodyTextFontSize,
-    bodyTextLineHeight,
-    approvalPdfInk,
-  );
+  const lines = wrapSvgTextLines(fonts, input.content, bodyTextFontSize, 1004, Number.MAX_SAFE_INTEGER);
+  let page = firstPage;
+  let top = bodyTop;
+  let lineIndex = 0;
+
+  drawSvgText(page, fonts, layout.bodyTitle, 118, top, 19, approvalPdfInk, { fontWeight: 700 });
+  top += 44;
+  while (lineIndex < lines.length) {
+    const capacity = Math.max(0, Math.floor((1548 - top) / bodyTextLineHeight) + 1);
+    if (capacity > 0) {
+      const pageLines = lines.slice(lineIndex, lineIndex + capacity);
+      drawSvgMultilineText(page, fonts, pageLines, 118, top,
+        bodyTextFontSize, bodyTextLineHeight, approvalPdfInk);
+      lineIndex += pageLines.length;
+    }
+    if (lineIndex < lines.length) {
+      page = pdf.addPage([pageWidth, pageHeight]);
+      drawApprovalDocumentContinuationPageFrame(page, fonts, input, documentNo);
+      top = continuationTableY;
+    }
+  }
 }
 
 function drawDocumentTemplateTablePages(
@@ -1138,12 +1037,10 @@ function drawDocumentTemplateTablePages(
   fonts: ApprovalPdfFonts,
   rows: DocumentTemplateDisplayRow[],
   layout: ApprovalPdfLayout,
-  bodyTitleY: number,
   tableY: number,
   firstPageMaxBottomY: number,
   input: ApprovalPdfInput,
   documentNo: string,
-  issuedAt: string,
 ) {
   const sections = paginateDocumentTemplateTableRows(
     fonts,
@@ -1163,34 +1060,19 @@ function drawDocumentTemplateTablePages(
     fonts,
     firstSection.rows,
     layout,
-    layout.bodyTitle,
-    bodyTitleY,
     tableY,
   );
 
-  sections.slice(1).forEach((section, index) => {
+  sections.slice(1).forEach((section) => {
     const page = pdf.addPage([pageWidth, pageHeight]);
-    const pageNumber = index + 2;
-
-    drawApprovalDocumentContinuationPageFrame(
-      page,
-      fonts,
-      input,
-      layout,
-      documentNo,
-      issuedAt,
-      pageNumber,
-    );
+    drawApprovalDocumentContinuationPageFrame(page, fonts, input, documentNo);
     drawDocumentTemplateTableSection(
       page,
       fonts,
       section.rows,
       layout,
-      `${layout.bodyTitle} 계속`,
-      continuationBodyTitleY,
       continuationTableY,
     );
-    drawApprovalDocumentFooter(page, fonts, `${pageNumber}페이지`);
   });
 
   return {
@@ -1204,27 +1086,12 @@ function drawDocumentTemplateTableSection(
   fonts: ApprovalPdfFonts,
   rowLayouts: DocumentTemplateTableRowLayout[],
   layout: ApprovalPdfLayout,
-  title: string,
-  bodyTitleY: number,
   tableY: number,
 ) {
   const lastRowLayout = rowLayouts.at(-1);
   const tableBottomY = lastRowLayout
     ? lastRowLayout.y + lastRowLayout.height
     : tableY;
-
-  drawSvgText(
-    page,
-    fonts,
-    title,
-    118,
-    bodyTitleY,
-    19,
-    layout.accentFill,
-    {
-      fontWeight: 700,
-    },
-  );
 
   if (rowLayouts.length === 0) {
     drawSvgRect(
@@ -1474,108 +1341,25 @@ function drawApprovalDocumentContinuationPageFrame(
   page: PDFPage,
   fonts: ApprovalPdfFonts,
   input: ApprovalPdfInput,
-  layout: ApprovalPdfLayout,
   documentNo: string,
-  issuedAt: string,
-  pageNumber: number,
 ) {
-  const titleLines = wrapSvgTextLines(fonts, input.title, 17, 650, 2);
-
-  drawSvgRect(page, 78, 72, 1084, 1610, approvalPdfPaper, approvalPdfInk, 2);
-  drawSvgText(page, fonts, `${layout.headerTitle} 계속`, 118, 132, 27, approvalPdfInk, {
-    fontWeight: 700,
-  });
-  drawSvgText(
-    page,
-    fonts,
-    "사회적협동조합 청소년자립학교",
-    118,
-    165,
-    17,
-    layout.subtitleFill,
-  );
-  drawApprovalHeaderMetadata(
-    page,
-    fonts,
-    layout,
-    `${documentNo} · ${pageNumber}페이지`,
-    issuedAt,
-  );
-
-  drawSvgRect(page, 118, 220, 1004, 82, layout.heroFill, layout.heroStroke, 2);
-  drawSvgText(page, fonts, input.templateName, 154, 253, 22, approvalPdfInk, {
-    fontWeight: 800,
-  });
-  drawSvgMultilineText(
-    page,
-    fonts,
-    titleLines,
-    154,
-    280,
-    17,
-    22,
-    approvalPdfInk,
-    700,
-  );
-}
-
-function drawApprovalHeaderMetadata(
-  page: PDFPage,
-  fonts: ApprovalPdfFonts,
-  layout: ApprovalPdfLayout,
-  documentNo: string,
-  issuedAt: string,
-) {
-  drawSvgText(page, fonts, "문서번호", headerMetaLabelX, 132, 13, layout.subtitleFill, {
-    fontWeight: 700,
-  });
-  drawSvgFittedText(
-    page,
-    fonts,
-    documentNo,
-    headerMetaValueX,
-    132,
-    17,
-    approvalPdfInk,
-    headerMetaValueWidth,
-    {
-      align: "end",
-      fontWeight: 700,
-    },
-  );
-  drawSvgText(page, fonts, "작성일시", headerMetaLabelX, 164, 13, layout.subtitleFill, {
-    fontWeight: 700,
-  });
-  drawSvgFittedText(
-    page,
-    fonts,
-    issuedAt,
-    headerMetaValueX,
-    164,
-    15,
-    layout.subtitleFill,
-    headerMetaValueWidth,
-    {
-      align: "end",
-    },
-  );
+  // Keep only the identity needed to match a loose continuation sheet.
+  drawSvgText(page, fonts, "문서번호", headerMetaLabelX, 108, 13, approvalPdfInk, { fontWeight: 700 });
+  drawSvgFittedText(page, fonts, documentNo, headerMetaValueX, 108, 17,
+    approvalPdfInk, headerMetaValueWidth, { align: "end", fontWeight: 700 });
+  const titleLines = wrapSvgTextLines(fonts, input.title, 22, 1004, 3);
+  drawSvgMultilineText(page, fonts, titleLines, 118, 158, 22, 28, approvalPdfInk, 700);
+  drawSvgLine(page, 118, 230, 1122, 230, approvalPdfInk, 1);
 }
 
 function drawApprovalDocumentFooter(
   page: PDFPage,
   fonts: ApprovalPdfFonts,
-  suffix?: string,
+  pageNumber: number,
+  pageCount: number,
 ) {
-  drawSvgLine(page, 118, 1602, 1122, 1602, approvalPdfInk, 2);
-  drawSvgText(
-    page,
-    fonts,
-    suffix ? `${approvalDocumentFooterText} · ${suffix}` : approvalDocumentFooterText,
-    118,
-    1642,
-    16,
-    approvalPdfInk,
-  );
+  drawSvgText(page, fonts, `${pageNumber} / ${pageCount}`, 620, 1642, 14,
+    approvalPdfInk, { align: "middle" });
 }
 
 function drawInfoPanel(
@@ -1588,7 +1372,6 @@ function drawInfoPanel(
 ) {
   const rows = [
     ["문서번호", documentNo],
-    ["문서양식", input.templateName],
     ["작성자", `${input.drafter.name} / ${input.drafter.positionName ?? "-"}`],
     ["소속", input.drafter.departmentName ?? "-"],
     ["작성일시", issuedAt],
@@ -1663,7 +1446,7 @@ function drawApprovalPanel(
   drawSvgText(
     page,
     fonts,
-    `결재란 · ${totalCount}명`,
+    "결재",
     panelLayout.x,
     approvalPanelTitleY,
     18,
@@ -1706,6 +1489,11 @@ function drawApprovalPanel(
     const cellX = panelLayout.x + columnIndex * columnWidth;
     const cellY = panelLayout.y + rowIndex * panelLayout.rowHeight;
     const cellCenterX = cellX + columnWidth / 2;
+    const nameWidth = columnWidth - 16;
+    const measuredNameWidth = fonts.korean.widthOfTextAtSize(approver.name, svgToPdfSize(17));
+    const nameFontSize = Math.max(12, Math.min(17,
+      17 * svgToPdfWidth(nameWidth - 2) / Math.max(1, measuredNameWidth),
+    ));
 
     drawSvgRect(
       page,
@@ -1740,20 +1528,6 @@ function drawApprovalPanel(
       layout.heroStroke,
       1,
     );
-    drawSvgFittedText(
-      page,
-      fonts,
-      approver.name,
-      cellCenterX,
-      cellY + 78,
-      17,
-      approvalPdfInk,
-      columnWidth - 32,
-      {
-        align: "middle",
-        fontWeight: 700,
-      },
-    );
     drawSvgRect(
       page,
       cellX,
@@ -1764,12 +1538,28 @@ function drawApprovalPanel(
       layout.heroStroke,
       1,
     );
+    // Keep identity below the reserved stamp area so approval ink never
+    // overprints the approver name on the stamped copy.
+    drawSvgFittedText(
+      page,
+      fonts,
+      approver.name,
+      cellCenterX,
+      cellY + 126,
+      nameFontSize,
+      approvalPdfInk,
+      nameWidth,
+      {
+        align: "middle",
+        fontWeight: 700,
+      },
+    );
     drawSvgFittedText(
       page,
       fonts,
       approver.departmentName ?? "",
       cellCenterX,
-      cellY + 127,
+      cellY + 146,
       12,
       approvalPdfInk,
       columnWidth - 24,
@@ -1782,7 +1572,7 @@ function drawApprovalPanel(
       fonts,
       approver.positionName ?? "",
       cellCenterX,
-      cellY + 145,
+      cellY + 164,
       12,
       approvalPdfInk,
       columnWidth - 24,
@@ -1811,66 +1601,6 @@ function getApprovalPanelLayout(totalCount: number) {
     x: approvalPanelX,
     y: approvalPanelY,
   };
-}
-
-function drawTemplateFocusPanel(
-  page: PDFPage,
-  fonts: ApprovalPdfFonts,
-  input: ApprovalPdfInput,
-  layout: ApprovalPdfLayout,
-  y: number,
-) {
-  const cards = [
-    ["문서유형", layout.badgeLabel],
-    [layout.reviewLabel, layout.reviewValue],
-    ["결재선", `${input.approvers.length}명`],
-  ];
-
-  drawSvgRect(page, 118, y, 1004, 118, layout.focusFill, layout.heroStroke, 2);
-  drawSvgText(page, fonts, layout.focusTitle, 150, y + 35, 19, layout.accentFill, {
-    fontWeight: 700,
-  });
-
-  cards.forEach(([label, value], index) => {
-    const x = 150 + index * 310;
-
-    drawSvgRect(page, x, y + 54, 270, 42, approvalPdfPaper, layout.heroStroke, 1);
-    drawSvgText(page, fonts, label, x + 20, y + 81, 14, approvalPdfInk, {
-      fontWeight: 700,
-    });
-    drawSvgText(page, fonts, value, x + 118, y + 81, 16, approvalPdfInk, {
-      fontWeight: 700,
-    });
-  });
-}
-
-function drawApprovalNotesSection(
-  page: PDFPage,
-  fonts: ApprovalPdfFonts,
-  layout: ApprovalPdfLayout,
-) {
-  drawSvgText(page, fonts, layout.notesTitle, 118, 1390, 19, layout.accentFill, {
-    fontWeight: 700,
-  });
-  drawSvgRect(page, 118, 1420, 1004, 128, layout.focusFill, layout.heroStroke, 2);
-  drawSvgText(
-    page,
-    fonts,
-    layout.notesLines[0],
-    150,
-    1472,
-    19,
-    approvalPdfInk,
-  );
-  drawSvgText(
-    page,
-    fonts,
-    layout.notesLines[1],
-    150,
-    1515,
-    19,
-    approvalPdfInk,
-  );
 }
 
 function drawSvgMultilineText(
@@ -2108,20 +1838,6 @@ function svgToPdfSize(value: number) {
   return value * pdfScale;
 }
 
-function wrapLines(text: string, maxChars: number, maxLines: number) {
-  const sourceLines = text
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .flatMap((line) => wrapLine(line.trim(), maxChars));
-  const lines = sourceLines.filter(Boolean);
-
-  if (lines.length <= maxLines) {
-    return lines.length > 0 ? lines : ["-"];
-  }
-
-  return [...lines.slice(0, maxLines - 1), `${lines[maxLines - 1]} ...`];
-}
-
 function wrapSvgTextLines(
   fonts: ApprovalPdfFonts,
   text: string,
@@ -2277,48 +1993,6 @@ function isMeasuredTextWithinWidth(
   return font.widthOfTextAtSize(text, fontSize) <= maxWidth;
 }
 
-function wrapLine(line: string, maxChars: number) {
-  if (!line) {
-    return [""];
-  }
-
-  const words = line.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-
-    if (Array.from(next).length <= maxChars) {
-      current = next;
-      continue;
-    }
-
-    if (current) {
-      lines.push(current);
-    }
-
-    if (Array.from(word).length <= maxChars) {
-      current = word;
-      continue;
-    }
-
-    const characters = Array.from(word);
-
-    for (let index = 0; index < characters.length; index += maxChars) {
-      lines.push(characters.slice(index, index + maxChars).join(""));
-    }
-
-    current = "";
-  }
-
-  if (current) {
-    lines.push(current);
-  }
-
-  return lines;
-}
-
 function createGeneratedApprovalPdfOriginalName(
   documentNo: string | null,
   title: string,
@@ -2433,7 +2107,7 @@ function getApprovalStampPlacement(
   const scaleX = pageWidth / svgWidth;
   const scaleY = pageHeight / svgHeight;
   const columnWidth = layout.width / layout.columns;
-  const maxStampSize = columnWidth * scaleX - 8;
+  const maxStampSize = Math.min(columnWidth * scaleX, 72 * scaleY) - 8;
   const size = Math.max(24, Math.min(38, maxStampSize));
   const centerX =
     (layout.x + columnIndex * columnWidth + columnWidth / 2) * scaleX;
