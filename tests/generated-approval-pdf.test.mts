@@ -28,6 +28,12 @@ GlobalWorkerOptions.workerSrc = pathToFileURL(
 ).href;
 
 describe("generated approval pdf", () => {
+  test("does not use another person's stamp when a legacy proxy actor is missing", () => {
+    assert.deepEqual(getFinalApprovalStampSource({ approver: {name: "원결재자"}, decisionType: "PROXY" }),
+      {name: "처리자 확인 필요", isProxy: true});
+    assert.deepEqual(getFinalApprovalStampSource({ approver: {name: "원결재자"}, decisionType: "PROXY", actedBy: {name: "대리인"} }),
+      {name: "대리인", isProxy: true});
+  });
   test("uses the approval-line approver stamp for final approval PDFs", () => {
     const source = getFinalApprovalStampSource({
       approver: {

@@ -32,7 +32,10 @@ import {
 import { removeStoredAttachmentFiles } from "@/lib/attachment-storage";
 import { createDocumentNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { recordApprovedVacationLeaveDeduction } from "@/lib/staff-leave";
+import { recordApprovedVacationLeaveDeduction, reverseApprovedVacationLeaveDeduction } from "@/lib/staff-leave";
+import { lockApprovalDocument } from "@/lib/approval-document-lock";
+import { invalidateAutomaticApprovalPdfs } from "@/lib/approval-pdf-invalidation";
+import { canActAsApprovalProxy, getProxyApprovalReasonError } from "@/lib/proxy-approval-policy";
 
 type OrderedApprover = {
   id: string;
@@ -196,6 +199,7 @@ export async function submitDraftDocument(
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   return prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -373,6 +377,7 @@ export async function updateDraftDocument({
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const result = await prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -635,6 +640,7 @@ export async function deleteDraftDocument(
 ): Promise<DraftMutationResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
   const attachmentsToRemove = await prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -722,6 +728,7 @@ export async function deleteDocumentAttachment(
 ): Promise<DraftMutationResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
   const result = await prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const attachment = await tx.attachment.findFirst({
       where: {
         id: attachmentId,
@@ -846,6 +853,7 @@ export async function recallSubmittedDocument(
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   return prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -918,6 +926,8 @@ export async function recallSubmittedDocument(
       },
     });
 
+    await invalidateAutomaticApprovalPdfs(tx, documentId, actorId, "결재 요청 회수");
+
     await tx.notification.deleteMany({
       where: {
         documentId: document.id,
@@ -952,6 +962,7 @@ export async function discardRecalledDocument(
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   return prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -1030,6 +1041,7 @@ export async function restoreDiscardedDocument(
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   return prisma.$transaction(async (tx) => {
+    await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
         id: documentId,
@@ -1108,7 +1120,7 @@ export async function approveCurrentApprovalStep(
 ): Promise<ApprovalDecisionResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx): Promise<ApprovalDecisionResult> => {
     const document = await getDocumentForDecision(tx, documentId);
     const decisionPlan = getApprovalDecisionPlan(
       document,
@@ -1280,6 +1292,9 @@ export async function rejectCurrentApprovalStep(
       },
     });
 
+    await invalidateAutomaticApprovalPdfs(tx, documentId, actorId, "결재 반려");
+    await tx.notification.deleteMany({ where: { documentId, type: NotificationType.APPROVAL_REQUESTED, readAt: null } });
+
     await tx.auditLog.create({
       data: {
         actorId,
@@ -1322,8 +1337,11 @@ export async function proxyApproveApprovalStepsThrough(
   comment: string,
 ): Promise<ApprovalDecisionResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
+  const reasonError = getProxyApprovalReasonError(comment);
+  if (reasonError) return { ok: false, message: reasonError };
+  comment = comment.trim();
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx): Promise<ApprovalDecisionResult> => {
     const [actor, document] = await Promise.all([
       tx.user.findUnique({
         where: {
@@ -1368,7 +1386,7 @@ export async function proxyApproveApprovalStepsThrough(
     if (!canProxyApproveDocument(actorId, actor.role, decisionDocument)) {
       return {
         ok: false,
-        message: "결재선 참여자 또는 관리자만 대리결재할 수 있습니다.",
+        message: "기안자 본인을 제외한 관리자만 대리결재할 수 있습니다.",
       };
     }
 
@@ -1512,6 +1530,10 @@ export async function rejectProxyApprovedStep(
   comment: string,
 ): Promise<ApprovalDecisionResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
+  comment = comment.trim();
+  if (comment.length < 2 || comment.length > 1000) {
+    return { ok: false, message: "대리결재 반려 사유를 2자 이상 1,000자 이하로 입력하세요." };
+  }
 
   return prisma.$transaction(async (tx) => {
     const [actor, document] = await Promise.all([
@@ -1609,6 +1631,12 @@ export async function rejectProxyApprovedStep(
       },
     });
 
+    await reverseApprovedVacationLeaveDeduction(tx, { documentId, actorId, reason: comment });
+    await invalidateAutomaticApprovalPdfs(tx, documentId, actorId, "대리결재 반려");
+    await tx.notification.deleteMany({ where: {
+      documentId, type: NotificationType.APPROVAL_REQUESTED, readAt: null,
+    } });
+
     await tx.auditLog.create({
       data: {
         actorId,
@@ -1667,11 +1695,7 @@ function canProxyApproveDocument(
   actorRole: UserRole,
   document: DecisionDocument,
 ) {
-  return (
-    actorRole === UserRole.ADMIN ||
-    document.drafterId === actorId ||
-    document.approvalSteps.some((step) => step.approverId === actorId)
-  );
+  return canActAsApprovalProxy(actorId, actorRole, document.drafterId);
 }
 
 function canRejectProxyApproval(
@@ -1795,6 +1819,7 @@ async function getDocumentForDecision(
   tx: Prisma.TransactionClient,
   documentId: string,
 ) {
+  await lockApprovalDocument(tx, documentId);
   return tx.approvalDocument.findUnique({
     where: {
       id: documentId,

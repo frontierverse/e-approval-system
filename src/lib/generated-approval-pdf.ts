@@ -184,6 +184,13 @@ export async function attachStampedApprovalPdfToDocument(
         select: {
           order: true,
           status: true,
+          decisionType: true,
+          proxyApprovedBy: {
+            select: { name: true, signatureImageStorageProvider: true, signatureImageStorageKey: true },
+          },
+          actedBy: {
+            select: { name: true, signatureImageStorageProvider: true, signatureImageStorageKey: true },
+          },
           approver: {
             select: {
               name: true,
@@ -312,6 +319,7 @@ export async function attachStampedApprovalPdfToDocument(
             sourceAttachmentId: sourceAttachment.id,
             signedAttachmentId: attachment.id,
             stampCount: stamps.length,
+            stampActors: stamps.map((stamp) => ({ order: stamp.order, name: stamp.source.name, isProxy: Boolean(stamp.source.isProxy) })),
             generatedApprovalPdfType:
               document.status === DocumentStatus.APPROVED
                 ? "FINAL_APPROVED"
@@ -363,6 +371,7 @@ async function findStampedApprovalPdfAttachment(db: Prisma.TransactionClient, {
     where: {
       documentId,
       signedSourceAttachmentId: sourceAttachmentId,
+      NOT: { originalName: { contains: "[효력 취소]" } },
       id: { in: logs.map((log) => log.targetId) },
     },
     select: {
@@ -455,11 +464,23 @@ async function stampFinalApprovalPdf(
   }
 
   for (const stamp of stamps) {
-    const placement = getApprovalStampPlacement(
+    const originalPlacement = getApprovalStampPlacement(
       stamp.order,
       approvalStepCount,
       layoutKind,
     );
+    const placement = stamp.source.isProxy ? {
+      ...originalPlacement, x: originalPlacement.x + 4, size: originalPlacement.size - 8,
+    } : originalPlacement;
+    if (stamp.source.isProxy) {
+      const label = `대리 · ${stamp.source.name}`;
+      const labelWidth = layoutKind === "meeting" ? 43
+        : approvalPanelWidth * pdfScaleX / getVisibleApprovalColumnCount(approvalStepCount) - 4;
+      const fontSize = Math.min(6, labelWidth / Math.max(1, fonts.korean.widthOfTextAtSize(label, 1)));
+      drawPdfText(page, fonts, label, originalPlacement.x + originalPlacement.size / 2,
+        page.getHeight() - originalPlacement.top - originalPlacement.size + 1,
+        fontSize, approvalPdfInk, { align: "middle", fontWeight: 700 });
+    }
 
     if (
       stamp.source.signatureImageStorageProvider &&
@@ -488,6 +509,24 @@ async function stampFinalApprovalPdf(
     drawGeneratedApprovalStamp(page, fonts, placement, stamp.source.name);
   }
 
+  return Buffer.from(await pdf.save());
+}
+
+/** Served derivative only: retained evidence bytes in storage are never altered. */
+export async function markInvalidApprovalPdf(sourceBuffer: Buffer) {
+  const pdf = await PDFDocument.load(sourceBuffer);
+  const fonts = await embedApprovalPdfFonts(pdf);
+  for (const page of pdf.getPages()) {
+    const width = page.getWidth();
+    const height = page.getHeight();
+    page.drawRectangle({ x: 0, y: height - 33, width, height: 33, color: hexColor("#ffffff") });
+    drawPdfText(page, fonts, "효력 취소 · 이전 결재 이력", width / 2, height - 21, 13,
+      approvalPdfInk, { align: "middle", fontWeight: 800 });
+    // Center label remains visible if the top margin is cropped during printing.
+    const label = "효력 취소";
+    drawPdfText(page, fonts, label, width / 2, height / 2, Math.min(48, width / 7),
+      approvalPdfInk, { align: "middle", fontWeight: 800, opacity: 0.24 });
+  }
   return Buffer.from(await pdf.save());
 }
 

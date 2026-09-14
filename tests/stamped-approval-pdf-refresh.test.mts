@@ -32,8 +32,10 @@ const harness = {
 
 function matches(row: Row, where: Row): boolean {
   return Object.entries(where).every(([key, value]) => {
+    if (key === "NOT") return !matches(row, value);
     if (key === "OR") return value.some((condition: Row) => matches(row, condition));
     if (value && typeof value === "object") {
+      if ("contains" in value) return String(row[key]).includes(value.contains);
       if ("in" in value) return value.in.includes(row[key]);
       if ("path" in value) {
         return value.path.reduce((nested: Row | undefined, part: string) => nested?.[part], row[key]) === value.equals;
@@ -164,7 +166,7 @@ const aliases = {
   "pdf-lib": import.meta.resolve("pdf-lib"),
 };
 for (const [specifier, replacement] of Object.entries(aliases)) source = source.replaceAll(`"${specifier}"`, JSON.stringify(replacement));
-const { attachStampedApprovalPdfToDocument, createApprovalDocumentPdfBuffer, createStampedApprovalPdfOriginalName } = await import(moduleUrl(ts.transpileModule(source, {
+const { attachStampedApprovalPdfToDocument, createApprovalDocumentPdfBuffer, createStampedApprovalPdfOriginalName, markInvalidApprovalPdf } = await import(moduleUrl(ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText));
 
@@ -211,6 +213,44 @@ beforeEach(() => {
 after(() => { delete (globalThis as Row)[harnessKey]; });
 
 describe("automatic stamped approval PDF refresh", () => {
+  test("prints the real proxy actor and delegation label instead of the original approver stamp", async () => {
+    harness.document.approvalSteps = [{order: 1, status: "APPROVED", decisionType: "PROXY",
+      approver: {name: "원결재자", signatureImageStorageProvider: "LOCAL", signatureImageStorageKey: "must-not-read.png"},
+      proxyApprovedBy: {name: "실제처리자"},
+    }];
+    await attachStampedApprovalPdfToDocument("document", "admin");
+    GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+    const task = getDocument({data: new Uint8Array(harness.files.get(harness.persistedKeys[0])!)});
+    try {
+      const pdf = await task.promise;
+      const text = (await (await pdf.getPage(1)).getTextContent()).items.map((item) => "str" in item ? item.str : "").join(" ");
+      assert.match(text, /대리/); assert.match(text, /실제처리자/); assert.doesNotMatch(text, /원결재자/);
+      assert.deepEqual(harness.audits.at(-1)?.metadata.stampActors, [{order: 1, name: "실제처리자", isProxy: true}]);
+    } finally { await task.destroy(); }
+  });
+  test("marks every page of a cancelled derivative without mutating its retained source", async () => {
+    const original = await PDFDocument.create(); original.addPage(); original.addPage();
+    const bytes = Buffer.from(await original.save()); const unchanged = Buffer.from(bytes);
+    const marked = await markInvalidApprovalPdf(bytes);
+    assert.deepEqual(bytes, unchanged);
+    GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+    const task = getDocument({data: new Uint8Array(marked)});
+    try {
+      const pdf = await task.promise;
+      for (let page = 1; page <= pdf.numPages; page++) {
+        const text = (await (await pdf.getPage(page)).getTextContent()).items.map((item) => "str" in item ? item.str : "").join(" ");
+        assert.match(text, /효력 취소/);
+      }
+    } finally { await task.destroy(); }
+  });
+  test("never overwrites a cancelled automatic copy when a new approval copy is generated", async () => {
+    const historical = addAttachment(signedAttachment("cancelled", "[효력 취소] 승인본.pdf"));
+    harness.audits.push(autoAudit("cancelled"));
+    const result = await attachStampedApprovalPdfToDocument("document", "admin");
+    assert.notEqual(result.id, historical.id);
+    assert.equal(historical.storageKey, "cancelled.pdf");
+    assert.ok(harness.files.has("cancelled.pdf"));
+  });
   test("keeps approval stamps centered above the corresponding names without overprinting", async () => {
     GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
     const approvers = Array.from({ length: 6 }, (_, index) => ({ name: `승인자${index + 1}` }));

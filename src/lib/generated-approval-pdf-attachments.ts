@@ -150,6 +150,10 @@ async function loadState(db: Database, documentId: string) {
     !archivedIds.has(attachment.id) &&
     (sourceIds.has(attachment.id) || sourceStoragePattern.test(attachment.storageKey.replace(/\\/g, "/"))),
   );
+  // Cancelled copies are immutable evidence, just like manually signed copies.
+  for (const attachment of attachments) {
+    if (attachment.originalName.includes("[효력 취소]")) automaticSignedIds.delete(attachment.id);
+  }
   const fingerprint = getFingerprint(document);
   const current = sources.find((source) => {
     const recorded = fingerprints.get(source.id);

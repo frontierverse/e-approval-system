@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
 import { prisma } from "@/lib/prisma";
-import { readStoredAttachmentFile } from "@/lib/attachment-storage";
+import { readApprovalAttachmentFile } from "@/lib/approval-attachment-file";
 
 export const runtime = "nodejs";
 
@@ -22,6 +22,8 @@ export async function GET(
       document: getReadableDocumentWhere(user.id, user.role),
     },
     select: {
+      id: true,
+      document: { select: { status: true } },
       originalName: true,
       storageProvider: true,
       storageKey: true,
@@ -35,10 +37,7 @@ export async function GET(
   }
 
   try {
-    const storedFile = await readStoredAttachmentFile({
-      storageProvider: attachment.storageProvider,
-      storageKey: attachment.storageKey,
-    });
+    const storedFile = await readApprovalAttachmentFile(attachment);
 
     return new Response(storedFile.body, {
       headers: {

@@ -622,7 +622,7 @@ describe("major UI rendering", () => {
     const html = renderToStaticMarkup(
       React.createElement(ApprovalTimeline, {
         document,
-        currentUserId: "user-001",
+        currentUserId: "independent-admin",
         currentUserRole: "ADMIN",
         progressLabel: "진행 1/2",
         progressPercent: 50,
@@ -631,7 +631,19 @@ describe("major UI rendering", () => {
     );
 
     assert.match(html, /현재 단계 대리결재/);
+    assert.match(html, /대리결재 사유/);
+    assert.match(html, /maxLength="1000"/);
     assert.doesNotMatch(html, /현재 대리결재 대상/);
+  });
+
+  test("hides proxy approval from ordinary participants and the drafter even when admin", () => {
+    for (const [currentUserId, currentUserRole] of [[document.drafterId, "ADMIN"], [document.approvalSteps[0].approverId, "USER"]]) {
+      const html = renderToStaticMarkup(React.createElement(ApprovalTimeline, {
+        document, currentUserId, currentUserRole, progressLabel: "진행 1/2", progressPercent: 50,
+        proxyApproveDocumentAction: async () => {},
+      }));
+      assert.doesNotMatch(html, /현재 단계 대리결재|대리결재 사유/);
+    }
   });
 
   test("renders a compact approval line preview in order", () => {

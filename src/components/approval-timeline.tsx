@@ -1,7 +1,7 @@
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { ProxyApprovalForm, type ProxyApprovalFormResult } from "@/components/proxy-approval-form";
+import { canActAsApprovalProxy } from "@/lib/proxy-approval-policy";
 import { StatusBadge } from "@/components/status-badge";
 import { UserIdentity } from "@/components/user-identity";
-import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
   type ApprovalDocument,
   type ApprovalStep,
@@ -17,11 +17,11 @@ type ApprovalTimelineProps = {
   proxyApproveDocumentAction?: (
     targetStepId: string,
     formData: FormData,
-  ) => Promise<void>;
+  ) => Promise<ProxyApprovalFormResult>;
   rejectProxyApprovalAction?: (
     stepId: string,
     formData: FormData,
-  ) => Promise<void>;
+  ) => Promise<ProxyApprovalFormResult>;
 };
 
 export function ApprovalTimeline({
@@ -108,11 +108,11 @@ function TimelineStep({
   proxyApproveDocumentAction?: (
     targetStepId: string,
     formData: FormData,
-  ) => Promise<void>;
+  ) => Promise<ProxyApprovalFormResult>;
   rejectProxyApprovalAction?: (
     stepId: string,
     formData: FormData,
-  ) => Promise<void>;
+  ) => Promise<ProxyApprovalFormResult>;
   step: ApprovalStep;
 }) {
   const tone = getTimelineTone(step.status);
@@ -164,25 +164,12 @@ function TimelineStep({
         </p>
 
         {canProxyApprove ? (
-          <form
+          <ProxyApprovalForm
             action={proxyApproveDocumentAction.bind(null, step.id)}
-            className="mt-3 flex justify-end"
-          >
-            <ConfirmSubmitButton
-              message={`${step.order}차 ${step.approver.name}님까지 대리결재하시겠습니까?`}
-              pendingLabel="문서 생성 중"
-              type="submit"
-              className={buttonClass(
-                buttonStyles.base,
-                buttonStyles.approve,
-                "h-9 px-3 text-sm",
-              )}
-            >
-              {step.status === "pending"
-                ? "현재 단계 대리결재"
-                : `${step.order}차까지 대리결재`}
-            </ConfirmSubmitButton>
-          </form>
+            stepId={step.id}
+            confirmation={`${step.order}차 ${step.approver.name}님까지 대리결재합니다. 입력한 사유와 실제 처리자가 기록됩니다. 진행하시겠습니까?`}
+            label={step.status === "pending" ? "현재 단계 대리결재" : `${step.order}차까지 대리결재`}
+          />
         ) : null}
 
         {step.proxyApprovedBy ? (
@@ -212,32 +199,12 @@ function TimelineStep({
         ) : null}
 
         {canRejectProxyApproval ? (
-          <form
+          <ProxyApprovalForm
             action={rejectProxyApprovalAction.bind(null, step.id)}
-            className="mt-3 grid gap-2"
-          >
-            <input
-              name="comment"
-              required
-              minLength={2}
-              placeholder="대리결재 반려 사유"
-              className="h-9 rounded-md border border-[#cfd6e3] bg-white px-3 text-xs outline-none transition placeholder:text-[#9aa4b2] focus:border-[#8a1f1f] focus:ring-2 focus:ring-[#f4c7c7]"
-            />
-            <div className="flex justify-end">
-              <ConfirmSubmitButton
-                message="이 대리결재를 반려하시겠습니까?"
-                pendingLabel="반려 처리 중"
-                type="submit"
-                className={buttonClass(
-                  buttonStyles.base,
-                  buttonStyles.dangerOutline,
-                  "h-9 px-3 text-sm",
-                )}
-              >
-                대리결재 반려
-              </ConfirmSubmitButton>
-            </div>
-          </form>
+            stepId={step.id} reject
+            confirmation="대리결재를 반려하면 문서 전체가 반려되고 자동 승인본의 효력이 취소됩니다. 차감된 휴가가 있으면 복원합니다. 진행하시겠습니까?"
+            label="대리결재 반려"
+          />
         ) : null}
       </div>
     </li>
@@ -318,13 +285,7 @@ function canProxyApproveThroughStep(
     return false;
   }
 
-  const canActAsProxy =
-    currentUserRole === "ADMIN" ||
-    currentUserRole === "admin" ||
-    document.drafterId === currentUserId ||
-    document.approvalSteps.some(
-      (candidate) => candidate.approverId === currentUserId,
-    );
+  const canActAsProxy = canActAsApprovalProxy(currentUserId, currentUserRole, document.drafterId);
 
   if (!canActAsProxy) {
     return false;

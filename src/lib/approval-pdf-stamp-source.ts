@@ -2,13 +2,22 @@ export type ApprovalStampImageSource = {
   name: string;
   signatureImageStorageProvider?: string | null;
   signatureImageStorageKey?: string | null;
+  isProxy?: boolean;
 };
 
 export type ApprovalStampStep = {
   approver: ApprovalStampImageSource;
+  decisionType?: string | null;
+  actedBy?: ApprovalStampImageSource | null;
+  proxyApprovedBy?: ApprovalStampImageSource | null;
 };
 
 export function getFinalApprovalStampSource(step: ApprovalStampStep) {
+  if (step.decisionType === "PROXY") {
+    const actor = step.proxyApprovedBy ?? step.actedBy;
+    // Never substitute the original approver's identity when a legacy actor is missing.
+    return { ...(actor ?? { name: "처리자 확인 필요" }), isProxy: true };
+  }
   return step.approver;
 }
 

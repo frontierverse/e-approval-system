@@ -388,7 +388,7 @@ export async function proxyApproveDocumentAction(
   documentId: string,
   targetStepId: string,
   formData: FormData,
-): Promise<void> {
+) {
   const user = await requireUser();
   const comment = String(formData.get("comment") ?? "").trim();
 
@@ -399,13 +399,7 @@ export async function proxyApproveDocumentAction(
     comment,
   );
 
-  if (!result.ok) {
-    redirect(
-      `/documents/${documentId}?actionError=${encodeURIComponent(
-        result.message,
-      )}`,
-    );
-  }
+  if (!result.ok) return { error: result.message };
 
   await attachStampedApprovalPdfToDocument(
     result.documentId,
@@ -431,14 +425,6 @@ export async function rejectProxyApprovalAction(
   const user = await requireUser();
   const comment = String(formData.get("comment") ?? "").trim();
 
-  if (comment.length < 2) {
-    redirect(
-      `/documents/${documentId}?actionError=${encodeURIComponent(
-        "대리결재를 반려할 때는 사유를 2자 이상 입력하세요.",
-      )}`,
-    );
-  }
-
   const result = await rejectProxyApprovedStep(
     documentId,
     stepId,
@@ -446,13 +432,7 @@ export async function rejectProxyApprovalAction(
     comment,
   );
 
-  if (!result.ok) {
-    redirect(
-      `/documents/${documentId}?actionError=${encodeURIComponent(
-        result.message,
-      )}`,
-    );
-  }
+  if (!result.ok) return { error: result.message };
 
   revalidatePath("/");
   revalidatePath("/inbox");

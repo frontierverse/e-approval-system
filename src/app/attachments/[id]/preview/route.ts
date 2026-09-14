@@ -4,7 +4,7 @@ import {
   getAttachmentPreviewContentType,
   isPreviewableAttachmentFile,
 } from "@/lib/attachment-preview";
-import { readStoredAttachmentFile } from "@/lib/attachment-storage";
+import { readApprovalAttachmentFile } from "@/lib/approval-attachment-file";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -26,6 +26,8 @@ export async function GET(
       document: getReadableDocumentWhere(user.id, user.role),
     },
     select: {
+      id: true,
+      document: { select: { status: true } },
       originalName: true,
       storageProvider: true,
       storageKey: true,
@@ -45,10 +47,7 @@ export async function GET(
   }
 
   try {
-    const storedFile = await readStoredAttachmentFile({
-      storageProvider: attachment.storageProvider,
-      storageKey: attachment.storageKey,
-    });
+    const storedFile = await readApprovalAttachmentFile(attachment);
     const contentType =
       getAttachmentPreviewContentType(
         attachment.originalName,

@@ -160,3 +160,25 @@ export async function recordApprovedVacationLeaveDeduction(
     skipDuplicates: true,
   });
 }
+
+/** Compensate the recorded amount, not a recalculation using today's leave rules. */
+export async function reverseApprovedVacationLeaveDeduction(
+  client: Pick<Prisma.TransactionClient, "staffLeaveLedger">,
+  { documentId, actorId, reason }: { documentId: string; actorId: string; reason: string },
+) {
+  const original = await client.staffLeaveLedger.findUnique({ where: { documentId } });
+  if (!original || original.entryType !== staffLeaveEntryTypes.vacationDeduction) return;
+  await client.staffLeaveLedger.createMany({
+    data: [{
+      userId: original.userId, actorId,
+      // documentId is unique in the existing schema; retain the original relation.
+      // The immutable original ledger ID gives the reversal a stable audit link.
+      sourceKey: `approval-reversal:${original.id}`,
+      entryType: "vacation_reversal",
+      amountHalfDays: -original.amountHalfDays,
+      eventDate: getKoreanDateValue(),
+      reason: `결재 반려로 휴가 차감 복원 / 문서 ${documentId} / ${reason}`,
+    }],
+    skipDuplicates: true,
+  });
+}
