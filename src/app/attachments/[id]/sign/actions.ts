@@ -6,6 +6,7 @@ import {
   AuditAction,
   ApprovalStepStatus,
   DocumentStatus,
+  Prisma,
 } from "@/generated/prisma/client";
 import { isSignableAttachmentFile } from "@/lib/attachment-preview";
 import {
@@ -58,6 +59,7 @@ export async function createSignedAttachmentAction(
         select: {
           id: true,
           status: true,
+          updatedAt: true,
           approvalSteps: {
             select: {
               approverId: true,
@@ -148,6 +150,47 @@ export async function createSignedAttachmentAction(
 
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "ApprovalDocument" WHERE "id" = ${attachment.document.id} FOR UPDATE
+      `);
+      const latestAttachment = await tx.attachment.findFirst({
+        where: {
+          id: attachment.id,
+          documentId: attachment.document.id,
+          signedSourceAttachmentId: null,
+        },
+        select: {
+          originalName: true,
+          storageProvider: true,
+          storageKey: true,
+          document: {
+            select: {
+              updatedAt: true,
+              status: true,
+              approvalSteps: { select: { approverId: true, status: true } },
+            },
+          },
+        },
+      });
+      if (
+        !latestAttachment ||
+        latestAttachment.storageKey !== attachment.storageKey ||
+        latestAttachment.storageProvider !== attachment.storageProvider ||
+        latestAttachment.originalName !== attachment.originalName ||
+        latestAttachment.document.updatedAt.getTime() !== attachment.document.updatedAt.getTime()
+      ) {
+        throw new Error("서명본 처리 중 문서 또는 원본 첨부파일이 변경되었습니다. 최신 문서를 확인한 뒤 다시 시도하세요.");
+      }
+      if (
+        ![DocumentStatus.SUBMITTED, DocumentStatus.IN_PROGRESS].some(
+          (status) => status === latestAttachment.document.status,
+        ) ||
+        !latestAttachment.document.approvalSteps.some(
+          (step) => step.approverId === user.id && step.status === ApprovalStepStatus.PENDING,
+        )
+      ) {
+        throw new Error("현재 결재 차례에서만 도장을 찍을 수 있습니다.");
+      }
       const createdAttachment = await tx.attachment.create({
         data: {
           documentId: attachment.document.id,
@@ -184,7 +227,7 @@ export async function createSignedAttachmentAction(
       });
     });
   } catch (error) {
-    await removeStoredAttachmentFiles([preparedSignedFile]);
+    await removeStoredAttachmentFiles([preparedSignedFile]).catch(() => undefined);
 
     return {
       error: getSigningErrorMessage(error),

@@ -25,11 +25,15 @@ import {
 } from "@/lib/attachment-storage-core";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import {
-  extractDisplayContentFromTemplate,
   getDocumentTemplateDisplayRows,
   type DocumentTemplateDisplayRow,
 } from "@/lib/draft-template-content";
 import { prisma } from "@/lib/prisma";
+import {
+  generatedApprovalPdfStorageSegment,
+  findCurrentGeneratedApprovalPdfAttachment,
+  syncGeneratedApprovalPdf,
+} from "@/lib/generated-approval-pdf-attachments";
 import {
   getApprovalPdfLayout,
   type ApprovalPdfLayout,
@@ -39,6 +43,7 @@ import {
   ApprovalStepStatus,
   AuditAction,
   DocumentStatus,
+  Prisma,
 } from "@/generated/prisma/client";
 
 type ApprovalPdfUser = {
@@ -130,7 +135,6 @@ const meetingTitleY = 170;
 const meetingFirstTableY = 250;
 const meetingContinuationTableY = 96;
 const meetingTableMaxBottomY = 1666;
-const generatedApprovalPdfStorageSegment = "generated-approval-pdf-v5/";
 const approvalDocumentFooterText =
   "본 문서는 전자결재 시스템에서 생성된 원본문서이며, 최종 승인 시 결재란에 승인 기록이 반영됩니다.";
 const pdfKoreanFontPath = path.join(
@@ -154,191 +158,7 @@ export async function attachGeneratedApprovalPdfToDocument(
   documentId: string,
   actorId: string,
 ) {
-  const document = await prisma.approvalDocument.findUnique({
-    where: {
-      id: documentId,
-    },
-    select: {
-      id: true,
-      documentNo: true,
-      title: true,
-      category: true,
-      content: true,
-      templateId: true,
-      submittedAt: true,
-      createdAt: true,
-      drafterId: true,
-      template: {
-        select: {
-          name: true,
-          schema: true,
-        },
-      },
-      drafter: {
-        select: {
-          name: true,
-          department: {
-            select: {
-              name: true,
-            },
-          },
-          position: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
-      approvalSteps: {
-        orderBy: {
-          order: "asc",
-        },
-        select: {
-          approver: {
-            select: {
-              name: true,
-              department: {
-                select: {
-                  name: true,
-                },
-              },
-              position: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!document) {
-    throw new Error("시스템 PDF를 생성할 문서를 찾을 수 없습니다.");
-  }
-
-  const originalName = createGeneratedApprovalPdfOriginalName(
-    document.documentNo,
-    document.title,
-  );
-  const existingAttachment = await prisma.attachment.findFirst({
-    where: {
-      documentId: document.id,
-      originalName,
-      signedSourceAttachmentId: null,
-    },
-    select: {
-      id: true,
-      storageProvider: true,
-      storageKey: true,
-    },
-  });
-
-  if (
-    existingAttachment &&
-    isCurrentGeneratedApprovalPdfStorageKey(existingAttachment.storageKey)
-  ) {
-    return {
-      id: existingAttachment.id,
-    };
-  }
-
-  const file = await createGeneratedApprovalPdfFile({
-    documentNo: document.documentNo,
-    title: document.title,
-    category: document.category,
-    content: extractDisplayContentFromTemplate(
-      document.content,
-      document.templateId,
-      document.template.schema,
-    ),
-    templateName: document.template.name,
-    templateSchema: document.template.schema,
-    drafter: {
-      name: document.drafter.name,
-      departmentName: document.drafter.department.name,
-      positionName: document.drafter.position.name,
-    },
-    approvers: document.approvalSteps.map((step) => ({
-      name: step.approver.name,
-      departmentName: step.approver.department.name,
-      positionName: step.approver.position.name,
-    })),
-    issuedAt: document.submittedAt ?? document.createdAt,
-  });
-  const previousFile = existingAttachment
-    ? {
-        storageProvider: existingAttachment.storageProvider,
-        storageKey: existingAttachment.storageKey,
-      }
-    : null;
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  try {
-    await persistAttachmentFiles([file]);
-    const attachment = await prisma.$transaction(async (tx) => {
-      const attachment = existingAttachment
-        ? await tx.attachment.update({
-            where: {
-              id: existingAttachment.id,
-            },
-            data: {
-              storageProvider: file.storageProvider,
-              storageKey: file.storageKey,
-              mimeType: file.mimeType,
-              size: file.size,
-            },
-            select: {
-              id: true,
-            },
-          })
-        : await tx.attachment.create({
-            data: {
-              documentId: document.id,
-              uploaderId: document.drafterId,
-              originalName: file.originalName,
-              storageProvider: file.storageProvider,
-              storageKey: file.storageKey,
-              mimeType: file.mimeType,
-              size: file.size,
-            },
-            select: {
-              id: true,
-            },
-          });
-
-      await tx.auditLog.create({
-        data: {
-          actorId,
-          ...auditRequestData,
-          action: AuditAction.UPDATE_DRAFT,
-          targetType: "Attachment",
-          targetId: attachment.id,
-          documentId: document.id,
-          message: existingAttachment
-            ? "시스템 원본문서 PDF를 다시 생성했습니다."
-            : "시스템 원본문서 PDF를 생성했습니다.",
-          metadata: {
-            generatedApprovalPdfType: "SOURCE",
-            generatedAttachmentId: attachment.id,
-            replacedAttachmentId: existingAttachment?.id ?? null,
-          },
-        },
-      });
-
-      return attachment;
-    });
-
-    if (previousFile) {
-      await removeStoredAttachmentFiles([previousFile]).catch(() => undefined);
-    }
-
-    return attachment;
-  } catch (error) {
-    await removeStoredAttachmentFiles([file]).catch(() => undefined);
-    throw error;
-  }
+  return syncGeneratedApprovalPdf(documentId, actorId, createGeneratedApprovalPdfFile);
 }
 
 export async function attachStampedApprovalPdfToDocument(
@@ -354,6 +174,7 @@ export async function attachStampedApprovalPdfToDocument(
       documentNo: true,
       title: true,
       status: true,
+      updatedAt: true,
       drafterId: true,
       template: {
         select: {
@@ -388,11 +209,7 @@ export async function attachStampedApprovalPdfToDocument(
   }
 
   const sourceAttachment = await ensureGeneratedApprovalPdfAttachment(
-    {
-      id: document.id,
-      documentNo: document.documentNo,
-      title: document.title,
-    },
+    { id: document.id },
     actorId,
   );
   const originalName = createStampedApprovalPdfOriginalName(
@@ -400,13 +217,6 @@ export async function attachStampedApprovalPdfToDocument(
     document.title,
     document.status,
   );
-  const existingAttachment = await findStampedApprovalPdfAttachment({
-    documentId: document.id,
-    sourceAttachmentId: sourceAttachment.id,
-    documentNo: document.documentNo,
-    title: document.title,
-  });
-
   const approvalStepCount = document.approvalSteps.length;
   const approvedSteps = document.approvalSteps
     .filter((step) => step.status === ApprovalStepStatus.APPROVED);
@@ -431,18 +241,29 @@ export async function attachStampedApprovalPdfToDocument(
     approvalStepCount,
     layoutKind: getApprovalPdfLayout(document.template.name).kind,
   });
-  const previousFile = existingAttachment
-    ? {
-        storageProvider: existingAttachment.storageProvider,
-        storageKey: existingAttachment.storageKey,
-      }
-    : null;
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   try {
     await persistAttachmentFiles([file]);
 
-    const attachment = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "ApprovalDocument" WHERE "id" = ${documentId} FOR UPDATE
+      `);
+      const latestDocument = await tx.approvalDocument.findUnique({
+        where: { id: documentId },
+        select: { updatedAt: true },
+      });
+      const latestSource = await findCurrentGeneratedApprovalPdfAttachment(tx, documentId);
+      if (latestSource?.id !== sourceAttachment.id ||
+          latestSource.storageKey !== sourceAttachment.storageKey ||
+          latestDocument?.updatedAt.getTime() !== document.updatedAt.getTime()) {
+        throw new Error("결재본 PDF 생성 중 문서가 변경되었습니다. 최신 문서로 다시 시도하세요.");
+      }
+      const existingAttachment = await findStampedApprovalPdfAttachment(tx, {
+        documentId,
+        sourceAttachmentId: sourceAttachment.id,
+      });
       const attachment = existingAttachment
         ? await tx.attachment.update({
             where: {
@@ -504,14 +325,14 @@ export async function attachStampedApprovalPdfToDocument(
         },
       });
 
-      return attachment;
+      return { attachment, previousFile: existingAttachment };
     });
 
-    if (previousFile) {
-      await removeStoredAttachmentFiles([previousFile]).catch(() => undefined);
+    if (result.previousFile) {
+      await removeStoredAttachmentFiles([result.previousFile]).catch(() => undefined);
     }
 
-    return attachment;
+    return result.attachment;
   } catch (error) {
     await removeStoredAttachmentFiles([file]).catch(() => undefined);
     throw error;
@@ -521,24 +342,32 @@ export async function attachStampedApprovalPdfToDocument(
 export const attachFinalApprovedApprovalPdfToDocument =
   attachStampedApprovalPdfToDocument;
 
-function findStampedApprovalPdfAttachment({
+async function findStampedApprovalPdfAttachment(db: Prisma.TransactionClient, {
   documentId,
   sourceAttachmentId,
-  documentNo,
-  title,
 }: {
   documentId: string;
   sourceAttachmentId: string;
-  documentNo: string | null;
-  title: string;
 }) {
-  return prisma.attachment.findFirst({
+  const logs = await db.auditLog.findMany({
+    where: {
+      documentId,
+      action: AuditAction.UPDATE_DRAFT,
+      targetType: "Attachment",
+      OR: [
+        { metadata: { path: ["generatedApprovalPdfType"], equals: "IN_PROGRESS" } },
+        { metadata: { path: ["generatedApprovalPdfType"], equals: "FINAL_APPROVED" } },
+        { message: "결재본 PDF를 자동 갱신했습니다." },
+        { message: "최종 승인본 PDF를 자동 생성했습니다." },
+      ],
+    },
+    select: { targetId: true },
+  });
+  return db.attachment.findFirst({
     where: {
       documentId,
       signedSourceAttachmentId: sourceAttachmentId,
-      originalName: {
-        in: getStampedApprovalPdfOriginalNameCandidates(documentNo, title),
-      },
+      id: { in: logs.map((log) => log.targetId) },
     },
     select: {
       id: true,
@@ -2516,24 +2345,6 @@ export function createStampedApprovalPdfOriginalName(
   return `전자결재_${typeLabel}_${documentLabel}_${titleLabel}.pdf`;
 }
 
-function getStampedApprovalPdfOriginalNameCandidates(
-  documentNo: string | null,
-  title: string,
-) {
-  return [
-    createStampedApprovalPdfOriginalName(
-      documentNo,
-      title,
-      DocumentStatus.IN_PROGRESS,
-    ),
-    createStampedApprovalPdfOriginalName(
-      documentNo,
-      title,
-      DocumentStatus.APPROVED,
-    ),
-  ];
-}
-
 function canAttachStampedApprovalPdf(status: DocumentStatus) {
   return (
     status === DocumentStatus.SUBMITTED ||
@@ -2552,14 +2363,6 @@ function createGeneratedApprovalPdfStorageKey(
   return `${getAttachmentStorageKeyPrefix(provider)}${generatedApprovalPdfStorageSegment}${randomUUID()}.pdf`;
 }
 
-function isCurrentGeneratedApprovalPdfStorageKey(storageKey: string) {
-  const normalizedKey = storageKey.replace(/\\/g, "/");
-
-  return (
-    normalizedKey.startsWith(generatedApprovalPdfStorageSegment) ||
-    normalizedKey.includes(`/${generatedApprovalPdfStorageSegment}`)
-  );
-}
 
 function formatKoreanDateTime(date: Date) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -2610,44 +2413,10 @@ function hexColor(value: string) {
 }
 
 async function ensureGeneratedApprovalPdfAttachment(
-  document: {
-    id: string;
-    documentNo: string | null;
-    title: string;
-  },
+  document: { id: string },
   actorId: string,
 ) {
-  await attachGeneratedApprovalPdfToDocument(document.id, actorId);
-
-  const createdAttachment = await findGeneratedApprovalPdfAttachment(document);
-
-  if (!createdAttachment) {
-    throw new Error("승인본의 기준이 되는 원본문서 PDF를 찾을 수 없습니다.");
-  }
-
-  return createdAttachment;
-}
-
-function findGeneratedApprovalPdfAttachment(document: {
-  id: string;
-  documentNo: string | null;
-  title: string;
-}) {
-  return prisma.attachment.findFirst({
-    where: {
-      documentId: document.id,
-      originalName: createGeneratedApprovalPdfOriginalName(
-        document.documentNo,
-        document.title,
-      ),
-      signedSourceAttachmentId: null,
-    },
-    select: {
-      id: true,
-      storageProvider: true,
-      storageKey: true,
-    },
-  });
+  return attachGeneratedApprovalPdfToDocument(document.id, actorId);
 }
 
 function getApprovalStampPlacement(

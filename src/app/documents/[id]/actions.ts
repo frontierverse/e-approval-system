@@ -6,6 +6,7 @@ import {
   ApprovalStepStatus,
   AuditAction,
   DocumentStatus,
+  Prisma,
 } from "@/generated/prisma/client";
 import {
   approveCurrentApprovalStep,
@@ -113,11 +114,14 @@ export async function uploadSignedAttachmentAction(
     select: {
       id: true,
       originalName: true,
+      storageProvider: true,
+      storageKey: true,
       document: {
         select: {
           id: true,
           drafterId: true,
           status: true,
+          updatedAt: true,
           approvalSteps: {
             select: {
               approverId: true,
@@ -165,10 +169,48 @@ export async function uploadSignedAttachmentAction(
 
   const preparedSignedFile = preparedResult.files[0]!;
   const auditRequestData = await getCurrentAuditLogRequestData();
+  let createdAttachmentId: string;
 
   try {
     await persistAttachmentFiles([preparedSignedFile]);
     const createdAttachment = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "ApprovalDocument" WHERE "id" = ${documentId} FOR UPDATE
+      `);
+      const latestAttachment = await tx.attachment.findFirst({
+        where: { id: attachment.id, documentId, signedSourceAttachmentId: null },
+        select: {
+          originalName: true,
+          storageProvider: true,
+          storageKey: true,
+          document: {
+            select: {
+              updatedAt: true,
+              status: true,
+              approvalSteps: { select: { approverId: true, status: true } },
+            },
+          },
+        },
+      });
+      if (
+        !latestAttachment ||
+        latestAttachment.storageKey !== attachment.storageKey ||
+        latestAttachment.storageProvider !== attachment.storageProvider ||
+        latestAttachment.originalName !== attachment.originalName ||
+        latestAttachment.document.updatedAt.getTime() !== attachment.document.updatedAt.getTime()
+      ) {
+        throw new Error("서명본 처리 중 문서 또는 원본 첨부파일이 변경되었습니다. 최신 문서를 확인한 뒤 다시 시도하세요.");
+      }
+      if (
+        ![DocumentStatus.SUBMITTED, DocumentStatus.IN_PROGRESS].some(
+          (status) => status === latestAttachment.document.status,
+        ) ||
+        !latestAttachment.document.approvalSteps.some(
+          (step) => step.approverId === user.id && step.status === ApprovalStepStatus.PENDING,
+        )
+      ) {
+        throw new Error("현재 결재 차례에서만 서명본을 업로드할 수 있습니다.");
+      }
       const signedAttachment = await tx.attachment.create({
         data: {
           documentId: attachment.document.id,
@@ -206,12 +248,7 @@ export async function uploadSignedAttachmentAction(
       return signedAttachment;
     });
 
-    revalidatePath("/");
-    revalidatePath("/inbox");
-    revalidatePath("/sent");
-    revalidatePath("/work-schedule/work-log");
-    revalidatePath(`/documents/${documentId}`);
-    redirect(`/documents/${documentId}#signed-${createdAttachment.id}`);
+    createdAttachmentId = createdAttachment.id;
   } catch (error) {
     await removeStoredAttachmentFiles([preparedSignedFile]).catch(
       () => undefined,
@@ -221,6 +258,13 @@ export async function uploadSignedAttachmentAction(
       getSignedUploadErrorMessage(error),
     );
   }
+
+  revalidatePath("/");
+  revalidatePath("/inbox");
+  revalidatePath("/sent");
+  revalidatePath("/work-schedule/work-log");
+  revalidatePath(`/documents/${documentId}`);
+  redirect(`/documents/${documentId}#signed-${createdAttachmentId}`);
 }
 
 export async function recallDocumentAction(documentId: string) {
