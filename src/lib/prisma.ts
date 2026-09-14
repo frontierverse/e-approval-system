@@ -17,6 +17,7 @@ const requiredPrismaDelegates = [
   "resourcePostView",
   "workSchedule",
   "workLog",
+  "dailyWorkReport",
   "workFeatureUpdate",
   "youth",
   "youthAcademySchedule",

@@ -54,6 +54,7 @@ const defaultAllowedAttachmentExtensions = [
 async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.workLog.deleteMany();
+  await prisma.dailyWorkReport.deleteMany();
   await prisma.attachment.deleteMany();
   await prisma.attachmentPolicy.deleteMany();
   await prisma.approvalComment.deleteMany();

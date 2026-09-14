@@ -157,6 +157,8 @@ model User {
   workFeatureUpdates             WorkFeatureUpdate[]       @relation("WorkFeatureUpdateCreator")
   workLogs                       WorkLog[]                 @relation("WorkLogAuthor")
   updatedWorkLogs                WorkLog[]                 @relation("WorkLogUpdater")
+  dailyWorkReports               DailyWorkReport[]         @relation("DailyReportAuthor")
+  reviewedDailyWorkReports       DailyWorkReport[]         @relation("DailyReportReviewer")
   assignedStaffTasks             StaffTask[]               @relation("StaffTaskAssignee")
   createdStaffTasks              StaffTask[]               @relation("StaffTaskCreator")
   youthDecisionDocuments         YouthDecisionDocument[]   @relation("YouthDecisionDocumentUploader")
@@ -692,6 +694,27 @@ model WorkLog {
 
   @@unique([authorId, workDate])
   @@index([updatedById])
+}
+
+model DailyWorkReport {
+  id           String    @id @default(cuid())
+  workDate     DateTime  @db.Date
+  mainContent  String
+  youthReports Json      @default("[]")
+  version      Int       @default(1)
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  authorId     String
+  reviewedById String?
+  author       User  @relation("DailyReportAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedBy   User? @relation("DailyReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([authorId, workDate])
+  @@index([workDate, submittedAt])
+  @@index([reviewedById])
 }
 
 model WorkFeatureUpdate {
