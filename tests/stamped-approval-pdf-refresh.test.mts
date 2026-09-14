@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, beforeEach, describe, test } from "node:test";
-import { PDFDocument } from "pdf-lib";
+import { decodePDFRawStream, PDFArray, PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
 import ts from "typescript";
 
 // Exercise the real PDF stamp renderer and attachment orchestration. Only database,
@@ -208,6 +208,49 @@ beforeEach(() => {
 after(() => { delete (globalThis as Row)[harnessKey]; });
 
 describe("automatic stamped approval PDF refresh", () => {
+  test("renders the automatic approval stamp using only black DeviceGray ink", async () => {
+    await attachStampedApprovalPdfToDocument("document", "approver");
+    const pdf = await PDFDocument.load(harness.files.get(harness.persistedKeys[0])!);
+    const contents = pdf.getPages()[0].node.Contents();
+    assert.ok(contents);
+    const streams = contents instanceof PDFArray ? contents.asArray() : [contents];
+    const operators = streams.map((entry) => {
+      const stream = pdf.context.lookup(entry);
+      assert.ok(stream instanceof PDFRawStream);
+      return Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1");
+    }).join("\n");
+
+    assert.doesNotMatch(operators, /(?:^|\s)(?:rg|RG|k|K|cs|CS|sc|SC|scn|SCN)\s*$/m);
+    const graySettings = [...operators.matchAll(/^([\d.]+) ([gG])$/gm)];
+    assert.ok(graySettings.filter((match) => match[2] === "G").length >= 2, "both stamp outlines must be drawn");
+    assert.ok(graySettings.filter((match) => match[2] === "g").length >= 2, "approval and name text must be drawn");
+    for (const setting of graySettings) {
+      assert.equal(Number(setting[1]), 0, "stamp outlines and text must use black ink");
+    }
+  });
+
+  test("preserves the original color pixels of a registered signature image", async () => {
+    // A one-pixel PNG containing RGB(200, 17, 37), standing in for a red seal.
+    const signature = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWM4IagKAAKjAP/95ZoBAAAAAElFTkSuQmCC", "base64");
+    harness.files.set("signature.png", signature);
+    Object.assign(harness.document.approvalSteps[0].approver, {
+      signatureImageStorageProvider: "LOCAL",
+      signatureImageStorageKey: "signature.png",
+    });
+
+    await attachStampedApprovalPdfToDocument("document", "approver");
+    const pdf = await PDFDocument.load(harness.files.get(harness.persistedKeys[0])!);
+    const images = pdf.context.enumerateIndirectObjects().flatMap(([, object]) =>
+      object instanceof PDFRawStream && object.dict.get(PDFName.of("Subtype"))?.toString() === "/Image"
+        ? [object] : [],
+    );
+
+    assert.equal(images.length, 1, "the registered image must be embedded instead of a replacement stamp");
+    assert.equal(images[0].dict.get(PDFName.of("ColorSpace"))?.toString(), "/DeviceRGB");
+    assert.deepEqual([...decodePDFRawStream(images[0]).decode()], [200, 17, 37]);
+    assert.deepEqual(harness.files.get("signature.png"), signature, "the stored signature must remain unchanged");
+  });
+
   for (const identity of ["metadata", "legacy audit message"] as const) {
     test(`uses ${identity} target IDs across title changes and preserves a same-name manual signed file`, async () => {
       const previous = addAttachment(signedAttachment("automatic", "전자결재_결재본_2026-100_이전제목.pdf"));

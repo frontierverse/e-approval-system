@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, type PDFFont, type PDFPage, rgb } from "pdf-lib";
+import { PDFDocument, type PDFFont, type PDFPage, grayscale, rgb } from "pdf-lib";
 import {
   type PreparedAttachmentFile,
   persistAttachmentFiles,
@@ -35,6 +35,8 @@ import {
   syncGeneratedApprovalPdf,
 } from "@/lib/generated-approval-pdf-attachments";
 import {
+  approvalPdfInk,
+  approvalPdfPaper,
   getApprovalPdfLayout,
   type ApprovalPdfLayout,
   type ApprovalPdfLayoutKind,
@@ -83,8 +85,8 @@ const pdfScaleX = pageWidth / svgWidth;
 const pdfScaleY = pageHeight / svgHeight;
 const pdfScale = pdfScaleX;
 const headerMetaLabelX = 790;
-const headerMetaValueX = 1018;
-const headerMetaValueWidth = 210;
+const headerMetaValueX = 1122;
+const headerMetaValueWidth = 260;
 const infoPanelX = 118;
 const infoPanelY = 414;
 const infoPanelWidth = 560;
@@ -130,7 +132,7 @@ const meetingBlockFirstBaseline = 34;
 const meetingBlockPaddingBottom = 16;
 const meetingFontSize = 15;
 const meetingHeadingFontSize = 18;
-const meetingBorderColor = "#16181d";
+const meetingBorderColor = approvalPdfInk;
 const meetingTitleY = 170;
 const meetingFirstTableY = 250;
 const meetingContinuationTableY = 96;
@@ -559,10 +561,8 @@ function drawApprovalDocumentPage(
     bodyTextMaxLines,
   );
 
-  drawSvgRect(page, 0, 0, svgWidth, svgHeight, layout.pageFill);
-  drawSvgRect(page, 78, 72, 1084, 1610, "#ffffff", "#d6dbe3", 2);
-  drawSvgRect(page, 78, 72, 1084, 118, layout.headerFill);
-  drawSvgText(page, fonts, layout.headerTitle, 118, 132, 27, "#ffffff", {
+  drawSvgRect(page, 78, 72, 1084, 1610, approvalPdfPaper, approvalPdfInk, 2);
+  drawSvgText(page, fonts, layout.headerTitle, 118, 132, 27, approvalPdfInk, {
     fontWeight: 700,
   });
   drawSvgText(
@@ -577,7 +577,6 @@ function drawApprovalDocumentPage(
   drawApprovalHeaderMetadata(page, fonts, layout, documentNo, issuedAt);
 
   drawSvgRect(page, 118, 232, 1004, 128, layout.heroFill, layout.heroStroke, 2);
-  drawSvgRect(page, 118, 232, 14, 128, layout.accentFill);
   drawSvgText(page, fonts, layout.badgeLabel, 154, 266, 16, layout.accentFill, {
     fontWeight: 700,
   });
@@ -588,7 +587,7 @@ function drawApprovalDocumentPage(
     154,
     309,
     heroTemplateNameFontSize,
-    "#171b22",
+    approvalPdfInk,
     heroTemplateNameMaxWidth,
     {
       fontWeight: 800,
@@ -602,7 +601,7 @@ function drawApprovalDocumentPage(
     heroTitleY,
     heroTitleFontSize,
     heroTitleLineHeight,
-    "#171b22",
+    approvalPdfInk,
     700,
   );
 
@@ -906,7 +905,7 @@ function drawMeetingMinutesInfoRow(
       y,
       cell.labelWidth,
       meetingInfoRowHeight,
-      "#ffffff",
+      approvalPdfPaper,
       meetingBorderColor,
       1.5,
     );
@@ -929,7 +928,7 @@ function drawMeetingMinutesInfoRow(
       y,
       cell.valueWidth,
       meetingInfoRowHeight,
-      "#ffffff",
+      approvalPdfPaper,
       meetingBorderColor,
       1.5,
     );
@@ -940,7 +939,7 @@ function drawMeetingMinutesInfoRow(
       x + cell.labelWidth + meetingCellPaddingX,
       textBaselineY,
       meetingFontSize,
-      "#16181d",
+      approvalPdfInk,
       cell.valueWidth - meetingCellPaddingX * 2,
     );
     x += cell.labelWidth + cell.valueWidth;
@@ -1020,7 +1019,7 @@ function drawMeetingMinutesBlockRow(
     y,
     meetingLabelWidth,
     height,
-    "#ffffff",
+    approvalPdfPaper,
     meetingBorderColor,
     1.5,
   );
@@ -1043,7 +1042,7 @@ function drawMeetingMinutesBlockRow(
     y,
     meetingTableWidth - meetingLabelWidth,
     height,
-    "#ffffff",
+    approvalPdfPaper,
     meetingBorderColor,
     1.5,
   );
@@ -1055,7 +1054,7 @@ function drawMeetingMinutesBlockRow(
       meetingTableX + meetingLabelWidth + meetingCellPaddingX,
       y + meetingBlockFirstBaseline + index * meetingLineHeight,
       line.fontSize,
-      "#16181d",
+      approvalPdfInk,
       {
         fontWeight: line.fontWeight,
       },
@@ -1117,8 +1116,8 @@ function drawTextBodySection(
     bodyRectY,
     1004,
     bodyRectHeight,
-    "#ffffff",
-    "#d6dbe3",
+    approvalPdfPaper,
+    approvalPdfInk,
     2,
   );
   drawSvgMultilineText(
@@ -1129,7 +1128,7 @@ function drawTextBodySection(
     bodyRectY + 54,
     bodyTextFontSize,
     bodyTextLineHeight,
-    "#2f3742",
+    approvalPdfInk,
   );
 }
 
@@ -1234,11 +1233,11 @@ function drawDocumentTemplateTableSection(
       tableY,
       templateTableWidth,
       templateTableMinRowHeight,
-      "#ffffff",
-      "#d6dbe3",
+      approvalPdfPaper,
+      approvalPdfInk,
       2,
     );
-    drawSvgText(page, fonts, "-", 150, tableY + 38, 15, "#697386");
+    drawSvgText(page, fonts, "-", 150, tableY + 38, 15, approvalPdfInk);
 
     return tableY + templateTableMinRowHeight;
   }
@@ -1282,7 +1281,7 @@ function drawDocumentTemplateTableRow(
     rowLayout.y,
     valueWidth,
     rowLayout.height,
-    "#ffffff",
+    approvalPdfPaper,
     layout.heroStroke,
     1,
   );
@@ -1295,7 +1294,7 @@ function drawDocumentTemplateTableRow(
     rowLayout.y + templateTablePaddingTop,
     templateTableLabelFontSize,
     templateTableLineHeight,
-    "#394150",
+    approvalPdfInk,
     700,
   );
   drawSvgMultilineText(
@@ -1306,7 +1305,7 @@ function drawDocumentTemplateTableRow(
     rowLayout.y + templateTablePaddingTop,
     templateTableValueFontSize,
     templateTableLineHeight,
-    "#2f3742",
+    approvalPdfInk,
   );
 }
 
@@ -1482,10 +1481,8 @@ function drawApprovalDocumentContinuationPageFrame(
 ) {
   const titleLines = wrapSvgTextLines(fonts, input.title, 17, 650, 2);
 
-  drawSvgRect(page, 0, 0, svgWidth, svgHeight, layout.pageFill);
-  drawSvgRect(page, 78, 72, 1084, 1610, "#ffffff", "#d6dbe3", 2);
-  drawSvgRect(page, 78, 72, 1084, 118, layout.headerFill);
-  drawSvgText(page, fonts, `${layout.headerTitle} 계속`, 118, 132, 27, "#ffffff", {
+  drawSvgRect(page, 78, 72, 1084, 1610, approvalPdfPaper, approvalPdfInk, 2);
+  drawSvgText(page, fonts, `${layout.headerTitle} 계속`, 118, 132, 27, approvalPdfInk, {
     fontWeight: 700,
   });
   drawSvgText(
@@ -1506,8 +1503,7 @@ function drawApprovalDocumentContinuationPageFrame(
   );
 
   drawSvgRect(page, 118, 220, 1004, 82, layout.heroFill, layout.heroStroke, 2);
-  drawSvgRect(page, 118, 220, 14, 82, layout.accentFill);
-  drawSvgText(page, fonts, input.templateName, 154, 253, 22, "#171b22", {
+  drawSvgText(page, fonts, input.templateName, 154, 253, 22, approvalPdfInk, {
     fontWeight: 800,
   });
   drawSvgMultilineText(
@@ -1518,7 +1514,7 @@ function drawApprovalDocumentContinuationPageFrame(
     280,
     17,
     22,
-    "#394150",
+    approvalPdfInk,
     700,
   );
 }
@@ -1540,7 +1536,7 @@ function drawApprovalHeaderMetadata(
     headerMetaValueX,
     132,
     17,
-    "#ffffff",
+    approvalPdfInk,
     headerMetaValueWidth,
     {
       align: "end",
@@ -1570,7 +1566,7 @@ function drawApprovalDocumentFooter(
   fonts: ApprovalPdfFonts,
   suffix?: string,
 ) {
-  drawSvgLine(page, 118, 1602, 1122, 1602, "#d6dbe3", 2);
+  drawSvgLine(page, 118, 1602, 1122, 1602, approvalPdfInk, 2);
   drawSvgText(
     page,
     fonts,
@@ -1578,7 +1574,7 @@ function drawApprovalDocumentFooter(
     118,
     1642,
     16,
-    "#697386",
+    approvalPdfInk,
   );
 }
 
@@ -1610,7 +1606,7 @@ function drawInfoPanel(
     infoPanelY,
     infoPanelWidth,
     rows.length * infoPanelRowHeight,
-    "#ffffff",
+    approvalPdfPaper,
     layout.heroStroke,
     2,
   );
@@ -1634,11 +1630,11 @@ function drawInfoPanel(
       y,
       valueWidth,
       infoPanelRowHeight,
-      "#ffffff",
+      approvalPdfPaper,
       layout.heroStroke,
       1,
     );
-    drawSvgText(page, fonts, row[0], infoPanelX + 24, y + 25, 16, "#394150", {
+    drawSvgText(page, fonts, row[0], infoPanelX + 24, y + 25, 16, approvalPdfInk, {
       fontWeight: 700,
     });
     drawSvgFittedText(
@@ -1648,7 +1644,7 @@ function drawInfoPanel(
       valueX + 22,
       y + 25,
       16,
-      "#2f3742",
+      approvalPdfInk,
       valueWidth - 44,
     );
   });
@@ -1682,7 +1678,7 @@ function drawApprovalPanel(
     panelLayout.y,
     panelLayout.width,
     panelLayout.height,
-    "#ffffff",
+    approvalPdfPaper,
     layout.heroStroke,
     2,
   );
@@ -1695,7 +1691,7 @@ function drawApprovalPanel(
       panelLayout.x + panelLayout.width / 2,
       panelLayout.y + panelLayout.height / 2 + 8,
       16,
-      "#697386",
+      approvalPdfInk,
       {
         align: "middle",
       },
@@ -1728,7 +1724,7 @@ function drawApprovalPanel(
       cellCenterX,
       cellY + 23,
       14,
-      "#394150",
+      approvalPdfInk,
       {
         align: "middle",
         fontWeight: 700,
@@ -1740,7 +1736,7 @@ function drawApprovalPanel(
       cellY + 34,
       columnWidth,
       72,
-      "#ffffff",
+      approvalPdfPaper,
       layout.heroStroke,
       1,
     );
@@ -1751,7 +1747,7 @@ function drawApprovalPanel(
       cellCenterX,
       cellY + 78,
       17,
-      "#171b22",
+      approvalPdfInk,
       columnWidth - 32,
       {
         align: "middle",
@@ -1764,7 +1760,7 @@ function drawApprovalPanel(
       cellY + 106,
       columnWidth,
       panelLayout.rowHeight - 106,
-      "#ffffff",
+      approvalPdfPaper,
       layout.heroStroke,
       1,
     );
@@ -1775,7 +1771,7 @@ function drawApprovalPanel(
       cellCenterX,
       cellY + 127,
       12,
-      "#697386",
+      approvalPdfInk,
       columnWidth - 24,
       {
         align: "middle",
@@ -1788,7 +1784,7 @@ function drawApprovalPanel(
       cellCenterX,
       cellY + 145,
       12,
-      "#697386",
+      approvalPdfInk,
       columnWidth - 24,
       {
         align: "middle",
@@ -1838,11 +1834,11 @@ function drawTemplateFocusPanel(
   cards.forEach(([label, value], index) => {
     const x = 150 + index * 310;
 
-    drawSvgRect(page, x, y + 54, 270, 42, "#ffffff", layout.heroStroke, 1);
-    drawSvgText(page, fonts, label, x + 20, y + 81, 14, "#697386", {
+    drawSvgRect(page, x, y + 54, 270, 42, approvalPdfPaper, layout.heroStroke, 1);
+    drawSvgText(page, fonts, label, x + 20, y + 81, 14, approvalPdfInk, {
       fontWeight: 700,
     });
-    drawSvgText(page, fonts, value, x + 118, y + 81, 16, "#171b22", {
+    drawSvgText(page, fonts, value, x + 118, y + 81, 16, approvalPdfInk, {
       fontWeight: 700,
     });
   });
@@ -1864,7 +1860,7 @@ function drawApprovalNotesSection(
     150,
     1472,
     19,
-    "#394150",
+    approvalPdfInk,
   );
   drawSvgText(
     page,
@@ -1873,7 +1869,7 @@ function drawApprovalNotesSection(
     150,
     1515,
     19,
-    "#394150",
+    approvalPdfInk,
   );
 }
 
@@ -2405,11 +2401,14 @@ function hexColor(value: string) {
       : normalized;
   const color = Number.parseInt(hex, 16);
 
-  return rgb(
-    ((color >> 16) & 255) / 255,
-    ((color >> 8) & 255) / 255,
-    (color & 255) / 255,
-  );
+  const red = ((color >> 16) & 255) / 255;
+  const green = ((color >> 8) & 255) / 255;
+  const blue = (color & 255) / 255;
+
+  // DeviceGray avoids asking printers to compose neutral text from color inks.
+  return red === green && green === blue
+    ? grayscale(red)
+    : rgb(red, green, blue);
 }
 
 async function ensureGeneratedApprovalPdfAttachment(
@@ -2476,14 +2475,14 @@ function drawGeneratedApprovalStamp(
 ) {
   const centerX = placement.x + placement.size / 2;
   const centerY = page.getHeight() - placement.top - placement.size / 2;
-  const red = hexColor("#c82333");
+  const ink = hexColor(approvalPdfInk);
   const safeName = name.trim().slice(0, 5) || "승인";
 
   page.drawCircle({
     x: centerX,
     y: centerY,
     size: placement.size / 2,
-    borderColor: red,
+    borderColor: ink,
     borderWidth: placement.size * 0.065,
     borderOpacity: 0.92,
   });
@@ -2491,7 +2490,7 @@ function drawGeneratedApprovalStamp(
     x: centerX,
     y: centerY,
     size: placement.size * 0.4,
-    borderColor: red,
+    borderColor: ink,
     borderWidth: placement.size * 0.018,
     borderOpacity: 0.62,
   });
@@ -2502,7 +2501,7 @@ function drawGeneratedApprovalStamp(
     centerX,
     centerY + placement.size * 0.04,
     placement.size * 0.23,
-    "#c82333",
+    approvalPdfInk,
     {
       align: "middle",
       fontWeight: 800,
@@ -2516,7 +2515,7 @@ function drawGeneratedApprovalStamp(
     centerX,
     centerY - placement.size * 0.21,
     placement.size * 0.14,
-    "#c82333",
+    approvalPdfInk,
     {
       align: "middle",
       fontWeight: 700,
