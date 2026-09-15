@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canWriteDailyReport, isDailyReportDirector, readYouthReports, type DailyReportPageData } from "@/lib/daily-report-core";
+import { canWriteDailyReport, isDailyReportDirector, readYouthReports, type DailyReportPageData, type DailyReportHomeSummary } from "@/lib/daily-report-core";
 import { getWorkLogToday, isWorkLogDate, parseWorkLogDateValue } from "@/lib/work-log-core";
 
 export const dailyReportSelect = {
@@ -12,6 +12,33 @@ export const dailyReportSelect = {
   author: { select: { name: true, department: { select: { name: true } } } },
   reviewedBy: { select: { name: true } },
 } as const satisfies Prisma.DailyWorkReportSelect;
+
+export async function getDailyReportHomeSummary(): Promise<DailyReportHomeSummary | null> {
+  const user = await requireUser();
+  const today = getWorkLogToday();
+  const director = isDailyReportDirector(user);
+  if (!director && !canWriteDailyReport(user, today)) return null;
+
+  try {
+    const workDate = parseWorkLogDateValue(today);
+    if (director) {
+      // Submission metadata only: drafts and report content never reach the home page.
+      const reports = await prisma.dailyWorkReport.findMany({
+        where: { workDate, submittedAt: { not: null } },
+        select: { reviewedAt: true },
+      });
+      return { mode: "director", today, submitted: reports.length, unreviewed: reports.filter(report => !report.reviewedAt).length };
+    }
+    const report = await prisma.dailyWorkReport.findUnique({
+      where: { authorId_workDate: { authorId: user.id, workDate } },
+      select: { submittedAt: true, reviewedAt: true },
+    });
+    return { mode: "employee", today, status: !report ? "missing" : !report.submittedAt ? "draft" : report.reviewedAt ? "reviewed" : "submitted" };
+  } catch (error) {
+    console.error("Failed to load daily report home summary", error);
+    return { mode: "unavailable", today };
+  }
+}
 
 export function mapDailyReport(record: Prisma.DailyWorkReportGetPayload<{ select: typeof dailyReportSelect }>) {
   return {

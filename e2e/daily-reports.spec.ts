@@ -32,6 +32,84 @@ async function noOverflow(page: Page) {
   expect(overflowing).toEqual([]);
 }
 
+test("home: daily report status and direct action stay ahead of personal work", async ({ page }, info) => {
+  for (const [state, selectedReport, label, action] of [
+    ["missing", null, "미제출", "작성하기"],
+    ["draft", { ...report, submittedAt: null }, "임시저장 · 미제출", "이어서 작성"],
+    ["submitted", report, "제출 완료", "보고서 보기"],
+    ["reviewed", { ...report, reviewedAt: report.updatedAt }, "확인 완료", "보고서 보기"],
+  ] as const) {
+    const initial = { ...data(), selectedReport };
+    await page.addInitScript(initial => { (window as unknown as { __dailyReportInitial: typeof initial }).__dailyReportInitial = initial; }, initial);
+    await page.goto(fixture.url);
+    const summary = page.getByRole("region", { name: "일일 업무보고", exact: true });
+    await expect(summary).toContainText(label);
+    const link = summary.getByRole("link", { name: `오늘 일일 업무보고 ${action}` });
+    await expect(link).toBeInViewport();
+    await expect(link).toHaveAttribute("href", `${dailyReportPath}?date=${today}`);
+    const main = await page.locator("main").boundingBox();
+    const list = await page.getByRole("heading", { name: "내 할 일 0건" }).boundingBox();
+    expect(list!.y - main!.y).toBeLessThan((page.viewportSize()!.height - main!.y) * 0.4);
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await noOverflow(page);
+    await page.screenshot({ path: `outputs/daily-reports/${info.project.name}-home-${state}.png` });
+  }
+  await page.getByRole("link", { name: "오늘 일일 업무보고 보고서 보기" }).click();
+  await expect(page.getByRole("heading", { name: "일일 업무보고", exact: true })).toBeVisible();
+  await expect(page.getByLabel("주요 업무보고 제출 시 필수")).toBeVisible();
+});
+
+test("navigation: reports stay visible outside work management and open directly", async ({ page }, info) => {
+  await prepare(page);
+  for (const path of ["/", "/youth/roster", "/work-schedule"]) {
+    await page.goto(`${fixture.url}${path}`);
+    const nav = info.project.name === "mobile" ? page.locator("header").first() : page.locator("aside").first();
+    const link = nav.getByRole("link", { name: "일일 업무보고", exact: true });
+    await expect(link).toBeInViewport();
+    await link.focus();
+    await expect(link).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`${dailyReportPath}$`));
+    await expect(link).toHaveAttribute("aria-current", "page");
+    await noOverflow(page);
+  }
+  if (info.project.name === "mobile") {
+    const trigger = page.getByRole("button", { name: "전체 메뉴 열기" });
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("link", { name: "일일 업무보고", exact: true })).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+  }
+});
+
+test("home: director, loading, error, dark theme and narrow viewport remain usable", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "Shared boundary checks run once");
+  const initial = data("director");
+  await page.addInitScript(initial => { (window as unknown as { __dailyReportInitial: typeof initial }).__dailyReportInitial = initial; }, initial);
+  for (const [name, width, height] of [["wide", 1440, 900], ["small", 360, 800], ["narrow", 320, 800], ["zoom-200", 683, 384]] as const) {
+    await page.setViewportSize({ width, height });
+    for (const theme of ["light", "dark"]) {
+      await page.goto(`${fixture.url}/?admin`);
+      await page.evaluate(theme => { document.documentElement.classList.toggle("dark", theme === "dark"); document.documentElement.dataset.theme = theme; }, theme);
+      await expect(page.getByRole("region", { name: "일일 업무보고", exact: true })).toContainText("제출 2건 · 미확인 1건");
+      await expect(page.getByRole("link", { name: "오늘 일일 업무보고 보고 확인" })).toBeInViewport();
+      await noOverflow(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: `outputs/daily-reports/home-${name}-${theme}.png` });
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${fixture.url}/?loading`);
+  await expect(page.getByRole("region", { name: "일일 업무보고 상태 불러오는 중" })).toBeInViewport();
+  await page.screenshot({ path: "outputs/daily-reports/home-loading.png" });
+  await page.goto(`${fixture.url}/?unavailable`);
+  await expect(page.getByText("상태 확인 필요", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "오늘 일일 업무보고 보고 화면 열기" })).toBeInViewport();
+  await noOverflow(page);
+  await page.screenshot({ path: "outputs/daily-reports/home-unavailable.png" });
+});
+
 test("employee: optional youth notes persist through search, errors, and duplicate submission", async ({ page }, info) => {
   await prepare(page);
   let requests = 0;

@@ -16,6 +16,8 @@ import { getRecentWorkFeatureUpdates } from "@/lib/work-feature-updates";
 import { MyStaffTasks, MyStaffTasksSkeleton } from "@/components/my-staff-tasks";
 import { getMyStaffTaskDashboard } from "@/lib/staff-tasks";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
+import { HomeDailyReport, HomeDailyReportSkeleton } from "@/components/home-daily-report";
+import { getDailyReportHomeSummary } from "@/lib/daily-reports";
 
 export const metadata: Metadata = {
   title: "오늘의 업무",
@@ -41,14 +43,18 @@ export default function Home() {
             href="/drafts/new"
             className={buttonClass(
               buttonStyles.base,
-              buttonStyles.create,
-              "h-10 whitespace-nowrap px-4 text-sm shadow-sm",
+              buttonStyles.neutral,
+              "min-h-11 whitespace-nowrap px-4 text-sm",
             )}
           >
             새 기안 작성
           </Link>
         }
       />
+
+      <Suspense fallback={<HomeDailyReportSkeleton />}>
+        <HomeDailyReportStatus />
+      </Suspense>
 
       <Suspense fallback={<RouteContentSkeleton variant="home" />}>
         <HomeContent />
@@ -111,6 +117,10 @@ async function HomeContent() {
       }
     />
   );
+}
+
+async function HomeDailyReportStatus() {
+  return <HomeDailyReport summary={await getDailyReportHomeSummary()} />;
 }
 
 async function HomeStaffTasks() {

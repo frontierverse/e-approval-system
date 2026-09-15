@@ -2,6 +2,10 @@ import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
 import { getWorkLogToday, isWorkLogDate } from "@/lib/work-log-core";
 
 export const dailyReportPath = "/work-schedule/daily-reports";
+export type DailyReportHomeSummary =
+  | { mode: "employee"; today: string; status: "missing" | "draft" | "submitted" | "reviewed" }
+  | { mode: "director"; today: string; submitted: number; unreviewed: number }
+  | { mode: "unavailable"; today: string };
 export const dailyReportMainLimit = 10000;
 export const dailyReportYouthLimit = 4000;
 export const dailyReportYouthCountLimit = 200;

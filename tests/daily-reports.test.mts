@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, beforeEach, test } from "node:test";
 import ts from "typescript";
 import { canWriteDailyReport, parseDailyReportForm } from "../src/lib/daily-report-core.ts";
+import { getWorkLogToday } from "../src/lib/work-log-core.ts";
 
 // Test the real query and action modules against an isolated transaction store.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -93,6 +94,29 @@ beforeEach(() => {
   harness.reports = []; harness.audits = []; harness.reads = []; harness.invalidated = []; harness.failAudit = false; harness.race = false;
 });
 after(() => { delete (globalThis as Row)[key]; });
+
+test("home summary distinguishes missing, private draft, submitted and reviewed without report content", async () => {
+  const today = getWorkLogToday();
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "employee", today, status: "missing" });
+  await save({ workDate: today, intent: "draft" });
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "employee", today, status: "draft" });
+  harness.user = colleague;
+  assert.equal((await queries.getDailyReportHomeSummary()).status, "missing");
+  harness.user = director;
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "director", today, submitted: 0, unreviewed: 0 });
+  harness.user = employee;
+  const saved = await save({ workDate: today, version: 1 });
+  assert.ok(harness.invalidated.includes("/"));
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "employee", today, status: "submitted" });
+  harness.user = director;
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "director", today, submitted: 1, unreviewed: 1 });
+  await actions.reviewDailyReportAction({}, form({ id: saved.entry.id, version: 2 }));
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "director", today, submitted: 1, unreviewed: 0 });
+  harness.user = employee;
+  assert.deepEqual(await queries.getDailyReportHomeSummary(), { mode: "employee", today, status: "reviewed" });
+  harness.user = { ...employee, status: "INACTIVE" };
+  assert.equal(await queries.getDailyReportHomeSummary(), null);
+});
 
 test("all employed staff including non-director admins can write; directors and former staff cannot", async () => {
   assert.equal(canWriteDailyReport(employee), true);

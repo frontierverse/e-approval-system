@@ -67,6 +67,7 @@ export async function saveDailyReportAction(_previous: DailyReportState, form: F
       return mapDailyReport(saved);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     revalidatePath(dailyReportPath);
+    revalidatePath("/");
     return { success: intent === "submit" ? "시설장에게 업무보고를 제출했습니다." : "임시저장했습니다. 제출 전에는 나에게만 보입니다.", entry };
   } catch (error) {
     if (error instanceof ReportInputError) return { error: error.message };
@@ -98,6 +99,7 @@ export async function reviewDailyReportAction(_previous: DailyReportState, form:
       } });
     });
     revalidatePath(dailyReportPath);
+    revalidatePath("/");
     return { success: "확인 완료로 표시했습니다." };
   } catch (error) {
     if (error instanceof ReportConflict) return { error: "보고서가 변경되었거나 이미 확인되었습니다. 새로고침 후 확인해 주세요." };

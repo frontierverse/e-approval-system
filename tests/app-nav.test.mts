@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { isActivePath } from "../src/lib/app-nav-core.ts";
+import { isActivePath, getActiveNavigationGroup } from "../src/lib/app-nav-core.ts";
+import { getNavigationGroups, dailyReportNavigationItem } from "../src/lib/app-navigation.ts";
 import {
   MobileMenuTrigger,
   MobileNavigationMenuContent,
@@ -25,6 +26,8 @@ const appShellSource = readFileSync(
   new URL("../src/components/app-shell.tsx", import.meta.url),
   "utf8",
 );
+
+const navigationSource = readFileSync(new URL("../src/lib/app-navigation.ts", import.meta.url), "utf8");
 
 describe("app navigation active paths", () => {
   test("keeps work schedule and cafe management sibling links exclusive", () => {
@@ -92,32 +95,35 @@ describe("app navigation active paths", () => {
       true,
     );
     assert.match(
-      appShellSource,
+      navigationSource,
       /const accountNavigationItems[\s\S]*?label: "알림", href: "\/notifications"/,
     );
   });
 
   test("places the personal schedule in the youth management workflow", () => {
     assert.match(
-      appShellSource,
+      navigationSource,
       /const youthNavigationItems[\s\S]*?청소년 명단[\s\S]*?공통 일정표[\s\S]*?개인 일정표[\s\S]*?학습진도[\s\S]*?규칙/,
     );
     assert.match(
-      appShellSource,
+      navigationSource,
       /label: "개인 일정표", href: "\/youth\/personal-schedule"/,
     );
   });
 
-  test("places work management immediately after electronic approval", () => {
-    assert.match(
-      appShellSource,
-      /label: "전자결재",\s*items: approvalNavigationItems,\s*},\s*{\s*label: "업무 관리",\s*items: workScheduleNavigationItems/,
-    );
+  test("daily reports are an independent primary destination for employees and admins", () => {
+    for (const isAdmin of [false, true]) {
+      const groups = getNavigationGroups(isAdmin);
+      assert.deepEqual(groups.slice(0, 3).map(group => group.label), ["전자결재", "일일 업무보고", "업무 관리"]);
+      assert.equal(groups.flatMap(group => group.items).filter(item => item.href === dailyReportNavigationItem.href).length, 1);
+      assert.equal(getActiveNavigationGroup(groups, dailyReportNavigationItem.href, dailyReportNavigationItem.href + "?date=2026-09-14")?.label, "일일 업무보고");
+      assert.equal(groups.some(group => group.label === "관리"), isAdmin);
+    }
   });
 
   test("places the work log directly under the work schedule menu", () => {
     assert.match(
-      appShellSource,
+      navigationSource,
       /const workScheduleNavigationItems[\s\S]*?label: "업무 일정", href: "\/work-schedule"[\s\S]*?label: "업무일지", href: "\/work-schedule\/work-log"/,
     );
   });

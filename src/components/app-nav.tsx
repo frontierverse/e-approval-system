@@ -13,6 +13,7 @@ import {
   type PointerEvent,
 } from "react";
 import { AppModal } from "@/components/app-modal";
+import { dailyReportNavigationItem } from "@/lib/app-navigation";
 import {
   formatBirthdayAlertDate,
   formatBirthdayAlertDateWithWeekday,
@@ -174,7 +175,10 @@ export function AppNav({
   const mobileMenuDescriptionId = useId();
   const selectedGroup =
     getActiveNavigationGroup(groups, pathname, currentHref) ?? groups[0];
-  const selectedItems = selectedGroup?.items ?? [];
+  const selectedItems = (selectedGroup?.items ?? []).filter(
+    (item) => item.href !== dailyReportNavigationItem.href,
+  );
+  const dailyReportActive = isActivePath(pathname, dailyReportNavigationItem.href, currentHref);
   const firstEndAlignedGroupIndex = groups.findIndex(
     (group) => group.align === "end",
   );
@@ -308,7 +312,7 @@ export function AppNav({
       <div className="relative w-full max-w-full overflow-hidden">
         <nav
           aria-label="상위 메뉴"
-          className="scrollbar-none flex h-[3.25rem] w-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-2 scroll-px-3 sm:gap-2 sm:px-6 sm:scroll-px-6 lg:px-8 lg:scroll-px-8"
+          className="scrollbar-none flex h-[3.25rem] w-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-t border-[#eef1f5] px-3 py-1 scroll-px-3 sm:gap-2 sm:px-6 sm:scroll-px-6 lg:px-8 lg:scroll-px-8"
         >
           {groups.map((group, index) => (
             <Fragment key={group.label}>
@@ -353,6 +357,9 @@ export function AppNav({
                 open={mobileMenuOpen}
                 onClick={() => setMobileMenuOpen(true)}
               />
+            </div>
+            <div className="flex shrink-0 items-center border-r border-[var(--border)] px-1 py-1">
+              <DailyReportNavLink active={dailyReportActive} />
             </div>
             <div className="relative min-w-0 flex-1 overflow-hidden">
               <nav
@@ -408,8 +415,9 @@ export function AppNav({
   }
 
   return (
-    <nav aria-label={`${selectedGroup?.label ?? "선택된"} 하위 메뉴`}>
-      <section aria-label={selectedGroup?.label}>
+    <nav aria-label="업무 메뉴">
+      <DailyReportNavLink active={dailyReportActive} />
+      {selectedItems.length > 0 ? <section aria-label={selectedGroup?.label} className="mt-4">
         <p className="px-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#697386]">
           {selectedGroup?.label}
         </p>
@@ -423,8 +431,21 @@ export function AppNav({
             />
           ))}
         </div>
-      </section>
+      </section> : null}
     </nav>
+  );
+}
+function DailyReportNavLink({ active, onClick }: { active: boolean; onClick?: () => void }) {
+  return (
+    <Link
+      href={dailyReportNavigationItem.href}
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`relative flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)] lg:px-3 ${active ? "bg-[var(--brand)] text-white" : "bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--surface-hover)] dark:text-[var(--foreground)]"}`}
+    >
+      {dailyReportNavigationItem.label}
+      <NavPendingDot variant="desktop" />
+    </Link>
   );
 }
 function useCurrentScheduleAlert({
@@ -1730,7 +1751,7 @@ export function MobileMenuTrigger({
       aria-label="전체 메뉴 열기"
       onClick={onClick}
       className={[
-        "inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-semibold transition",
+        "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-semibold transition",
         open
           ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand)]"
           : "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)]",
@@ -1747,7 +1768,7 @@ export function MobileMenuTrigger({
       >
         <path d="M4 7h16M4 12h16M4 17h16" />
       </svg>
-      <span>전체 메뉴</span>
+      <span className="sr-only sm:not-sr-only">전체 메뉴</span>
     </button>
   );
 }
@@ -1813,6 +1834,10 @@ export function MobileNavigationMenuContent({
           {groups.map((group, groupIndex) => {
             const groupTitleId = `${titleId}-group-${groupIndex}`;
             const groupActive = group.label === activeGroup?.label;
+
+            if (group.items.length === 1 && group.items[0].href === dailyReportNavigationItem.href) {
+              return <DailyReportNavLink key={group.label} active={groupActive} onClick={onClose} />;
+            }
 
             return (
               <section
@@ -1905,7 +1930,7 @@ function CategoryLink({
 }) {
   const href = group.items[0]?.href ?? "/";
   const base =
-    "relative inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold transition";
+    "relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]";
   const activeClass = "bg-[#196b69] text-white";
   const idleClass = "text-[#394150] hover:bg-[#eef4f4] hover:text-[#143f3e]";
 
