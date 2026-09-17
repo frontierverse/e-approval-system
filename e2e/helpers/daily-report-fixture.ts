@@ -4,10 +4,11 @@ import path from "node:path";
 import { build } from "esbuild";
 import postcss from "postcss";
 import tailwindcss from "@tailwindcss/postcss";
+import type { DailyReportPageData } from "../../src/lib/daily-report-core";
 
 // Render production navigation, dashboard and board inside the application's shell dimensions.
 // The only replaced boundaries are navigation and server actions; no real records are written.
-export async function startDailyReportFixture() {
+export async function startDailyReportFixture(preview?: { employee: DailyReportPageData; director: DailyReportPageData }) {
   const root = process.cwd();
   const [bundle, css] = await Promise.all([
     build({
@@ -24,8 +25,10 @@ export async function startDailyReportFixture() {
         import { buttonClass, buttonStyles } from "./src/lib/button-styles";
         import Loading from "./src/app/work-schedule/daily-reports/loading";
         import ErrorState from "./src/app/work-schedule/daily-reports/error";
-        const initial = window.__dailyReportInitial;
         const params = new URLSearchParams(location.search);
+        const previewData = ${JSON.stringify(preview ?? null)};
+        const initial = window.__dailyReportInitial || previewData[params.get("mode") === "director" ? "director" : "employee"];
+        if (params.get("theme") === "dark") document.documentElement.classList.add("dark");
         function Fixture() {
           const [data, setData] = useState({ ...initial, selectedDate: params.get("date") || initial.selectedDate });
           const groups = getNavigationGroups(params.has("admin"));
@@ -65,10 +68,24 @@ export async function startDailyReportFixture() {
     }),
     readFile(path.join(root, "src/app/globals.css"), "utf8").then(css => postcss([tailwindcss({ base: root })]).process(css, { from: path.join(root, "src/app/globals.css") })),
   ]);
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     if (request.url === "/fixture.js") { response.writeHead(200, { "Content-Type": "text/javascript" }); response.end(bundle.outputFiles[0].contents); }
     else if (request.url === "/fixture.css") { response.writeHead(200, { "Content-Type": "text/css" }); response.end(css.css); }
-    else if (request.method === "GET") {
+    else if (preview && request.method === "POST" && request.url?.startsWith("/fixture-action/")) {
+      let raw = "";
+      for await (const chunk of request) raw += chunk;
+      const values = JSON.parse(raw);
+      const result = request.url.endsWith("review") ? { success: "확인 완료로 표시했습니다." }
+        : values.intent === "submit" && !values.mainContent.trim()
+          ? { error: "주요 업무보고 내용을 입력해 주세요.", fieldErrors: { mainContent: "주요 업무보고 내용을 입력해 주세요." } }
+          : { success: values.intent === "draft" ? "업무보고를 임시저장했습니다." : "시설장에게 업무보고를 제출했습니다.", entry: {
+            id: "preview-report", workDate: values.workDate, mainContent: values.mainContent.trim(),
+            youthReports: JSON.parse(values.youthReports).filter((note: { content: string }) => note.content.trim()).map((note: { youthId: string; content: string }) => ({ ...note, content: note.content.trim(), youthName: preview.employee.youths.find(youth => youth.id === note.youthId)?.name ?? "청소년" })),
+            authorId: "preview-employee", authorName: preview.employee.userName, departmentName: "생활지원팀", version: Number(values.version) + 1,
+            submittedAt: values.intent === "submit" ? "2026-09-17T08:00:00Z" : null, reviewedAt: null, reviewedByName: null, updatedAt: "2026-09-17T08:00:00Z",
+          } };
+      response.writeHead(200, { "Content-Type": "application/json" }); response.end(JSON.stringify(result));
+    } else if (request.method === "GET") {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end('<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>일일 업무보고 검수</title><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>');
     } else { response.writeHead(404); response.end("Unknown fixture request"); }

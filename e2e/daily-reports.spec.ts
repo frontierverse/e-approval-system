@@ -121,6 +121,7 @@ test("employee: optional youth notes persist through search, errors, and duplica
       success: "시설장에게 업무보고를 제출했습니다.", entry: { ...report, mainContent: sent.mainContent, youthReports: JSON.parse(sent.youthReports).filter((item: { content: string }) => item.content).map((item: { youthId: string; content: string }) => ({ ...item, youthName: "김청소년" })) },
     } });
   });
+  await page.getByRole("button", { name: "김청소년 보고 작성", exact: true }).click();
   await page.getByLabel("김청소년선택", { exact: false }).fill("오늘 활동과 대화 기록");
   await page.getByRole("searchbox", { name: "작성할 청소년 이름 찾기" }).fill("이청소년");
   await expect(page.getByLabel("김청소년선택", { exact: false })).toHaveCount(0);
@@ -216,6 +217,7 @@ test("network failure preserves form input and allows retry", async ({ page }, i
   await prepare(page);
   await page.route("**/fixture-action/save", route => route.abort("connectionrefused"));
   await page.getByLabel("주요 업무보고 제출 시 필수").fill("연결 오류가 발생해도 보관할 내용");
+  await page.getByRole("button", { name: "김청소년 보고 작성", exact: true }).click();
   await page.getByLabel("김청소년선택", { exact: false }).fill("나눈 대화 내용");
   await page.getByRole("button", { name: "시설장에게 제출" }).click();
   await expect(page.getByRole("alert")).toContainText("입력은 유지됩니다");
@@ -239,4 +241,55 @@ test("director with no submissions sees staff to follow up, with no employees se
   await noOverflow(emptyPage);
   await emptyPage.screenshot({ path: `outputs/daily-reports/${info.project.name}-no-staff.png` });
   await emptyPage.close();
+});
+
+test("employee: collapsed notes remain in submission and written filter preserves edits", async ({ page }) => {
+  await prepare(page);
+  await expect(page.locator("textarea")).toHaveCount(1);
+  const open = page.getByRole("button", { name: "김청소년 보고 작성", exact: true });
+  await open.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "김청소년 보고 접기" })).toHaveAttribute("aria-expanded", "true");
+  await page.getByLabel("김청소년선택", { exact: false }).fill("개별 관찰 기록");
+  await page.getByRole("button", { name: "김청소년 보고 접기" }).click();
+  await page.getByRole("button", { name: "작성한 기록만" }).click();
+  await expect(page.getByRole("button", { name: "이청소년 보고 작성" })).toHaveCount(0);
+  await page.getByRole("button", { name: "김청소년 보고 작성", exact: true }).click();
+  await expect(page.getByLabel("김청소년선택", { exact: false })).toHaveValue("개별 관찰 기록");
+  await page.getByLabel("김청소년선택", { exact: false }).fill("");
+  await expect(page.getByLabel("김청소년선택", { exact: false })).toBeVisible();
+  await page.getByLabel("김청소년선택", { exact: false }).fill("개별 관찰 기록");
+  await page.getByRole("button", { name: "김청소년 보고 접기" }).click();
+  await page.route("**/fixture-action/save", async route => {
+    const sent = route.request().postDataJSON();
+    expect(JSON.parse(sent.youthReports)).toEqual([{ youthId: "youth-1", content: "개별 관찰 기록" }]);
+    expect(sent.intent).toBe("draft");
+    await route.fulfill({ json: { success: "업무보고를 임시저장했습니다.", entry: { ...report, mainContent: "", submittedAt: null, youthReports: [{ youthId: "youth-1", youthName: "김청소년", content: "개별 관찰 기록" }] } } });
+  });
+  await page.getByRole("button", { name: "임시저장", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("업무보고를 임시저장했습니다.");
+  await expect(page.getByText("저장하지 않은 변경", { exact: true })).toHaveCount(0);
+});
+
+test("employee: archived read-only notes can be opened without editing permission", async ({ page }) => {
+  await prepare(page, { ...data(), canWrite: false, selectedReport: report });
+  await page.getByRole("button", { name: "김청소년 보고 보기", exact: true }).click();
+  await expect(page.getByLabel("김청소년선택", { exact: false })).toHaveValue(report.youthReports[0].content);
+  await expect(page.getByLabel("김청소년선택", { exact: false })).toHaveAttribute("readonly", "");
+  await expect(page.getByRole("button", { name: "수정 제출" })).toBeDisabled();
+});
+
+test("employee: visual baselines retain primary action and avoid overflow", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "Shared employee visual checks run once");
+  await prepare(page, { ...data(), selectedReport: report });
+  for (const [name, width, height] of [["desktop", 1366, 768], ["wide", 1440, 900], ["mobile", 390, 844], ["small", 360, 800], ["narrow", 320, 800], ["zoom-200", 683, 384]] as const) {
+    await page.setViewportSize({ width, height });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(theme => { document.documentElement.classList.toggle("dark", theme === "dark"); document.querySelector("main")?.scrollTo(0, 0); window.scrollTo(0, 0); }, theme);
+      await expect(page.getByRole("button", { name: "수정 제출" })).toBeInViewport();
+      await noOverflow(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: `outputs/daily-reports/redesign-employee-${name}-${theme}.png` });
+    }
+  }
 });
