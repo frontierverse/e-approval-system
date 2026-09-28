@@ -16,6 +16,7 @@
   --brand-soft: #e5f2f1;
   --focus-ring: #0f766e;
   --danger: #b42318;
+  --day-off: #c2413b;
 }
 
 .dark {
@@ -32,6 +33,7 @@
   --brand-soft: rgb(31 111 235 / 0.16);
   --focus-ring: #79c0ff;
   --danger: #f85149;
+  --day-off: #f07872;
   color-scheme: dark;
 }
 

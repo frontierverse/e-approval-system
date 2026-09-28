@@ -155,6 +155,8 @@ describe("work log feature", () => {
     assert.match(html, /bg-\[var\(--brand\)\]/);
     assert.match(html, /bg-\[var\(--surface-muted\)\]/);
     assert.match(html, /작성 있음/);
+    assert.match(html, /주말/);
+    assert.doesNotMatch(html, /추석 연휴/);
     assert.match(html, /grid-template-columns:1\.5rem repeat\(53, 2\.75rem\)/);
     assert.match(html, /class="[^"]*size-11[^"]*"/);
     assert.match(
@@ -169,6 +171,56 @@ describe("work log feature", () => {
     assert.match(emptyCellTag[0], /aria-disabled="true"/);
     assert.match(emptyCellTag[0], /cursor:default/);
     assert.doesNotMatch(emptyCellTag[0], /aria-haspopup/);
+  });
+
+  test("shows all weekends in red while keeping recorded status available", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(WorkLogContributionGraph, {
+        onOpenLog: () => undefined,
+        recordedDates: ["2026-09-19"],
+        today: "2026-09-21",
+      }),
+    );
+
+    for (const [date, day] of [["19", "토"], ["20", "일"]]) {
+      const cell = html.match(
+        new RegExp(`<button[^>]*aria-label="2026년 9월 ${date}일 \\(${day}\\) · 주말 · [^\"]*"[^>]*>[\\s\\S]*?<\\/button>`),
+      )?.[0];
+
+      assert.ok(cell, `Missing weekend cell for September ${date}`);
+      assert.match(cell, /bg-\[var\(--day-off\)\]/);
+    }
+
+    assert.match(html, /주말 · 업무일지 보기/);
+    assert.match(html, /주말 · 기록 없음/);
+    assert.match(html, /주말/);
+  });
+
+  test("shows Chuseok days in red while keeping recorded status available", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(WorkLogContributionGraph, {
+        onOpenLog: () => undefined,
+        recordedDates: ["2026-09-25"],
+        today: "2026-09-28",
+      }),
+    );
+
+    for (const [date, day] of [["24", "목"], ["25", "금"], ["26", "토"], ["27", "일"]]) {
+      const cell = html.match(
+        new RegExp(`<button[^>]*aria-label="2026년 9월 ${date}일 \\(${day}\\) · 추석 연휴 · [^\"]*"[^>]*>[\\s\\S]*?<\\/button>`),
+      )?.[0];
+
+      assert.ok(cell, `Missing Chuseok cell for September ${date}`);
+      assert.match(cell, /bg-\[var\(--day-off\)\]/);
+    }
+
+    assert.match(html, /추석 연휴 · 업무일지 보기/);
+    assert.match(html, /주말·추석 연휴/);
+    const monday = html.match(
+      /<button[^>]*aria-label="2026년 9월 28일 \(월\) · 기록 없음"[^>]*>[\s\S]*?<\/button>/,
+    )?.[0];
+    assert.ok(monday);
+    assert.doesNotMatch(monday, /bg-\[var\(--day-off\)\]/);
   });
 
   test("renders an accessible work-log detail modal", () => {

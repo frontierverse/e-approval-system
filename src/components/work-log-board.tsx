@@ -66,6 +66,7 @@ const workLogContributionTooltipViewportMargin = 8;
 type WorkLogContributionTooltip = {
   date: string;
   dateLabel: string;
+  dayOffLabel: string | null;
   recorded: boolean;
   x: number;
   y: number;
@@ -247,6 +248,9 @@ export function WorkLogContributionGraph({
     [recordedDates, today],
   );
   const monthLabels = useMemo(() => getWorkLogMonthLabels(weeks), [weeks]);
+  const hasChuseokDays = weeks.some((week) =>
+    week.days.some((day) => !day.future && day.dayOffLabel === "추석 연휴"),
+  );
   const recordedDateSet = useMemo(
     () => new Set(recordedDates.filter((date) => date <= today)),
     [recordedDates, today],
@@ -313,6 +317,7 @@ export function WorkLogContributionGraph({
   function updateActiveTooltip(
     event: ReactPointerEvent<HTMLElement>,
     date: string,
+    dayOffLabel: string | null,
     recorded: boolean,
   ) {
     if (event.pointerType === "touch") {
@@ -329,6 +334,7 @@ export function WorkLogContributionGraph({
     setPointerTooltip({
       date,
       dateLabel: formatWorkLogDateLabel(date),
+      dayOffLabel,
       recorded,
       x,
       y,
@@ -338,6 +344,7 @@ export function WorkLogContributionGraph({
   function showFocusedTooltip(
     event: ReactFocusEvent<HTMLElement>,
     date: string,
+    dayOffLabel: string | null,
     recorded: boolean,
   ) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -350,6 +357,7 @@ export function WorkLogContributionGraph({
     const focusedCell = {
       date,
       dateLabel: formatWorkLogDateLabel(date),
+      dayOffLabel,
       recorded,
     };
 
@@ -436,6 +444,11 @@ export function WorkLogContributionGraph({
             className="size-3 rounded-[2px] border border-[var(--brand)] bg-[var(--brand)]"
           />
           <span>작성 있음</span>
+          <span
+            aria-hidden="true"
+            className="size-3 rounded-[2px] border border-[var(--day-off)] bg-[var(--day-off)]"
+          />
+          <span>{hasChuseokDays ? "주말·추석 연휴" : "주말"}</span>
         </div>
       </header>
 
@@ -508,6 +521,7 @@ export function WorkLogContributionGraph({
                   <WorkLogGrassCell
                     active={day.date === activeDate}
                     date={day.date}
+                    dayOffLabel={day.dayOffLabel}
                     describedBy={
                       activeTooltip?.date === day.date ? tooltipId : undefined
                     }
@@ -517,7 +531,12 @@ export function WorkLogContributionGraph({
                       setFocusedTooltip(null);
                     }}
                     onFocus={(event) =>
-                      showFocusedTooltip(event, day.date, day.recorded)
+                      showFocusedTooltip(
+                        event,
+                        day.date,
+                        day.dayOffLabel,
+                        day.recorded,
+                      )
                     }
                     onKeyDown={(event) =>
                       moveGrassCellFocus(event, day.date)
@@ -534,11 +553,21 @@ export function WorkLogContributionGraph({
                     }
                     onPointerCancel={() => setPointerTooltip(null)}
                     onPointerEnter={(event) =>
-                      updateActiveTooltip(event, day.date, day.recorded)
+                      updateActiveTooltip(
+                        event,
+                        day.date,
+                        day.dayOffLabel,
+                        day.recorded,
+                      )
                     }
                     onPointerLeave={() => setPointerTooltip(null)}
                     onPointerMove={(event) =>
-                      updateActiveTooltip(event, day.date, day.recorded)
+                      updateActiveTooltip(
+                        event,
+                        day.date,
+                        day.dayOffLabel,
+                        day.recorded,
+                      )
                     }
                     recorded={day.recorded}
                     registerCell={(element) => {
@@ -570,11 +599,15 @@ export function WorkLogContributionGraph({
         ? createPortal(
             <div
               id={tooltipId}
-              aria-label={`${activeTooltip.dateLabel} · ${
+              aria-label={[
+                activeTooltip.dateLabel,
+                activeTooltip.dayOffLabel,
                 activeTooltip.recorded
                   ? "업무일지 작성 · 클릭하여 보기"
-                  : "기록 없음"
-              }`}
+                  : "기록 없음",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               data-work-log-tooltip="true"
               role="tooltip"
               className="pointer-events-none fixed z-[1000] w-52 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--foreground)] shadow-lg"
@@ -588,15 +621,19 @@ export function WorkLogContributionGraph({
                   aria-hidden="true"
                   className={[
                     "size-2.5 shrink-0 rounded-[2px] border",
-                    activeTooltip.recorded
-                      ? "border-[var(--brand)] bg-[var(--brand)]"
-                      : "border-[var(--border)] bg-[var(--surface-muted)]",
+                    activeTooltip.dayOffLabel
+                      ? "border-[var(--day-off)] bg-[var(--day-off)]"
+                      : activeTooltip.recorded
+                        ? "border-[var(--brand)] bg-[var(--brand)]"
+                        : "border-[var(--border)] bg-[var(--surface-muted)]",
                   ].join(" ")}
                 />
                 <span>
-                  {activeTooltip.recorded
-                    ? "작성됨 · 클릭하여 보기"
-                    : "기록 없음"}
+                  {activeTooltip.dayOffLabel
+                    ? `${activeTooltip.dayOffLabel} · ${activeTooltip.recorded ? "작성됨" : "기록 없음"}`
+                    : activeTooltip.recorded
+                      ? "작성됨 · 클릭하여 보기"
+                      : "기록 없음"}
                 </span>
               </p>
             </div>,
@@ -610,6 +647,7 @@ export function WorkLogContributionGraph({
 function WorkLogGrassCell({
   active,
   date,
+  dayOffLabel,
   describedBy,
   onBlur,
   onFocus,
@@ -626,6 +664,7 @@ function WorkLogGrassCell({
 }: {
   active: boolean;
   date: string;
+  dayOffLabel: string | null;
   describedBy?: string;
   onBlur: () => void;
   onFocus: (event: ReactFocusEvent<HTMLElement>) => void;
@@ -643,13 +682,17 @@ function WorkLogGrassCell({
   const opensDialog = recorded && Boolean(onOpen);
   const commonProps = {
     "aria-describedby": describedBy,
-    "aria-label": `${formatWorkLogDateLabel(date)} · ${
+    "aria-label": [
+      formatWorkLogDateLabel(date),
+      dayOffLabel,
       recorded
         ? opensDialog
           ? "업무일지 보기"
           : "업무일지 작성"
-        : "기록 없음"
-    }`,
+        : "기록 없음",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     className: [
       "group grid size-11 appearance-none place-items-center rounded-md border-0 bg-transparent p-0 outline-none",
       "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--surface)]",
@@ -689,17 +732,23 @@ function WorkLogGrassCell({
       <span
         aria-hidden="true"
         className={[
-          "size-8 rounded-[3px] border",
-          recorded
-            ? "border-[var(--brand)] bg-[var(--brand)]"
-            : "border-[var(--border)] bg-[var(--surface-muted)]",
+          "relative size-8 rounded-[3px] border",
+          dayOffLabel
+            ? "border-[var(--day-off)] bg-[var(--day-off)]"
+            : recorded
+              ? "border-[var(--brand)] bg-[var(--brand)]"
+              : "border-[var(--border)] bg-[var(--surface-muted)]",
           opensDialog
             ? "group-hover:ring-1 group-hover:ring-[var(--brand-strong)]"
             : "",
         ]
           .filter(Boolean)
           .join(" ")}
-      />
+      >
+        {dayOffLabel && recorded ? (
+          <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full border border-[var(--surface)] bg-[var(--brand)]" />
+        ) : null}
+      </span>
     </button>
   );
 }

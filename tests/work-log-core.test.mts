@@ -113,4 +113,24 @@ describe("work log core", () => {
     );
     assert.equal(getWorkLogMonthLabels(weeks).some((item) => item.label === "9월"), true);
   });
+
+  test("marks every weekend and keeps Chuseok dates distinct", () => {
+    const days = buildWorkLogContributionWeeks({
+      recordedDates: ["2026-09-19", "2026-09-25"],
+      today: "2026-09-28",
+    }).flatMap((week) => week.days);
+
+    assert.deepEqual(
+      days.filter((day) => day.dayOffLabel === "추석 연휴").map((day) => day.date),
+      ["2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"],
+    );
+    assert.equal(days.find((day) => day.date === "2026-08-29")?.dayOffLabel, "주말");
+    assert.equal(days.find((day) => day.date === "2026-08-30")?.dayOffLabel, "주말");
+    assert.equal(days.find((day) => day.date === "2026-09-19")?.dayOffLabel, "주말");
+    assert.equal(days.find((day) => day.date === "2026-09-20")?.dayOffLabel, "주말");
+    assert.equal(days.find((day) => day.date === "2026-09-19")?.recorded, true);
+    assert.equal(days.find((day) => day.date === "2026-09-25")?.recorded, true);
+    assert.equal(days.find((day) => day.date === "2026-09-21")?.dayOffLabel, null);
+    assert.equal(days.find((day) => day.date === "2026-09-28")?.dayOffLabel, null);
+  });
 });

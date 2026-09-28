@@ -5,6 +5,12 @@ export const workLogContentMaxLength = 5000;
 export const workLogContributionWeekCount = 53;
 
 const dayInMs = 24 * 60 * 60 * 1000;
+const chuseok2026DaysOff = new Set([
+  "2026-09-24",
+  "2026-09-25",
+  "2026-09-26",
+  "2026-09-27",
+]);
 
 export type WorkLogCompletedTask = {
   id: string;
@@ -74,6 +80,7 @@ export type WorkLogDeleteFormState = {
 
 export type WorkLogContributionDay = {
   date: string;
+  dayOffLabel: string | null;
   future: boolean;
   recorded: boolean;
   weekday: number;
@@ -242,6 +249,11 @@ export function buildWorkLogContributionWeeks({
 
         return {
           date,
+          dayOffLabel: chuseok2026DaysOff.has(date)
+            ? "추석 연휴"
+            : weekday === 0 || weekday === 6
+              ? "주말"
+              : null,
           future: date > today,
           recorded: recordedDateSet.has(date),
           weekday,
