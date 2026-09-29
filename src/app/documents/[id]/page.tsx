@@ -282,7 +282,7 @@ export default async function DocumentDetailPage({
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <article className="rounded-md border border-[#d9dee7] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eef1f5] pb-4">
               <div>
@@ -302,6 +302,27 @@ export default async function DocumentDetailPage({
                 ))}
               </div>
             </div>
+
+            {progress.total > 0 ? (
+              <a
+                href="#document-approval-progress"
+                className="mt-4 flex min-h-11 items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] xl:hidden"
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold tabular-nums text-[var(--foreground)]">
+                    결재 진행 {progress.approved}/{progress.total}
+                  </span>
+                  <span className="block break-words text-xs text-[var(--text-muted)]">
+                    {currentStep
+                      ? `현재 결재자 ${currentStep.approver.name}`
+                      : "결재 순서를 확인할 수 있습니다."}
+                  </span>
+                </span>
+                <span className="shrink-0 font-medium text-[var(--brand)]">
+                  순서 보기
+                </span>
+              </a>
+            ) : null}
 
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
               <SummaryItem
@@ -501,7 +522,7 @@ export default async function DocumentDetailPage({
           </article>
           ) : null}
 
-          <div className="xl:hidden">
+          <div id="document-approval-progress" className="scroll-mt-4 xl:hidden">
             <ApprovalTimeline
               document={document}
               currentUserId={user.id}

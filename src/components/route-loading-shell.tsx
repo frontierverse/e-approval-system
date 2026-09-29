@@ -185,16 +185,14 @@ export function DocumentResultsSkeleton() {
 function DocumentDetailSkeleton() {
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <article className="rounded-md border border-[#d9dee7] bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#eef1f5] pb-4">
             <div>
               <p className="text-sm font-semibold text-[#697386]">문서 상태</p>
               <div className="mt-2 flex items-center gap-3">
                 <SkeletonBlock className="h-7 w-20" />
-                <SkeletonBlock className="h-4 w-16" />
               </div>
-              <SkeletonBlock className="mt-3 h-2 w-48 max-w-full rounded-full" />
             </div>
             <div className="grid gap-2 text-right">
               {[0, 1, 2].map((row) => (
@@ -203,15 +201,20 @@ function DocumentDetailSkeleton() {
             </div>
           </div>
 
+          <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] p-3 xl:hidden">
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="mt-2 h-3 w-36" />
+          </div>
+
           <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-            {["작성자", "작성자 소속", "카테고리", "현재 결재자", "첨부파일", "보관 정책"].map(
+            {["작성자", "문서양식", "첨부파일", "보관 정책"].map(
               (label, index) => (
                 <div key={label}>
                   <dt className="text-xs font-semibold text-[#697386]">
                     {label}
                   </dt>
                   <dd className="mt-2">
-                    {index === 0 || index === 3 ? (
+                    {index === 0 ? (
                       <PersonSkeleton />
                     ) : (
                       <SkeletonBlock className="h-4 w-36 max-w-full" />
