@@ -695,7 +695,7 @@ test("catching up beyond one page keeps every older message reachable", async ({
   expect(state.errors).toEqual([]);
 });
 
-test("ZIP file drop sends immediately without sending the draft and shows responsive recipient guidance", async ({ page }, info) => {
+test("file drop stages an attachment for confirmed text or file-only sending", async ({ page }, info) => {
   const state = await prepareFiles(page);
   await openEmployee(page, employees[0].name);
   await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
@@ -703,8 +703,8 @@ test("ZIP file drop sends immediately without sending the draft and shows respon
   await editor.fill("아직 작성 중인 글");
   await fileDrag(page, "dragenter");
   const overlay = page.getByRole("status", { name: "파일 놓기 안내" });
-  await expect(overlay).toContainText(`${employees[0].name}님에게 파일 전송`);
-  await expect(overlay).toContainText("여기에 놓으면 바로 전송됩니다.");
+  await expect(overlay).toContainText(`${employees[0].name}님에게 파일 첨부`);
+  await expect(overlay).toContainText("여기에 놓으면 첨부됩니다. 확인 후 전송하세요.");
   await expect(overlay).toContainText("ZIP 100.0 MB · 기타 4.0 MB");
   // Child transitions must not dismiss the window's drop guidance.
   await fileDrag(page, "dragenter", { target: "#staff-chat-message" });
@@ -723,21 +723,37 @@ test("ZIP file drop sends immediately without sending the draft and shows respon
   await page.setViewportSize(originalSize);
   expect(await fileDrag(page, "drop", { target: "#staff-chat-message", names: ["드롭자료.zip"], bytes: [...zipBytes] })).toBe(true);
   await expect(overlay).toHaveCount(0);
-  await expect(page.getByRole("log").getByText("드롭자료.zip", { exact: true })).toBeVisible();
+  await expect(page.getByText("드롭자료.zip", { exact: true })).toBeVisible();
+  await expect(page.getByRole("log").getByText("드롭자료.zip", { exact: true })).toHaveCount(0);
   await expect(editor).toHaveValue("아직 작성 중인 글");
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeEnabled();
+  expect(state.uploads).toHaveLength(0);
+  expect(state.sent).toHaveLength(0);
+  await page.getByRole("button", { name: "전송", exact: true }).click();
+  await expect(page.getByRole("log").getByText("드롭자료.zip", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue("");
   expect(state.uploads).toHaveLength(1);
-  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "", fileName: "드롭자료.zip", size: zipBytes.length, content: zipBytes.toString() });
+  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "아직 작성 중인 글", fileName: "드롭자료.zip", size: zipBytes.length, content: zipBytes.toString() });
+  await fileDrag(page, "drop", { names: ["파일만.txt"] });
+  await expect(page.getByText("파일만.txt", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue("");
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeEnabled();
+  expect(state.uploads).toHaveLength(1);
+  await page.getByRole("button", { name: "전송", exact: true }).click();
+  await expect(page.getByRole("log").getByText("파일만.txt", { exact: true })).toBeVisible();
+  expect(state.uploads).toHaveLength(2);
+  expect(state.uploads[1]).toMatchObject({ peerId: "test-a", body: "", fileName: "파일만.txt" });
   expect(state.previews).toHaveLength(0);
   expect(state.sent).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
 
-test("file drop blocks duplicate uploads and retries the same file while preserving edited draft", async ({ page }, info) => {
+test("file drop blocks duplicate uploads and retries the staged file after failure", async ({ page }, info) => {
   const state = await prepareFiles(page);
   await openEmployee(page, employees[0].name);
   await expect(page.getByRole("button", { name: "파일 첨부", exact: true })).toBeEnabled();
   const editor = page.getByRole("textbox", { name: "메시지", exact: true });
-  await editor.fill("전송하지 않을 초안");
+  await editor.fill("전송할 초안");
   let release!: () => void;
   state.onUpload(async (route) => {
     await new Promise<void>((resolve) => { release = resolve; });
@@ -745,24 +761,28 @@ test("file drop blocks duplicate uploads and retries the same file while preserv
     return true;
   });
   await fileDrag(page, "drop");
+  await expect(page.getByText("드롭자료.txt", { exact: true })).toBeVisible();
+  expect(state.uploads).toHaveLength(0);
+  await page.getByRole("button", { name: "전송", exact: true }).click();
   await expect.poll(() => state.uploads.length).toBe(1);
   await fileDrag(page, "drop", { names: ["추가파일.txt"] });
   await editor.press("Enter");
   expect(state.uploads).toHaveLength(1);
   release();
-  const retry = page.getByRole("button", { name: "파일 다시 전송", exact: true });
+  const retry = page.getByRole("button", { name: "전송", exact: true });
   await expect(retry).toBeEnabled();
-  await expect(editor).toHaveValue("전송하지 않을 초안");
+  await expect(editor).toHaveValue("전송할 초안");
+  await expect(page.getByText("드롭자료.txt", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 800 });
   await expect(retry).toBeInViewport({ ratio: 1 });
   await attachmentScreenshot(page, "drop-retry-320", info.project.name);
-  await editor.fill("계속 작성한 초안");
   state.onUpload(undefined);
   await retry.click();
   await expect(page.getByRole("log").getByText("드롭자료.txt", { exact: true })).toBeVisible();
-  await expect(editor).toHaveValue("계속 작성한 초안");
+  await expect(editor).toHaveValue("");
   expect(state.uploads).toHaveLength(2);
   expect(state.uploads[1]).toEqual(state.uploads[0]);
+  expect(state.uploads[0]).toMatchObject({ peerId: "test-a", body: "전송할 초안", fileName: "드롭자료.txt" });
   expect(state.sent).toHaveLength(0);
   expect(state.errors).toEqual([]);
 });
@@ -818,6 +838,7 @@ test("file drop requires a recipient and policy and ignores text, outside and ca
   await page.keyboard.press("Escape");
   await expect(overlay).toHaveCount(0);
   await fileDrag(page, "drop");
+  await expect(page.getByText("드롭자료.txt", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "직원 채팅", exact: true })).toBeVisible();
   await fileDrag(page, "dragenter");
   await fileDrag(page, "dragleave");

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Fragment,
+  type DragEvent,
   type FormEvent,
   startTransition,
   useActionState,
@@ -189,8 +190,11 @@ function DraftFormFields({
   );
   const formRef = useRef<HTMLFormElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const attachmentErrorRef = useRef<HTMLParagraphElement>(null);
+  const attachmentDragDepthRef = useRef(0);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isAttachmentDragActive, setIsAttachmentDragActive] = useState(false);
   const selectedFileThumbnailUrls = useAttachmentThumbnailUrls(selectedFiles);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [activeSubmitIntent, setActiveSubmitIntent] =
@@ -406,6 +410,12 @@ function DraftFormFields({
   }, [errors]);
 
   useEffect(() => {
+    if (!attachmentError) return;
+    const frame = window.requestAnimationFrame(() => attachmentErrorRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [attachmentError]);
+
+  useEffect(() => {
     if (pending && activeSubmitIntent) {
       hadPendingSinceSubmitRef.current = true;
     }
@@ -562,6 +572,50 @@ function DraftFormFields({
     setAttachmentError(null);
   }
 
+  function handleAttachmentDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (isBusy) return;
+    attachmentDragDepthRef.current += 1;
+    setIsAttachmentDragActive(true);
+  }
+
+  function handleAttachmentDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = isBusy ? "none" : "copy";
+    if (!isBusy) setIsAttachmentDragActive(true);
+  }
+
+  function handleAttachmentDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!hasFileDragItems(event.dataTransfer) && attachmentDragDepthRef.current === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentDragDepthRef.current = Math.max(0, attachmentDragDepthRef.current - 1);
+    if (attachmentDragDepthRef.current === 0) setIsAttachmentDragActive(false);
+  }
+
+  function handleAttachmentDrop(event: DragEvent<HTMLDivElement>) {
+    if (!hasFileDragItems(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    attachmentDragDepthRef.current = 0;
+    setIsAttachmentDragActive(false);
+    if (isBusy) return;
+
+    const items = Array.from(event.dataTransfer.items).filter((item) => item.kind === "file");
+    const hasDirectory = items.some((item) => item.webkitGetAsEntry?.()?.isDirectory)
+      || items.length > event.dataTransfer.files.length;
+    if (hasDirectory || event.dataTransfer.files.length === 0) {
+      setAttachmentError("폴더는 첨부할 수 없습니다. 개별 파일을 놓아 주세요.");
+      return;
+    }
+
+    handleAttachmentChange(event.dataTransfer.files);
+  }
+
   function removeSelectedFile(fileKey: string) {
     const nextFiles = selectedFiles.filter(
       (file) => getAttachmentSelectionKey(file) !== fileKey,
@@ -674,6 +728,31 @@ function DraftFormFields({
   const isDraftPending = activeSubmitIntent === "draft";
   const isBusy = pending || isClientSubmitting;
 
+  useEffect(() => {
+    const clearFileDrag = () => {
+      attachmentDragDepthRef.current = 0;
+      setIsAttachmentDragActive(false);
+    };
+    const guardFileDrop = (event: globalThis.DragEvent) => {
+      if (!hasFileDragItems(event.dataTransfer) || event.defaultPrevented) return;
+      event.preventDefault();
+      if (event.type === "dragover" && event.dataTransfer) {
+        event.dataTransfer.dropEffect = "none";
+      }
+      if (event.type === "drop") clearFileDrag();
+    };
+    document.addEventListener("dragover", guardFileDrop);
+    document.addEventListener("drop", guardFileDrop);
+    document.addEventListener("dragend", clearFileDrag);
+    window.addEventListener("blur", clearFileDrag);
+    return () => {
+      document.removeEventListener("dragover", guardFileDrop);
+      document.removeEventListener("drop", guardFileDrop);
+      document.removeEventListener("dragend", clearFileDrag);
+      window.removeEventListener("blur", clearFileDrag);
+    };
+  }, []);
+
   return (
     <form
       ref={formRef}
@@ -692,9 +771,9 @@ function DraftFormFields({
         }
       }}
       onSubmit={handleSubmit}
-      className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
     >
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 xl:col-start-1 xl:row-start-1">
+      <section className="min-w-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 xl:col-start-1 xl:row-start-1">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_15rem]">
           <div>
             <div className="flex items-center justify-between gap-3">
@@ -955,6 +1034,7 @@ function DraftFormFields({
                     />
                     <AttachmentFileRow
                       fileName={attachment.originalName}
+                      showFullFileName
                       note={
                         isRemoved
                           ? "삭제 예정"
@@ -1005,20 +1085,31 @@ function DraftFormFields({
             onChange={(event) => handleAttachmentChange(event.currentTarget.files)}
           />
           <div
-            className={`mt-2 flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-md border border-dashed bg-[var(--surface-muted)] px-3 py-2${
-              attachmentHasError
-                ? ` ${errorBorderClass}`
-                : " border-[var(--border-strong)]"
+            data-testid="draft-attachment-dropzone"
+            role="group"
+            aria-label="첨부파일 추가"
+            onDragEnter={handleAttachmentDragEnter}
+            onDragLeave={handleAttachmentDragLeave}
+            onDragOver={handleAttachmentDragOver}
+            onDrop={handleAttachmentDrop}
+            className={`mt-2 flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2 transition-colors${
+              isAttachmentDragActive
+                ? " border-[var(--brand)] bg-[var(--brand-soft)] ring-2 ring-[var(--focus-ring)]"
+                : attachmentHasError
+                  ? ` bg-[var(--surface-muted)] ${errorBorderClass}`
+                  : " border-[var(--border-strong)] bg-[var(--surface-muted)]"
             }`}
           >
             <div className="min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)]">
-                {selectedFiles.length > 0
-                  ? `새 파일 ${selectedFiles.length}개 선택됨`
-                  : "첨부할 파일을 선택하세요"}
+              <p aria-live="polite" className="text-sm font-medium text-[var(--foreground)]">
+                {isAttachmentDragActive
+                  ? "여기에 놓으면 첨부파일에 추가됩니다."
+                  : selectedFiles.length > 0
+                    ? `새 파일 ${selectedFiles.length}개 선택됨`
+                    : "파일을 여기에 끌어놓거나 선택하세요"}
               </p>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                여러 파일을 한 번에 선택할 수 있습니다.
+                여러 파일을 한 번에 추가할 수 있습니다.
               </p>
             </div>
             <button
@@ -1041,6 +1132,7 @@ function DraftFormFields({
                 <li key={getAttachmentSelectionKey(file)} className="px-3 py-2">
                   <AttachmentFileRow
                     fileName={file.name}
+                    showFullFileName
                     note="새로 추가"
                     size={file.size}
                     thumbnailHref={
@@ -1070,6 +1162,9 @@ function DraftFormFields({
           {attachmentError ? (
             <p
               id="draft-attachment-error"
+              ref={attachmentErrorRef}
+              role="alert"
+              tabIndex={-1}
               className="mt-2 text-sm text-[var(--danger)]"
             >
               {attachmentError}
@@ -2168,6 +2263,13 @@ function validateAttachmentFiles(
   }
 
   return null;
+}
+
+function hasFileDragItems(dataTransfer: DataTransfer | null) {
+  return Boolean(dataTransfer && (
+    Array.from(dataTransfer.types).includes("Files") ||
+    Array.from(dataTransfer.items).some((item) => item.kind === "file")
+  ));
 }
 
 function syncAttachmentInputFiles(

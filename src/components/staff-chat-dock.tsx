@@ -14,7 +14,7 @@ import type { ChatEmployee, ChatMessage } from "@/lib/staff-chat-types";
 const iconButton = "grid size-11 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
 const timeFormatter = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" });
 const dayFormatter = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-type SelectedAttachment = { file: File; fileOnly: boolean };
+type SelectedAttachment = { file: File };
 
 export function StaffChatDock({ userId }: { userId: string }) {
   const data = useStaffChatData();
@@ -153,7 +153,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
     if (!file || !peer || !currentPeer?.active || data.authExpired || busyRef.current) return;
     const error = fileError(file);
     if (error) { setSendError(error); return; }
-    setSelectedFiles((previous) => ({ ...previous, [peer.id]: { file, fileOnly: false } }));
+    setSelectedFiles((previous) => ({ ...previous, [peer.id]: { file } }));
     setSendError("");
   }
 
@@ -164,7 +164,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
     if (files.length !== 1) { setSendError("파일은 한 번에 1개만 놓아 주세요."); return; }
     const error = fileError(files[0]);
     if (error) { setSendError(error); return; }
-    void deliverMessage({ file: files[0], fileOnly: true });
+    selectFile(files[0]);
   }
 
   function sendMessage(event: FormEvent) {
@@ -172,13 +172,11 @@ export function StaffChatDock({ userId }: { userId: string }) {
     void deliverMessage();
   }
 
-  async function deliverMessage(droppedAttachment?: SelectedAttachment) {
-    const attachment = droppedAttachment ?? selectedAttachment;
-    const file = attachment?.file;
-    const body = attachment?.fileOnly ? "" : draft.trim();
+  async function deliverMessage() {
+    const file = selectedFile;
+    const body = draft.trim();
     if (!open || !peer || data.authExpired || !currentPeer?.active || (!body && !file) || busyRef.current) return;
     const peerId = peer.id;
-    if (droppedAttachment) setSelectedFiles((previous) => ({ ...previous, [peerId]: droppedAttachment }));
     let attempt = attemptsRef.current[peerId];
     if (!attempt || attempt.body !== body || attempt.file !== file) {
       attempt = { body, requestId: crypto.randomUUID(), file };
@@ -197,7 +195,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
         result = await chatRequest<{ message: ChatMessage }>("/api/chat/messages", { peerId, body, requestId: attempt.requestId });
       }
       data.appendMessage(result.message, peerId);
-      if (!attachment?.fileOnly) setDrafts((previous) => previous[peerId]?.trim() === body ? { ...previous, [peerId]: "" } : previous);
+      setDrafts((previous) => previous[peerId]?.trim() === body ? { ...previous, [peerId]: "" } : previous);
       setSelectedFiles((previous) => previous[peerId]?.file === attempt.file ? { ...previous, [peerId]: undefined } : previous);
       delete attemptsRef.current[peerId];
       if (data.isPeerActive(peerId)) setAtBottom(true);
@@ -307,7 +305,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
                 <input ref={fileInputRef} type="file" aria-label="채팅 파일 선택" accept={filePolicy.policy?.allowedExtensions.join(",")} disabled={sending || !currentPeer?.active || !filePolicy.policy} className="hidden" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
                 {selectedFile ? <div className="mb-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)]">
                   <div className="flex min-h-11 items-center gap-2 pl-3">
-                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p className="text-[11px] tabular-nums text-[var(--text-muted)]">{formatChatFileSize(selectedFile.size)}{selectedAttachment?.fileOnly ? " · 파일만 전송" : ""}</p></div>
+                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium" title={selectedFile.name}>{selectedFile.name}</p><p className="text-[11px] tabular-nums text-[var(--text-muted)]">{formatChatFileSize(selectedFile.size)}</p></div>
                     <button type="button" aria-label="첨부파일 제거" disabled={sending} onClick={() => { setSelectedFiles((previous) => ({ ...previous, [peer.id]: undefined })); setSendError(""); }} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="close" /></button>
                   </div>
                   {activeUploadProgress ? <ChatUploadGauge progress={activeUploadProgress} fileName={selectedFile.name} /> : null}
@@ -331,7 +329,7 @@ export function StaffChatDock({ userId }: { userId: string }) {
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1"><button type="button" aria-label="파일 첨부" title={filePolicy.policy ? `파일 1개 · ${fileSizeHelp}` : "파일 첨부 설정 불러오는 중"} disabled={sending || !currentPeer?.active || !filePolicy.policy} onClick={() => fileInputRef.current?.click()} className={`${iconButton} disabled:opacity-50`}><ChatIcon kind="attach" /></button><p id="staff-chat-input-help" className="text-[11px] leading-4 text-[var(--text-muted)]">Enter 전송 · Shift+Enter 줄바꿈<br /><span className="tabular-nums">{draft.length.toLocaleString()} / 2,000</span>{fileSizeHelp ? <><br />{fileSizeHelp}</> : null}</p></div>
-                  <button type="submit" disabled={sending || (!draft.trim() && !selectedFile) || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : selectedAttachment?.fileOnly ? "파일 다시 전송" : "전송"}<ChatIcon kind="send" /></button>
+                  <button type="submit" disabled={sending || (!draft.trim() && !selectedFile) || !currentPeer?.active} className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-[var(--brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:opacity-50">{sending ? "전송 중…" : "전송"}<ChatIcon kind="send" /></button>
                 </div>
               </form>
             </div>
@@ -355,8 +353,8 @@ export function StaffChatDock({ userId }: { userId: string }) {
           )}
           {draggingFile ? <div role="status" aria-label="파일 놓기 안내" className="staff-chat-drop-overlay">
             <div className="max-w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-4 py-3 text-center shadow-sm">
-              <p className="text-sm font-semibold [overflow-wrap:anywhere]">{dropBlockedReason || `${peer?.name}님에게 파일 전송`}</p>
-              {!dropBlockedReason ? <><p className="mt-1 text-sm">여기에 놓으면 바로 전송됩니다.</p><p className="mt-1 text-xs text-[var(--text-muted)]">파일 1개 · {fileSizeHelp}</p></> : null}
+              <p className="text-sm font-semibold [overflow-wrap:anywhere]">{dropBlockedReason || `${peer?.name}님에게 파일 첨부`}</p>
+              {!dropBlockedReason ? <><p className="mt-1 text-sm">여기에 놓으면 첨부됩니다. 확인 후 전송하세요.</p><p className="mt-1 text-xs text-[var(--text-muted)]">파일 1개 · {fileSizeHelp}</p></> : null}
             </div>
           </div> : null}
         </section>
