@@ -17,5 +17,9 @@
     },
     "production": { "environment": "production", "autoIncrement": true }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {
+      "android": { "track": "internal", "releaseStatus": "draft" }
+    }
+  }
 }
