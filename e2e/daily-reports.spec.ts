@@ -63,7 +63,7 @@ test("navigation: reports stay visible outside work management and open directly
   await prepare(page);
   for (const path of ["/", "/youth/roster", "/work-schedule"]) {
     await page.goto(`${fixture.url}${path}`);
-    const nav = info.project.name === "mobile" ? page.locator("header").first() : page.locator("aside").first();
+    const nav = info.project.use.isMobile === true ? page.locator("header").first() : page.locator("aside").first();
     const link = nav.getByRole("link", { name: "일일 업무보고", exact: true });
     await expect(link).toBeInViewport();
     await link.focus();
@@ -73,7 +73,7 @@ test("navigation: reports stay visible outside work management and open directly
     await expect(link).toHaveAttribute("aria-current", "page");
     await noOverflow(page);
   }
-  if (info.project.name === "mobile") {
+  if (info.project.use.isMobile === true) {
     const trigger = page.getByRole("button", { name: "전체 메뉴 열기" });
     await trigger.click();
     const dialog = page.getByRole("dialog");
@@ -84,7 +84,7 @@ test("navigation: reports stay visible outside work management and open directly
 });
 
 test("home: director, loading, error, dark theme and narrow viewport remain usable", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "Shared boundary checks run once");
+  test.skip(Boolean(info.project.use.isMobile), "Shared boundary checks run once");
   const initial = data("director");
   await page.addInitScript(initial => { (window as unknown as { __dailyReportInitial: typeof initial }).__dailyReportInitial = initial; }, initial);
   for (const [name, width, height] of [["wide", 1440, 900], ["small", 360, 800], ["narrow", 320, 800], ["zoom-200", 683, 384]] as const) {
@@ -280,7 +280,7 @@ test("employee: archived read-only notes can be opened without editing permissio
 });
 
 test("employee: visual baselines retain primary action and avoid overflow", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "Shared employee visual checks run once");
+  test.skip(Boolean(info.project.use.isMobile), "Shared employee visual checks run once");
   await prepare(page, { ...data(), selectedReport: report });
   for (const [name, width, height] of [["desktop", 1366, 768], ["wide", 1440, 900], ["mobile", 390, 844], ["small", 360, 800], ["narrow", 320, 800], ["zoom-200", 683, 384]] as const) {
     await page.setViewportSize({ width, height });
