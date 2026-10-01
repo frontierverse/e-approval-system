@@ -248,8 +248,8 @@ test("preview and download permission failures keep the user in the work log and
   expect(model.errors).toEqual([]);
 });
 
-test("meeting files and nested previews remain accessible across light, dark, narrow and zoom layouts", async ({ page }, info) => {
-  test.skip(!info.project.name.startsWith("desktop"), "One explicit viewport matrix is sufficient.");
+test("meeting files and nested previews remain accessible across light, dark, narrow and zoom layouts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "One explicit viewport matrix is sufficient.");
   test.setTimeout(60_000);
   const entry = meetingEntry({ longName: true });
   const longName = entry.meetingDocuments[0].attachments[0].originalName;

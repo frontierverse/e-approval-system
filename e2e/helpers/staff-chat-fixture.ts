@@ -35,7 +35,9 @@ export async function startStaffChatFixture() {
       readFile(path.join(root, "src/components/staff-chat.css"), "utf8"),
     ]).then((css) =>
       postcss([tailwindcss({ base: root })]).process(css.join("\n"), {
-        from: path.join(root, "src/app/globals.css"),
+        // Tailwind caches by input path. Other fixtures compile globals.css
+        // without the appended chat styles, so this bundle needs its own key.
+        from: path.join(root, "src/app/staff-chat-fixture.css"),
       }),
     ),
   ]);

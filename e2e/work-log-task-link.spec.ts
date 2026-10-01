@@ -241,8 +241,8 @@ test("detail loads an automatic-only day outside the recent list and can retry a
   expect(model.errors).toEqual([]);
 });
 
-test("long automatic task details remain usable across light, dark, narrow and zoom layouts", async ({ page }, info) => {
-  test.skip(!info.project.name.startsWith("desktop"), "One explicit viewport matrix is sufficient.");
+test("long automatic task details remain usable across light, dark, narrow and zoom layouts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "One explicit viewport matrix is sufficient.");
   test.setTimeout(60_000);
   const longTitle = "긴제목_프로그램참여자별_주간운영결과_정리및담당자확인_".repeat(4);
   const entry = automaticEntry(today, longTitle);

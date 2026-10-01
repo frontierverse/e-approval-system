@@ -387,7 +387,7 @@ test("moving the open window keeps launcher anchored and preserves draft, positi
   expect(state.errors).toEqual([]);
 });
 
-test("keyboard movement uses small and large steps and resize keeps controls in bounds", async ({ page }, info) => {
+test("keyboard movement uses small and large steps and resize keeps controls in bounds", async ({ page, isMobile }, info) => {
   const state = await prepare(page);
   await openEmployee(page, employees[0].name);
   const handle = page.getByRole("button", { name: "채팅창 이동", exact: true });
@@ -404,7 +404,7 @@ test("keyboard movement uses small and large steps and resize keeps controls in 
   for (let index = 0; index < 40; index++) await handle.press("Shift+ArrowRight");
   for (let index = 0; index < 20; index++) await handle.press("Shift+ArrowDown");
   await expectChatInViewport(page);
-  if (info.project.name === "desktop") {
+  if (!isMobile) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await expectChatInViewport(page);
     await screenshot(page, "moved-wide-1440", info.project.name);
