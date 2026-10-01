@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "public/pdfjs/**",
     "next-env.d.ts",
+    // The native app uses its own Expo ESLint configuration and validation command.
+    "mobile/**",
   ]),
 ]);
 

@@ -1,0 +1,25 @@
+# The mobile app has its own package and lockfile. Upload only its build inputs.
+/*
+!/mobile
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/dist/
+/mobile/web-build/
+/mobile/ios/
+/mobile/android/
+/mobile/.env*
+/mobile/credentials.json
+/mobile/google-services.json
+/mobile/*.jks
+/mobile/*.keystore
+/mobile/*.p8
+/mobile/*.p12
+/mobile/*.mobileprovision
+/mobile/*.pem
+/mobile/*.key
+/mobile/*.tsbuildinfo
+/mobile/expo-env.d.ts
+/mobile/.DS_Store
+/mobile/npm-debug.*
+/mobile/yarn-debug.*
+/mobile/yarn-error.*

@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "결재온",
+    "slug": "gyeoljaeon",
+    "scheme": "gyeoljaeon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gyeoljaeon.internal"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#193A66",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gyeoljaeon.internal",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      "@config-plugins/react-native-pdf",
+      "@config-plugins/react-native-blob-util",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "378e1910-b0e9-4a64-96f9-3d301291f3bf"
+      }
+    },
+    "owner": "artemismars2"
+  }
+}

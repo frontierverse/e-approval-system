@@ -413,6 +413,10 @@ export async function updateAdminUserAction(
       },
     });
 
+    if (password || values.status !== UserStatus.ACTIVE) {
+      await tx.mobileSession.deleteMany({ where: { userId } });
+    }
+
     if (employmentDatesChanged) {
       await tx.staffLeaveLedger.deleteMany({
         where: {

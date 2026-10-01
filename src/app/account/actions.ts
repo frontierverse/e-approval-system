@@ -99,6 +99,7 @@ export async function changePasswordAction(
         passwordHash: hashPassword(newPassword),
       },
     }),
+    prisma.mobileSession.deleteMany({ where: { userId: user.id } }),
     prisma.auditLog.create({
       data: {
         actorId: user.id,

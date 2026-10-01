@@ -150,6 +150,7 @@ model User {
   auditLogs                      AuditLog[]                @relation("AuditActor")
   loginHistories                 LoginHistory[]
   notifications                  Notification[]
+  mobileSessions                 MobileSession[]
   signedAttachments              Attachment[]              @relation("AttachmentSigner")
   convertedAttachments           Attachment[]              @relation("AttachmentConverter")
   leaveLedgerEntries             StaffLeaveLedger[]        @relation("StaffLeaveUser")
@@ -988,10 +989,56 @@ model Notification {
 
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   document ApprovalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  mobilePushDeliveries MobilePushDelivery[]
 
   @@index([userId, readAt, createdAt])
   @@index([documentId])
   @@index([type])
+}
+
+model MobileSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushSubscription MobilePushSubscription?
+
+  @@index([userId, expiresAt])
+}
+
+model MobilePushSubscription {
+  id        String   @id @default(cuid())
+  expoToken String   @unique
+  sessionId String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session MobileSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  deliveries MobilePushDelivery[]
+}
+
+model MobilePushDelivery {
+  id               String    @id @default(cuid())
+  notificationId   String
+  subscriptionId   String
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime  @default(now())
+  ticketId         String?   @unique
+  sentAt           DateTime?
+  receiptCheckedAt DateTime?
+  failedAt         DateTime?
+  lastError        String?   @db.VarChar(200)
+  createdAt        DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  subscription MobilePushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, subscriptionId])
+  @@index([sentAt, failedAt, nextAttemptAt])
+  @@index([receiptCheckedAt, sentAt])
 }
 
 model StaffChatMessage {

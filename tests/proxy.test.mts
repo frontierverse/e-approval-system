@@ -25,6 +25,20 @@ describe("authentication proxy", () => {
     }
   });
 
+  test("lets mobile requests reach their bearer or secret authentication without a web cookie", () => {
+    for (const pathname of ["/api/mobile/auth/login", "/api/mobile/auth/me", "/api/mobile/inbox", "/api/mobile/push-subscription", "/api/mobile/push-dispatch"]) {
+      const response = proxy(new NextRequest(`http://localhost${pathname}`));
+      assert.equal(response.headers.get("location"), null);
+      assert.equal(response.headers.get("x-middleware-next"), "1");
+    }
+  });
+
+  test("does not bypass web authentication for neighboring mobile-like paths", () => {
+    const response = proxy(new NextRequest("http://localhost/api/mobile-private"));
+    assert.equal(response.status, 307);
+    assert.equal(new URL(response.headers.get("location")!).pathname, "/login");
+  });
+
   test("does not redirect an authenticated health probe to the home page", () => {
     const response = proxy(
       new NextRequest("http://localhost/api/health/live", {

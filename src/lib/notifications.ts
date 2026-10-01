@@ -1,7 +1,9 @@
 import "server-only";
 
+import { after } from "next/server";
 import { NotificationType, Prisma } from "@/generated/prisma/client";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import { dispatchMobilePushDeliveries } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
 import type { AppNotification } from "@/lib/notification-types";
 
@@ -46,8 +48,33 @@ export async function createDocumentNotification(
   tx: Prisma.TransactionClient,
   input: CreateDocumentNotificationInput,
 ) {
-  await tx.notification.create({
+  const notification = await tx.notification.create({
     data: input,
+    select: { id: true },
+  });
+  const subscriptions = await tx.mobilePushSubscription.findMany({
+    where: {
+      session: {
+        userId: input.userId,
+        expiresAt: { gt: new Date() },
+        user: { status: "ACTIVE" },
+      },
+    },
+    select: { id: true },
+  });
+  if (!subscriptions.length) return;
+  await tx.mobilePushDelivery.createMany({
+    data: subscriptions.map(({ id }) => ({
+      notificationId: notification.id,
+      subscriptionId: id,
+    })),
+  });
+  after(async () => {
+    try {
+      await dispatchMobilePushDeliveries({ notificationId: notification.id, limit: 20, checkReceipts: false });
+    } catch (error) {
+      console.error("Immediate mobile push dispatch failed", error);
+    }
   });
 }
 

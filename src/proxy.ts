@@ -6,6 +6,8 @@ const publicApiPrefixes = ["/api/health/"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Mobile routes authenticate bearer sessions or the dispatcher secret themselves.
+  if (pathname.startsWith("/api/mobile/")) return NextResponse.next();
   const hasSession = Boolean(request.cookies.get(sessionCookieName)?.value);
   const isLoginPath = pathname === loginPath;
   const isPublicPath =
