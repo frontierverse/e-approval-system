@@ -2,6 +2,29 @@
 
 직원 전용 Expo 앱이다. 공개 App Store·Play Store로 출시하지 않는다. 웹 프로젝트와 같은 데이터베이스와 결재 규칙을 쓰며, iOS와 Android에 동일한 코드로 배포한다. 앱은 홈, 받은결재, 알림, 내 정보의 하단 탭과 문서 상세, 첨부파일 미리보기, 승인·반려를 제공한다. 문서 작성과 관리자 기능은 웹에서 사용한다. 서버는 유효한 bearer 세션, 활성 직원 상태, 문서별 열람·결재 권한을 확인한다.
 
+## 2026-10-02 작업 인계
+
+모바일 앱 코드와 검증 수정은 GitHub `main`, `codex/staff-mobile-api`에 반영되어 있다. 앱 코드 기준 커밋은 `db584765c5e148ce06a929eed19d7bff3116ea23`이며 [해당 CI](https://github.com/frontierverse/e-approval-system/actions/runs/36937827929)는 성공했다. 이 인계 문서는 배포 진행 상태를 기록하며 앱 런타임을 바꾸지 않는다.
+
+- Android 실제 기기에서 설치, 로그인, 문서와 첨부파일 열기, 대상 기기 테스트 푸시 수신을 확인했다. 실제 기기에서 승인·반려 및 업무 문서 생성에 따른 자동 푸시 전체 흐름은 아직 검증하지 않았다. 추가 실제 결재나 테스트 알림은 별도 요청 없이 실행하지 않는다.
+- 시험용 APK `1.0.0 / versionCode 1`은 [EAS 빌드](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/builds/45d8786c-f901-40ac-bddc-ef2481a8fd41)에 있다. Google Play 업로드용 AAB `1.0.0 / versionCode 2`도 [EAS 빌드](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/builds/57ac37c6-6bba-488c-9034-333c72cc369f)에서 Finished 상태이며 서명과 파일 무결성을 검증했다. 파일 다운로드에는 프로젝트 접근 권한이 있는 Expo 로그인이 필요하다.
+- Google Play 신규 조직 계정은 비영리단체, 기관명은 `사회적협동조합 청소년자립학교`, 개발자 표시 이름은 `결재온`으로 준비했다. 조직 결제 프로필 생성·계정 인증·가입비 결제·AAB 업로드·테스터 등록·내부 테스트 게시가 남아 있으며, 아직 Play 배포는 하지 않았다. 직원 100명 이하를 대상으로 내부 테스트를 준비한다.
+- 2026-10-02(한국시간), Apple의 [D-U-N-S 조회·신청](https://developer.apple.com/enroll/duns-lookup/)에서 기존 번호 조회가 일치 항목을 반환하지 않았다. 조회용 영문명 `Social Cooperative Youth Independence School`과 기관의 공개 주소 `38 Muwang-ro 7-gil, Iksan-si`, 우편번호 `54543`로 무료 신규 신청을 1회 제출했다. 사용자 승인에 따라 개인정보 제공 동의를 적용했고, 화면에서 `Your information is being processed.`와 D&B 확인 이메일 예정 안내를 확인했다. 번호 발급 및 D&B의 정확한 영문 법인명 검증은 아직 완료되지 않았다. 추가 신청을 중복 제출하지 않고 신청에 사용한 계정의 확인 이메일·증빙 요청을 확인한다. 담당자 연락처와 화면 캡처는 이 저장소에 포함하지 않는다.
+- Android FCM과 iOS Distribution 인증서·APNs 키는 EAS에 이미 등록되어 있다. iPhone 등록 기기와 프로비저닝이 준비되지 않아 iOS 설치본은 아직 없다. 자격 증명을 다시 만들 필요는 없다.
+- 푸시 실패 재시도와 영수증 확인을 위한 `push-dispatch` 외부 스케줄러는 아직 구성하지 않았다. 아래 알림 운영 순서에 따라 별도로 마무리한다.
+
+다른 컴퓨터의 새 폴더에서는 다음과 같이 받는다.
+
+```bash
+git clone https://github.com/frontierverse/e-approval-system.git
+cd e-approval-system
+git switch main
+```
+
+기존 저장소를 사용한다면 `git status`로 미커밋 작업을 확인한 뒤, 깨끗한 `main`에서 `git pull --ff-only origin main`으로 최신 내용을 받는다. 이어서 이 문서의 로컬 실행 절차를 따른다. 원래 컴퓨터의 별도 작업 폴더에는 다른 기능의 미커밋 변경이 남아 있으며 이번 모바일 반영에 포함되지 않았다.
+
+환경변수, `google-services.json`, 인증서 개인 키 및 서버 비밀 값은 GitHub에 들어 있지 않다. EAS 자격 증명은 계정에 보관되어 있으므로 프로젝트에 로그인해 기존 설정을 사용한다. 웹 서버를 로컬에서 개발할 때 필요한 비밀 값은 기존의 안전한 경로로 별도 준비한다. APK·AAB와 로컬 검증 보고서도 GitHub 대신 EAS 빌드 및 원래 컴퓨터에 보관되어 있다.
+
 ## 로컬 실행
 
 1. 웹 프로젝트의 PostgreSQL에 마이그레이션을 적용하고 웹 API를 실행한다.
