@@ -15,13 +15,14 @@ import {
 } from "@/components/admin-form-controls";
 import { SplitDateInput } from "@/components/split-date-input";
 import { UserAvatar } from "@/components/user-avatar";
-import { adminListStyles } from "@/lib/admin-list-styles";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
+import { getStaffEmploymentStatus, type StaffEmploymentStatus } from "@/lib/staff-employment";
 
 type AdminUserManagementProps = {
   users: AdminUser[];
   departments: AdminDepartment[];
   positions: AdminPosition[];
+  today: string;
 };
 
 type AdminUser = {
@@ -72,45 +73,91 @@ export function AdminUserManagement({
   users,
   departments,
   positions,
+  today,
 }: AdminUserManagementProps) {
-  return (
-    <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-      <CreateUserForm departments={departments} positions={positions} />
+  const [group, setGroup] = useState<"employed" | "resigned">("employed");
+  const employedUsers = users.filter((user) => getStaffEmploymentStatus(user.resignationDate, today) !== "resigned");
+  const resignedUsers = users.filter((user) => getStaffEmploymentStatus(user.resignationDate, today) === "resigned");
+  const visibleUsers = group === "employed" ? employedUsers : resignedUsers;
+  const listId = useId();
 
-      <div className={adminListStyles.panel}>
-        <div className={adminListStyles.header}>
-          <div>
-            <h2 className={adminListStyles.title}>직원 정보</h2>
-            <p className={adminListStyles.description}>
-              직원 계정 권한과 조직 정보를 수정합니다.
-            </p>
-          </div>
-          <span className={adminListStyles.count}>
-            총 {users.length}명
+  return (
+    <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
+        <div className="flex min-h-12 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2">
+          <h2 className="text-base font-semibold">직원 목록</h2>
+          <span className="text-sm tabular-nums text-[var(--text-muted)]">
+            전체 {users.length}명
           </span>
         </div>
 
-        <div className="divide-y divide-[#eef1f5]">
-          {users.map((user) => (
-            <UserListItem
-              key={user.id}
-              user={user}
-              departments={departments}
-              positions={positions}
-            />
+        <div role="group" aria-label="직원 재직 구분" className="grid grid-cols-2 gap-2 border-b border-[var(--border)] p-3">
+          {([
+            { value: "employed", label: "재직자", count: employedUsers.length },
+            { value: "resigned", label: "퇴사자", count: resignedUsers.length },
+          ] as const).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={group === option.value}
+              aria-controls={listId}
+              onClick={() => setGroup(option.value)}
+              className={buttonClass(
+                buttonStyles.base,
+                "min-h-11 gap-2 border px-3 py-2 text-sm",
+                group === option.value
+                  ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[#196b69] dark:text-[#58a6ff]"
+                  : "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--surface-muted)]",
+              )}
+            >
+              {option.label}
+              <span className="tabular-nums">{option.count}명</span>
+            </button>
           ))}
         </div>
+
+        <div id={listId}>
+          {visibleUsers.length ? (
+            <ul aria-label={group === "employed" ? "재직자 목록" : "퇴사자 목록"} className="divide-y divide-[var(--border)]">
+              {visibleUsers.map((user) => (
+                <li key={user.id}>
+                  <UserListItem
+                    user={user}
+                    employmentStatus={getStaffEmploymentStatus(user.resignationDate, today)}
+                    departments={departments}
+                    positions={positions}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="p-3" role="status">
+              <section className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] px-4 py-5 text-center">
+                <p className="text-base font-semibold text-[var(--foreground)]">
+                  {group === "employed" ? "재직자가 없습니다" : "퇴사자가 없습니다"}
+                </p>
+                <p className="mt-1 max-w-md text-sm leading-6 text-[var(--text-muted)]">
+                  {group === "employed" ? "직원을 추가하거나 퇴사자 목록을 확인하세요." : "퇴사일이 오늘이거나 지난 직원이 여기에 표시됩니다."}
+                </p>
+              </section>
+            </div>
+          )}
+        </div>
       </div>
+
+      <CreateUserForm departments={departments} positions={positions} />
     </section>
   );
 }
 
 function UserListItem({
   user,
+  employmentStatus,
   departments,
   positions,
 }: {
   user: AdminUser;
+  employmentStatus: StaffEmploymentStatus;
   departments: AdminDepartment[];
   positions: AdminPosition[];
 }) {
@@ -119,42 +166,34 @@ function UserListItem({
       title="직원 정보 수정"
       description="권한, 상태, 조직 정보와 비밀번호를 재설정합니다."
       showTabNavigationNotice
+      triggerClassName="block min-h-11 w-full cursor-pointer px-4 py-3 text-left transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-ring)]"
       trigger={
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <UserAvatar user={user} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[#16181d]">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="shrink-0"><UserAvatar user={user} decorative /></div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="break-words text-sm font-semibold text-[var(--foreground)] [overflow-wrap:anywhere]">
                 {user.name}
               </p>
-              <p className="mt-1 truncate text-xs text-[#697386]">
-                {formatUserEmail(user.email)} · {user.department.name} /{" "}
-                {user.position.name}
-              </p>
-              <p className="mt-1 text-xs text-[#697386]">
-                작성 문서 {user._count.draftedDocuments}건 · 결재 참여{" "}
-                {user._count.approvalSteps}건
-              </p>
-              <p className="mt-1 text-xs text-[#697386]">
-                {formatEmploymentPeriod(user)}
-              </p>
-              <p className="mt-1 text-xs text-[#697386]">
-                {formatBirthDateLabel(user.birthDate)}
-              </p>
+              <EmploymentPill status={employmentStatus} />
+              {user.role === "ADMIN" ? <RolePill role={user.role} /> : null}
+              {user.status === "INACTIVE" ? <StatusPill active={false} /> : null}
+            </div>
+            <p className="mt-1 truncate text-xs text-[var(--text-muted)]">
+              {user.department.name} / {user.position.name} · {formatUserEmail(user.email)}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-[var(--text-muted)]">
+              <span>{formatEmploymentPeriod(user, employmentStatus)}</span>
+              <span>{formatBirthDateLabel(user.birthDate)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <RolePill role={user.role} />
-            <StatusPill active={user.status === "ACTIVE"} />
-            <span className="rounded-md border border-[#cfd6e3] bg-white px-3 py-1.5 text-xs font-semibold text-[#394150]">
-              수정
-            </span>
-          </div>
+          <span className="shrink-0 py-1 text-xs font-semibold text-[var(--text-muted)]">수정</span>
         </div>
       }
     >
       <EditUserForm
         user={user}
+        employmentStatus={employmentStatus}
         departments={departments}
         positions={positions}
       />
@@ -275,10 +314,12 @@ function CreateUserForm({
 
 function EditUserForm({
   user,
+  employmentStatus,
   departments,
   positions,
 }: {
   user: AdminUser;
+  employmentStatus: StaffEmploymentStatus;
   departments: AdminDepartment[];
   positions: AdminPosition[];
 }) {
@@ -426,7 +467,7 @@ function EditUserForm({
           현재 {user.department.name} / {user.position.name}
         </span>
         <span>·</span>
-        <span>{formatEmploymentPeriod(user)}</span>
+        <span>{formatEmploymentPeriod(user, employmentStatus)}</span>
       </div>
 
       <FormMessage state={state} />
@@ -494,10 +535,10 @@ function formatUserEmail(email: string | null) {
 function formatEmploymentPeriod({
   hireDate,
   resignationDate,
-}: Pick<AdminUser, "hireDate" | "resignationDate">) {
+}: Pick<AdminUser, "hireDate" | "resignationDate">, employmentStatus?: StaffEmploymentStatus) {
   const hireLabel = hireDate ? `입사 ${formatDateValue(hireDate)}` : "입사일 미등록";
   const resignationLabel = resignationDate
-    ? `퇴사 ${formatDateValue(resignationDate)}`
+    ? `퇴사${employmentStatus === "resigning" ? " 예정" : ""} ${formatDateValue(resignationDate)}`
     : "재직 중";
 
   return `${hireLabel} · ${resignationLabel}`;
@@ -521,7 +562,20 @@ function StatusPill({ active }: { active: boolean }) {
           : "bg-[#f3f5f8] text-[#697386]",
       ].join(" ")}
     >
-      {active ? "활성" : "비활성"}
+      {active ? "계정 활성" : "계정 비활성"}
+    </span>
+  );
+}
+
+function EmploymentPill({ status }: { status: StaffEmploymentStatus }) {
+  return (
+    <span className={[
+      "rounded-md px-2 py-1 text-xs font-semibold",
+      status === "resigned"
+        ? "bg-[var(--surface-muted)] text-[var(--text-muted)]"
+        : "bg-[#eef7f6] text-[#196b69]",
+    ].join(" ")}>
+      {status === "resigned" ? "퇴사" : status === "resigning" ? "퇴사 예정" : "재직"}
     </span>
   );
 }

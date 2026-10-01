@@ -28,6 +28,7 @@ export function RouteLoadingShell({
   return (
     <>
       <PageTitle
+        compact={variant === "adminStaff"}
         title={title}
         description={description}
         titleAccessory={titleAccessory}
@@ -353,9 +354,30 @@ function AdminSkeleton() {
 
 function AdminStaffSkeleton() {
   return (
-    <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <section className="min-w-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]" aria-label="직원 목록 로딩 중">
+        <div className="flex min-h-12 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2">
+          <p className="text-base font-semibold">직원 목록</p>
+          <SkeletonBlock className="h-4 w-16" />
+        </div>
+        <div className="grid grid-cols-2 gap-2 border-b border-[var(--border)] p-3">
+          {["재직자", "퇴사자"].map((label) => (
+            <div key={label} className="flex min-h-11 items-center justify-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-semibold">
+              {label}<SkeletonBlock className="h-4 w-8" />
+            </div>
+          ))}
+        </div>
+        <div className="divide-y divide-[var(--border)]">
+          {[0, 1, 2, 3, 4].map((row) => (
+            <div key={row} className="px-4 py-3">
+              <SkeletonBlock className="h-5 w-3/5" />
+              <SkeletonBlock className="mt-1 h-3 w-4/5" />
+              <SkeletonBlock className="mt-1 h-3 w-2/3" />
+            </div>
+          ))}
+        </div>
+      </section>
       <PanelSkeleton title="직원 추가" rows={6} />
-      <PanelSkeleton title="직원 정보" rows={5} />
     </div>
   );
 }

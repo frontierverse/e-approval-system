@@ -5,6 +5,7 @@ import { PageTitle } from "@/components/page-title";
 import { RouteContentSkeleton } from "@/components/route-loading-shell";
 import { getAdminReferenceData, getAdminUsers } from "@/lib/admin-queries";
 import { requireAdmin } from "@/lib/auth";
+import { getStaffEmploymentToday } from "@/lib/staff-employment";
 
 export const metadata: Metadata = {
   title: "직원 정보",
@@ -14,6 +15,7 @@ export default function AdminStaffPage() {
   return (
     <>
       <PageTitle
+        compact
         title="직원 정보"
         description="직원 계정, 권한, 입퇴사일과 조직 정보를 관리하는 화면입니다."
       />
@@ -37,6 +39,7 @@ async function AdminStaffContent() {
       users={users}
       departments={referenceData.departments}
       positions={referenceData.positions}
+      today={getStaffEmploymentToday()}
     />
   );
 }
