@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View, type PressableProps } from "react-native";
 import { useTheme } from "@/lib/theme";
@@ -15,16 +16,18 @@ export function PrimaryButton({ title, disabled, onPress, danger = false }: {
   title: string; disabled?: boolean; onPress: () => void; danger?: boolean;
 }) {
   const theme = useTheme();
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled}
-    onPress={onPress} style={({ pressed }) => [styles.button, { backgroundColor: danger ? theme.dangerFill : theme.actionFill, opacity: disabled ? 0.55 : pressed ? 0.84 : 1 }]}>
+  const [focused, setFocused] = useState(false);
+  return <Pressable onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled}
+    onPress={onPress} style={({ pressed }) => [styles.button, { backgroundColor: danger ? theme.dangerFill : theme.actionFill, borderWidth: 2, borderColor: focused ? theme.accent : "transparent", opacity: disabled ? 0.55 : pressed ? 0.84 : 1 }]}>
     <Text style={styles.buttonText}>{title}</Text>
   </Pressable>;
 }
 
 export function TextAction({ label, onPress, icon, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap }) {
   const theme = useTheme();
-  return <Pressable {...props} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
-    style={({ pressed }) => [styles.action, { backgroundColor: pressed ? theme.accentSoft : "transparent" }]}>
+  const [focused, setFocused] = useState(false);
+  return <Pressable {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+    style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : "transparent", paddingHorizontal: 6 }]}>
     {icon ? <Ionicons name={icon} size={18} color={theme.accent} /> : null}
     <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "700" }}>{label}</Text>
   </Pressable>;

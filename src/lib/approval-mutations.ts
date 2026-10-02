@@ -103,11 +103,11 @@ export async function createApprovalDocument({
   approvers,
   attachments = [],
   submitImmediately,
-}: CreateApprovalDocumentInput) {
+}: CreateApprovalDocumentInput, transaction?: Prisma.TransactionClient) {
   const now = new Date();
   const auditRequestData = await getCurrentAuditLogRequestData();
 
-  return prisma.$transaction(async (tx) => {
+  const create = async (tx: Prisma.TransactionClient) => {
     const documentNo = submitImmediately
       ? await getNextDocumentNo(tx, now)
       : undefined;
@@ -189,7 +189,8 @@ export async function createApprovalDocument({
     }
 
     return document;
-  });
+  };
+  return transaction ? create(transaction) : prisma.$transaction(create);
 }
 
 export async function submitDraftDocument(
@@ -373,10 +374,13 @@ export async function updateDraftDocument({
   attachments = [],
   removeAttachmentIds = [],
   submitImmediately,
-}: UpdateDraftDocumentInput): Promise<DraftMutationResult> {
+}: UpdateDraftDocumentInput, transaction?: Prisma.TransactionClient): Promise<DraftMutationResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
+  if (transaction && removeAttachmentIds.length) {
+    throw new Error("Attachment removal must use its own committed transaction.");
+  }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const update = async (tx: Prisma.TransactionClient) => {
     await lockApprovalDocument(tx, documentId);
     const document = await tx.approvalDocument.findUnique({
       where: {
@@ -616,14 +620,15 @@ export async function updateDraftDocument({
       documentId: document.id,
       attachmentsToRemove,
     };
-  });
+  };
+  const result = transaction ? await update(transaction) : await prisma.$transaction(update);
 
   if (!result.ok) {
     return result;
   }
 
   try {
-    await removeStoredAttachmentFiles(result.attachmentsToRemove);
+    if (!transaction) await removeStoredAttachmentFiles(result.attachmentsToRemove);
   } catch (error) {
     console.error("Failed to remove draft attachment files", error);
   }

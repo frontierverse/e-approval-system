@@ -177,6 +177,7 @@ model User {
   loginHistories                 LoginHistory[]
   notifications                  Notification[]
   mobileSessions                 MobileSession[]
+  mobileDraftUploads             MobileDraftUpload[]
   signedAttachments              Attachment[]              @relation("AttachmentSigner")
   convertedAttachments           Attachment[]              @relation("AttachmentConverter")
   leaveLedgerEntries             StaffLeaveLedger[]        @relation("StaffLeaveUser")
@@ -293,6 +294,7 @@ model ApprovalDocument {
   auditLogs          AuditLog[]
   notifications      Notification[]
   leaveLedgerEntries StaffLeaveLedger[]
+  mobileDraftUploads MobileDraftUpload[]
 
   @@index([status])
   @@index([templateId])
@@ -1119,6 +1121,25 @@ model Notification {
   @@index([userId, readAt, createdAt])
   @@index([documentId])
   @@index([type])
+}
+
+model MobileDraftUpload {
+  id              String   @id
+  userId          String
+  originalName    String
+  mimeType        String
+  size            Int
+  storageProvider String
+  storageKey      String   @unique
+  completedAt     DateTime?
+  documentId      String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document ApprovalDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, documentId, expiresAt])
 }
 
 model MobileSession {

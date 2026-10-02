@@ -49,6 +49,8 @@ function Navigation() {
       <Stack.Protected guard={!user}><Stack.Screen name="login" options={{ headerShown: false }} /></Stack.Protected>
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="drafts/new" options={{ title: "새 기안" }} />
+        <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정" }} />
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
       </Stack.Protected>

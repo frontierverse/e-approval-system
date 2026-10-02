@@ -14,7 +14,7 @@ export default function Home() {
   const showApprovalQueue = user?.canApproveDocuments === true && data?.canApproveDocuments === true;
   return <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.content}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={theme.accent} />}>
-    <ScreenHeading title="오늘의 업무" subtitle={[user?.name, user?.positionName].filter(Boolean).join(" · ")} />
+    <ScreenHeading title="오늘의 업무" subtitle={[user?.name, user?.positionName].filter(Boolean).join(" · ")} action={<TextAction label="새 기안" icon="add" onPress={() => router.push("/drafts/new")} />} />
     {loading && !data ? <HomeLoading /> :
       error && !data ? <ErrorState message={error} retry={reload} /> :
       data ? <>
@@ -41,7 +41,7 @@ export default function Home() {
           <Text style={{ color: theme.secondary, fontSize: 12 }}>{data.counts.activeSent}건 진행 중</Text>
         </View>
         {data.sentDocuments.length ? <InboxList documents={data.sentDocuments} showProgress /> :
-          <EmptyState title="진행 중인 내 문서가 없습니다" detail="웹에서 상신한 문서의 진행 상황을 여기서 확인할 수 있습니다." />}
+          <EmptyState title="진행 중인 내 문서가 없습니다" detail="새 기안을 작성해 상신하면 진행 상황을 여기서 확인할 수 있습니다." />}
         {data.counts.activeSent > data.sentDocuments.length ? <Text style={{ color: theme.secondary, marginTop: 10, fontSize: 12 }}>
           진행 중인 {data.counts.activeSent}건 중 {data.sentDocuments.length}건 표시 · 전체 문서는 웹에서 확인할 수 있습니다.
         </Text> : null}

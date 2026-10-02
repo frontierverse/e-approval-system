@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public fields?: Record<string, string>) {
     super(message);
   }
 }
@@ -42,7 +42,8 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const message = typeof data === "object" && data !== null && "error" in data &&
       typeof data.error === "string" ? data.error : "요청을 처리하지 못했습니다.";
-    throw new ApiError(message, response.status);
+    const fields = typeof data === "object" && data !== null && "fields" in data && typeof data.fields === "object" && data.fields !== null ? Object.fromEntries(Object.entries(data.fields).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : undefined;
+    throw new ApiError(message, response.status, fields);
   }
   if (!data || typeof data !== "object") {
     throw new ApiError("앱 서버가 올바르게 응답하지 않습니다. 관리자에게 문의하세요.", response.status);
