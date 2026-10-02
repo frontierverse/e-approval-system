@@ -75,6 +75,9 @@ async function getBirthdayAlertYouths(
 ): Promise<BirthdayAlertPerson[]> {
   const youths = await prisma.youth.findMany({
     where: {
+      actualDischargeDate: null,
+      purgeStartedAt: null,
+      purgedAt: null,
       birthDate: {
         not: null,
       },

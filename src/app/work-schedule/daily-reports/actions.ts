@@ -5,6 +5,7 @@ import { AuditAction, Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
+import { getOperationalYouthIds } from "@/lib/youth-record-access";
 import { canWriteDailyReport, dailyReportPath, isDailyReportDirector, parseDailyReportForm, readYouthReports, type DailyReportState } from "@/lib/daily-report-core";
 import { dailyReportSelect, mapDailyReport, reportYouthWhere } from "@/lib/daily-reports";
 import { getWorkLogToday, parseWorkLogDateValue } from "@/lib/work-log-core";
@@ -36,15 +37,17 @@ export async function saveDailyReportAction(_previous: DailyReportState, form: F
       }
       const youths = await tx.youth.findMany({ where: reportYouthWhere(values.workDate), select: { id: true, name: true } });
       const names = new Map(youths.map(youth => [youth.id, youth.name]));
-      // Preserve submitted names even after a youth is renamed, discharged or deleted.
-      for (const note of readYouthReports(existing?.youthReports)) names.set(note.youthId, note.youthName);
+      const allowedYouthIds = new Set(await getOperationalYouthIds(tx));
+      // Retained notes stay in storage, but cannot be edited or returned through ordinary reports.
+      const previousNotes = readYouthReports(existing?.youthReports);
+      for (const note of previousNotes) if (allowedYouthIds.has(note.youthId)) names.set(note.youthId, note.youthName);
       const youthReports = values.youthReports.map(note => {
-        const youthName = names.get(note.youthId);
+        const youthName = allowedYouthIds.has(note.youthId) ? names.get(note.youthId) : undefined;
         if (!youthName) throw new ReportInputError("보고 날짜에 해당하는 청소년 명단이 변경되었습니다. 입력 내용을 보관한 뒤 새로고침해 주세요.");
         return { ...note, youthName };
       });
       const data = {
-        mainContent: values.mainContent, youthReports,
+        mainContent: values.mainContent, youthReports: [...youthReports, ...previousNotes.filter(note => !allowedYouthIds.has(note.youthId))],
         submittedAt: intent === "submit" ? (existing?.submittedAt ?? new Date()) : null,
         reviewedAt: null, reviewedById: null,
       };
@@ -64,7 +67,7 @@ export async function saveDailyReportAction(_previous: DailyReportState, form: F
         metadata: { changeType: `dailyReport.${intent}`, workDate: values.workDate, youthReportCount: youthReports.length },
       } });
       const saved = await tx.dailyWorkReport.findUniqueOrThrow({ where: { id }, select: dailyReportSelect });
-      return mapDailyReport(saved);
+      return mapDailyReport(saved, allowedYouthIds);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     revalidatePath(dailyReportPath);
     revalidatePath("/");

@@ -259,6 +259,7 @@ async function getEmployedStaffMembers(referenceDate: string) {
 async function getAdmittedYouths(referenceDate: string) {
   const youths = await prisma.youth.findMany({
     where: {
+      actualDischargeDate: null, purgeStartedAt: null, purgedAt: null,
       OR: [
         {
           dischargeDate: null,

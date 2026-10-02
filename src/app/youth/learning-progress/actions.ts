@@ -8,6 +8,7 @@ import {
   requireYouthPermission,
 } from "@/lib/youth-permissions";
 import { prisma } from "@/lib/prisma";
+import { requireOperationalYouth } from "@/lib/youth-record-access";
 import {
   getYouthLearningProgressChangeLogs,
   getYouthLearningSchedules,
@@ -133,6 +134,7 @@ export async function toggleYouthStudyConceptCheckAction(
   YouthActionResult<{ conceptId: string; youthId: string; isChecked: boolean }>
 > {
   const user = await requireYouthPermission("canManageYouth");
+  await requireOperationalYouth(youthId);
 
   const concept = await prisma.studyConcept.findUnique({
     where: {
@@ -173,6 +175,7 @@ export async function toggleYouthStudyConceptCheckAction(
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(youthId, tx);
     if (nextChecked) {
       await tx.studyConceptCheck.upsert({
         where: {
@@ -344,6 +347,7 @@ export async function saveYouthLearningScheduleAction(
   sourceStartMinute = startMinute,
 ): Promise<YouthActionResult<{ schedule: YouthLearningSchedule | null }>> {
   const user = await requireYouthPermission("canManageYouth");
+  await requireOperationalYouth(youthId);
   const normalizedRecurrenceWeekdays = normalizeYouthLearningScheduleWeekdays(
     Array.isArray(recurrenceWeekdays) ? recurrenceWeekdays : [],
   );
@@ -412,6 +416,7 @@ export async function saveYouthLearningScheduleAction(
       const auditRequestData = await getCurrentAuditLogRequestData();
 
       await prisma.$transaction(async (tx) => {
+        await requireOperationalYouth(youthId, tx);
         if (isWeeklyRepeatSourceSchedule(existingSchedule)) {
           await tx.youthLearningSchedule.deleteMany({
             where: {
@@ -497,6 +502,7 @@ export async function saveYouthLearningScheduleAction(
 
   const auditRequestData = await getCurrentAuditLogRequestData();
   const schedule = await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(youthId, tx);
     const existingSchedule = await tx.youthLearningSchedule.findUnique({
       where: {
         youthId_scheduleDate_startMinute: {
@@ -683,6 +689,7 @@ export async function deleteYouthLearningScheduleAction(
   YouthActionResult<{ youthId: string; scheduleDate: string; startMinute: number }>
 > {
   const user = await requireYouthPermission("canManageYouth");
+  await requireOperationalYouth(youthId);
 
   if (!isYouthLearningScheduleDate(scheduleDate)) {
     return {
@@ -708,6 +715,7 @@ export async function deleteYouthLearningScheduleAction(
     const auditRequestData = await getCurrentAuditLogRequestData();
 
     await prisma.$transaction(async (tx) => {
+      await requireOperationalYouth(youthId, tx);
       if (isWeeklyRepeatSourceSchedule(schedule)) {
         await tx.youthLearningSchedule.deleteMany({
           where: {

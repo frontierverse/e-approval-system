@@ -98,6 +98,32 @@ enum LunchBoxWorkerType {
   TEMPORARY
 }
 
+enum MathProblemGrade {
+  TWO_POINT
+  THREE_POINT
+  FOUR_POINT
+  KILLER
+}
+
+enum MathResultStatus {
+  PASS
+  FAIL
+  ABSENT
+}
+
+enum MathPricePlan {
+  A
+  B
+}
+
+enum MathVaultLogType {
+  PASS
+  STREAK_UNLOCK
+  CORRECTION
+  SETTLEMENT
+  REOPEN
+}
+
 enum NotificationType {
   APPROVAL_REQUESTED
   APPROVAL_APPROVED
@@ -173,6 +199,9 @@ model User {
   receivedChatMessages          StaffChatMessage[]        @relation("StaffChatRecipient")
   sentChatUploads               StaffChatUpload[]         @relation("StaffChatUploadSender")
   receivedChatUploads           StaffChatUpload[]         @relation("StaffChatUploadRecipient")
+  mathVaultLogs                 MathVaultLog[]           @relation("MathVaultLogActor")
+  finalizedMathSettlements      MathSettlement[]         @relation("MathSettlementFinalizer")
+  reopenedMathSettlements       MathSettlement[]         @relation("MathSettlementReopener")
 
   @@index([departmentId])
   @@index([positionId])
@@ -425,6 +454,15 @@ model Youth {
   familyContact        String?
   familyRelationship   String?
   familyPhone          String?
+  actualDischargeDate  String?
+  caseClosedDate       String?
+  retentionUntil       String?
+  retentionBasis       String?
+  retentionHoldReason  String?
+  retentionVersion     Int      @default(0)
+  purgeStartedAt       DateTime?
+  purgeLeaseUntil      DateTime?
+  purgedAt             DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -437,11 +475,98 @@ model Youth {
   studyConceptChecks  StudyConceptCheck[]
   decisionDocuments   YouthDecisionDocument[]
   dischargeExtensions YouthDischargeExtension[]
+  mathResults         MathResult[]
+  mathVaultLogs       MathVaultLog[]
+  mathSettlement      MathSettlement?
 
   @@index([name])
   @@index([birthDate])
   @@index([dischargeDate])
   @@index([initialDischargeDate])
+  @@index([actualDischargeDate, retentionUntil])
+  @@index([purgedAt])
+}
+
+model MathProblem {
+  id        String           @id @default(cuid())
+  round     Int              @unique
+  examDate  DateTime         @db.Date
+  source    String?
+  number    Int?
+  grade     MathProblemGrade
+  reward    Int
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  results MathResult[]
+
+  @@index([examDate])
+}
+
+model MathResult {
+  id        String           @id @default(cuid())
+  studentId String
+  problemId String
+  result    MathResultStatus
+  memo      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  student Youth       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem MathProblem @relation(fields: [problemId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, problemId])
+  @@index([problemId])
+  @@index([studentId, result])
+}
+
+model MathVaultLog {
+  id        String           @id @default(cuid())
+  studentId String
+  date      DateTime         @db.Date
+  type      MathVaultLogType
+  amount    Int
+  round     Int?
+  memo      String?
+  actorId   String?
+  createdAt DateTime         @default(now())
+
+  student Youth @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  actor   User? @relation("MathVaultLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, date, createdAt])
+  @@index([actorId])
+}
+
+model MathSettings {
+  id           String        @id @default("default")
+  pricePlan    MathPricePlan @default(A)
+  unlockRule   Boolean       @default(true)
+  unlockStreak Int           @default(3)
+  holidays     String[]      @default(["2026-10-09", "2026-12-25", "2027-01-01"])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model MathSettlement {
+  id            String    @id @default(cuid())
+  studentId     String    @unique
+  amount        Int
+  passCount     Int
+  finalizedAt   DateTime
+  reopenedAt    DateTime?
+  finalizedById String?
+  reopenedById  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  student     Youth @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  finalizedBy User? @relation("MathSettlementFinalizer", fields: [finalizedById], references: [id], onDelete: SetNull)
+  reopenedBy  User? @relation("MathSettlementReopener", fields: [reopenedById], references: [id], onDelete: SetNull)
+
+  @@index([finalizedAt])
+  @@index([finalizedById])
+  @@index([reopenedById])
 }
 
 model YouthAcademySchedule {

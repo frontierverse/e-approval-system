@@ -14,6 +14,9 @@ import {
   removeStoredAttachmentFiles,
 } from "@/lib/attachment-storage";
 import { prisma } from "@/lib/prisma";
+import { requireOperationalYouth } from "@/lib/youth-record-access";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
 import {
   isYouthLearningScheduleDate,
   isYouthNoteCategory,
@@ -72,10 +75,12 @@ export async function recordYouthDetailViewAction(
   youthId: string,
 ): Promise<void> {
   const user = await requireYouthPermission("canViewYouthDetails");
+  await requireOperationalYouth(youthId);
 
   const youth = await prisma.youth.findUnique({
     where: {
       id: youthId,
+      AND: youthOperationalWhere(getYouthLearningScheduleToday()),
     },
     select: {
       id: true,
@@ -130,10 +135,12 @@ export async function recordYouthContactViewAction(
   }>
 > {
   const user = await requireYouthPermission("canViewYouthContacts");
+  await requireOperationalYouth(youthId);
 
   const youth = await prisma.youth.findUnique({
     where: {
       id: youthId,
+      AND: youthOperationalWhere(getYouthLearningScheduleToday()),
     },
     select: {
       id: true,
@@ -456,6 +463,7 @@ export async function updateYouthAction(
   documentsFormData?: FormData,
 ): Promise<YouthActionResult<{ youth: YouthProfile }>> {
   const user = await requireYouthPermission("canManageYouth");
+  await requireOperationalYouth(youthId);
   const auditRequestData = await getCurrentAuditLogRequestData();
 
   const normalizedName = values.name.trim();
@@ -478,6 +486,9 @@ export async function updateYouthAction(
       birthDate: true,
       initialDischargeDate: true,
       dischargeDate: true,
+      mathSettlement: {
+        select: { reopenedAt: true },
+      },
       phone: true,
       familyContacts: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -571,6 +582,16 @@ export async function updateYouthAction(
     };
   }
 
+  if (
+    existingYouth.mathSettlement?.reopenedAt === null &&
+    normalizedAdmissionDate.value !== existingYouth.admissionDate
+  ) {
+    return {
+      ok: false,
+      error: "수학 보상 정산이 확정되어 입소일을 바꿀 수 없습니다. 먼저 관리자 해제를 하세요.",
+    };
+  }
+
   const preparedDocuments =
     await prepareYouthDecisionDocuments(documentsFormData);
 
@@ -589,6 +610,7 @@ export async function updateYouthAction(
 
   try {
     youth = await prisma.$transaction(async (tx) => {
+      await requireOperationalYouth(youthId, tx);
       const nextUpdatedAt = normalizedExpectedUpdatedAt.value
         ? new Date(
             Math.max(
@@ -796,6 +818,7 @@ export async function extendYouthDischargeAction(
   }>
 > {
   const user = await requireYouthPermission("canManageYouth");
+  await requireOperationalYouth(youthId);
   const auditRequestData = await getCurrentAuditLogRequestData();
   const normalizedDischargeDate = normalizeOptionalDate(
     values.extendedDischargeDate,
@@ -824,6 +847,7 @@ export async function extendYouthDischargeAction(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(youthId, tx);
     const youth = await tx.youth.findUnique({
       where: {
         id: youthId,
@@ -833,6 +857,9 @@ export async function extendYouthDischargeAction(
         name: true,
         initialDischargeDate: true,
         dischargeDate: true,
+        mathSettlement: {
+          select: { reopenedAt: true },
+        },
         dischargeExtensions: {
           orderBy: [{ extensionOrder: "asc" }],
           select: {
@@ -845,6 +872,12 @@ export async function extendYouthDischargeAction(
     if (!youth) {
       return {
         error: "수정할 청소년을 찾을 수 없습니다.",
+      } as const;
+    }
+
+    if (youth.mathSettlement?.reopenedAt === null) {
+      return {
+        error: "수학 보상 정산이 확정되어 퇴소 예정일을 바꿀 수 없습니다. 먼저 관리자 해제를 하세요.",
       } as const;
     }
 
@@ -957,67 +990,9 @@ export async function extendYouthDischargeAction(
 export async function deleteYouthAction(
   youthId: string,
 ): Promise<YouthActionResult<{ youthId: string }>> {
-  const user = await requireAdmin();
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  const existingYouth = await prisma.youth.findUnique({
-    where: {
-      id: youthId,
-    },
-    select: {
-      id: true,
-      name: true,
-      decisionDocuments: {
-        select: {
-          storageProvider: true,
-          storageKey: true,
-        },
-      },
-    },
-  });
-
-  if (!existingYouth) {
-    return {
-      ok: false,
-      error: "삭제할 청소년을 찾을 수 없습니다.",
-    };
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "Youth",
-        targetId: existingYouth.id,
-        message: `${existingYouth.name} 청소년을 삭제했습니다.`,
-        metadata: {
-          changeType: "youth.delete",
-          previousName: existingYouth.name,
-        },
-      },
-    });
-
-    await tx.youth.delete({
-      where: {
-        id: existingYouth.id,
-      },
-    });
-  });
-
-  await removeStoredAttachmentFiles(existingYouth.decisionDocuments).catch(
-    () => undefined,
-  );
-
-  revalidateYouthPaths();
-
-  return {
-    ok: true,
-    data: {
-      youthId: existingYouth.id,
-    },
-  };
+  await requireAdmin();
+  void youthId;
+  return { ok: false, error: "청소년 기록은 바로 삭제할 수 없습니다. 퇴소기록 관리에서 보존기간과 파기 대상을 검토하세요." };
 }
 
 export async function deleteYouthDecisionDocumentAction(
@@ -1035,6 +1010,7 @@ export async function deleteYouthDecisionDocumentAction(
   const document = await prisma.youthDecisionDocument.findUnique({
     where: {
       id: documentId,
+      youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) },
     },
     select: {
       id: true,
@@ -1058,6 +1034,7 @@ export async function deleteYouthDecisionDocumentAction(
   }
 
   const updatedYouth = await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(document.youthId, tx);
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -1130,6 +1107,7 @@ export async function updateYouthNoteAction(
   const existing = await prisma.youthSpecialNote.findUnique({
     where: {
       id: noteId,
+      youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) },
     },
     select: {
       id: true,
@@ -1151,6 +1129,7 @@ export async function updateYouthNoteAction(
   }
 
   const note = await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(existing.youth.id, tx);
     const updatedNote = await tx.youthSpecialNote.update({
       where: {
         id: noteId,
@@ -1203,6 +1182,7 @@ export async function deleteYouthNoteAction(
   const note = await prisma.youthSpecialNote.findUnique({
     where: {
       id: noteId,
+      youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) },
     },
     select: {
       id: true,
@@ -1224,6 +1204,7 @@ export async function deleteYouthNoteAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    await requireOperationalYouth(note.youthId, tx);
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -1590,6 +1571,7 @@ function mapYouthProfileForRosterResponse(
 function revalidateYouthPaths() {
   revalidatePath("/youth");
   revalidatePath("/youth/roster");
+  revalidatePath("/youth/math-rewards");
   revalidatePath("/youth/learning-progress");
   revalidatePath("/work-schedule");
   revalidatePath("/work-schedule/work-log");

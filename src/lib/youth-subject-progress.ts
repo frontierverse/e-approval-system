@@ -1,3 +1,5 @@
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
 import { prisma } from "@/lib/prisma";
 import {
   isYouthStudySubject,
@@ -36,6 +38,7 @@ export async function getYouthStudyConceptChecks(): Promise<
   YouthStudyConceptCheck[]
 > {
   const checks = await prisma.studyConceptCheck.findMany({
+    where: { youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) } },
     select: {
       conceptId: true,
       youthId: true,

@@ -3,6 +3,8 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getOperationalYouthIds } from "@/lib/youth-record-access";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
 import { canWriteDailyReport, isDailyReportDirector, readYouthReports, type DailyReportPageData, type DailyReportHomeSummary } from "@/lib/daily-report-core";
 import { getWorkLogToday, isWorkLogDate, parseWorkLogDateValue } from "@/lib/work-log-core";
 
@@ -40,11 +42,11 @@ export async function getDailyReportHomeSummary(): Promise<DailyReportHomeSummar
   }
 }
 
-export function mapDailyReport(record: Prisma.DailyWorkReportGetPayload<{ select: typeof dailyReportSelect }>) {
+export function mapDailyReport(record: Prisma.DailyWorkReportGetPayload<{ select: typeof dailyReportSelect }>, allowedYouthIds?: ReadonlySet<string>) {
   return {
     id: record.id, authorId: record.authorId, authorName: record.author.name,
     departmentName: record.author.department.name, workDate: record.workDate.toISOString().slice(0, 10),
-    mainContent: record.mainContent, youthReports: readYouthReports(record.youthReports), version: record.version,
+    mainContent: record.mainContent, youthReports: readYouthReports(record.youthReports).filter(note => !allowedYouthIds || allowedYouthIds.has(note.youthId)), version: record.version,
     submittedAt: record.submittedAt?.toISOString() ?? null, reviewedAt: record.reviewedAt?.toISOString() ?? null,
     updatedAt: record.updatedAt.toISOString(), reviewedByName: record.reviewedBy?.name ?? null,
   };
@@ -53,6 +55,7 @@ export function mapDailyReport(record: Prisma.DailyWorkReportGetPayload<{ select
 // Select only names and identifiers; contact, case-file and medical data are not needed for reporting.
 export function reportYouthWhere(date: string): Prisma.YouthWhereInput {
   return { AND: [
+    youthOperationalWhere(getWorkLogToday()),
     { OR: [{ admissionDate: null }, { admissionDate: { lte: date } }] },
     { OR: [{ dischargeDate: null }, { dischargeDate: { gte: date } }] },
   ] };
@@ -61,6 +64,7 @@ export function reportYouthWhere(date: string): Prisma.YouthWhereInput {
 export async function getDailyReportPageData(date?: string, page?: string): Promise<DailyReportPageData> {
   const user = await requireUser();
   const today = getWorkLogToday();
+  const allowedYouthIds = new Set(await getOperationalYouthIds());
   const selectedDate = date && isWorkLogDate(date) && date <= today ? date : today;
   const parsedPage = Number(page);
   const historyPage = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage, 100000) : 1;
@@ -86,7 +90,7 @@ export async function getDailyReportPageData(date?: string, page?: string): Prom
         orderBy: { name: "asc" },
       }),
     ]);
-    base.reports = records.map(mapDailyReport);
+    base.reports = records.map(record => mapDailyReport(record, allowedYouthIds));
     const staff = new Map(employees.filter(employee => !isDailyReportDirector(employee)).map(employee => [employee.id, {
       id: employee.id, name: employee.name, departmentName: employee.department.name,
     }]));
@@ -110,7 +114,7 @@ export async function getDailyReportPageData(date?: string, page?: string): Prom
       select: { id: true, workDate: true, submittedAt: true, reviewedAt: true },
     }),
   ]);
-  base.selectedReport = record ? mapDailyReport(record) : null;
+  base.selectedReport = record ? mapDailyReport(record, allowedYouthIds) : null;
   base.youths = youths;
   base.recipients = recipientUsers.filter(isDailyReportDirector).map(recipient => recipient.name);
   base.historyHasMore = history.length > 15;

@@ -2,6 +2,8 @@ import "server-only";
 
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { operationalYouthAuditWhere } from "@/lib/youth-record-access";
 import { mapYouthDecisionDocument } from "@/lib/youth-management";
 import type { EffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import {
@@ -120,7 +122,7 @@ export async function getYouthRosterChangeLogs({
   permissions: YouthRosterPermissions;
 }): Promise<YouthRosterChangeLogsResult> {
   const normalizedPageSize = Math.max(1, pageSize);
-  const where = createYouthRosterChangeLogWhere();
+  const where = { AND: [createYouthRosterChangeLogWhere(), await operationalYouthAuditWhere()] };
   const total = await prisma.auditLog.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
   const normalizedPage = clampPage(page, totalPages);
@@ -175,6 +177,7 @@ export async function getYouthRosterChangeLogs({
 
 async function getYouthRosterRows() {
   return prisma.youth.findMany({
+    where: youthOperationalWhere(getYouthLearningScheduleToday()),
     select: {
       id: true,
       admissionDate: true,

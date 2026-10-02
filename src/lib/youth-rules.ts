@@ -2,6 +2,9 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
+import { operationalYouthAuditWhere } from "@/lib/youth-record-access";
 import {
   isYouthRuleCategory,
   normalizeYouthRuleCategory,
@@ -101,11 +104,7 @@ export async function getYouthRules({
 }
 
 export async function getYouthRuleTargets(): Promise<YouthRuleTarget[]> {
-  return prisma.$queryRaw<YouthRuleTarget[]>`
-    SELECT "id", "name"
-    FROM "Youth"
-    ORDER BY "name" ASC
-  `;
+  return prisma.youth.findMany({ where: youthOperationalWhere(getYouthLearningScheduleToday()), select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
 export async function getYouthRuleChangeLogs({
@@ -125,11 +124,11 @@ export async function getYouthRuleChangeLogs({
   const normalizedCategory = isYouthRuleCategory(category) ? category : "all";
   const normalizedTarget = normalizeYouthRuleTargetFilter(target);
   const normalizedPageSize = Math.max(1, pageSize);
-  const where = createYouthRuleChangeLogWhere({
+  const where = { AND: [createYouthRuleChangeLogWhere({
     actorId: normalizedActorId,
     category: normalizedCategory,
     target: normalizedTarget,
-  });
+  }), await operationalYouthAuditWhere()] };
   const total = await prisma.auditLog.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
   const normalizedPage = clampPage(page, totalPages);
@@ -233,7 +232,14 @@ function createYouthRuleWhereClause({
   category: YouthRuleCategoryFilter;
   target: YouthRuleTargetFilter;
 }) {
-  const conditions: Prisma.Sql[] = [];
+  const today = getYouthLearningScheduleToday();
+  const conditions: Prisma.Sql[] = [Prisma.sql`
+    (rule."targetYouthId" IS NULL OR EXISTS (
+      SELECT 1 FROM "Youth" accessible WHERE accessible."id" = rule."targetYouthId"
+        AND accessible."actualDischargeDate" IS NULL AND accessible."purgeStartedAt" IS NULL AND accessible."purgedAt" IS NULL
+        AND (accessible."dischargeDate" IS NULL OR accessible."dischargeDate" = '' OR accessible."dischargeDate" >= ${today})
+    ))
+  `];
 
   if (category !== "all") {
     conditions.push(Prisma.sql`rule."category" = ${category}`);

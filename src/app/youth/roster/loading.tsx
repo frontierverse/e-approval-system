@@ -16,7 +16,7 @@ export default function YouthRosterLoading() {
         compact
       />
 
-      <YouthRosterSkeleton />
+      <YouthRosterSkeleton dischargedRecordsRestricted />
     </>
   );
 }

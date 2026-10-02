@@ -12,6 +12,7 @@ export async function getYouthDischargeTopbarAlert(
 ): Promise<YouthDischargeTopbarAlert | null> {
   const youths = await prisma.youth.findMany({
     where: {
+      actualDischargeDate: null, purgeStartedAt: null, purgedAt: null,
       dischargeDate: {
         not: null,
       },

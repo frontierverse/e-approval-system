@@ -79,9 +79,11 @@ function compile(file: string, replacements: Record<string, string>) {
   for (const [from, to] of Object.entries(replacements)) source = source.replaceAll(`"${from}"`, JSON.stringify(to));
   return moduleUrl(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
 }
-const queryUrl = compile("../src/lib/daily-reports.ts", aliases);
+const accessUrl = compile("../src/lib/youth-record-access.ts", aliases);
+const queryAliases = { ...aliases, "@/lib/youth-record-access": accessUrl };
+const queryUrl = compile("../src/lib/daily-reports.ts", queryAliases);
 const queries = await import(queryUrl);
-const actions = await import(compile("../src/app/work-schedule/daily-reports/actions.ts", { ...aliases, "@/lib/daily-reports": queryUrl }));
+const actions = await import(compile("../src/app/work-schedule/daily-reports/actions.ts", { ...queryAliases, "@/lib/daily-reports": queryUrl }));
 function form(overrides: Row = {}) {
   const data = new FormData();
   for (const [key, value] of Object.entries({ workDate: "2026-09-01", mainContent: "당일 주요 업무", youthReports: "[]", version: "0", intent: "submit", ...overrides })) data.set(key, String(value));
@@ -90,7 +92,7 @@ function form(overrides: Row = {}) {
 async function save(overrides: Row = {}) { return actions.saveDailyReportAction({}, form(overrides)); }
 beforeEach(() => {
   harness.user = employee; harness.users = structuredClone([employee, director, colleague]);
-  harness.youths = [{ id: "youth-1", name: "청소년가", admissionDate: "2026-08-01", dischargeDate: null, phone: "must-not-leak" }];
+  harness.youths = [{ id: "youth-1", name: "청소년가", admissionDate: "2026-08-01", dischargeDate: null, actualDischargeDate: null, purgeStartedAt: null, purgedAt: null, phone: "must-not-leak" }];
   harness.reports = []; harness.audits = []; harness.reads = []; harness.invalidated = []; harness.failAudit = false; harness.race = false;
 });
 after(() => { delete (globalThis as Row)[key]; });
@@ -184,15 +186,23 @@ test("conflicts and duplicate requests do not overwrite, failed audit rolls back
   try { assert.ok((await save({ version: 1, mainContent: "rollback" })).error); } finally { console.error = oldError; }
   assert.equal(harness.reports[0].mainContent, "당일 주요 업무"); assert.equal(harness.reports[0].version, 1);
 });
-test("submission rejects unknown or out-of-date youth IDs; old names survive roster removal", async () => {
+test("discharged notes are hidden from queries and edits but preserved until reviewed purge", async () => {
   assert.ok((await save({ youthReports: JSON.stringify([{ youthId: "unknown", content: "기록" }]) })).error);
   const notes = JSON.stringify([{ youthId: "youth-1", content: "활동 기록" }]);
   assert.ok((await save({ youthReports: notes })).success);
-  harness.youths = [];
-  const edited = await save({ version: 1, youthReports: notes });
-  assert.equal(edited.entry.youthReports[0].youthName, "청소년가");
-  assert.ok((await save({ version: 2, intent: "draft" })).error);
+  harness.youths[0].actualDischargeDate = "2026-09-01";
+  const page = await queries.getDailyReportPageData("2026-09-01");
+  assert.deepEqual(page.youths, []); assert.deepEqual(page.selectedReport.youthReports, []);
+  assert.equal(JSON.stringify(page).includes("활동 기록"), false);
+  assert.ok((await save({ version: 1, youthReports: notes })).error);
+  const edited = await save({ version: 1, youthReports: "[]" });
+  assert.ok(edited.success); assert.deepEqual(edited.entry.youthReports, []);
+  assert.equal(harness.reports[0].youthReports[0].youthName, "청소년가");
+  assert.equal(harness.reports[0].youthReports[0].content, "활동 기록");
+  harness.user = director;
+  assert.deepEqual((await queries.getDailyReportPageData("2026-09-01")).reports[0].youthReports, []);
 });
+
 test("a missing director blocks submission but not drafting; signed-out access fails", async () => {
   harness.users = [employee, colleague]; assert.match((await save()).error, /시설장이 등록/);
   assert.ok((await save({ intent: "draft" })).success);

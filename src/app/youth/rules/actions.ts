@@ -10,6 +10,7 @@ import {
   requireYouthPermission,
 } from "@/lib/youth-permissions";
 import { prisma } from "@/lib/prisma";
+import { requireOperationalYouth } from "@/lib/youth-record-access";
 import {
   getYouthRuleChangeLogs,
   getYouthRules,
@@ -109,6 +110,8 @@ export async function createYouthRuleAction(formData: FormData) {
       })
     : null;
 
+  if (targetYouth) await requireOperationalYouth(targetYouth.id);
+
   if (targetYouthIdValue && !targetYouth) {
     redirectWithRuleError("적용 대상을 다시 선택하세요.");
   }
@@ -119,6 +122,7 @@ export async function createYouthRuleAction(formData: FormData) {
   const targetLabel = targetYouth?.name ?? "공통";
 
   await prisma.$transaction(async (tx) => {
+    if (targetYouthId) await requireOperationalYouth(targetYouthId, tx);
     await tx.$executeRaw`
       INSERT INTO "YouthRule" (
         "id",
@@ -164,6 +168,8 @@ export async function deleteYouthRuleAction(ruleId: string) {
   const user = await requireYouthPermission("canManageYouth");
   const auditRequestData = await getCurrentAuditLogRequestData();
   const deletedRules = await prisma.$transaction(async (tx) => {
+    const target = await tx.youthRule.findUnique({ where: { id: ruleId }, select: { targetYouthId: true } });
+    if (target?.targetYouthId) await requireOperationalYouth(target.targetYouthId, tx);
     const rules = await tx.$queryRaw<
       Array<{
         id: string;

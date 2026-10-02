@@ -33,7 +33,7 @@ export default async function YouthRosterPage({
   searchParams,
 }: YouthRosterPageProps) {
   const user = await requireYouthBasicAccess();
-  const permissions = getEffectiveYouthPermissions(user);
+  const permissions = { ...getEffectiveYouthPermissions(user), canDeleteYouth: false };
   const params = await searchParams;
   const [roster, changeLogResult] = await Promise.all([
     getYouthRoster(permissions),
@@ -45,6 +45,7 @@ export default async function YouthRosterPage({
 
   return (
     <YouthRosterBoard
+      dischargedRecordsRestricted
       changeLogFilters={{
         page: changeLogResult.page,
         pageSize: changeLogResult.pageSize,

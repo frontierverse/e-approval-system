@@ -1,9 +1,11 @@
-import { AuditAction } from "@/generated/prisma/client";
+import { AuditAction, UserRole } from "@/generated/prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { readStoredAttachmentFile } from "@/lib/attachment-storage";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
 import { hasYouthPermission } from "@/lib/youth-permissions-core";
+import { isRestrictedYouth } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
 
 export const runtime = "nodejs";
 
@@ -74,6 +76,7 @@ export async function POST(
   const document = await prisma.youthDecisionDocument.findUnique({
     where: {
       id,
+      youth: { is: { purgeStartedAt: null, purgedAt: null } },
     },
     select: {
       id: true,
@@ -82,6 +85,7 @@ export async function POST(
       storageKey: true,
       mimeType: true,
       size: true,
+      youth: { select: { actualDischargeDate: true, dischargeDate: true, purgeStartedAt: true, purgedAt: true } },
     },
   });
 
@@ -97,22 +101,29 @@ export async function POST(
     return new Response("결정문 파일을 찾을 수 없습니다.", { status: 404 });
   }
 
+  if (user.role !== UserRole.ADMIN && isRestrictedYouth(document.youth, getYouthLearningScheduleToday())) {
+    await recordDecisionDocumentDownloadAudit({ actorId: user.id, decisionDocumentId: id, outcome: "forbidden" });
+    return new Response("퇴소 기록은 관리자만 열람할 수 있습니다.", { status: 403 });
+  }
+
   try {
     const storedFile = await readStoredAttachmentFile({
       storageProvider: document.storageProvider,
       storageKey: document.storageKey,
     });
 
-    await recordDecisionDocumentDownloadAudit({
+    const audited = await recordDecisionDocumentDownloadAudit({
       actorId: user.id,
       decisionDocumentId: document.id,
       outcome: "downloaded",
       reason,
       reasonDetail,
     });
+    if (!audited) return new Response("열람 이력을 기록하지 못했습니다. 잠시 후 다시 시도하세요.", { status: 503 });
 
     return new Response(storedFile.body, {
       headers: {
+        "Cache-Control": "private, no-store",
         "Content-Type":
           storedFile.mimeType ||
           document.mimeType ||
@@ -183,8 +194,10 @@ async function recordDecisionDocumentDownloadAudit({
         },
       },
     });
+    return true;
   } catch (error) {
     console.error("Failed to record youth decision document download", error);
+    return false;
   }
 }
 

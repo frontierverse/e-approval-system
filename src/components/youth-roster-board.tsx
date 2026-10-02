@@ -57,6 +57,7 @@ import type {
   YouthRosterPermissions,
 } from "@/lib/youth-roster";
 type YouthRosterBoardProps = {
+  dischargedRecordsRestricted?: boolean;
   changeLogFilters?: YouthRosterChangeLogFilters;
   changeLogs?: YouthRosterChangeLog[];
   createYouth: (
@@ -166,6 +167,7 @@ const decisionDocumentDownloadReasonOptions = [
 ] as const;
 
 export function YouthRosterBoard({
+  dischargedRecordsRestricted = false,
   changeLogFilters,
   changeLogs = [],
   createYouth,
@@ -354,7 +356,7 @@ export function YouthRosterBoard({
             />
           </div>
         ) : null}
-        <RosterSummary data={rosterData} />
+        <RosterSummary data={rosterData} dischargedRecordsRestricted={dischargedRecordsRestricted} />
         <RosterSearch
           query={searchQuery}
           resultCount={
@@ -394,7 +396,7 @@ export function YouthRosterBoard({
           youths={filteredRosterData.admittedYouths}
           variant="admitted"
         />
-        <YouthRosterSection
+        {!dischargedRecordsRestricted && <YouthRosterSection
           emptyDescription="퇴소일이 지난 청소년이 있으면 이곳에 표시됩니다."
           emptyTitle="퇴소 청소년이 없습니다."
           onEdit={(youth, returnFocusTo) =>
@@ -418,7 +420,7 @@ export function YouthRosterBoard({
           totalCount={rosterData.dischargedYouths.length}
           youths={filteredRosterData.dischargedYouths}
           variant="discharged"
-        />
+        />}
         <YouthRosterChangeLogSection
           error={changeLogError}
           filters={changeLogState.filters}
@@ -502,7 +504,7 @@ function AddYouthButton({
   );
 }
 
-export function YouthRosterSkeleton() {
+export function YouthRosterSkeleton({ dischargedRecordsRestricted = false }: { dischargedRecordsRestricted?: boolean } = {}) {
   return (
     <section
       className="space-y-2 sm:space-y-4"
@@ -518,19 +520,19 @@ export function YouthRosterSkeleton() {
       </section>
       <SkeletonBlock className="h-14 w-full" />
       <SkeletonPanel title="입소중인 청소년 목록" />
-      <SkeletonPanel title="퇴소 청소년 목록" />
+      {!dischargedRecordsRestricted && <SkeletonPanel title="퇴소 청소년 목록" />}
     </section>
   );
 }
 
-function RosterSummary({ data }: { data: YouthRosterData }) {
+function RosterSummary({ data, dischargedRecordsRestricted }: { data: YouthRosterData; dischargedRecordsRestricted: boolean }) {
   const upcomingDischargeCount = createYouthDischargeAlertItems(
     data.admittedYouths,
     data.referenceDate,
   ).length;
   const items = [
     {
-      label: "전체",
+      label: dischargedRecordsRestricted ? "일반 조회" : "전체",
       value: `${data.admittedYouths.length + data.dischargedYouths.length}명`,
     },
     {
@@ -543,8 +545,8 @@ function RosterSummary({ data }: { data: YouthRosterData }) {
       urgent: upcomingDischargeCount > 0,
     },
     {
-      label: "퇴소 이력",
-      value: `${data.dischargedYouths.length}명`,
+      label: dischargedRecordsRestricted ? "퇴소 기록" : "퇴소 이력",
+      value: dischargedRecordsRestricted ? "별도 보존" : `${data.dischargedYouths.length}명`,
     },
   ];
 

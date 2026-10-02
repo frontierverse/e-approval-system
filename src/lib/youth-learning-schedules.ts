@@ -1,3 +1,6 @@
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
+import { operationalYouthAuditWhere } from "@/lib/youth-record-access";
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
@@ -39,6 +42,7 @@ export async function getYouthLearningSchedules(
 > {
   const schedules = await prisma.youthLearningSchedule.findMany({
     where: {
+      youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) },
       OR: [
         {
           scheduleDate,
@@ -88,10 +92,10 @@ export async function getYouthLearningProgressChangeLogs({
   const normalizedActorId = actorId.trim() || "all";
   const normalizedScheduleDate = scheduleDate.trim();
   const normalizedPageSize = Math.max(1, pageSize);
-  const where = createYouthLearningProgressChangeLogWhere({
+  const where = { AND: [createYouthLearningProgressChangeLogWhere({
     actorId: normalizedActorId,
     scheduleDate: normalizedScheduleDate,
-  });
+  }), await operationalYouthAuditWhere()] };
   const total = await prisma.auditLog.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
   const normalizedPage = clampPage(page, totalPages);

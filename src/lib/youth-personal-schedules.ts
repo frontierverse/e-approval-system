@@ -1,3 +1,5 @@
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
+import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
@@ -125,6 +127,7 @@ export async function getYouthPersonalSchedules(
   const schedules = await prisma.youthPersonalSchedule.findMany({
     where: {
       youthId: normalizedYouthId,
+      youth: { is: youthOperationalWhere(getYouthLearningScheduleToday()) },
       occurrenceDates: {
         hasSome: calendarDates,
       },

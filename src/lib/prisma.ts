@@ -57,7 +57,7 @@ const requiredYouthPersonalScheduleFields = [
   "escortName",
   "nextAppointmentDate",
 ] as const;
-const requiredYouthFields = ["birthDate"] as const;
+const requiredYouthFields = ["birthDate", "actualDischargeDate", "purgedAt", "purgeLeaseUntil"] as const;
 const requiredWorkScheduleFields = ["scheduleDate"] as const;
 const requiredWorkLogFields = ["updatedById", "updatedBy"] as const;
 const requiredUserFields = ["birthDate", "hireDate", "resignationDate"] as const;

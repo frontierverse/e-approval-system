@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AuditAction, Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { prisma } from "@/lib/prisma";
+import { requireOperationalYouth } from "@/lib/youth-record-access";
 import {
   getYouthPersonalScheduleDateIntersection,
   normalizeYouthPersonalScheduleInput,
@@ -75,6 +76,7 @@ export async function createYouthPersonalScheduleAction(
   try {
     const schedule = await prisma.$transaction(
       async (tx) => {
+        await requireOperationalYouth(normalizedYouthId, tx);
         const youth = await tx.youth.findUnique({
           where: {
             id: normalizedYouthId,
@@ -205,6 +207,7 @@ export async function updateYouthPersonalScheduleAction(
         if (!existingSchedule) {
           throw new YouthPersonalScheduleNotFoundError("schedule");
         }
+        await requireOperationalYouth(existingSchedule.youthId, tx);
 
         if (
           existingSchedule.scheduleType === "HOSPITAL" &&
@@ -328,6 +331,7 @@ export async function deleteYouthPersonalScheduleAction(
         if (!schedule) {
           throw new YouthPersonalScheduleNotFoundError("schedule");
         }
+        await requireOperationalYouth(schedule.youthId, tx);
 
         await tx.youthPersonalSchedule.delete({
           where: {

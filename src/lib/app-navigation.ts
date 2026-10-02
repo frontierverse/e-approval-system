@@ -71,7 +71,9 @@ export function getNavigationGroups(isAdmin: boolean): NavigationGroup[] {
     },
     {
       label: "청소년 관리",
-      items: youthNavigationItems,
+      items: isAdmin
+        ? [...youthNavigationItems, { label: "퇴소기록 관리", href: "/youth/retention" }]
+        : youthNavigationItems,
     },
     {
       label: "회사 정보",

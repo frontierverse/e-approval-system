@@ -164,6 +164,14 @@ const rosterActions = {
 };
 
 describe("YouthRosterBoard", () => {
+  test("restricted roster labels retained records separately and omits the old discharge list", () => {
+    const html = renderToStaticMarkup(React.createElement(YouthRosterBoard, {
+      ...rosterActions, data: { ...roster, dischargedYouths: [] }, dischargedRecordsRestricted: true,
+    }));
+    assert.match(html, /별도 보존/);
+    assert.doesNotMatch(html, /퇴소 청소년 목록|퇴소 청소년이 없습니다/);
+    assert.match(html, /입소중인 청소년 목록/);
+  });
   test("renders admitted and discharged youth roster tables", () => {
     const html = renderToStaticMarkup(
       React.createElement(YouthRosterBoard, {

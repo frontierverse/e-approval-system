@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
 import {
   getYouthDisplayAge,
   getYouthLearningScheduleToday,
@@ -49,6 +50,7 @@ type YouthSpecialNoteRecord = YouthRecord["notes"][number];
 
 export async function getYouthProfiles(): Promise<YouthProfile[]> {
   const youths = await prisma.youth.findMany({
+    where: youthOperationalWhere(getYouthLearningScheduleToday()),
     include: youthInclude,
     orderBy: [{ name: "asc" }],
   });
@@ -119,6 +121,7 @@ export function mapYouthProfile(record: YouthRecord): YouthProfile {
 
 export async function getYouthDirectory() {
   return prisma.youth.findMany({
+    where: youthOperationalWhere(getYouthLearningScheduleToday()),
     orderBy: [{ name: "asc" }],
     select: {
       id: true,
@@ -132,6 +135,10 @@ export async function getAdmittedYouthDirectory(
 ) {
   return prisma.youth.findMany({
     where: {
+      AND: youthOperationalWhere(getYouthLearningScheduleToday()),
+      actualDischargeDate: null,
+      purgeStartedAt: null,
+      purgedAt: null,
       OR: [
         {
           dischargeDate: null,
