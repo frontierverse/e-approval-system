@@ -6,7 +6,7 @@
 
 앱 표시 이름은 `바자울`이다. 휴대폰 홈 화면 이름, 로그인 화면과 기기 알림 권한 안내에 적용하며, 서버 푸시 알림 제목도 `바자울`을 사용한다. 기존 설치본의 홈 화면 이름을 바꾸려면 새 APK/IPA가 필요하다. 기존 앱 위에 업데이트할 수 있도록 Expo slug·project ID, URL scheme, Android package, iOS bundle identifier, 서명 키와 세션 저장 키는 유지한다. 이전 APK·AAB에는 당시 이름이 남아 있다.
 
-모바일 앱 코드와 검증 수정은 GitHub `main`, `codex/staff-mobile-api`에 반영되어 있다. 앱 코드 기준 커밋은 `db584765c5e148ce06a929eed19d7bff3116ea23`이며 [해당 CI](https://github.com/frontierverse/e-approval-system/actions/runs/36937827929)는 성공했다. 이 인계 문서는 배포 진행 상태를 기록하며 앱 런타임을 바꾸지 않는다.
+모바일 앱 초기 코드와 검증 수정은 GitHub `main`, `codex/staff-mobile-api`에 반영되어 있다. 초기 코드 기준 커밋은 `db584765c5e148ce06a929eed19d7bff3116ea23`이며 [해당 CI](https://github.com/frontierverse/e-approval-system/actions/runs/36937827929)는 성공했다. 이후 바자울 이름 변경과 `1.0.2`의 EAS Update 설정·배포 워크플로는 `main`에 추가 반영했다. 이 인계 문서는 배포 진행 상태를 기록하며 앱 런타임을 바꾸지 않는다.
 
 - Android 실제 기기에서 설치, 로그인, 문서와 첨부파일 열기, 대상 기기 테스트 푸시 수신을 확인했다. 실제 기기에서 승인·반려 및 업무 문서 생성에 따른 자동 푸시 전체 흐름은 아직 검증하지 않았다. 추가 실제 결재나 테스트 알림은 별도 요청 없이 실행하지 않는다.
 - 시험용 APK `1.0.0 / versionCode 1`은 [EAS 빌드](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/builds/45d8786c-f901-40ac-bddc-ef2481a8fd41)에 있다. Google Play 업로드용 AAB `1.0.0 / versionCode 2`도 [EAS 빌드](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/builds/57ac37c6-6bba-488c-9034-333c72cc369f)에서 Finished 상태이며 서명과 파일 무결성을 검증했다. 파일 다운로드에는 프로젝트 접근 권한이 있는 Expo 로그인이 필요하다.
@@ -83,6 +83,8 @@ APNs/FCM 자격 증명, 운영 도메인과 스케줄러가 준비되기 전에�
 
 `1.0.2`부터 `expo-updates`와 EAS Update를 사용한다. 기존 APK에는 자동 업데이트 기능이 없으므로 최초 지원 설치본을 한 번 설치해야 한다. Android 직원용 APK는 `npm run build:staff`로 만들며, 기존 package와 EAS 서명 키를 유지한다. 휴대폰에서 권한이 있는 Expo 계정으로 빌드 설치 링크를 열어 기존 앱 위에 업데이트한다.
 
+최초 지원 설치본 `1.0.2 / versionCode 3`은 [Android 설치 링크](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/builds/8cae705d-9395-48f2-8694-f9648c933ad6)에 있다. 2026-10-02 빌드와 배포 워크플로 모두 성공했으며, `staff` 내부 배포 APK·`com.gyeoljaeon.internal`·`production` 채널을 확인했다. 기존 앱을 삭제하지 않고 이 APK로 업데이트한다.
+
 직원용 `staff` 프로필과 스토어용 `production` 프로필은 `production` 채널·환경을 사용한다. 시험용 `preview` 프로필은 `preview` 채널·환경을 사용한다. 시험용 업데이트가 직원용 앱에 전달되지 않도록 채널을 유지한다. 개발 빌드는 운영 업데이트 검증을 대신하지 않는다.
 
 앱은 실행 시 호환되는 업데이트를 확인하고 백그라운드로 다운로드한다. 내려받은 업데이트는 다음 앱 실행에 적용한다. 결재 중 강제로 다시 시작하지 않으며, 네트워크가 없어도 설치본 또는 마지막 정상 업데이트로 실행한다. `fingerprint` runtime 정책이 네이티브 구성에 따라 호환성을 결정한다. 네이티브 모듈·권한·홈 화면 이름 등을 바꾸면 새 APK/IPA가 필요하다.
@@ -100,5 +102,7 @@ npm run update:production -- --input message="변경 내용"
 위 명령은 EAS Workflows에서 빌드·업데이트를 생성한다. `GOOGLE_SERVICES_JSON`은 EAS 서버에서만 읽을 수 있는 파일 변수이므로, 같은 환경의 파일로 fingerprint를 계산한다. 업데이트 작업은 린트·타입·릴리스 검사를 통과해야 발행한다. `EXPO_PUBLIC_API_URL`은 빌드와 업데이트 모두 `https://www.bajaul.com`을 사용한다. 서버 비밀 값·직원 정보·세션 토큰은 업데이트에 포함하지 않는다. GitHub 푸시와 서버 배포만으로 앱 업데이트가 발행되지는 않는다. 로컬에서 직접 `eas update`를 실행하려면 동일한 Firebase 앱 설정 파일을 별도로 준비하고 runtime 일치를 확인해야 한다.
 
 운영 배포 후 새 Android 설치본에서 앱을 완전히 종료하고 다시 열어 다운로드한 뒤, 한 번 더 종료·실행하여 적용을 확인한다. EAS Update의 runtime과 설치본의 runtime이 일치해야 한다. iOS는 별도 기기 등록과 지원 설치본 배포가 끝난 뒤 같은 절차로 확인한다. 문제가 생기면 EAS 대시보드의 해당 채널에서 이전 정상 업데이트로 롤백한다.
+
+2026-10-02 운영 업데이트 검증: [배포 워크플로](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/workflows/01a0fa86-3eed-7bca-a572-e7ccdf46ad5c)가 성공했다. Android 업데이트 ID는 `01a0fa87-f240-7c59-9b1c-79dd2dbea06e`, runtime은 `3fbb2aedbf34795a7701a252f72d36d780405b5b`이며 직원용 Android 빌드의 runtime과 일치한다. 앱과 같은 프로토콜로 `production` 채널의 manifest와 실행 번들을 받아 HTTP `200`, 번들의 SHA-256 일치, 운영 API 주소 포함을 확인했다. 실제 휴대폰에서 새 설치본 설치와 업데이트 적용 여부는 별도 확인이 필요하다.
 
 참고: [Expo 내부 배포](https://docs.expo.dev/build/internal-distribution/), [Apple Custom Apps](https://developer.apple.com/support/volume-purchase-and-custom-apps/), [Google Play 비공개 앱](https://support.google.com/work/android/answer/9563481), [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).
