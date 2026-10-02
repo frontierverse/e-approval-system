@@ -12,6 +12,8 @@ jobs:
   publish_update:
     type: update
     environment: production
+    env:
+      EAS_NO_VCS: '1'
     params:
       channel: production
       platform: all

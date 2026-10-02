@@ -3,6 +3,8 @@ name: Build Bajaul staff Android app
 jobs:
   build_android:
     type: build
+    env:
+      EAS_NO_VCS: '1'
     params:
       platform: android
       profile: staff
