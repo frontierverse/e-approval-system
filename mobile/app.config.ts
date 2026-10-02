@@ -9,7 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: config.name ?? "결재온",
+    name: config.name ?? "바자울",
     slug: config.slug ?? "gyeoljaeon",
     android: {
       ...config.android,

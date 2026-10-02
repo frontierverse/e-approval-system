@@ -29,7 +29,7 @@ export async function getPushToken(requestPermission = true) {
     : await Notifications.requestPermissionsAsync();
   if (!permission.granted) {
     if (!requestPermission) return null;
-    throw new Error("기기 설정에서 결재온 알림 권한을 허용하세요.");
+    throw new Error("기기 설정에서 바자울 알림 권한을 허용하세요.");
   }
   return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 }

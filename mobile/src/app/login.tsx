@@ -22,8 +22,8 @@ export default function Login() {
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <View style={styles.brand}>
-        <View style={[styles.mark, { backgroundColor: theme.actionFill }]}><Text style={styles.markText}>결</Text></View>
-        <Text style={[styles.brandTitle, { color: theme.text }]}>결재온</Text>
+        <View style={[styles.mark, { backgroundColor: theme.actionFill }]}><Text style={styles.markText}>바</Text></View>
+        <Text style={[styles.brandTitle, { color: theme.text }]}>바자울</Text>
         <Text style={[styles.brandSubtitle, { color: theme.secondary }]}>사내 결재를 빠르고 정확하게</Text>
       </View>
       <View style={[styles.form, { backgroundColor: theme.surface, borderColor: theme.border }]}>

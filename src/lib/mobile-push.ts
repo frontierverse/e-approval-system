@@ -129,7 +129,7 @@ async function sendPending(notificationId: string | undefined, limit: number) {
   try {
     const payload = claimed.map(({ token, documentId }) => ({
       to: token,
-      title: "결재온",
+      title: "바자울",
       body: "확인할 결재 알림이 있습니다.",
       data: { documentId },
       channelId: "approvals",
