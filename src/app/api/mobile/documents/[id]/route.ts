@@ -3,6 +3,7 @@ import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getCurrentApprovalStep } from "@/lib/mock-data";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
 import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
+import { canManageDraftDocumentAttachmentsByPolicy, canRecallDocumentByPolicy } from "@/lib/approval-permissions-core";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,10 @@ export async function GET(
       category: document.category,
       templateName: document.templateName,
       content: document.content,
+      createdAt: document.createdAt,
       submittedAt: document.submittedAt,
+      completedAt: document.completedAt,
+      updatedAt: document.updatedAt ?? null,
       drafterName: document.drafter.name,
       approvalSteps: document.approvalSteps.map((step) => ({
         id: step.id,
@@ -43,6 +47,17 @@ export async function GET(
         status: step.status,
         actedAt: step.actedAt,
         comment: step.comment,
+        actedByName: step.actedBy?.name ?? null,
+        proxyApprovedByName: step.proxyApprovedBy?.name ?? null,
+        decisionType: step.decisionType ?? "NORMAL",
+      })),
+      // The mobile timeline needs the work record, not audit metadata or device/location data.
+      histories: document.histories.map((history) => ({
+        id: history.id,
+        action: history.action,
+        actorName: history.actor?.name || history.actorName || "시스템",
+        createdAt: history.createdAt,
+        description: history.description,
       })),
       attachments: document.attachments.map((attachment) => ({
         id: attachment.id,
@@ -52,6 +67,8 @@ export async function GET(
         previewKind: getAttachmentPreviewKind(attachment.originalName, attachment.mimeType),
       })),
       canDecide,
+      canRecall: canRecallDocumentByPolicy(session.userId, document),
+      canEdit: canManageDraftDocumentAttachmentsByPolicy(session.userId, document),
       decisionBlockedReason: isCurrentApprover && unsupportedAttachments.length > 0
         ? "미리보기를 지원하지 않는 첨부파일이 있어 웹에서 확인 후 결재해야 합니다."
         : null,

@@ -44,7 +44,10 @@ export type MobileDocument = {
   category: string;
   templateName: string;
   content: string;
+  createdAt?: string;
   submittedAt: string | null;
+  completedAt?: string | null;
+  updatedAt?: string | null;
   drafterName: string;
   approvalSteps: {
     id: string;
@@ -53,7 +56,11 @@ export type MobileDocument = {
     status: string;
     actedAt: string | null;
     comment: string | null;
+    actedByName?: string | null;
+    proxyApprovedByName?: string | null;
+    decisionType?: string;
   }[];
+  histories?: MobileDocumentHistory[];
   attachments: {
     id: string;
     name: string;
@@ -62,7 +69,17 @@ export type MobileDocument = {
     previewKind: "pdf" | "image" | null;
   }[];
   canDecide: boolean;
+  canRecall?: boolean;
+  canEdit?: boolean;
   decisionBlockedReason: string | null;
+};
+
+export type MobileDocumentHistory = {
+  id: string;
+  action: string;
+  actorName: string;
+  createdAt: string;
+  description: string;
 };
 
 export type MobileNotification = {

@@ -99,6 +99,7 @@ export type ApprovalDocument = {
   drafter: UserSummary;
   drafterId: string;
   createdAt: string;
+  updatedAt?: string;
   submittedAt: string | null;
   completedAt: string | null;
   discardedAt?: string | null;
