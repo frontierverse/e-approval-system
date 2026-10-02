@@ -12,22 +12,22 @@ export function ScreenHeading({ title, subtitle, action }: { title: string; subt
   </View>;
 }
 
-export function PrimaryButton({ title, disabled, onPress, danger = false }: {
-  title: string; disabled?: boolean; onPress: () => void; danger?: boolean;
+export function PrimaryButton({ title, disabled, onPress, danger = false, ref }: {
+  title: string; disabled?: boolean; onPress: () => void; danger?: boolean; ref?: React.Ref<View>;
 }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
-  return <Pressable onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled}
+  return <Pressable ref={ref} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled}
     onPress={onPress} style={({ pressed }) => [styles.button, { backgroundColor: danger ? theme.dangerFill : theme.actionFill, borderWidth: 2, borderColor: focused ? theme.accent : "transparent", opacity: disabled ? 0.55 : pressed ? 0.84 : 1 }]}>
     <Text style={styles.buttonText}>{title}</Text>
   </Pressable>;
 }
 
-export function TextAction({ label, onPress, icon, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap }) {
+export function TextAction({ label, onPress, icon, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap; ref?: React.Ref<View> }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
-  return <Pressable {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
-    style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : "transparent", paddingHorizontal: 6 }]}>
+  return <Pressable {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} accessibilityRole="button" accessibilityLabel={props.accessibilityLabel ?? label}
+    style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : "transparent", paddingHorizontal: 6, opacity: props.disabled ? 0.45 : 1 }]}>
     {icon ? <Ionicons name={icon} size={18} color={theme.accent} /> : null}
     <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "700" }}>{label}</Text>
   </Pressable>;
@@ -52,7 +52,7 @@ export function ErrorState({ message, retry }: { message: string; retry: () => v
 const styles = StyleSheet.create({
   heading: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 16, paddingBottom: 12 },
   title: { fontSize: 23, fontWeight: "800", letterSpacing: -0.6 },
-  subtitle: { fontSize: 13, marginTop: 2 },
+  subtitle: { fontSize: 13, marginTop: 2, fontVariant: ["tabular-nums"] },
   button: { minHeight: 48, borderRadius: 11, alignItems: "center", justifyContent: "center", paddingHorizontal: 20 },
   buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
   action: { minHeight: 44, minWidth: 44, flexDirection: "row", gap: 5, alignItems: "center", justifyContent: "center", borderRadius: 9, paddingHorizontal: 8 },

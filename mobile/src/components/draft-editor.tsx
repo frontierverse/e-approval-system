@@ -2,9 +2,10 @@ import { router, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ErrorState, PrimaryButton, TextAction } from "@/components/ui";
+import { useConfirmAction } from "@/components/use-confirm-action";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -12,13 +13,12 @@ import { attachmentError, fileSize, requestKey, type DraftAttachment, type Draft
 import { readMeetingItems, writeMeetingItems } from "@/lib/meeting-items";
 import { uploadFile } from "@/lib/upload-file";
 
-function confirmAction(title: string, message: string, confirm: string, action: () => void) {
-  if (Platform.OS === "web") { if (window.confirm(message)) action(); }
-  else Alert.alert(title, message, [{ text: "취소", style: "cancel" }, { text: confirm, style: "destructive", onPress: action }]);
-}
-
 export function DraftEditor({ documentId }: { documentId?: string }) {
   const theme = useTheme();
+  const confirmation = useConfirmAction();
+  const confirmAction = (title: string, message: string, confirm: string, action: () => void, onReturnFocus?: () => void) => {
+    void confirmation.ask({ title, message, confirm, danger: ["삭제", "제거", "나가기", "변경"].includes(confirm), onReturnFocus }).then(accepted => { if (accepted) action(); });
+  };
   const insets = useSafeAreaInsets();
   const { request, user } = useSession();
   const navigation = useNavigation();
@@ -44,6 +44,10 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
+  const [wasRecalled, setWasRecalled] = useState(false);
+  const errorSummary = useRef<View>(null);
+  const submitButton = useRef<View>(null);
+  useEffect(() => { if (error) errorSummary.current?.focus(); }, [error]);
   const [picker, setPicker] = useState<null | { title: string; selected: string; items: { label: string; value: string }[]; choose: (value: string) => void }>(null);
   const snapshot = JSON.stringify({ title, templateId, values, approverIds, attachments: attachments.map(a => a.id), files: pendingFiles.map(f => f.key) });
   const dirty = !!baseline && snapshot !== baseline;
@@ -64,6 +68,7 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
       const [o, result] = await Promise.all([request<DraftOptions>("/drafts/options"), documentId ? request<{ draft: DraftData }>("/drafts/" + documentId) : Promise.resolve(null)]);
       setOptions(o);
       const d = result?.draft;
+      setWasRecalled(d?.status === "recalled");
       const selected = o.templates.find(t => t.id === d?.templateId) ?? (!d ? o.templates[0] : undefined);
       const nextTitle = d?.title === "제목 없는 기안" ? "" : d?.title ?? "";
       const nextTemplate = d?.templateId ?? selected?.id ?? "";
@@ -200,7 +205,12 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
     </View>;
   };
   return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={96}>
+    {confirmation.dialog}
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      {wasRecalled ? <View style={[styles.field, { gap: 4 }]}>
+        <Text style={[styles.label, { color: theme.accent }]}>회수 문서 수정</Text>
+        <Text style={[styles.hint, { color: theme.secondary }]}>수정 후 재상신하면 결재가 처음부터 진행됩니다.</Text>
+      </View> : null}
       <View style={styles.field}><Text style={[styles.label, { color: theme.text }]}>문서 양식 *</Text>
         <Choice label={template?.name || "사용 가능한 양식 선택"} disabled={busy} onPress={() => showPicker("문서 양식", templateId, options.templates.map(t => ({ label: t.name, value: t.id })), changeTemplate)} />
         {fieldError("templateId")}
@@ -227,13 +237,14 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
         </View>)}
       </View>
       <Text style={[styles.hint, { color: theme.secondary }]}>* 항목은 상신 시 필수입니다. 작성 중에는 임시저장할 수 있습니다.</Text>
-      {error ? <View accessibilityRole="alert" style={[styles.message, { backgroundColor: theme.dangerSoft }]}><Text style={{ color: theme.danger }}>{error}</Text><Text style={[styles.hint, { color: theme.danger }]}>입력 내용은 유지됩니다.</Text></View> : null}
+      {error ? <View ref={errorSummary} tabIndex={-1} accessibilityRole="alert" accessibilityLabel={error} style={[styles.message, { backgroundColor: theme.dangerSoft }]}><Text style={{ color: theme.danger }}>{error}</Text><Text style={[styles.hint, { color: theme.danger }]}>입력 내용은 유지됩니다.</Text></View> : null}
       {notice ? <Text accessibilityLiveRegion="polite" style={{ color: theme.success, paddingVertical: 8 }}>{notice}</Text> : null}
     </ScrollView>
     <View style={[styles.footer, { backgroundColor: theme.surface, borderColor: theme.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
       {progress ? <Text accessibilityLiveRegion="polite" style={{ color: theme.secondary, width: "100%", fontSize: 13 }}>{progress}</Text> : null}
       <View style={{ flex: 1 }}><Choice label="임시저장" disabled={busy || !template} onPress={() => void save("draft")} /></View>
-      <View style={{ flex: 1 }}><PrimaryButton title={busy ? "처리 중…" : "상신"} disabled={busy || !template || !options.approvers.length} onPress={() => confirmAction("결재 상신", "작성한 문서를 시설장에게 상신하시겠습니까?", "상신", () => void save("submit"))} /></View>
+      <View style={{ flex: 1 }}><PrimaryButton ref={submitButton} title={busy ? "처리 중…" : wasRecalled ? "재상신" : "상신"} disabled={busy || !template || !options.approvers.length}
+        onPress={() => confirmAction(wasRecalled ? "결재 재상신" : "결재 상신", wasRecalled ? `"${title}" 문서를 재상신하시겠습니까? 결재가 처음부터 진행됩니다.` : "작성한 문서를 시설장에게 상신하시겠습니까?", wasRecalled ? "재상신" : "상신", () => void save("submit"), () => submitButton.current?.focus())} /></View>
     </View>
     <Modal visible={!!picker} transparent animationType="slide" onRequestClose={() => setPicker(null)}>
       <View style={styles.modalBackdrop}><View style={[styles.modal, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 16) }]}>

@@ -38,12 +38,12 @@ export default function Home() {
         </> : null}
         <View style={styles.sectionHeader}>
           <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text }]}>내가 올린 문서</Text>
-          <Text style={{ color: theme.secondary, fontSize: 12 }}>{data.counts.activeSent}건 진행 중</Text>
+          <TextAction label="내 문서 전체 보기" icon="arrow-forward" onPress={() => router.push({ pathname: "/(tabs)/drafts", params: { folder: "sent", status: "all", q: "", dateFrom: "", dateTo: "", page: "1" } })} />
         </View>
         {data.sentDocuments.length ? <InboxList documents={data.sentDocuments} showProgress /> :
           <EmptyState title="진행 중인 내 문서가 없습니다" detail="새 기안을 작성해 상신하면 진행 상황을 여기서 확인할 수 있습니다." />}
         {data.counts.activeSent > data.sentDocuments.length ? <Text style={{ color: theme.secondary, marginTop: 10, fontSize: 12 }}>
-          진행 중인 {data.counts.activeSent}건 중 {data.sentDocuments.length}건 표시 · 전체 문서는 웹에서 확인할 수 있습니다.
+          진행 중인 {data.counts.activeSent}건 중 {data.sentDocuments.length}건 표시 · 문서함에서 모두 볼 수 있습니다.
         </Text> : null}
       </> : null}
     {error && data ? <Text style={{ color: theme.danger, marginTop: 10 }}>{error}</Text> : null}

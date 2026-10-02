@@ -4,18 +4,24 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ErrorState, PrimaryButton, TextAction } from "@/components/ui";
+import { DocumentProgress, RejectionReason } from "@/components/document-progress";
+import { DocumentDraftActions } from "@/components/document-draft-actions";
+import { detailDate, detailStatusLabels } from "@/lib/document-detail";
 import { useSession } from "@/lib/session";
-import { formatDate, useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
 import { useLoad } from "@/lib/use-load";
 import type { MobileDocument } from "@/lib/types";
 
-const statusLabels: Record<string, string> = {
-  submitted: "상신", in_progress: "진행 중", approved: "승인", rejected: "반려",
-  pending: "대기", completed: "완료", skipped: "건너뜀",
-};
+// The navigator supplies the page h1; the document title and its sections follow it.
+const titleLevel = Platform.OS === "web" ? { "aria-level": 2 } : {};
+const sectionLevel = Platform.OS === "web" ? { "aria-level": 3 } : {};
 
 export default function DocumentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  return <DocumentDetailScreen key={id} id={id} />;
+}
+
+function DocumentDetailScreen({ id }: { id: string }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { request, user } = useSession();
@@ -49,26 +55,30 @@ export default function DocumentDetail() {
         [{ text: "취소", style: "cancel" }, { text: "처리", style: decision === "reject" ? "destructive" : "default", onPress: () => void execute() }]);
     }
   };
-  if (loading && !data) return <View style={styles.center}><ActivityIndicator color={theme.accent} /></View>;
-  if (error && !data) return <View style={styles.center}><ErrorState message={error} retry={reload} /></View>;
+  if (loading && !data) return <DocumentLoading />;
+  if (error && !data) return <View style={[styles.center, { backgroundColor: theme.background }]}><ErrorState message={error} retry={reload} /></View>;
   if (!document) return null;
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.titleBlock}>
-        <Text style={{ color: theme.secondary, fontSize: 12 }}>{document.documentNo} · {statusLabels[document.status] ?? document.status}</Text>
-        <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 21, fontWeight: "800", lineHeight: 29, marginTop: 5 }}>{document.title}</Text>
+        <Text style={{ color: document.status === "rejected" ? theme.danger : theme.secondary, fontSize: 12 }}>{document.documentNo} · {detailStatusLabels[document.status] ?? document.status}</Text>
+        <Text accessibilityRole="header" {...titleLevel} style={{ color: theme.text, fontSize: 21, fontWeight: "800", lineHeight: 29, marginTop: 5 }}>{document.title}</Text>
       </View>
+      <DocumentDraftActions document={document} reload={reload} />
+      <RejectionReason document={document} />
       <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Meta label="기안자" value={document.drafterName} />
-        <Meta label="상신일" value={formatDate(document.submittedAt)} />
+        {document.createdAt ? <Meta label="작성일" value={detailDate(document.createdAt)} /> : null}
+        <Meta label="상신일" value={document.submittedAt ? detailDate(document.submittedAt) : "아직 상신하지 않음"} />
+        {document.completedAt ? <Meta label={document.status === "rejected" ? "반려일" : document.status === "recalled" ? "회수일" : "완료일"} value={detailDate(document.completedAt)} /> : null}
         <Meta label="문서" value={document.templateName || document.category} />
       </View>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>본문</Text>
+      <Text accessibilityRole="header" {...sectionLevel} style={[styles.sectionTitle, { color: theme.text }]}>본문</Text>
       <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={{ color: theme.text, fontSize: 14, lineHeight: 23 }}>{document.content || "내용이 없습니다."}</Text>
       </View>
       {document.attachments.length ? <>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>첨부파일 {document.attachments.length}</Text>
+        <Text accessibilityRole="header" {...sectionLevel} style={[styles.sectionTitle, { color: theme.text }]}>첨부파일 {document.attachments.length}</Text>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, padding: 0, overflow: "hidden" }]}>
           {document.attachments.map((attachment, index) => <Pressable key={attachment.id} accessibilityRole="link"
             accessibilityLabel={attachment.name + (attachment.previewKind ? " 미리보기" : " 미리보기 불가")}
@@ -81,14 +91,7 @@ export default function DocumentDetail() {
           </Pressable>)}
         </View>
       </> : null}
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>결재선</Text>
-      <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, padding: 0, overflow: "hidden" }]}>
-        {document.approvalSteps.map((step, index) => <View key={step.id} style={[styles.stepRow, index > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
-          <Text style={{ color: theme.muted, width: 20, fontVariant: ["tabular-nums"] }}>{step.order}</Text>
-          <Text style={{ color: theme.text, flex: 1, fontWeight: "600" }}>{step.name}</Text>
-          <Text style={{ color: step.status === "rejected" ? theme.danger : theme.secondary, fontSize: 13 }}>{statusLabels[step.status] ?? step.status}</Text>
-        </View>)}
-      </View>
+      <DocumentProgress key={document.id} document={document} />
       {user?.canApproveDocuments === true && document.decisionBlockedReason ? <Text style={{ color: theme.danger, marginTop: 14, lineHeight: 20 }}>{document.decisionBlockedReason}</Text> : null}
       {error ? <Text style={{ color: theme.danger, marginTop: 12 }}>{error}</Text> : null}
     </ScrollView>
@@ -112,8 +115,21 @@ export default function DocumentDetail() {
 
 function Meta({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
-  return <View style={styles.metaRow}><Text style={{ color: theme.muted, width: 68, fontSize: 13 }}>{label}</Text>
-    <Text style={{ color: theme.text, flex: 1, fontSize: 13 }}>{value}</Text></View>;
+  return <View style={styles.metaRow}><Text style={{ color: theme.secondary, width: 68, fontSize: 13, lineHeight: 20 }}>{label}</Text>
+    <Text style={{ color: theme.text, flex: 1, fontSize: 13, lineHeight: 20, fontVariant: ["tabular-nums"] }}>{value}</Text></View>;
+}
+
+function DocumentLoading() {
+  const theme = useTheme();
+  return <ScrollView style={{ backgroundColor: theme.background }} contentContainerStyle={styles.content}>
+    <View style={[styles.titleBlock, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+      <ActivityIndicator color={theme.accent} />
+      <Text accessibilityLiveRegion="polite" style={{ color: theme.secondary }}>문서를 불러오는 중...</Text>
+    </View>
+    {[4, 3, 4].map((lines, index) => <View key={index} accessibilityElementsHidden aria-hidden style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, marginBottom: 16 }]}>
+      {Array.from({ length: lines }, (_, line) => <View key={line} style={{ height: 16, width: line === lines - 1 ? "65%" : "100%", marginVertical: 5, borderRadius: 4, backgroundColor: theme.surfaceMuted }} />)}
+    </View>)}
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
@@ -124,7 +140,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "800", marginTop: 20, marginBottom: 8 },
   metaRow: { flexDirection: "row", paddingVertical: 3 },
   fileRow: { minHeight: 53, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, paddingVertical: 8 },
-  stepRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13 },
   actionBar: { borderTopWidth: 1, padding: 12 },
   actionButtons: { flexDirection: "row", gap: 8 },
   actionHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, marginBottom: 5 },

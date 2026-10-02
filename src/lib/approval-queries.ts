@@ -1283,6 +1283,7 @@ function toApprovalDocument(record: DocumentRecord): ApprovalDocument {
     },
     drafterId: record.drafterId,
     createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
     submittedAt: record.submittedAt?.toISOString() ?? null,
     completedAt: record.completedAt?.toISOString() ?? null,
     discardedAt: record.discardedAt?.toISOString() ?? null,

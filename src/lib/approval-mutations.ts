@@ -854,6 +854,7 @@ export async function deleteDocumentAttachment(
 export async function recallSubmittedDocument(
   documentId: string,
   actorId: string,
+  expectedUpdatedAt?: string,
 ): Promise<DraftMutationResult> {
   const auditRequestData = await getCurrentAuditLogRequestData();
 
@@ -868,6 +869,7 @@ export async function recallSubmittedDocument(
         title: true,
         drafterId: true,
         status: true,
+        updatedAt: true,
       },
     });
 
@@ -886,10 +888,24 @@ export async function recallSubmittedDocument(
     }
 
     if (!canRecallDocumentByPolicy(actorId, document)) {
+      // A lost mobile response may be retried. Only replay this exact recall;
+      // never recall a document that has since been edited or resubmitted.
+      if (expectedUpdatedAt && document.status === DocumentStatus.RECALLED) {
+        const previous = await tx.auditLog.findFirst({
+          where: { documentId, actorId, action: AuditAction.RECALL,
+            metadata: { path: ["mobileRecallExpectedUpdatedAt"], equals: expectedUpdatedAt } },
+          select: { id: true },
+        });
+        if (previous) return { ok: true, documentId: document.id };
+      }
       return {
         ok: false,
         message: "결재 요청 또는 진행중 상태의 문서만 회수할 수 있습니다.",
       };
+    }
+
+    if (expectedUpdatedAt && document.updatedAt.toISOString() !== expectedUpdatedAt) {
+      return { ok: false, message: "문서가 변경되었습니다. 최신 상태를 확인한 뒤 다시 회수하세요." };
     }
 
     const now = new Date();
@@ -950,6 +966,7 @@ export async function recallSubmittedDocument(
         targetId: document.id,
         documentId: document.id,
         message: `"${document.title}" 결재 요청을 회수했습니다.`,
+        ...(expectedUpdatedAt ? { metadata: { mobileRecallExpectedUpdatedAt: expectedUpdatedAt, source: "mobile" } } : {}),
       },
     });
 
