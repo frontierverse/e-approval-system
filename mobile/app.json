@@ -3,7 +3,16 @@
     "name": "바자울",
     "slug": "gyeoljaeon",
     "scheme": "gyeoljaeon",
-    "version": "1.0.1",
+    "version": "1.0.2",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "enabled": true,
+      "url": "https://u.expo.dev/378e1910-b0e9-4a64-96f9-3d301291f3bf",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

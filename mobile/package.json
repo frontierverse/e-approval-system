@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "expo-router/entry",
   "dependencies": {
     "@config-plugins/react-native-blob-util": "^14.0.2",
@@ -15,6 +15,7 @@
     "expo-router": "~57.0.24",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.24",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -40,6 +41,9 @@
     "typecheck": "tsc --noEmit",
     "test:api": "node --test scripts/test-api.mjs",
     "check:release": "node --env-file-if-exists=.env.local scripts/check-release.mjs",
+    "build:staff": "npx eas-cli@latest workflow:run .eas/workflows/build-staff.yml",
+    "update:preview": "npx eas-cli@latest workflow:run .eas/workflows/update-preview.yml",
+    "update:production": "npx eas-cli@latest workflow:run .eas/workflows/update-production.yml",
     "eas-build-pre-install": "node scripts/check-release.mjs"
   },
   "private": true

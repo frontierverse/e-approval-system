@@ -1,0 +1,23 @@
+name: Update Bajaul preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        type: string
+        required: true
+        description: Description of the update
+
+jobs:
+  publish_update:
+    type: update
+    environment: preview
+    params:
+      channel: preview
+      platform: all
+      message: ${{ inputs.message }}
+    hooks:
+      before_update:
+        - run: npm run lint
+        - run: npm run typecheck
+        - run: node scripts/check-release.mjs

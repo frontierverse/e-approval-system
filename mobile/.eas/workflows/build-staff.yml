@@ -1,0 +1,8 @@
+name: Build Bajaul staff Android app
+
+jobs:
+  build_android:
+    type: build
+    params:
+      platform: android
+      profile: staff

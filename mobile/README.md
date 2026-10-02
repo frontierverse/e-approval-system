@@ -81,6 +81,24 @@ APNs/FCM 자격 증명, 운영 도메인과 스케줄러가 준비되기 전에�
 
 ## 업데이트
 
-현재 프로젝트에는 `expo-updates`, runtime version, EAS Update channel 설정이 없다. JS 변경도 새 빌드를 직원에게 재배포한다. 네이티브 모듈 변경은 항상 새 바이너리가 필요하다. OTA 업데이트를 도입하려면 호환 runtime과 채널을 명시하고 최초 지원 빌드를 배포해야 하며, 직원 접근 통제를 유지한다.
+`1.0.2`부터 `expo-updates`와 EAS Update를 사용한다. 기존 APK에는 자동 업데이트 기능이 없으므로 최초 지원 설치본을 한 번 설치해야 한다. Android 직원용 APK는 `npm run build:staff`로 만들며, 기존 package와 EAS 서명 키를 유지한다. 휴대폰에서 권한이 있는 Expo 계정으로 빌드 설치 링크를 열어 기존 앱 위에 업데이트한다.
+
+직원용 `staff` 프로필과 스토어용 `production` 프로필은 `production` 채널·환경을 사용한다. 시험용 `preview` 프로필은 `preview` 채널·환경을 사용한다. 시험용 업데이트가 직원용 앱에 전달되지 않도록 채널을 유지한다. 개발 빌드는 운영 업데이트 검증을 대신하지 않는다.
+
+앱은 실행 시 호환되는 업데이트를 확인하고 백그라운드로 다운로드한다. 내려받은 업데이트는 다음 앱 실행에 적용한다. 결재 중 강제로 다시 시작하지 않으며, 네트워크가 없어도 설치본 또는 마지막 정상 업데이트로 실행한다. `fingerprint` runtime 정책이 네이티브 구성에 따라 호환성을 결정한다. 네이티브 모듈·권한·홈 화면 이름 등을 바꾸면 새 APK/IPA가 필요하다.
+
+화면·문구·JS 오류 수정 배포는 모바일 폴더에서 다음 순서로 진행한다.
+
+```bash
+npm run lint
+npm run typecheck
+npm run update:preview -- --input message="변경 내용"
+# 같은 네이티브 구성을 가진 preview 설치본에서 확인한 뒤 배포한다.
+npm run update:production -- --input message="변경 내용"
+```
+
+위 명령은 EAS Workflows에서 빌드·업데이트를 생성한다. `GOOGLE_SERVICES_JSON`은 EAS 서버에서만 읽을 수 있는 파일 변수이므로, 같은 환경의 파일로 fingerprint를 계산한다. 업데이트 작업은 린트·타입·릴리스 검사를 통과해야 발행한다. `EXPO_PUBLIC_API_URL`은 빌드와 업데이트 모두 `https://www.bajaul.com`을 사용한다. 서버 비밀 값·직원 정보·세션 토큰은 업데이트에 포함하지 않는다. GitHub 푸시와 서버 배포만으로 앱 업데이트가 발행되지는 않는다. 로컬에서 직접 `eas update`를 실행하려면 동일한 Firebase 앱 설정 파일을 별도로 준비하고 runtime 일치를 확인해야 한다.
+
+운영 배포 후 새 Android 설치본에서 앱을 완전히 종료하고 다시 열어 다운로드한 뒤, 한 번 더 종료·실행하여 적용을 확인한다. EAS Update의 runtime과 설치본의 runtime이 일치해야 한다. iOS는 별도 기기 등록과 지원 설치본 배포가 끝난 뒤 같은 절차로 확인한다. 문제가 생기면 EAS 대시보드의 해당 채널에서 이전 정상 업데이트로 롤백한다.
 
 참고: [Expo 내부 배포](https://docs.expo.dev/build/internal-distribution/), [Apple Custom Apps](https://developer.apple.com/support/volume-purchase-and-custom-apps/), [Google Play 비공개 앱](https://support.google.com/work/android/answer/9563481), [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).
