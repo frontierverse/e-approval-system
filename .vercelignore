@@ -13,6 +13,6 @@ playwright-report/
 coverage/
 src/generated/prisma/
 public/pdfjs/
-uploads/
+/uploads/
 *.log
 *.tsbuildinfo
