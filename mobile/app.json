@@ -3,7 +3,7 @@
     "name": "바자울",
     "slug": "gyeoljaeon",
     "scheme": "gyeoljaeon",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "runtimeVersion": {
       "policy": "fingerprint"
     },

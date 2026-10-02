@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "expo-router/entry",
   "dependencies": {
     "@config-plugins/react-native-blob-util": "^14.0.2",
@@ -9,6 +9,7 @@
     "expo": "~57.0.26",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",
+    "expo-document-picker": "~57.0.3",
     "expo-font": "~57.0.4",
     "expo-linking": "~57.0.11",
     "expo-notifications": "~57.0.21",

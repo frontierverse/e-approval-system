@@ -13,6 +13,7 @@ const requiredPrismaDelegates = [
   "companyBusinessInfo",
   "notification",
   "mobileSession",
+  "mobileDraftUpload",
   "mobilePushSubscription",
   "mobilePushDelivery",
   "resourcePost",

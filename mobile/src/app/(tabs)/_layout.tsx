@@ -20,6 +20,7 @@ export default function TabsLayout() {
     <Tabs.Protected guard={user?.canApproveDocuments === true}>
       <Tabs.Screen name="inbox" options={{ title: "받은결재", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "file-tray-full" : "file-tray-full-outline"} size={22} color={color} /> }} />
     </Tabs.Protected>
+    <Tabs.Screen name="drafts" options={{ title: "기안함", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "create" : "create-outline"} size={22} color={color} /> }} />
     <Tabs.Screen name="notifications" options={{ title: "알림", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "notifications" : "notifications-outline"} size={22} color={color} /> }} />
     <Tabs.Screen name="profile" options={{ title: "내 정보", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} /> }} />
   </Tabs>;
