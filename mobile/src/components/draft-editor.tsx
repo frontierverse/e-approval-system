@@ -20,7 +20,7 @@ function confirmAction(title: string, message: string, confirm: string, action: 
 export function DraftEditor({ documentId }: { documentId?: string }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { request } = useSession();
+  const { request, user } = useSession();
   const navigation = useNavigation();
   const [options, setOptions] = useState<DraftOptions | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,8 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
+  const [meetingItems, setMeetingItems] = useState([{ title: "", content: "" }]);
+  const [focusedOption, setFocusedOption] = useState("");
   const [approverIds, setApprovers] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
@@ -45,17 +47,17 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
   const [picker, setPicker] = useState<null | { title: string; selected: string; items: { label: string; value: string }[]; choose: (value: string) => void }>(null);
   const snapshot = JSON.stringify({ title, templateId, values, approverIds, attachments: attachments.map(a => a.id), files: pendingFiles.map(f => f.key) });
   const dirty = !!baseline && snapshot !== baseline;
-  usePreventRemove(dirty || busy, ({ data }) => {
+  usePreventRemove(!!user && (dirty || busy), ({ data }) => {
     if (allowLeave.current) { navigation.dispatch(data.action); return; }
     if (busyRef.current) return;
     confirmAction("작성 화면 나가기", "저장하지 않은 입력 내용이 있습니다. 나가시겠습니까?", "나가기", () => navigation.dispatch(data.action));
   });
   useEffect(() => {
-    if (Platform.OS !== "web" || !dirty) return;
+    if (Platform.OS !== "web" || !dirty || !user) return;
     const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", prevent);
     return () => window.removeEventListener("beforeunload", prevent);
-  }, [dirty]);
+  }, [dirty, user]);
 
   const load = useCallback(async () => {
     try {
@@ -68,7 +70,7 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
       const nextValues = d?.fieldValues ?? selected?.initialValues ?? {};
       const nextApprovers = d?.approverIds ?? (o.approvers.length === 1 ? [o.approvers[0].id] : []);
       const nextAttachments = d?.attachments ?? [];
-      setTitle(nextTitle); setTemplateId(nextTemplate); setValues(nextValues); setApprovers(nextApprovers);
+      setTitle(nextTitle); setTemplateId(nextTemplate); setValues(nextValues); setMeetingItems(readMeetingItems(nextValues)); setApprovers(nextApprovers);
       setAttachments(nextAttachments); setUpdatedAt(d?.updatedAt ?? null);
       filesRef.current = []; setPendingFiles([]);
       setBaseline(JSON.stringify({ title: nextTitle, templateId: nextTemplate, values: nextValues, approverIds: nextApprovers, attachments: nextAttachments.map(a => a.id), files: [] }));
@@ -82,7 +84,7 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
   const inputStyle = [styles.input, { color: theme.text, backgroundColor: theme.surface, borderColor: theme.border }];
   const showPicker = (name: string, selected: string, items: { label: string; value: string }[], choose: (value: string) => void) => setPicker({ title: name, selected, items, choose });
   const changeTemplate = (id: string) => {
-    const change = () => { setTemplateId(id); setValues(options?.templates.find(t => t.id === id)?.initialValues ?? {}); setErrors({}); setNotice(""); };
+    const change = () => { const initial = options?.templates.find(t => t.id === id)?.initialValues ?? {}; setTemplateId(id); setValues(initial); setMeetingItems(readMeetingItems(initial)); setErrors({}); setNotice(""); };
     if (id === templateId) return;
     const changedContent = JSON.stringify(values) !== JSON.stringify(template?.initialValues ?? {});
     if (changedContent) confirmAction("양식 변경", "양식을 바꾸면 현재 양식의 입력 내용이 초기화됩니다. 변경하시겠습니까?", "변경", change);
@@ -165,10 +167,19 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
   if (loadError || !options) return <View style={{ padding: 16 }}><ErrorState message={loadError || "양식을 불러오지 못했습니다."} retry={() => { setLoading(true); setLoadError(""); void load(); }} /></View>;
   const fieldError = (name: string) => errors[name] ? <Text style={[styles.error, { color: theme.danger }]}>{errors[name]}</Text> : null;
   const isMeeting = template?.fields.some(f => f.name === "agenda") && template?.fields.some(f => f.name === "discussion");
-  const meetingItems = readMeetingItems(values);
-  const updateMeeting = (items: typeof meetingItems) => { setValues(v => ({ ...v, ...writeMeetingItems(items) })); setNotice(""); };
+  const updateMeeting = (items: typeof meetingItems) => { setMeetingItems(items); setValues(v => ({ ...v, ...writeMeetingItems(items) })); setNotice(""); };
+  const renderMeeting = () => (isMeeting ? <View style={styles.field}>
+        <Text style={[styles.label, { color: theme.text }]}>안건 및 논의 내용 *</Text>
+        {meetingItems.map((item, index) => <View key={index} style={[styles.field, { padding: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 9 }]}>
+          <View style={styles.sectionRow}><Text style={[styles.label, { color: theme.text }]}>안건 {index + 1}</Text>{meetingItems.length > 1 ? <TextAction label="안건 제거" disabled={busy} onPress={() => confirmAction("안건 제거", "이 안건의 제목과 내용을 제거하시겠습니까?", "제거", () => updateMeeting(meetingItems.filter((_, i) => i !== index)))} /> : null}</View>
+          <TextInput accessibilityLabel={"안건 " + (index + 1) + " 제목"} editable={!busy} value={item.title} maxLength={300} placeholder="안건 제목" placeholderTextColor={theme.muted} style={inputStyle} onChangeText={title => updateMeeting(meetingItems.map((v, i) => i === index ? { ...v, title } : v))} />
+          <TextInput accessibilityLabel={"안건 " + (index + 1) + " 논의 내용"} editable={!busy} multiline value={item.content} maxLength={5000} placeholder="논의 내용을 입력하세요" placeholderTextColor={theme.muted} style={[inputStyle, styles.textarea]} onChangeText={content => updateMeeting(meetingItems.map((v, i) => i === index ? { ...v, content } : v))} />
+        </View>)}
+        <TextAction label="안건 추가" icon="add" disabled={busy || meetingItems.length >= 20} onPress={() => updateMeeting([...meetingItems, { title: "", content: "" }])} />
+      </View> : null);
   const renderField = (field: DraftField) => {
-    if (isMeeting && (field.name === "agenda" || field.name === "discussion")) return null;
+    if (isMeeting && field.name === "agenda") return <View key={field.name}>{renderMeeting()}</View>;
+    if (isMeeting && field.name === "discussion") return null;
     if (field.visibleWhen && !field.visibleWhen.values.includes(values[field.visibleWhen.field] ?? "")) return null;
     if (field.type === "attachments") return null;
     return <View key={field.name} style={styles.field}>
@@ -200,15 +211,6 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
         {fieldError("title")}
       </View>
       {template?.fields.map(renderField)}
-      {isMeeting ? <View style={styles.field}>
-        <Text style={[styles.label, { color: theme.text }]}>안건 및 논의 내용 *</Text>
-        {meetingItems.map((item, index) => <View key={index} style={[styles.field, { padding: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 9 }]}>
-          <View style={styles.sectionRow}><Text style={[styles.label, { color: theme.text }]}>안건 {index + 1}</Text>{meetingItems.length > 1 ? <TextAction label="안건 제거" disabled={busy} onPress={() => confirmAction("안건 제거", "이 안건의 제목과 내용을 제거하시겠습니까?", "제거", () => updateMeeting(meetingItems.filter((_, i) => i !== index)))} /> : null}</View>
-          <TextInput accessibilityLabel={"안건 " + (index + 1) + " 제목"} editable={!busy} value={item.title} maxLength={300} placeholder="안건 제목" placeholderTextColor={theme.muted} style={inputStyle} onChangeText={title => updateMeeting(meetingItems.map((v, i) => i === index ? { ...v, title } : v))} />
-          <TextInput accessibilityLabel={"안건 " + (index + 1) + " 논의 내용"} editable={!busy} multiline value={item.content} maxLength={5000} placeholder="논의 내용을 입력하세요" placeholderTextColor={theme.muted} style={[inputStyle, styles.textarea]} onChangeText={content => updateMeeting(meetingItems.map((v, i) => i === index ? { ...v, content } : v))} />
-        </View>)}
-        <TextAction label="안건 추가" icon="add" disabled={busy || meetingItems.length >= 20} onPress={() => updateMeeting([...meetingItems, { title: "", content: "" }])} />
-      </View> : null}
       {fieldError("content")}
       <View style={styles.field}><Text style={[styles.label, { color: theme.text }]}>결재자 *</Text>
         <Choice disabled={busy} label={options.approvers.find(a => approverIds.includes(a.id)) ? options.approvers.filter(a => approverIds.includes(a.id)).map(a => a.name + " · " + a.positionName).join(", ") : "시설장 선택"}
@@ -237,7 +239,8 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
       <View style={styles.modalBackdrop}><View style={[styles.modal, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.sectionRow}><Text accessibilityRole="header" style={[styles.label, { color: theme.text, fontSize: 18 }]}>{picker?.title}</Text><TextAction label="닫기" icon="close" onPress={() => setPicker(null)} /></View>
         <ScrollView>{picker?.items.map(item => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: item.value === picker.selected }}
-          onPress={() => { picker.choose(item.value); setPicker(null); }} style={({ pressed }) => [styles.option, { borderColor: theme.border, backgroundColor: pressed || item.value === picker.selected ? theme.accentSoft : theme.surface }]}>
+          onFocus={() => setFocusedOption(item.value)} onBlur={() => setFocusedOption("")}
+          onPress={() => { picker.choose(item.value); setPicker(null); }} style={({ pressed }) => [styles.option, { borderColor: focusedOption === item.value ? theme.accent : theme.border, backgroundColor: pressed || item.value === picker.selected ? theme.accentSoft : theme.surface }]}>
           <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>{item.label}</Text>{item.value === picker.selected ? <Text style={{ color: theme.accent }}>✓</Text> : null}
         </Pressable>)}</ScrollView>
         {!picker?.items.length ? <Text style={{ color: theme.secondary, padding: 16 }}>선택할 항목이 없습니다.</Text> : null}
@@ -248,8 +251,9 @@ export function DraftEditor({ documentId }: { documentId?: string }) {
 
 function Choice({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress: () => void }) {
   const theme = useTheme();
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.input, { justifyContent: "center", borderColor: theme.border, backgroundColor: pressed ? theme.accentSoft : theme.surface, opacity: disabled ? 0.55 : 1 }]}>
+  const [focused, setFocused] = useState(false);
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+    style={({ pressed }) => [styles.input, { justifyContent: "center", borderColor: focused ? theme.accent : theme.border, borderWidth: focused ? 2 : 1, backgroundColor: pressed ? theme.accentSoft : theme.surface, opacity: disabled ? 0.55 : 1 }]}>
     <Text style={{ color: theme.text, fontSize: 16, fontWeight: "600" }}>{label}</Text>
   </Pressable>;
 }
