@@ -8,6 +8,9 @@
 /mobile/ios/
 /mobile/android/
 /mobile/.env*
+/mobile/README.md
+/mobile/AGENTS.md
+/mobile/scripts/test-api.mjs
 /mobile/credentials.json
 /mobile/google-services.json
 /mobile/*.jks
