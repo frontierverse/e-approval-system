@@ -2,6 +2,7 @@ import { getReadableDocumentById } from "@/lib/approval-queries";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getCurrentApprovalStep } from "@/lib/mock-data";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
+import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
 
 export const runtime = "nodejs";
 
@@ -19,9 +20,10 @@ export async function GET(
   const unsupportedAttachments = document.attachments.filter(
     (attachment) => !getAttachmentPreviewKind(attachment.originalName, attachment.mimeType),
   );
-  const canDecide = currentStep?.approverId === session.userId &&
-    (document.status === "submitted" || document.status === "in_progress") &&
-    unsupportedAttachments.length === 0;
+  const isCurrentApprover = isApprovalAuthorityPosition(session.user.position.name) &&
+    currentStep?.approverId === session.userId &&
+    (document.status === "submitted" || document.status === "in_progress");
+  const canDecide = isCurrentApprover && unsupportedAttachments.length === 0;
 
   return mobileJson({
     document: {
@@ -50,7 +52,7 @@ export async function GET(
         previewKind: getAttachmentPreviewKind(attachment.originalName, attachment.mimeType),
       })),
       canDecide,
-      decisionBlockedReason: unsupportedAttachments.length > 0
+      decisionBlockedReason: isCurrentApprover && unsupportedAttachments.length > 0
         ? "미리보기를 지원하지 않는 첨부파일이 있어 웹에서 확인 후 결재해야 합니다."
         : null,
     },

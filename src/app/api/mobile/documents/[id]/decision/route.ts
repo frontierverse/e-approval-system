@@ -4,6 +4,8 @@ import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { approveCurrentApprovalStep, rejectCurrentApprovalStep } from "@/lib/approval-mutations";
 import { attachStampedApprovalPdfToDocument } from "@/lib/generated-approval-pdf";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
+import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
+import { getCurrentApprovalStep } from "@/lib/mock-data";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,9 @@ export async function POST(
 ) {
   const session = await getMobileSession(request);
   if (!session) return mobileJson({ error: "로그인이 필요합니다." }, 401);
+  if (!isApprovalAuthorityPosition(session.user.position.name)) {
+    return mobileJson({ error: "결재는 시설장만 처리할 수 있습니다." }, 403);
+  }
   const { id } = await params;
   const body: unknown = await request.json().catch(() => null);
   const decision = typeof body === "object" && body !== null && "decision" in body
@@ -28,6 +33,10 @@ export async function POST(
 
   const document = await getReadableDocumentById(id, session.userId, session.user.role);
   if (!document) return mobileJson({ error: "문서를 찾을 수 없습니다." }, 404);
+  if (getCurrentApprovalStep(document)?.approverId !== session.userId ||
+      (document.status !== "submitted" && document.status !== "in_progress")) {
+    return mobileJson({ error: "현재 본인의 결재 순서가 아닙니다." }, 403);
+  }
   if (document.attachments.some((attachment) =>
     !getAttachmentPreviewKind(attachment.originalName, attachment.mimeType)
   )) {

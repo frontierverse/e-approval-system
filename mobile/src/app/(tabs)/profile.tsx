@@ -57,7 +57,7 @@ export default function Profile() {
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Text style={{ color: theme.muted, fontSize: 12 }}>로그인 계정</Text>
       <Text style={{ color: theme.text, fontSize: 20, fontWeight: "800", marginTop: 4 }}>{user?.name}</Text>
-      <Text style={{ color: theme.secondary, fontSize: 13, marginTop: 4 }}>사내 결재 시스템</Text>
+      <Text style={{ color: theme.secondary, fontSize: 13, marginTop: 4 }}>{user?.positionName ?? "직원"}</Text>
     </View>
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 12 }]}>
       <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>기기 알림</Text>

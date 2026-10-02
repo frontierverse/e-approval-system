@@ -1,4 +1,27 @@
-export type MobileUser = { id: string; name: string; role: string };
+export type MobileUser = {
+  id: string;
+  name: string;
+  role: string;
+  positionName: string;
+  canApproveDocuments: boolean;
+};
+
+export type HomeDocument = {
+  id: string;
+  title: string;
+  documentNo: string;
+  status: string;
+  submittedAt: string | null;
+  drafterName: string;
+  currentApproverName: string | null;
+};
+
+export type HomeResponse = {
+  canApproveDocuments: boolean;
+  counts: { activeSent: number; recalled: number; activeInbox?: number };
+  sentDocuments: HomeDocument[];
+  inboxDocuments?: HomeDocument[];
+};
 
 export type InboxDocument = {
   id: string;

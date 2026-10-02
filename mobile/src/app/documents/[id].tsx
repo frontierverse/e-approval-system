@@ -18,15 +18,16 @@ export default function DocumentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { request } = useSession();
+  const { request, user } = useSession();
   const { data, loading, error, reload } = useLoad<{ document: MobileDocument }>("/documents/" + id);
   const document = data?.document;
+  const canDecide = user?.canApproveDocuments === true && document?.canDecide === true;
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [comment, setComment] = useState("");
   const [pending, setPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submit = async () => {
-    if (!decision || !document || pending) return;
+    if (!decision || !document || !canDecide || pending) return;
     if (decision === "reject" && comment.trim().length < 2) {
       setSubmitError("반려 사유를 2자 이상 입력하세요.");
       return;
@@ -88,10 +89,10 @@ export default function DocumentDetail() {
           <Text style={{ color: step.status === "rejected" ? theme.danger : theme.secondary, fontSize: 13 }}>{statusLabels[step.status] ?? step.status}</Text>
         </View>)}
       </View>
-      {document.decisionBlockedReason ? <Text style={{ color: theme.danger, marginTop: 14, lineHeight: 20 }}>{document.decisionBlockedReason}</Text> : null}
+      {user?.canApproveDocuments === true && document.decisionBlockedReason ? <Text style={{ color: theme.danger, marginTop: 14, lineHeight: 20 }}>{document.decisionBlockedReason}</Text> : null}
       {error ? <Text style={{ color: theme.danger, marginTop: 12 }}>{error}</Text> : null}
     </ScrollView>
-    {document.canDecide ? <View style={[styles.actionBar, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+    {canDecide ? <View style={[styles.actionBar, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
       {decision ? <>
         <View style={styles.actionHeading}><Text style={{ color: theme.text, fontWeight: "800", fontSize: 16 }}>{decision === "approve" ? "승인" : "반려"}</Text>
           <TextAction label="취소" onPress={() => { setDecision(null); setSubmitError(null); }} /></View>

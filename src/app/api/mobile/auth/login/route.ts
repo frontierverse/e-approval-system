@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const users = await prisma.user.findMany({
     where: { name },
-    select: { id: true, name: true, role: true, status: true, passwordHash: true },
+    select: { id: true, name: true, role: true, status: true, passwordHash: true, position: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
   const user = users.find((candidate) =>

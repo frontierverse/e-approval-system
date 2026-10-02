@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
 
 const mobileSessionDays = 30;
 
@@ -33,7 +34,7 @@ export async function getMobileSession(request: Request) {
 
   const session = await prisma.mobileSession.findUnique({
     where: { tokenHash: hashMobileToken(match[1]!) },
-    include: { user: { select: { id: true, name: true, role: true, status: true } } },
+    include: { user: { select: { id: true, name: true, role: true, status: true, position: { select: { name: true } } } } },
   });
   if (
     !session ||
@@ -49,6 +50,13 @@ export function mobileUserSummary(user: {
   id: string;
   name: string;
   role: string;
+  position: { name: string };
 }) {
-  return { id: user.id, name: user.name, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    positionName: user.position.name,
+    canApproveDocuments: isApprovalAuthorityPosition(user.position.name),
+  };
 }
