@@ -20,6 +20,7 @@ jobs:
       message: ${{ inputs.message }}
     hooks:
       before_update:
+        - run: set-env EAS_PROJECT_ROOT "$PWD"
         - run: npm run lint
         - run: npm run typecheck
         - run: node scripts/check-release.mjs
