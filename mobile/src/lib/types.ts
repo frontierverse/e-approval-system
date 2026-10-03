@@ -99,3 +99,21 @@ export type NotificationsResponse = {
   unreadCount: number;
   notifications: MobileNotification[];
 };
+
+export type AccountImageInfo = {
+  exists: boolean;
+  mimeType: string | null;
+  size: number | null;
+  updatedAt: string | null;
+};
+
+export type MobileAccount = {
+  id: string;
+  name: string;
+  email: string | null;
+  departmentName: string;
+  positionName: string;
+  canChangePassword: boolean;
+  profileImage: AccountImageInfo;
+  signatureImage: AccountImageInfo;
+};
