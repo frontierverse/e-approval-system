@@ -1,47 +1,18 @@
-import { useState } from "react";
-import { router } from "expo-router";
+import { useCallback } from "react";
+import { router, useFocusEffect } from "expo-router";
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PrimaryButton, ScreenHeading, TextAction } from "@/components/ui";
-import { getPushToken } from "@/lib/push";
+import { AccountFeedback } from "@/components/account-feedback";
+import { useNotifications } from "@/lib/notifications";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
-import { useLoad } from "@/lib/use-load";
 
 export default function Profile() {
   const theme = useTheme();
-  const { user, signOut, request } = useSession();
-  const { data: pushStatus, loading: pushLoading, error: pushLoadError, reload: reloadPushStatus, setData: setPushStatus } =
-    useLoad<{ enabled: boolean }>("/push-subscription");
-  const [pushPending, setPushPending] = useState(false);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
-  const enablePush = async () => {
-    if (pushPending) return;
-    setPushPending(true); setPushMessage(null);
-    try {
-      const expoPushToken = await getPushToken();
-      if (!expoPushToken) throw new Error("알림 권한이 필요합니다.");
-      await request("/push-subscription", { method: "POST", body: { expoPushToken } });
-      setPushStatus({ enabled: true });
-      setPushMessage("이 기기에서 결재 알림을 받습니다.");
-    } catch (cause) {
-      setPushMessage(cause instanceof Error ? cause.message : "알림을 설정하지 못했습니다.");
-    } finally {
-      setPushPending(false);
-    }
-  };
-  const disablePush = async () => {
-    if (pushPending) return;
-    setPushPending(true); setPushMessage(null);
-    try {
-      await request("/push-subscription", { method: "DELETE" });
-      setPushStatus({ enabled: false });
-      setPushMessage("이 기기의 결재 알림을 껐습니다.");
-    } catch (cause) {
-      setPushMessage(cause instanceof Error ? cause.message : "알림 설정을 변경하지 못했습니다.");
-    } finally {
-      setPushPending(false);
-    }
-  };
+  const { user, signOut } = useSession();
+  const { pushStatus, pushLoading, pushPending, pushError, pushMessage, pushNeedsSettings,
+    enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings } = useNotifications();
+  useFocusEffect(useCallback(() => { void refreshPushStatus(); }, [refreshPushStatus]));
   const confirmSignOut = () => {
     const logout = () => void signOut().catch(() => {
       if (Platform.OS === "web") window.alert("로그아웃하지 못했습니다. 다시 시도하세요.");
@@ -65,26 +36,26 @@ export default function Profile() {
     </View>
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>기기 알림</Text>
-      <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19, marginTop: 5, marginBottom: 12 }}>
-        {pushLoading && !pushStatus ? "알림 설정 확인 중..." :
-          pushStatus?.enabled ? "새 결재와 진행 소식을 이 기기로 받습니다." :
-          "새 결재와 진행 소식을 기기로 받아보세요."}
+      <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19, marginTop: 5, marginBottom: 8 }}>
+        {pushLoading || (!pushStatus && !pushError && Platform.OS !== "web") ? "알림 설정 확인 중..." :
+          pushNeedsSettings ? "기기 알림 권한이 꺼져 있습니다." : pushError ? "알림 설정을 완료하지 못했습니다. 아래에서 다시 시도하세요." :
+          pushStatus?.enabled ? "새 결재와 진행 소식을 이 기기로 받습니다." : "새 결재와 진행 소식을 기기로 받아보세요."}
       </Text>
-      {Platform.OS === "web" ? <Text style={{ color: theme.secondary, fontSize: 13 }}>설치한 모바일 앱에서 설정할 수 있습니다.</Text> :
-        pushStatus?.enabled ? <TextAction label={pushPending ? "변경 중..." : "이 기기 알림 끄기"} icon="notifications-off-outline"
-          disabled={pushPending} onPress={() => void disablePush()} /> :
-        <PrimaryButton title={pushPending ? "설정 중..." : "이 기기에서 알림 받기"}
-          disabled={pushPending} onPress={() => void enablePush()} />}
-      {pushLoadError ? <View style={{ marginTop: 8 }}>
-        <Text accessibilityRole="alert" style={{ color: theme.danger, fontSize: 13 }}>알림 설정을 불러오지 못했습니다.</Text>
-        <TextAction label="다시 시도" icon="refresh" onPress={reloadPushStatus} />
-      </View> : null}
-      {pushMessage ? <Text accessibilityRole="alert" style={{ color: theme.secondary, fontSize: 13, marginTop: 8 }}>{pushMessage}</Text> : null}
+      {Platform.OS === "web" ? <Text style={{ color: theme.secondary, fontSize: 13 }}>설치한 모바일 앱에서 설정할 수 있습니다.</Text> : <>
+        {pushNeedsSettings ? <View style={{ gap: 4 }}>
+          <PrimaryButton title="기기 알림 설정 열기" disabled={pushPending} onPress={() => void openPushSettings()} />
+          <TextAction label={pushPending ? "등록 중..." : "알림 등록 다시 시도"} icon="refresh" disabled={pushPending} onPress={() => void retryPushRegistration()} />
+        </View> : pushStatus?.enabled ? null : pushStatus ?
+          <PrimaryButton title={pushPending ? "설정 중..." : pushError ? "알림 설정 다시 시도" : "이 기기에서 알림 받기"} disabled={pushPending} onPress={() => void (pushError ? retryPushRegistration() : enablePush())} /> : null}
+        {pushStatus?.enabled ? <TextAction label={pushPending ? "변경 중..." : "이 기기 알림 끄기"} icon="notifications-off-outline" disabled={pushPending} onPress={() => void disablePush()} /> : null}
+        {pushError && !pushNeedsSettings && (pushStatus?.enabled || !pushStatus) ? <TextAction label={pushPending ? "확인 중..." : "알림 설정 다시 시도"} icon="refresh" disabled={pushPending} onPress={() => void retryPushRegistration()} /> : null}
+        <AccountFeedback error={pushError} message={pushMessage} />
+      </>}
     </View>
     <View style={{ marginTop: 12 }}><TextAction label="로그아웃" icon="log-out-outline" onPress={confirmSignOut} /></View>
   </ScrollView>;
 }
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 24, maxWidth: 720, width: "100%", alignSelf: "center" },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 16 },
+  panel: { borderWidth: 1, borderRadius: 12, padding: 12 },
 });

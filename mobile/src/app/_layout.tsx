@@ -1,50 +1,22 @@
-import { router, Stack } from "expo-router";
-import * as Notifications from "expo-notifications";
-import { useEffect } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { Stack } from "expo-router";
+import { ActivityIndicator, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { apiRequest } from "@/lib/api";
-import { getPushToken, notificationDocumentId } from "@/lib/push";
+import { TextAction } from "@/components/ui";
+import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 
 function Navigation() {
-  const { user, token, loading } = useSession();
+  const { user, loading } = useSession();
   const theme = useTheme();
-  useEffect(() => {
-    if (!user || Platform.OS === "web") return;
-    const open = (response: Notifications.NotificationResponse | null) => {
-      const documentId = notificationDocumentId(response);
-      if (!documentId) return;
-      Notifications.clearLastNotificationResponse();
-      router.push("/documents/" + documentId);
-    };
-    const listener = Notifications.addNotificationResponseReceivedListener(open);
-    void Notifications.getLastNotificationResponseAsync().then(open).catch(() => undefined);
-    return () => listener.remove();
-  }, [user]);
-
-  useEffect(() => {
-    if (!user || !token || Platform.OS === "web") return;
-    let active = true;
-    void (async () => {
-      const status = await apiRequest<{ enabled: boolean }>("/push-subscription", { token });
-      if (!status.enabled || !active) return;
-      const pushToken = await getPushToken(false);
-      if (!active) return;
-      if (pushToken) {
-        await apiRequest("/push-subscription", {
-          token, method: "POST", body: { expoPushToken: pushToken },
-        });
-      } else {
-        await apiRequest("/push-subscription", { token, method: "DELETE" });
-      }
-    })().catch(() => undefined);
-    return () => { active = false; };
-  }, [user, token]);
+  const { notificationOpenError, retryNotificationOpen, dismissNotificationOpenError } = useNotifications();
   if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.background }}><ActivityIndicator color={theme.accent} /></View>;
   return <>
     <StatusBar style="auto" />
+    {notificationOpenError ? <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: theme.dangerSoft, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+      <Text accessibilityRole="alert" style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{notificationOpenError}</Text>
+      <View style={{ flexDirection: "row", gap: 8 }}><TextAction label="알림 문서 다시 열기" icon="refresh" onPress={() => void retryNotificationOpen()} /><TextAction label="닫기" onPress={dismissNotificationOpenError} /></View>
+    </View> : null}
     <Stack screenOptions={{ headerStyle: { backgroundColor: theme.surface }, headerTintColor: theme.text, contentStyle: { backgroundColor: theme.background }, headerShadowVisible: false }}>
       <Stack.Protected guard={!user}><Stack.Screen name="login" options={{ headerShown: false }} /></Stack.Protected>
       <Stack.Protected guard={!!user}>
@@ -60,5 +32,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><Navigation /></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><Navigation /></NotificationsProvider></SessionProvider>;
 }

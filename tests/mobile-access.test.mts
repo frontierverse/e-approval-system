@@ -32,6 +32,10 @@ const effectsUrl = moduleUrl(`
   export async function getHomeDashboardData(...args) { state.effects.push(args); return state.dashboard; }
   export async function getMobileInboxPage(...args) { state.effects.push(args); return {documents:[], total:0, page:1, pageSize:20, totalPages:1}; }
   export async function getMobileDocumentPage(...args) { state.effects.push(args); return {documents:[], total:0, page:1, pageSize:20, totalPages:1}; }
+  export async function getMobileNotificationPage(...args) { state.effects.push(args); return {notifications:[], unreadCount:0, total:0, page:1, pageSize:20, totalPages:1}; }
+  export async function markMobileNotificationRead() { throw new Error('Unexpected notification write'); }
+  export async function markAllMobileNotificationsRead() { throw new Error('Unexpected notification write'); }
+  export async function markMobileDocumentNotificationsRead() { throw new Error('Unexpected notification write'); }
   export async function recordLoginHistory(input) { state.effects.push(input); }
   export async function ensureStaffLeaveAccrualsForUser() {}
   export async function approveCurrentApprovalStep(...args) { state.effects.push(['approve', ...args]); return {ok:true, documentId:args[0]}; }
@@ -55,13 +59,13 @@ const { getMobileSession, hashMobileToken, createMobileSession } = await import(
 const replacements = Object.fromEntries([
   "@/lib/prisma", "@/lib/approval-queries", "@/lib/approval-mutations",
   "@/lib/generated-approval-pdf", "@/lib/approval-attachment-file", "@/lib/notifications",
-  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "next/cache",
+  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "@/lib/mobile-notifications", "next/cache",
 ].map(name => [name, effectsUrl]));
 replacements["@/lib/mobile-auth"] = authUrl;
 const route = (path: string) => import(compile(`app/api/mobile/${path}/route.ts`, replacements));
 const handlers = await Promise.all([
   ["auth/me", "GET"], ["home", "GET"], ["inbox", "GET"], ["notifications", "GET"],
-  ["notifications/read-document", "POST"], ["documents", "GET"], ["documents/[id]", "GET"],
+  ["notifications/[id]/read", "POST"], ["notifications/read-all", "POST"], ["notifications/read-document", "POST"], ["documents", "GET"], ["documents/[id]", "GET"],
   ["documents/[id]/decision", "POST"], ["documents/[id]/recall", "POST"], ["attachments/[id]/preview", "GET"],
   ["push-subscription", "GET"], ["push-subscription", "POST"], ["push-subscription", "DELETE"],
 ].map(async ([path, method]) => ({ path, method, handler: (await route(path!))[method!] })));

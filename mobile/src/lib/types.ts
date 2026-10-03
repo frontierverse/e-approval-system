@@ -96,6 +96,10 @@ export type MobileNotification = {
 };
 
 export type NotificationsResponse = {
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
   unreadCount: number;
   notifications: MobileNotification[];
 };
