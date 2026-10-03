@@ -3,12 +3,14 @@ import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/lib/theme";
 import { useSession } from "@/lib/session";
+import { notificationBadge, useNotifications } from "@/lib/notifications";
 
 export default function TabsLayout() {
   const theme = useTheme();
   const { user } = useSession();
   const insets = useSafeAreaInsets();
-  return <Tabs screenOptions={{
+  const { unreadCount, refreshUnreadCount } = useNotifications();
+  return <Tabs screenListeners={{ focus: () => { void refreshUnreadCount().catch(() => undefined); } }} screenOptions={{
     headerShown: false,
     tabBarActiveTintColor: theme.accent,
     tabBarInactiveTintColor: theme.muted,
@@ -21,7 +23,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="inbox" options={{ title: "받은결재", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "file-tray-full" : "file-tray-full-outline"} size={22} color={color} /> }} />
     </Tabs.Protected>
     <Tabs.Screen name="drafts" options={{ title: "문서함", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "folder" : "folder-outline"} size={22} color={color} /> }} />
-    <Tabs.Screen name="notifications" options={{ title: "알림", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "notifications" : "notifications-outline"} size={22} color={color} /> }} />
+    <Tabs.Screen name="notifications" options={{ title: "알림", tabBarBadge: notificationBadge(unreadCount), tabBarBadgeStyle: { backgroundColor: theme.dangerFill, color: "#FFFFFF", fontSize: 10 }, tabBarAccessibilityLabel: unreadCount ? "알림, 읽지 않은 알림 " + unreadCount.toLocaleString("ko-KR") + "건" : "알림", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "notifications" : "notifications-outline"} size={22} color={color} /> }} />
     <Tabs.Screen name="profile" options={{ title: "내 정보", tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} /> }} />
   </Tabs>;
 }
