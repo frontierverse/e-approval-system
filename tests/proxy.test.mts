@@ -33,6 +33,33 @@ describe("authentication proxy", () => {
     }
   });
 
+  test("lets only the exact maintenance endpoint reach its own secret authentication", () => {
+    for (const authorization of [undefined, "Bearer invalid", "Bearer synthetic-cron-secret-only"]) {
+      const response = proxy(new NextRequest("http://localhost/api/internal/resource-maintenance?invalid=%xx", {
+        headers: authorization ? { authorization } : {},
+      }));
+      assert.equal(response.headers.get("location"), null);
+      assert.equal(response.headers.get("x-middleware-next"), "1");
+    }
+  });
+
+  test("keeps neighboring internal routes protected even with a bearer header", () => {
+    for (const pathname of [
+      "/api/internal",
+      "/api/internal/other-maintenance",
+      "/api/internal/resource-maintenance-extra",
+      "/api/internal/resource-maintenance/status",
+    ]) {
+      const response = proxy(new NextRequest(`http://localhost${pathname}`, {
+        headers: { authorization: "Bearer synthetic-cron-secret-only" },
+      }));
+      assert.equal(response.status, 307);
+      const location = new URL(response.headers.get("location")!);
+      assert.equal(location.pathname, "/login");
+      assert.equal(location.searchParams.get("next"), pathname);
+    }
+  });
+
   test("does not bypass web authentication for neighboring mobile-like paths", () => {
     const response = proxy(new NextRequest("http://localhost/api/mobile-private"));
     assert.equal(response.status, 307);
