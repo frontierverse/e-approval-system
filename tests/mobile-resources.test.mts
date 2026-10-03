@@ -107,3 +107,24 @@ test("cleanup projects storage identity from full attachment descriptors and pre
   const row=h.state.resourceFileCleanup[0];assert.equal(row.storageProvider,attachment.storageProvider);assert.equal(row.storageKey,attachment.storageKey);
   for(const field of["originalName","mimeType","size","resourceId","uploaderId"])assert.equal(field in row,false);
 });
+
+
+test("historical known staging completion differs from sticky unknown evidence present before consume",async()=>{
+  const known=ready({id:"known-upload",stagingKey:"resources/staging/known",finalKey:"resources/final/known"});
+  const knownPost=await create({requestId:"known-consume",uploadIds:[known.id]});
+  const knownStage=h.state.resourceFileCleanup.find((row:Row)=>row.storageKey==="resources/staging/known");assert.equal(knownStage.state,"done");assert.equal(knownStage.lastErrorCode,null);assert.equal(known.stagingKey,null);
+  // Reproduce the old PG fixture ordering: the later flag cannot retroactively
+  // turn the already-confirmed historical staging queue into a pending row.
+  known.hadUnknownWrite=true;h.storageFailure=true;
+  await domain.mutateResource(ctx(),{operation:"delete",resourceId:knownPost.resourceId,data:{requestId:"known-delete",expectedUpdatedAt:knownPost.resource.updatedAt}});
+  h.storageFailure=false;for(const row of h.state.resourceFileCleanup.filter((row:Row)=>row.sourceUploadId===known.id))row.nextAttemptAt=now;
+  await clean.reconcileResourceFileQueue(ctx());
+  const knownRows=h.state.resourceFileCleanup.filter((row:Row)=>row.sourceUploadId===known.id);assert.equal(knownRows.length,2);assert.equal(knownStage.state,"done");assert.ok(knownRows.some((row:Row)=>row.objectKind==="final"&&row.state==="pending"&&row.lastErrorCode==="WRITE_PENDING"));assert.equal(knownRows.every((row:Row)=>row.state==="pending"),false);
+  const uncertain=ready({id:"uncertain-upload",hadUnknownWrite:true,stagingKey:"resources/staging/uncertain",finalKey:"resources/final/uncertain"});
+  const uncertainPost=await create({requestId:"uncertain-consume",uploadIds:[uncertain.id]});
+  const uncertainStage=h.state.resourceFileCleanup.find((row:Row)=>row.storageKey===uncertain.stagingKey);assert.equal(uncertainStage.state,"pending");assert.equal(uncertainStage.lastErrorCode,"WRITE_PENDING");assert.equal(uncertain.stagingKey,"resources/staging/uncertain");
+  h.storageFailure=true;await domain.mutateResource(ctx(),{operation:"delete",resourceId:uncertainPost.resourceId,data:{requestId:"uncertain-delete",expectedUpdatedAt:uncertainPost.resource.updatedAt}});
+  h.storageFailure=false;for(const row of h.state.resourceFileCleanup.filter((row:Row)=>row.sourceUploadId===uncertain.id))row.nextAttemptAt=now;
+  await clean.reconcileResourceFileQueue(ctx(),{cleanupIds:h.state.resourceFileCleanup.filter((row:Row)=>row.sourceUploadId===uncertain.id).map((row:Row)=>row.id)});
+  const uncertainRows=h.state.resourceFileCleanup.filter((row:Row)=>row.sourceUploadId===uncertain.id);assert.equal(uncertainRows.length,2);assert.deepEqual(new Set(uncertainRows.map((row:Row)=>row.storageKey)),new Set(["resources/staging/uncertain","resources/final/uncertain"]));assert.ok(uncertainRows.every((row:Row)=>row.state==="pending"&&row.lastErrorCode==="WRITE_PENDING"));
+});
