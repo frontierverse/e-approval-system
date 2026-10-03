@@ -1,7 +1,7 @@
-import { ApprovalStepStatus, DocumentStatus } from "@/generated/prisma/client";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
-import { prisma } from "@/lib/prisma";
 import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
+import { parseMobileInboxFilters } from "@/lib/mobile-inbox-core";
+import { getMobileInboxPage } from "@/lib/mobile-inbox";
 
 export const runtime = "nodejs";
 
@@ -11,45 +11,7 @@ export async function GET(request: Request) {
   if (!isApprovalAuthorityPosition(session.user.position.name)) {
     return mobileJson({ error: "받은결재는 시설장만 사용할 수 있습니다." }, 403);
   }
-
-  const where = {
-    status: { in: [DocumentStatus.SUBMITTED, DocumentStatus.IN_PROGRESS] },
-    approvalSteps: { some: { approverId: session.userId, status: ApprovalStepStatus.PENDING } },
-  };
-  const [total, documents] = await Promise.all([
-    prisma.approvalDocument.count({ where }),
-    prisma.approvalDocument.findMany({
-      where,
-      take: 30,
-      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
-      select: {
-        id: true,
-        documentNo: true,
-        title: true,
-        status: true,
-        submittedAt: true,
-        drafter: { select: { name: true } },
-        approvalSteps: {
-          where: { approverId: session.userId, status: ApprovalStepStatus.PENDING },
-          select: { order: true },
-          take: 1,
-        },
-        _count: { select: { attachments: true } },
-      },
-    }),
-  ]);
-
-  return mobileJson({
-    total,
-    documents: documents.map((document) => ({
-      id: document.id,
-      documentNo: document.documentNo ?? "",
-      title: document.title,
-      status: document.status.toLowerCase(),
-      submittedAt: document.submittedAt?.toISOString() ?? null,
-      drafterName: document.drafter.name,
-      stepOrder: document.approvalSteps[0]?.order ?? null,
-      attachmentCount: document._count.attachments,
-    })),
-  });
+  const parsed = parseMobileInboxFilters(new URL(request.url).searchParams);
+  if (!parsed.ok) return mobileJson({ error: parsed.error }, 400);
+  return mobileJson(await getMobileInboxPage(session.userId, parsed.filters));
 }
