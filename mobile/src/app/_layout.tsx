@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { DailyReportBackButton } from "@/components/daily-report-back-button";
 import { TextAction } from "@/components/ui";
 import { ChatProvider } from "@/lib/chat-provider";
+import { ResourceProvider } from "@/providers/ResourceProvider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -30,6 +31,12 @@ function Navigation() {
         <Stack.Screen name="chat/index" options={{ title: "직원 채팅", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
         <Stack.Screen name="chat/[peerId]" options={{ title: "직원 대화", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
         <Stack.Screen name="chat/file-preview" options={{ title: "채팅 파일 미리보기", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
+        <Stack.Screen name="resources/index" options={{ title: "자료실", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="resources/new" options={{ title: "자료 등록", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="resources/[id]" options={{ title: "자료 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="resources/[id]/edit" options={{ title: "자료 수정", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="resources/[id]/viewers" options={{ title: "자료 열람 현황", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="resources/attachments/[id]" options={{ title: "자료 첨부파일", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
         <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
@@ -50,5 +57,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><ChatProvider><Navigation /></ChatProvider></NotificationsProvider></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><Navigation /></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
 }

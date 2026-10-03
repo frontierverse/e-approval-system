@@ -15,6 +15,10 @@ export type ResourceFormValues = {
 };
 
 export type ResourceFormState = {
+  requestId?: string;
+  expectedUpdatedAt?: string;
+  uploadIds?: string[];
+  attemptDisposition?: "unknown" | "rejected" | "conflict" | "forbidden";
   values?: ResourceFormValues;
   errors?: {
     title?: string;

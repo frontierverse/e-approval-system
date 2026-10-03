@@ -6,6 +6,7 @@
     "@config-plugins/react-native-blob-util": "^14.0.2",
     "@config-plugins/react-native-pdf": "^14.0.2",
     "@expo/vector-icons": "^15.0.2",
+    "@noble/hashes": "2.4.0",
     "expo": "~57.0.26",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",

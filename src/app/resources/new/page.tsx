@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
+import { getAttachmentStorageConfig } from "@/lib/attachment-storage-core";
 import type { Metadata } from "next";
 import { ResourceForm } from "@/components/resource-form";
 import { PageTitle } from "@/components/page-title";
-import { getAttachmentPolicy } from "@/lib/attachment-policy";
+import { getResourceOptions } from "@/lib/resource-library-queries";
 import { requireUser } from "@/lib/auth";
 import {
   normalizeResourceCategory,
@@ -23,14 +25,14 @@ export default async function NewResourcePage({
 }: {
   searchParams: Promise<NewResourcePageSearchParams>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { category, level } = await searchParams;
   const initialCategory = normalizeResourceCategory(category);
   const initialEducationLevel =
     initialCategory === "education"
       ? normalizeResourceEducationLevel(level)
       : "";
-  const attachmentPolicy = await getAttachmentPolicy();
+  const { attachmentPolicy } = await getResourceOptions({ actorId: user.id });
 
   return (
     <>
@@ -39,6 +41,9 @@ export default async function NewResourcePage({
         description="법인, 카페, 바자울, 교육 중 자료를 올릴 공간을 선택해 등록합니다."
       />
       <ResourceForm
+        actorId={user.id}
+        initialRequestId={randomUUID()}
+        directUploadSupported={getAttachmentStorageConfig(process.env).provider === "supabase-storage"}
         action={createResourceAction}
         attachmentPolicy={attachmentPolicy}
         initialValues={{
@@ -47,6 +52,7 @@ export default async function NewResourcePage({
           summary: "",
           title: "",
         }}
+        cancelHref={`/resources?category=${initialCategory}`}
         mode="create"
       />
     </>

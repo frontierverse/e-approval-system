@@ -399,6 +399,7 @@ model ResourcePost {
 
   attachments ResourceAttachment[]
   views       ResourcePostView[]
+  viewEvents  ResourceViewEvent[]
 
   @@index([authorId])
   @@index([category])
@@ -442,6 +443,98 @@ model ResourcePostView {
   @@index([resourceId])
   @@index([userId])
   @@index([lastViewedAt])
+}
+
+model ResourceMutationReceipt {
+  id                   String   @id @default(uuid())
+  actorId              String
+  requestId            String
+  operation            String
+  targetResourceId     String
+  payloadHash          String
+  committedUpdatedAt   DateTime?
+  committedAt          DateTime @default(now())
+  cleanupIds           String[] @default([])
+
+  @@unique([actorId, requestId])
+}
+
+model ResourceUpload {
+  id                     String   @id @default(uuid())
+  actorId                String
+  startRequestId         String
+  startPayloadHash       String
+  purpose                String   @default("resource")
+  targetResourceId       String?
+  originalName           String?
+  mimeType               String?
+  size                   Int?
+  expectedSha256         String?
+  storageProvider        String
+  stagingKey             String?  @unique
+  finalKey               String?  @unique
+  state                  String   @default("uploading")
+  plaintextSha256        String?
+  storedSha256           String?
+  storedSize             Int?
+  expiresAt              DateTime
+  completedAt            DateTime?
+  lastGrantExpiresAt     DateTime?
+  finalizeClaimId        String?
+  finalizeLeaseUntil     DateTime?
+  finalizeIv             String?
+  finalizeWriteEvidence  String?
+  hadUnknownWrite        Boolean  @default(false)
+  consumedResourceId     String?
+  consumedMutationId     String?
+  consumedAttachmentId   String?
+  terminalReason         String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([actorId, startRequestId])
+  @@index([state, expiresAt])
+  @@index([state, finalizeLeaseUntil])
+  @@index([consumedAttachmentId])
+  @@index([consumedResourceId, state])
+}
+
+model ResourceViewEvent {
+  id         String   @id @default(uuid())
+  resourceId String
+  actorId    String
+  requestId  String
+  createdAt  DateTime @default(now())
+
+  resource ResourcePost @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, actorId, requestId])
+  @@index([resourceId, createdAt])
+}
+
+model ResourceFileCleanup {
+  id                String   @id @default(uuid())
+  storageProvider   String
+  storageKey        String
+  objectKind        String
+  sourceUploadId    String?
+  sourceMutationId  String?
+  state             String   @default("pending")
+  notBefore         DateTime
+  nextAttemptAt     DateTime
+  claimId           String?
+  leaseUntil        DateTime?
+  attemptCount      Int      @default(0)
+  lastErrorCode     String?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([storageProvider, storageKey])
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseUntil])
+  @@index([sourceUploadId, state])
+  @@index([sourceMutationId, state])
 }
 
 model Youth {

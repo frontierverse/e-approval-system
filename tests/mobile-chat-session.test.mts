@@ -10,10 +10,10 @@ const source = readFileSync(new URL("../mobile/src/lib/session.tsx", import.meta
 const same = (a?: unknown[], b?: unknown[]) => !!a && !!b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
 class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
-function harness({ stored = null, heldCleanup = false }: { stored?: string | null; heldCleanup?: boolean } = {}) {
+function harness({ stored = null, heldCleanup = false, heldResourceCleanup = false }: { stored?: string | null; heldCleanup?: boolean; heldResourceCleanup?: boolean } = {}) {
   let cursor = 0, alive = true, scheduled = false, tree: Row, saved = stored, heldWrite = false;
   const pendingWrites: (() => void)[] = [];
-  const cells: Row[] = [], effects: (() => void)[] = [], events: string[] = [], requests: Row[] = [], pendingCleanup: (() => void)[] = [];
+  const cells: Row[] = [], effects: (() => void)[] = [], events: string[] = [], requests: Row[] = [], pendingCleanup: (() => void)[] = [], pendingResourceCleanup: (() => void)[] = [];
   const schedule = () => { if (!scheduled && alive) { scheduled = true; queueMicrotask(() => { scheduled = false; if (alive) render(); }); } };
   const hook = (kind: string, initial: Row) => { const i = cursor++; cells[i] ??= { kind, ...initial }; assert.equal(cells[i].kind, kind); return cells[i]; };
   const react: Row = {
@@ -30,6 +30,7 @@ function harness({ stored = null, heldCleanup = false }: { stored?: string | nul
     "./api": { ApiError, apiRequest(path: string, options: unknown) { events.push("api:" + path); return new Promise((resolve, reject) => requests.push({ path, options, resolve, reject, settled: false })); } },
     "./attachment-transfer": { async clearAttachmentTransferCache() { events.push("attachment:clear"); } },
     "./account-image": { async clearAccountImageResources() { events.push("image:clear"); } },
+    "./resource-file-transfer": { clearResourceFileResources() { events.push("resource:invalidate"); return heldResourceCleanup ? new Promise<void>(resolve => pendingResourceCleanup.push(resolve)) : Promise.resolve(); } },
     "./chat-file-transfer": { clearChatFileResources() { events.push("chat:invalidate"); return heldCleanup ? new Promise<void>(resolve => pendingCleanup.push(resolve)) : Promise.resolve(); } },
   };
   const code = ts.transpileModule(source, { fileName: "session.tsx", compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -38,7 +39,7 @@ function harness({ stored = null, heldCleanup = false }: { stored?: string | nul
   function render() { cursor = 0; tree = providerModule.exports.SessionProvider({ children: "synthetic" }); for (const effect of effects.splice(0)) effect(); }
   render();
   return {
-    events, requests, pendingCleanup, pendingWrites, holdWrites() { heldWrite = true; }, get session() { return tree.props.value; }, get saved() { return saved; },
+    events, requests, pendingCleanup, pendingResourceCleanup, pendingWrites, holdWrites() { heldWrite = true; }, get session() { return tree.props.value; }, get saved() { return saved; },
     resolve(path: string, result: unknown) { const entry = requests.find(r => !r.settled && r.path === path); assert(entry, path); entry.settled = true; entry.resolve(result); },
     reject(path: string, cause: unknown) { const entry = requests.find(r => !r.settled && r.path === path); assert(entry, path); entry.settled = true; entry.reject(cause); },
     destroy() { alive = false; for (const cell of cells) cell.cleanup?.(); },
@@ -51,7 +52,7 @@ async function login(h: ReturnType<typeof harness>, id: string) {
 
 test("stored session is withheld until chat resource purge completes, before private auth lookup", async () => {
   const h = harness({ stored: "synthetic-a", heldCleanup: true }); await settle();
-  assert.deepEqual(h.events, ["attachment:clear", "chat:invalidate"]); assert.equal(h.session.token, null); assert.equal(h.session.loading, true);
+  assert.deepEqual(h.events, ["attachment:clear", "chat:invalidate", "resource:invalidate"]); assert.equal(h.session.token, null); assert.equal(h.session.loading, true);
   h.pendingCleanup.shift()!(); await settle(); assert(h.events.indexOf("image:clear") > h.events.indexOf("chat:invalidate"));
   assert(h.events.indexOf("storage:read") > h.events.indexOf("image:clear")); assert.equal(h.requests[0].path, "/auth/me");
   h.resolve("/auth/me", { user: user("a") }); await settle(); assert.equal(h.session.token, "synthetic-a"); h.destroy();
@@ -89,4 +90,35 @@ test("account switch invalidates work started during the delayed encrypted token
   h.pendingWrites.shift()!(); await switched; await settle();
   assert.equal(h.events.filter(v => v === "chat:invalidate").length, purgesDuringWrite + 1);
   assert.equal(h.session.token, "synthetic-b"); assert.equal(h.saved, "synthetic-b"); h.destroy();
+});
+
+
+test("stored session waits for resource file purge as well as chat purge", async () => {
+  const h = harness({ stored: "synthetic-a", heldResourceCleanup: true }); await settle();
+  assert.equal(h.session.token, null); assert.equal(h.requests.length, 0);
+  assert.equal(h.pendingResourceCleanup.length, 1);
+  h.pendingResourceCleanup.shift()!(); await settle();
+  h.resolve("/auth/me", { user: user("a") }); await settle();
+  assert.equal(h.session.token, "synthetic-a"); h.destroy();
+});
+test("account switch waits for resource purge and repeats invalidation after a delayed token write", async () => {
+  const h = harness({ heldResourceCleanup: true }); h.pendingResourceCleanup.shift()!(); await settle();
+  const first = h.session.signIn("synthetic a", "fixture"); h.resolve("/auth/login", { token: "synthetic-a", user: user("a") }); await settle();
+  assert.equal(h.saved, null); h.pendingResourceCleanup.shift()!(); await first; await settle();
+  h.holdWrites(); const second = h.session.signIn("synthetic b", "fixture"); h.resolve("/auth/login", { token: "synthetic-b", user: user("b") }); await settle();
+  h.pendingResourceCleanup.shift()!(); await settle();
+  assert.equal(h.session.token, "synthetic-a");
+  const before = h.events.filter(e => e === "resource:invalidate").length;
+  h.pendingWrites.shift()!(); await second; await settle();
+  assert.equal(h.events.filter(e => e === "resource:invalidate").length, before + 1);
+  assert.equal(h.session.token, "synthetic-b"); h.destroy();
+});
+test("late old-account expiry preserves current resource copies while logout invalidates them synchronously", async () => {
+  const h = harness(); await settle(); await login(h, "a"); await login(h, "b");
+  const before = h.events.filter(e => e === "resource:invalidate").length;
+  await h.session.expireSession("synthetic-a");
+  assert.equal(h.events.filter(e => e === "resource:invalidate").length, before);
+  const logout = h.session.expireSession("synthetic-b");
+  assert.equal(h.events.filter(e => e === "resource:invalidate").length, before + 1);
+  await logout; await settle(); assert.equal(h.session.token, null); h.destroy();
 });
