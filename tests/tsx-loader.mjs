@@ -112,6 +112,8 @@ function getExistingFile(filePath) {
 }
 
 function resolvePackageSubpath(specifier) {
+  if (specifier.startsWith(".") || specifier.startsWith("/")) return null;
+
   const parts = specifier.split("/");
 
   if (parts.length < 2 || specifier.startsWith("@")) {

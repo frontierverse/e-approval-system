@@ -53,6 +53,7 @@ function Navigation() {
         <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정" }} />
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
+        <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
       </Stack.Protected>
     </Stack>
   </>;

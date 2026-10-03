@@ -1,8 +1,9 @@
 import * as SecureStore from "expo-secure-store";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { apiRequest, ApiError } from "./api";
 import { clearAttachmentTransferCache } from "./attachment-transfer";
+import { clearAccountImageResources } from "./account-image";
 import type { MobileUser } from "./types";
 
 const SESSION_KEY = "gyeoljaeon.mobile.session";
@@ -13,7 +14,8 @@ type SessionContextValue = {
   loading: boolean;
   error: string | null;
   signIn: (name: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (options?: { message?: string }) => Promise<void>;
+  expireSession: (expectedToken: string, message?: string) => Promise<void>;
   request: <T,>(path: string, options?: { method?: "GET" | "POST" | "DELETE"; body?: unknown }) => Promise<T>;
 };
 
@@ -23,10 +25,16 @@ async function readToken() {
   return Platform.OS === "web" ? null : SecureStore.getItemAsync(SESSION_KEY);
 }
 
-async function saveToken(token: string | null) {
-  if (Platform.OS === "web") return;
-  if (token) await SecureStore.setItemAsync(SESSION_KEY, token);
-  else await SecureStore.deleteItemAsync(SESSION_KEY);
+let storageWrite: Promise<void> = Promise.resolve();
+function saveToken(token: string | null) {
+  // Keep an old logout write from erasing a newly signed-in account.
+  const write = storageWrite.catch(() => undefined).then(async () => {
+    if (Platform.OS === "web") return;
+    if (token) await SecureStore.setItemAsync(SESSION_KEY, token);
+    else await SecureStore.deleteItemAsync(SESSION_KEY);
+  });
+  storageWrite = write;
+  return write;
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -34,18 +42,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MobileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentToken = useRef<string | null>(null);
 
   // Clear private exported copies and cancel transfers when the account changes.
-  useEffect(() => { void clearAttachmentTransferCache().catch(() => undefined); }, [token]);
+  useEffect(() => {
+    void clearAttachmentTransferCache().catch(() => undefined);
+  }, [token]);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
+        await clearAccountImageResources().catch(() => undefined);
         const stored = await readToken();
         if (!stored) return;
         const result = await apiRequest<{ user: MobileUser }>("/auth/me", { token: stored });
-        if (active) { setToken(stored); setUser(result.user); }
+        if (active) { currentToken.current = stored; setToken(stored); setUser(result.user); }
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 401) await saveToken(null);
         else if (active) setError(cause instanceof Error ? cause.message : "로그인을 확인하지 못했습니다.");
@@ -60,19 +72,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const result = await apiRequest<{ token: string; user: MobileUser }>("/auth/login", {
       method: "POST", body: { name, password },
     });
+    await clearAccountImageResources().catch(() => undefined);
     await saveToken(result.token);
+    currentToken.current = result.token;
     setToken(result.token);
     setUser(result.user);
     setError(null);
   }, []);
 
-  const signOut = useCallback(async () => {
-    const current = token;
+  const expireSession = useCallback(async (expectedToken: string, message = "로그인이 만료되었습니다. 다시 로그인하세요.") => {
+    if (currentToken.current !== expectedToken) return;
+    void clearAccountImageResources().catch(() => undefined);
+    currentToken.current = null;
+    setToken(null); setUser(null); setError(message);
     await saveToken(null);
-    setToken(null);
-    setUser(null);
-    if (current) await apiRequest("/auth/logout", { method: "POST", token: current }).catch(() => undefined);
-  }, [token]);
+  }, []);
+
+  const signOut = useCallback(async (options?: { message?: string }) => {
+    const current = currentToken.current;
+    if (!current) return;
+    try { await expireSession(current, options?.message ?? ""); }
+    finally { await apiRequest("/auth/logout", { method: "POST", token: current }).catch(() => undefined); }
+  }, [expireSession]);
 
   const request = useCallback(async <T,>(path: string, options: { method?: "GET" | "POST" | "DELETE"; body?: unknown } = {}) => {
     if (!token) throw new ApiError("로그인이 필요합니다.", 401);
@@ -80,16 +101,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       return await apiRequest<T>(path, { ...options, token });
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) {
-        setToken(null);
-        setUser(null);
-        await saveToken(null);
+        await expireSession(token);
       }
       throw cause;
     }
-  }, [token]);
+  }, [token, expireSession]);
 
-  const value = useMemo(() => ({ token, user, loading, error, signIn, signOut, request }),
-    [token, user, loading, error, signIn, signOut, request]);
+  const value = useMemo(() => ({ token, user, loading, error, signIn, signOut, expireSession, request }),
+    [token, user, loading, error, signIn, signOut, expireSession, request]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
