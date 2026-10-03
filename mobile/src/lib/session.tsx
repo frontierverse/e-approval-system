@@ -5,6 +5,7 @@ import { apiRequest, ApiError } from "./api";
 import { clearAttachmentTransferCache } from "./attachment-transfer";
 import { clearAccountImageResources } from "./account-image";
 import { clearChatFileResources } from "./chat-file-transfer";
+import { clearResourceFileResources } from "./resource-file-transfer";
 import type { MobileUser } from "./types";
 
 const SESSION_KEY = "gyeoljaeon.mobile.session";
@@ -54,7 +55,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       try {
-        await clearChatFileResources().catch(() => undefined);
+        await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined)]);
         await clearAccountImageResources().catch(() => undefined);
         const stored = await readToken();
         if (!stored) return;
@@ -74,12 +75,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const result = await apiRequest<{ token: string; user: MobileUser }>("/auth/login", {
       method: "POST", body: { name, password },
     });
-    await clearChatFileResources().catch(() => undefined);
+    await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined)]);
     await clearAccountImageResources().catch(() => undefined);
     await saveToken(result.token);
     // Cancel old-account work started while the encrypted token write awaited.
-    if (currentToken.current && currentToken.current !== result.token)
+    if (currentToken.current && currentToken.current !== result.token) {
       void clearChatFileResources().catch(() => undefined);
+      void clearResourceFileResources().catch(() => undefined);
+    }
     currentToken.current = result.token;
     setToken(result.token);
     setUser(result.user);
@@ -88,8 +91,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const expireSession = useCallback(async (expectedToken: string, message = "로그인이 만료되었습니다. 다시 로그인하세요.") => {
     if (currentToken.current !== expectedToken) return;
-    // Invalidate chat operations synchronously before a late transfer can publish.
+    // Invalidate private operations synchronously before a late transfer can publish.
     void clearChatFileResources().catch(() => undefined);
+    void clearResourceFileResources().catch(() => undefined);
     void clearAccountImageResources().catch(() => undefined);
     currentToken.current = null;
     setToken(null); setUser(null); setError(message);

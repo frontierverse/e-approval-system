@@ -1,15 +1,15 @@
+import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AttachmentFileRow } from "@/components/attachment-file-row";
 import { AttachmentPreviewButton } from "@/components/attachment-preview-button";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { ResourceDeleteForm } from "@/components/resource-delete-form";
 import { PageTitle } from "@/components/page-title";
 import { ResourceCategoryBadge } from "@/components/resource-category-badge";
 import { ResourceViewerList } from "@/components/resource-viewer-list";
 import { TitleBackLink } from "@/components/title-back-link";
 import { UserIdentity } from "@/components/user-identity";
-import { deleteResourceAction } from "@/app/resources/actions";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { requireUser } from "@/lib/auth";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
@@ -64,20 +64,8 @@ export default async function ResourceDetailPage({
               >
                 수정
               </Link>
-              <form action={deleteResourceAction}>
-                <input type="hidden" name="resourceId" value={resource.id} />
-                <ConfirmSubmitButton
-                  type="submit"
-                  message="이 자료를 삭제할까요?"
-                  className={buttonClass(
-                    buttonStyles.base,
-                    buttonStyles.danger,
-                    "h-10 px-4 text-sm",
-                  )}
-                >
-                  삭제
-                </ConfirmSubmitButton>
-              </form>
+              <ResourceDeleteForm key={`${resource.id}:${resource.updatedAt}`} resourceId={resource.id} actorId={user.id}
+                category={resource.category} expectedUpdatedAt={resource.updatedAt} initialRequestId={randomUUID()} />
             </div>
           ) : undefined
         }

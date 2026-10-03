@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime.js";
+const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch: async () => {} };
+const renderForm = (element: React.ReactElement) => renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router }, element));
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   ResourceForm,
@@ -9,8 +12,9 @@ import {
 
 describe("ResourceForm", () => {
   test("renders an attachment drop zone while keeping the file input", () => {
-    const html = renderToStaticMarkup(
+    const html = renderForm(
       React.createElement(ResourceForm, {
+        actorId: "synthetic-actor", initialRequestId: "synthetic-request", directUploadSupported: true,
         action: async () => ({}),
         attachmentPolicy: {
           allowedExtensions: [".pdf", ".png"],
@@ -45,13 +49,14 @@ describe("ResourceForm", () => {
 
     assert.match(html, /aria-busy="true"/);
     assert.match(html, /role="status"/);
-    assert.match(html, /업로드 중/);
-    assert.match(html, /자료를 업로드하고 있습니다/);
+    assert.match(html, /저장 중/);
+    assert.match(html, /자료와 첨부파일을 저장하고 있습니다/);
   });
 
   test("renders an education level selector for education resources", () => {
-    const html = renderToStaticMarkup(
+    const html = renderForm(
       React.createElement(ResourceForm, {
+        actorId: "synthetic-actor", initialRequestId: "synthetic-request", directUploadSupported: true,
         action: async () => ({}),
         attachmentPolicy: {
           allowedExtensions: [".pdf"],

@@ -4,6 +4,7 @@ import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-nativ
 import { PrimaryButton, ScreenHeading, TextAction } from "@/components/ui";
 import { AccountFeedback } from "@/components/account-feedback";
 import { useChat } from "@/lib/chat-provider";
+import { useResources } from "@/providers/ResourceProvider";
 import { useNotifications } from "@/lib/notifications";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -12,6 +13,7 @@ export default function Profile() {
   const theme = useTheme();
   const { user, signOut } = useSession();
   const chat = useChat();
+  const resources = useResources();
   const { pushStatus, pushLoading, pushPending, pushError, pushMessage, pushNeedsSettings,
     enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings } = useNotifications();
   useFocusEffect(useCallback(() => { void refreshPushStatus(); }, [refreshPushStatus]));
@@ -36,6 +38,7 @@ export default function Profile() {
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 12 }]}>
       <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>업무 기능</Text>
       <TextAction label={chat.unreadCount === null ? chat.error ? "직원 채팅 · 확인 필요" : "직원 채팅 · 확인 중" : chat.unreadCount > 0 ? `직원 채팅 · 안 읽음 ${chat.unreadCount > 99 ? "99+" : chat.unreadCount}개` : "직원 채팅"} icon="chatbubbles-outline" onPress={() => { if(chat.isCurrentAccount()) router.push("/chat"); }} />
+      <TextAction label="자료실" icon="folder-open-outline" onPress={() => { if (resources.isCurrentAccount()) router.push("/resources"); }} />
       <TextAction label="업무일지" icon="journal-outline" onPress={() => router.push("/work-logs")} />
       <TextAction label="업무 일정" icon="calendar-outline" onPress={() => router.push("/work-schedules")} />
     </View>
