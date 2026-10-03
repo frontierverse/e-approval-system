@@ -34,6 +34,7 @@ export default function Profile() {
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 12 }]}>
       <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>업무 기능</Text>
       <TextAction label="업무일지" icon="journal-outline" onPress={() => router.push("/work-logs")} />
+      <TextAction label="업무 일정" icon="calendar-outline" onPress={() => router.push("/work-schedules")} />
     </View>
     <View style={{ marginVertical: 8 }}>
       <TextAction label="계정·도장 설정" icon="settings-outline" onPress={() => router.push("/account")} />

@@ -1,10 +1,10 @@
 import {
   getYouthLearningScheduleEndHourFromMinute,
   getYouthLearningScheduleStartHourFromMinute,
-  getYouthLearningScheduleWeekday,
-  isYouthLearningScheduleDate,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
+
+import { getWorkScheduleWeekday, isWorkScheduleDate } from "@/lib/work-schedule-calendar";
 
 export type WorkScheduleHospitalAppointmentSource = {
   id: string;
@@ -39,7 +39,7 @@ export function createHospitalAppointmentWorkSchedules(
   includedDates: readonly string[],
 ): HospitalAppointmentWorkSchedule[] {
   const includedDateSet = new Set(
-    includedDates.filter(isYouthLearningScheduleDate),
+    includedDates.filter(isWorkScheduleDate),
   );
 
   return records.flatMap((record) => {
@@ -69,7 +69,7 @@ export function createHospitalAppointmentWorkSchedules(
       {
         id: `hospital-appointment:${record.id}`,
         scheduleDate,
-        weekday: getYouthLearningScheduleWeekday(scheduleDate),
+        weekday: getWorkScheduleWeekday(scheduleDate),
         startHour: getYouthLearningScheduleStartHourFromMinute(
           record.startMinute,
         ),

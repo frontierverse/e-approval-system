@@ -245,3 +245,47 @@ export type MobileWorkLogDelete = {
   ok: true; message: string; change: "deleted" | "missing"; deletedId: string;
   workDate: string; entry: MobileWorkLogEntry | null;
 };
+
+
+export type MobileScheduleCounts = { total: number; manual: number; vacation: number; hospital: number };
+export type MobileManualSchedule = {
+  id: string; sourceType: "manual"; readOnly: false; allDay: false;
+  scheduleDate: string; startMinute: number; endMinute: number; content: string; updatedAt: string;
+};
+export type MobileApprovedVacationSchedule = {
+  id: string; sourceType: "approvedVacation"; readOnly: true; allDay: true;
+  scheduleDate: string; content: string; staffName: string; vacationLabel: string;
+  departmentName: string; positionName: string;
+};
+export type MobileHospitalSchedule = {
+  id: string; sourceType: "hospitalAppointment"; readOnly: true; allDay: false;
+  scheduleDate: string; startMinute: number; endMinute: number; content: string;
+  youthName: string; hospitalName: string; escortName: string;
+};
+export type MobileScheduleItem = MobileManualSchedule | MobileApprovedVacationSchedule | MobileHospitalSchedule;
+export type MobileSchedulePage = {
+  today: string; month: string; selectedDate: string; canManage: true;
+  items: MobileScheduleItem[]; monthCounts: MobileScheduleCounts; selectedCounts: MobileScheduleCounts;
+};
+export type MobileScheduleManualResponse = { today: string; item: MobileManualSchedule };
+export type MobileScheduleMutation = {
+  ok: true; message: string; change: "create" | "update" | "unchanged"; item: MobileManualSchedule;
+};
+export type MobileScheduleDelete = { ok: true; message: string; change: "deleted" | "missing"; deletedId: string };
+export type MobileScheduleSaveInput = {
+  scheduleDate: string; startMinute: number; endMinute: number; content: string;
+  manualScheduleId: null; expectedUpdatedAt: "";
+};
+export type MobileScheduleUpdateInput = {
+  scheduleDate: string; startMinute: number; endMinute: number; content: string; expectedUpdatedAt: string;
+};
+export type MobileScheduleDeleteInput = { expectedUpdatedAt: string };
+export type MobileScheduleSnapshot = { scheduleDate: string; startMinute: number; endMinute: number; content: string };
+export type MobileScheduleChange = {
+  id: string; createdAt: string; actor: { id: string; name: string }; change: "create" | "update" | "delete" | "other";
+  message: string | null; previous: MobileScheduleSnapshot | null; next: MobileScheduleSnapshot | null;
+};
+export type MobileScheduleChanges = {
+  logs: MobileScheduleChange[]; actors: { id: string; name: string }[]; actorId: string; scheduleDate: string;
+  page: number; pageSize: 5; total: number; totalPages: number;
+};

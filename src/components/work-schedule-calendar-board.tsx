@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent } from "react";
 import { AppModal } from "@/components/app-modal";
 import { DatePickerInput } from "@/components/date-picker-input";
@@ -21,13 +21,14 @@ import {
   getWorkScheduleCurrentMonth,
   getWorkScheduleMonthFromDate,
   shiftWorkScheduleMonth,
+  isWorkScheduleDate,
   workScheduleCalendarWeekdays,
 } from "@/lib/work-schedule-calendar";
+import type { WorkScheduleBaseline } from "@/lib/work-schedule-mutations";
 import type { YouthActionResult } from "@/lib/youth-management-core";
 import {
   getYouthLearningScheduleEndMinute,
   getYouthLearningScheduleStartMinute,
-  isYouthLearningScheduleDate,
   youthLearningScheduleMinuteStep,
   youthLearningScheduleStartHour,
 } from "@/lib/youth-management-core";
@@ -40,6 +41,7 @@ type WorkScheduleCalendarBoardProps = {
   deleteSchedule: (
     scheduleDate: string,
     startMinute: number,
+    baseline?: WorkScheduleBaseline,
   ) => Promise<YouthActionResult<{ scheduleDate: string; startMinute: number }>>;
   loadChangeLogs?: (
     filters: Pick<
@@ -56,6 +58,7 @@ type WorkScheduleCalendarBoardProps = {
     content: string,
     sourceScheduleDate?: string,
     sourceStartMinute?: number,
+    baseline?: WorkScheduleBaseline,
   ) => Promise<YouthActionResult<{ schedule: WorkSchedule | null }>>;
   schedules: WorkSchedule[];
   selectedMonth: string;
@@ -65,6 +68,9 @@ type SelectedScheduleCell = {
   scheduleDate: string;
   scheduleId?: string;
   startMinute: number;
+  schedule: WorkSchedule | null;
+  baseline: WorkScheduleBaseline;
+  initial: { scheduleDate: string; startMinute: number; endMinute: number; content: string };
 };
 
 const defaultWorkStartMinute = getYouthLearningScheduleStartMinute(
@@ -89,6 +95,16 @@ function WorkScheduleCalendarBoardContent({
   selectedMonth,
 }: WorkScheduleCalendarBoardProps) {
   const [scheduleItems, setScheduleItems] = useState(schedules);
+  const [requiresScheduleReview, setRequiresScheduleReview] = useState(false);
+  const scheduleReviewLock = useRef(false);
+  const latestSchedules = useRef(schedules);
+  useLayoutEffect(() => { latestSchedules.current = schedules; }, [schedules]);
+  const actionLock = useRef(false);
+  const alive = useRef(true);
+  const formErrorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const [previousSchedules, setPreviousSchedules] = useState(schedules);
+  if (previousSchedules !== schedules) { setPreviousSchedules(schedules); setScheduleItems(schedules); }
   const [selectedCell, setSelectedCell] = useState<SelectedScheduleCell | null>(
     null,
   );
@@ -104,6 +120,7 @@ function WorkScheduleCalendarBoardContent({
   const [scheduleDraft, setScheduleDraft] = useState("");
   const [formError, setFormError] = useState("");
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
+  useEffect(() => { if (formError) formErrorRef.current?.focus(); }, [formError]);
   const [changeLogState, setChangeLogState] = useState({
     filters: changeLogFilters,
     logs: changeLogs,
@@ -146,14 +163,12 @@ function WorkScheduleCalendarBoardContent({
 
     return nextMap;
   }, [scheduleItems]);
-  const selectedSchedule = selectedCell
-    ? selectedCell.scheduleId
-      ? scheduleIdMap.get(selectedCell.scheduleId)
-      : scheduleMap.get(
-          createScheduleKey(selectedCell.scheduleDate, selectedCell.startMinute),
-        )
-    : undefined;
-  const selectedScheduleReadOnly = Boolean(selectedSchedule?.readOnly);
+  // Manual edits keep their captured CAS baseline; linked details must still exist in the fresh list.
+  const selectedScheduleReadOnly = Boolean(selectedCell?.schedule?.readOnly);
+  const freshLinkedSchedule = selectedCell?.scheduleId ? scheduleIdMap.get(selectedCell.scheduleId) : undefined;
+  const selectedSchedule = selectedScheduleReadOnly
+    ? freshLinkedSchedule?.readOnly && freshLinkedSchedule.scheduleDate === selectedCell?.scheduleDate ? freshLinkedSchedule : undefined
+    : selectedCell?.schedule ?? undefined;
   const previousMonth = shiftWorkScheduleMonth(selectedMonth, -1);
   const nextMonth = shiftWorkScheduleMonth(selectedMonth, 1);
   const currentMonth = getWorkScheduleCurrentMonth();
@@ -258,6 +273,7 @@ function WorkScheduleCalendarBoardContent({
     startMinute?: number,
     scheduleId?: string,
   ) {
+    if (actionLock.current || pendingScheduleAction || !alive.current) return;
     const selectedStartMinute =
       startMinute ?? getDefaultStartMinuteForDate(scheduleDate, scheduleItems);
     const schedule = scheduleId
@@ -266,10 +282,14 @@ function WorkScheduleCalendarBoardContent({
         ? undefined
         : scheduleMap.get(createScheduleKey(scheduleDate, startMinute));
 
+    scheduleReviewLock.current = false; setRequiresScheduleReview(false);
     setSelectedCell({
       scheduleDate,
       scheduleId: schedule?.id,
       startMinute: schedule?.startMinute ?? selectedStartMinute,
+      schedule: schedule ?? null,
+      baseline: { manualScheduleId: schedule && !schedule.readOnly ? schedule.id : null, expectedUpdatedAt: schedule?.updatedAt ?? "" },
+      initial: { scheduleDate: schedule?.scheduleDate ?? scheduleDate, startMinute: schedule?.startMinute ?? selectedStartMinute, endMinute: schedule?.endMinute ?? Math.min(selectedStartMinute + 60, getYouthLearningScheduleEndMinute()), content: schedule?.content ?? "" },
     });
     setScheduleDateDraft(schedule?.scheduleDate ?? scheduleDate);
     setStartMinuteDraft(schedule?.startMinute ?? selectedStartMinute);
@@ -281,7 +301,8 @@ function WorkScheduleCalendarBoardContent({
     setFormError("");
   }
 
-  function closeScheduleModal() {
+  function resetScheduleModal() {
+    scheduleReviewLock.current = false; setRequiresScheduleReview(false);
     setSelectedCell(null);
     setScheduleDateDraft(`${selectedMonth}-01`);
     setStartMinuteDraft(defaultWorkStartMinute);
@@ -290,7 +311,31 @@ function WorkScheduleCalendarBoardContent({
     setFormError("");
   }
 
+  function closeScheduleModal() {
+    if (actionLock.current || pendingScheduleAction || !alive.current) return;
+    if (selectedCell && !selectedScheduleReadOnly) {
+      const initial = selectedCell.initial;
+      const dirty = scheduleDateDraft !== initial.scheduleDate || startMinuteDraft !== initial.startMinute || endMinuteDraft !== initial.endMinute || scheduleDraft !== initial.content;
+      if (dirty && !window.confirm("저장하지 않은 일정 입력을 버리고 닫으시겠습니까?")) return;
+    }
+    resetScheduleModal();
+  }
+
+  function canMutateSchedule() {
+    if (!selectedCell || selectedScheduleReadOnly || actionLock.current || scheduleReviewLock.current || pendingScheduleAction || !alive.current) return false;
+    if (selectedCell.baseline.manualScheduleId !== null && !isWorkScheduleBaselineToken(selectedCell.baseline.expectedUpdatedAt)) {
+      setFormError("수정 기준 시간을 확인하지 못했습니다. 최신 일정을 다시 불러오세요. 입력 내용은 유지됩니다.");
+      return false;
+    }
+    return true;
+  }
+
+  function confirmScheduleDeletion() {
+    return window.confirm(`${formatWorkScheduleDateLabel(selectedCell!.scheduleDate)} ${formatScheduleRangeLabel(selectedCell!.startMinute, selectedCell!.initial.endMinute)} 일정 ‘${selectedCell!.initial.content.slice(0, 120)}’을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`);
+  }
+
   function updateStartMinuteDraft(nextStartMinute: number) {
+    if (actionLock.current || !alive.current) return;
     const currentDuration = Math.max(
       youthLearningScheduleMinuteStep,
       endMinuteDraft - startMinuteDraft,
@@ -310,69 +355,51 @@ function WorkScheduleCalendarBoardContent({
   }
 
   function saveSelectedSchedule() {
-    if (!selectedCell || pendingScheduleAction || selectedScheduleReadOnly) {
-      return;
-    }
-
+    if (!canMutateSchedule() || !selectedCell) return;
+    if (selectedSchedule && !scheduleDraft.trim() && !confirmScheduleDeletion()) return;
+    const source = selectedCell;
+    const observedSchedules = latestSchedules.current;
+    actionLock.current = true;
     startPendingScheduleAction(async () => {
-      const result = await saveSchedule(
-        scheduleDateDraft,
-        startMinuteDraft,
-        endMinuteDraft,
-        scheduleDraft,
-        selectedCell.scheduleDate,
-        selectedCell.startMinute,
-      );
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setScheduleItems((current) =>
-        mergeWorkScheduleItems(
-          current,
-          selectedCell.scheduleDate,
-          selectedCell.startMinute,
-          result.data.schedule,
-        ),
-      );
-      closeScheduleModal();
+      try {
+        const result = await saveSchedule(scheduleDateDraft, startMinuteDraft, endMinuteDraft, scheduleDraft, source.scheduleDate, source.startMinute, source.baseline);
+        if (!alive.current) return;
+        if (!result.ok) { setFormError(result.error); return; }
+        // A server render that arrived while saving is authoritative; an older ack must not overwrite it.
+        if (latestSchedules.current === observedSchedules) setScheduleItems(current => {
+          const next = result.data.schedule;
+          const kept = current.filter(item => item.id !== source.baseline.manualScheduleId && item.id !== next?.id);
+          return next ? [...kept, next] : kept;
+        });
+        resetScheduleModal();
+      } catch {
+        if (alive.current) { scheduleReviewLock.current = true; setRequiresScheduleReview(true); setFormError("저장 결과를 확인하지 못했습니다. 입력 내용은 유지됩니다. 최신 목록에서 반영 여부를 확인하세요. 이 작성 화면에서는 저장 요청을 다시 보내지 않습니다."); }
+      } finally { actionLock.current = false; }
     });
   }
 
   function removeSelectedSchedule() {
-    if (!selectedCell || selectedScheduleReadOnly) {
-      return;
-    }
-
+    if (!canMutateSchedule() || !selectedCell || !selectedSchedule || !confirmScheduleDeletion()) return;
+    const source = selectedCell;
+    actionLock.current = true;
     startPendingScheduleAction(async () => {
-      const result = await deleteSchedule(
-        selectedCell.scheduleDate,
-        selectedCell.startMinute,
-      );
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setScheduleItems((current) =>
-        mergeWorkScheduleItems(
-          current,
-          result.data.scheduleDate,
-          result.data.startMinute,
-          null,
-        ),
-      );
-      closeScheduleModal();
+      try {
+        const result = await deleteSchedule(source.scheduleDate, source.startMinute, source.baseline);
+        if (!alive.current) return;
+        if (!result.ok) { setFormError(result.error); return; }
+        // Never remove a replacement record at the same date and time from the local list.
+        setScheduleItems(current => current.filter(item => item.id !== source.baseline.manualScheduleId));
+        resetScheduleModal();
+      } catch {
+        if (alive.current) { scheduleReviewLock.current = true; setRequiresScheduleReview(true); setFormError("삭제 결과를 확인하지 못했습니다. 최신 목록에서 반영 여부를 확인하세요. 이 작성 화면에서는 삭제·저장 요청을 다시 보내지 않습니다."); }
+      } finally { actionLock.current = false; }
     });
   }
 
   function jumpToDate(nextScheduleDate: string) {
     setDateJumpDraft(nextScheduleDate);
 
-    if (!isYouthLearningScheduleDate(nextScheduleDate)) {
+    if (!isWorkScheduleDate(nextScheduleDate)) {
       setFormError("이동할 날짜를 다시 선택하세요.");
       return;
     }
@@ -588,19 +615,22 @@ function WorkScheduleCalendarBoardContent({
 
       {selectedCell ? (
         <AppModal
-          className="max-w-2xl"
+          className="flex max-w-2xl flex-col"
           labelledBy="work-schedule-modal-title"
           onClose={closeScheduleModal}
         >
-          {selectedScheduleReadOnly && selectedSchedule ? (
-            <WorkScheduleReadOnlyDetail
-              schedule={selectedSchedule}
-              onClose={closeScheduleModal}
-            />
+          {selectedScheduleReadOnly ? selectedSchedule ? (
+            <WorkScheduleReadOnlyDetail schedule={selectedSchedule} onClose={closeScheduleModal} />
+          ) : (
+            <div className="p-4">
+              <h3 id="work-schedule-modal-title" className="text-base font-semibold text-[var(--foreground)]">현재 조회할 수 없는 일정</h3>
+              <p role="alert" className="mt-2 text-sm text-[var(--text-muted)]">최신 목록에 이 연동 일정이 없습니다. 예약 상태와 조회 대상을 다시 확인하세요.</p>
+              <button type="button" data-modal-initial-focus="true" onClick={closeScheduleModal} className="mt-3 h-11 rounded-md border border-[var(--border-strong)] px-4 text-sm font-semibold text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">닫기</button>
+            </div>
           ) : (
             <>
-              <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
-                <div className="px-6 pb-6 pt-6">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="px-4 pb-4 pt-4 sm:px-6">
                   <p className="text-xs font-semibold text-[#697386]">
                     {selectedSchedule ? "업무 일정 수정" : "업무 일정 등록"}
                   </p>
@@ -612,10 +642,12 @@ function WorkScheduleCalendarBoardContent({
                   </h3>
 
                   {formError ? (
-                    <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                    <p ref={formErrorRef} role="alert" tabIndex={-1} className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
                       {formError}
                     </p>
                   ) : null}
+                  {requiresScheduleReview && !formError ? <p role="alert" className="mt-4 text-sm text-[var(--text-muted)]">결과가 확인되지 않았습니다. 입력은 유지되며 이 화면에서는 저장·삭제 요청을 다시 보내지 않습니다.</p> : null}
+                  {formError || requiresScheduleReview ? <WorkScheduleRefreshButton disabled={pendingScheduleAction} canRefresh={() => alive.current && !actionLock.current} /> : null}
 
                 <div className="mt-5 divide-y divide-[#eef1f5] border-y border-[#eef1f5]">
                   <label className="grid gap-2 py-3 sm:grid-cols-[5rem_1fr] sm:items-center">
@@ -626,10 +658,11 @@ function WorkScheduleCalendarBoardContent({
                       value={scheduleDateDraft}
                       disabled={pendingScheduleAction}
                       onChange={(event) => {
+                        if (actionLock.current || !alive.current) return;
                         setScheduleDateDraft(event.currentTarget.value);
                         setFormError("");
                       }}
-                      className="block h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                      className="block h-11 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
                     />
                   </label>
 
@@ -647,7 +680,7 @@ function WorkScheduleCalendarBoardContent({
                             Number(event.currentTarget.value),
                           )
                         }
-                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                        className="h-11 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
                       >
                         {createWorkScheduleStartMinuteOptions().map((minute) => (
                           <option key={minute} value={minute}>
@@ -666,10 +699,11 @@ function WorkScheduleCalendarBoardContent({
                         value={endMinuteDraft}
                         disabled={pendingScheduleAction}
                         onChange={(event) => {
+                          if (actionLock.current || !alive.current) return;
                           setEndMinuteDraft(Number(event.currentTarget.value));
                           setFormError("");
                         }}
-                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                        className="h-11 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
                       >
                         {createWorkScheduleEndMinuteOptions(startMinuteDraft).map(
                           (minute) => (
@@ -689,26 +723,27 @@ function WorkScheduleCalendarBoardContent({
                   value={scheduleDraft}
                   disabled={pendingScheduleAction}
                   onChange={(event) => {
+                    if (actionLock.current || !alive.current) return;
                     setScheduleDraft(event.currentTarget.value);
                     setFormError("");
                   }}
                   onKeyDown={saveSelectedScheduleWithKeyboard}
                   autoFocus
                   placeholder="업무 내용을 입력하세요."
-                  rows={10}
-                  className="mt-6 block min-h-[16rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd] disabled:cursor-not-allowed disabled:opacity-60"
+                  rows={7}
+                  className="mt-4 block min-h-[10rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 placeholder:text-[#a5afbd] disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] bg-white px-5 py-4">
               <div>
                 {selectedSchedule ? (
                   <button
                     type="button"
-                    disabled={pendingScheduleAction}
+                    disabled={pendingScheduleAction || requiresScheduleReview}
                     onClick={removeSelectedSchedule}
-                    className="h-10 rounded-md border border-[#f0c6c6] bg-white px-4 text-sm font-semibold text-[#a23a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-11 rounded-md border border-[#f0c6c6] bg-white px-4 text-sm font-semibold text-[#a23a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     삭제
                   </button>
@@ -719,17 +754,17 @@ function WorkScheduleCalendarBoardContent({
                   type="button"
                   disabled={pendingScheduleAction}
                   onClick={closeScheduleModal}
-                  className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   취소
                 </button>
                 <button
                   type="button"
-                  disabled={pendingScheduleAction}
+                  disabled={pendingScheduleAction || requiresScheduleReview}
                   onClick={saveSelectedSchedule}
-                  className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#0f5553] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#0f5553] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pendingScheduleAction ? "저장 중" : "저장"}
+                  {pendingScheduleAction ? "저장 중" : requiresScheduleReview ? "결과 확인 필요" : "저장"}
                 </button>
               </div>
             </footer>
@@ -755,7 +790,7 @@ export function WorkScheduleReadOnlyDetail({
 
   return (
     <>
-      <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-6 pb-6 pt-6">
           <p
             className={`text-xs font-semibold ${presentation.eyebrowClassName}`}
@@ -806,7 +841,7 @@ export function WorkScheduleReadOnlyDetail({
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
+      <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
         <button
           type="button"
           data-modal-initial-focus="true"
@@ -1291,7 +1326,7 @@ function createChangeLogHref({
     params.set("logStaff", actorId);
   }
 
-  if (isYouthLearningScheduleDate(scheduleDate)) {
+  if (isWorkScheduleDate(scheduleDate)) {
     params.set("logDate", scheduleDate);
   }
 
@@ -1319,7 +1354,7 @@ function getWorkScheduleChangeLogFiltersFromLocation(): Pick<
 function getWorkScheduleLogDateFromLocation(params: URLSearchParams) {
   const date = params.get("logDate");
 
-  return date && isYouthLearningScheduleDate(date) ? date : "";
+  return date && isWorkScheduleDate(date) ? date : "";
 }
 
 function normalizePositivePage(value: string | null | undefined) {
@@ -1399,7 +1434,7 @@ function getScheduleDateValue(value: object) {
   ];
   const scheduleDate = candidates.find(
     (candidate): candidate is string =>
-      typeof candidate === "string" && isYouthLearningScheduleDate(candidate),
+      typeof candidate === "string" && isWorkScheduleDate(candidate),
   );
 
   return scheduleDate ?? "";
@@ -1431,31 +1466,6 @@ function getDefaultStartMinuteForDate(
   const latestStartMinute = getYouthLearningScheduleEndMinute() - 60;
 
   return Math.min(candidateStartMinute, latestStartMinute);
-}
-
-function mergeWorkScheduleItems(
-  current: WorkSchedule[],
-  sourceScheduleDate: string,
-  sourceStartMinute: number,
-  schedule: WorkSchedule | null,
-) {
-  const sourceKey = createScheduleKey(sourceScheduleDate, sourceStartMinute);
-  const targetKey = schedule
-    ? createScheduleKey(schedule.scheduleDate, schedule.startMinute)
-    : "";
-  const withoutCurrent = current.filter((item) => {
-    if (item.readOnly) {
-      return true;
-    }
-
-    const key = createScheduleKey(item.scheduleDate, item.startMinute);
-
-    return key !== sourceKey && key !== targetKey;
-  });
-
-  return schedule
-    ? [...withoutCurrent, schedule].sort(sortWorkScheduleItems)
-    : withoutCurrent;
 }
 
 export function createEditableWorkScheduleMap(schedules: WorkSchedule[]) {
@@ -1646,4 +1656,14 @@ function WorkScheduleSkeletonBlock({ className }: { className: string }) {
       className={`block animate-pulse rounded-md bg-[#edf1f5] ${className}`}
     />
   );
+}
+
+function isWorkScheduleBaselineToken(value: string) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString() === value;
+}
+
+function WorkScheduleRefreshButton({ disabled, canRefresh }: { disabled: boolean; canRefresh: () => boolean }) {
+  const router = useRouter();
+  return <button type="button" disabled={disabled} onClick={() => { if (canRefresh()) router.refresh(); }} className="mt-2 h-11 rounded-md border border-[var(--border-strong)] px-3 text-sm font-semibold text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">최신 목록 확인</button>;
 }

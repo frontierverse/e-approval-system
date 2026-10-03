@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DocumentStatus } from "@/generated/prisma/client";
+import { DocumentStatus, type Prisma } from "@/generated/prisma/client";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 import { vacationRequestTemplateId } from "@/lib/document-template-schema";
 import { extractDocumentTemplateFieldValuesFromContent } from "@/lib/draft-template-content";
@@ -45,8 +45,8 @@ export async function getApprovedStaffVacationDateEntries({
   fromDate: string;
   referenceDate?: string;
   toDate: string;
-}) {
-  const records = await getApprovedVacationDocuments();
+}, db: Pick<Prisma.TransactionClient, "approvalDocument"> = prisma) {
+  const records = await getApprovedVacationDocuments(db);
 
   return records
     .flatMap((record) =>
@@ -81,8 +81,8 @@ export async function getStaffVacationTopbarAlert(
   };
 }
 
-async function getApprovedVacationDocuments() {
-  return prisma.approvalDocument.findMany({
+async function getApprovedVacationDocuments(db: Pick<Prisma.TransactionClient, "approvalDocument"> = prisma) {
+  return db.approvalDocument.findMany({
     where: {
       OR: [
         {

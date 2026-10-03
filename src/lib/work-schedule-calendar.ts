@@ -1,8 +1,5 @@
 import {
   getYouthLearningScheduleToday,
-  getYouthLearningScheduleWeekday,
-  isYouthLearningScheduleDate,
-  shiftYouthLearningScheduleDate,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
@@ -27,6 +24,26 @@ export type WorkScheduleCalendarDay = {
   weekday: YouthLearningScheduleWeekday;
 };
 
+export function isWorkScheduleDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000-")) return false;
+  const date = parseWorkScheduleDate(value);
+  return Number.isFinite(date.getTime()) && formatWorkScheduleDate(date) === value;
+}
+
+export function getWorkScheduleWeekday(value: string): YouthLearningScheduleWeekday {
+  return parseWorkScheduleDate(value).getUTCDay() as YouthLearningScheduleWeekday;
+}
+
+export function getWorkScheduleMonthDates(month: string) {
+  if (!isWorkScheduleMonth(month)) return [];
+  const cursor = parseWorkScheduleDate(`${month}-01`), dates: string[] = [];
+  while (formatWorkScheduleMonth(cursor) === month) {
+    dates.push(formatWorkScheduleDate(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 export function getWorkScheduleCurrentMonth() {
   return getWorkScheduleMonthFromDate(getYouthLearningScheduleToday());
 }
@@ -40,7 +57,7 @@ export function isWorkScheduleMonth(value: string) {
     return false;
   }
 
-  return isYouthLearningScheduleDate(`${value}-01`);
+  return isWorkScheduleDate(`${value}-01`);
 }
 
 export function normalizeWorkScheduleMonth(value: string | undefined) {
@@ -60,7 +77,9 @@ export function getWorkScheduleMonthRange(month: string) {
   const normalizedMonth = normalizeWorkScheduleMonth(month);
 
   return {
-    endDate: `${shiftWorkScheduleMonth(normalizedMonth, 1)}-01`,
+    // Date fields use canonical four-digit years; an internal exclusive sentinel
+    // keeps the final December range lexically within year 9999.
+    endDate: normalizedMonth === "9999-12" ? "9999-12-32" : `${shiftWorkScheduleMonth(normalizedMonth, 1)}-01`,
     startDate: `${normalizedMonth}-01`,
   };
 }
@@ -85,7 +104,7 @@ export function createWorkScheduleCalendarDays(month: string) {
       day: date.getUTCDate(),
       isCurrentMonth: getWorkScheduleMonthFromDate(dateValue) === normalizedMonth,
       isToday: dateValue === today,
-      weekday: getYouthLearningScheduleWeekday(dateValue),
+      weekday: date.getUTCDay() as YouthLearningScheduleWeekday,
     };
   });
 }
@@ -97,7 +116,7 @@ export function formatWorkScheduleMonthLabel(month: string) {
 }
 
 export function formatWorkScheduleDateLabel(scheduleDate: string) {
-  if (!isYouthLearningScheduleDate(scheduleDate)) {
+  if (!isWorkScheduleDate(scheduleDate)) {
     return scheduleDate;
   }
 
@@ -111,19 +130,22 @@ export function formatWorkScheduleDateLabel(scheduleDate: string) {
 }
 
 export function shiftWorkScheduleDate(scheduleDate: string, days: number) {
-  return shiftYouthLearningScheduleDate(scheduleDate, days);
+  const date = parseWorkScheduleDate(scheduleDate);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatWorkScheduleDate(date);
 }
 
 function parseWorkScheduleDate(value: string) {
   const [yearText, monthText, dayText] = value.split("-");
 
-  return new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(Number(yearText), Number(monthText) - 1, Number(dayText));
+  return date;
 }
 
 function formatWorkScheduleDate(value: Date) {
-  const year = value.getUTCFullYear();
+  const year = String(value.getUTCFullYear()).padStart(4, "0");
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
   const day = String(value.getUTCDate()).padStart(2, "0");
 
@@ -131,7 +153,7 @@ function formatWorkScheduleDate(value: Date) {
 }
 
 function formatWorkScheduleMonth(value: Date) {
-  const year = value.getUTCFullYear();
+  const year = String(value.getUTCFullYear()).padStart(4, "0");
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
 
   return `${year}-${month}`;

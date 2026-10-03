@@ -16,7 +16,7 @@ type SessionContextValue = {
   signIn: (name: string, password: string) => Promise<void>;
   signOut: (options?: { message?: string }) => Promise<void>;
   expireSession: (expectedToken: string, message?: string) => Promise<void>;
-  request: <T,>(path: string, options?: { method?: "GET" | "POST" | "DELETE"; body?: unknown }) => Promise<T>;
+  request: <T,>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown }) => Promise<T>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -95,7 +95,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     finally { await apiRequest("/auth/logout", { method: "POST", token: current }).catch(() => undefined); }
   }, [expireSession]);
 
-  const request = useCallback(async <T,>(path: string, options: { method?: "GET" | "POST" | "DELETE"; body?: unknown } = {}) => {
+  const request = useCallback(async <T,>(path: string, options: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {}) => {
     if (!token) throw new ApiError("로그인이 필요합니다.", 401);
     try {
       return await apiRequest<T>(path, { ...options, token });
