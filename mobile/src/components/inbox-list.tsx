@@ -8,11 +8,11 @@ import type { HomeDocument, InboxDocument } from "@/lib/types";
 export function InboxList({ documents, showProgress = false }: { documents: (InboxDocument | HomeDocument)[]; showProgress?: boolean }) {
   const theme = useTheme();
   return <View style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-    {documents.map((document, index) => <DocumentRow key={document.id} document={document} index={index} showProgress={showProgress} />)}
+    {documents.map((document, index) => <InboxDocumentRow key={document.id} document={document} index={index} showProgress={showProgress} />)}
   </View>;
 }
 
-function DocumentRow({ document, index, showProgress }: { document: InboxDocument | HomeDocument; index: number; showProgress: boolean }) {
+export function InboxDocumentRow({ document, index, showProgress }: { document: InboxDocument | HomeDocument; index: number; showProgress: boolean }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return <Pressable
