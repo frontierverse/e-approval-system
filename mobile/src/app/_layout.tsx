@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { ActivityIndicator, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { DailyReportBackButton } from "@/components/daily-report-back-button";
 import { TextAction } from "@/components/ui";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
@@ -29,6 +30,9 @@ function Navigation() {
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
         <Stack.Screen name="tasks/[id]" options={{ title: "할 일 상세·이력" }} />
+        <Stack.Screen name="daily-reports/index" options={{ title: "일일 업무보고", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
+        <Stack.Screen name="daily-reports/edit" options={{ title: "업무보고 작성", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
+        <Stack.Screen name="daily-reports/[id]" options={{ title: "업무보고 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
       </Stack.Protected>
     </Stack>
   </>;

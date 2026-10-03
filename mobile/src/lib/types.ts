@@ -20,6 +20,7 @@ export type HomeResponse = {
   canApproveDocuments: boolean;
   counts: { activeSent: number; recalled: number; activeInbox?: number };
   taskCounts: { pending: number; overdue: number };
+  dailyReportSummary: MobileDailyReportHomeSummary | null;
   sentDocuments: HomeDocument[];
   inboxDocuments?: HomeDocument[];
 };
@@ -150,4 +151,43 @@ export type MobileStaffTaskHistoryLog = {
 export type MobileStaffTaskHistoryResponse = {
   task: MobileStaffTaskItem; logs: MobileStaffTaskHistoryLog[]; today: string;
   page: number; pageSize: 20; total: number; totalPages: number;
+};
+
+
+export type MobileDailyReportStatus = "missing" | "draft" | "submitted" | "reviewed";
+export type MobileDailyReportFilter = "all" | "unread" | "missing" | "reviewed";
+export type MobileDailyReportHomeSummary =
+  | { mode: "employee"; today: string; status: MobileDailyReportStatus }
+  | { mode: "director"; today: string; submitted: number; unreviewed: number }
+  | { mode: "unavailable"; today: string };
+export type MobileDailyReportEntry = {
+  id: string; workDate: string; mainContent: string;
+  youthReports: { youthId: string; youthName: string; content: string }[];
+  authorId: string; authorName: string; departmentName: string; version: number;
+  submittedAt: string | null; reviewedAt: string | null;
+  reviewedByName: string | null; updatedAt: string;
+};
+export type MobileDailyReportHistoryItem = Pick<MobileDailyReportEntry, "id" | "workDate" | "submittedAt" | "reviewedAt">;
+export type MobileDailyReportDirectorRow = {
+  staff: { id: string; name: string; departmentName: string };
+  report: { id: string; workDate: string; version: number; submittedAt: string; reviewedAt: string | null; updatedAt: string } | null;
+};
+export type MobileDailyReportListResponse =
+  | { mode: "employee"; today: string; userName: string; canWrite: boolean; todayStatus: MobileDailyReportStatus;
+      history: MobileDailyReportHistoryItem[]; page: number; pageSize: 15; total: number; totalPages: number }
+  | { mode: "director"; today: string; selectedDate: string; userName: string; canWrite: false;
+      filter: MobileDailyReportFilter; q: string;
+      counts: { staff: number; submitted: number; missing: number; unreviewed: number };
+      rows: MobileDailyReportDirectorRow[]; page: number; pageSize: 20; total: number; totalPages: number };
+export type MobileDailyReportEditorResponse = {
+  mode: "employee"; today: string; selectedDate: string; userName: string; canWrite: boolean;
+  recipients: string[]; youths: { id: string; name: string }[]; entry: MobileDailyReportEntry | null;
+};
+export type MobileDailyReportDetailResponse = {
+  mode: "employee" | "director"; today: string; canWrite: boolean; canReview: boolean; entry: MobileDailyReportEntry;
+};
+export type MobileDailyReportMutationResponse = { ok: true; message: string; entry: MobileDailyReportEntry };
+export type MobileDailyReportSaveInput = {
+  workDate: string; mainContent: string; youthReports: { youthId: string; content: string }[];
+  intent: "draft" | "submit"; version: number;
 };

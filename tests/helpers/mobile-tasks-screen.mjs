@@ -59,7 +59,7 @@ function harness(kind = 'tasks', exportName, initial = {}, account = 'a') {
   const imports = {
     react, 'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'expo-router': { Stack: { Screen: 'Stack.Screen' }, router: { setParams(params) { props = { ...props, ...params, page: Number(params.page ?? props.page) }; render(); }, push(path) { navigation.push(path); } }, useFocusEffect: focusHook, useLocalSearchParams: () => props },
-    'react-native': { ...components, StyleSheet: { create: value => value } }, '@expo/vector-icons': { Ionicons: 'Ionicons' },
+    'react-native': { ...components, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }) }, '@expo/vector-icons': { Ionicons: 'Ionicons' },
     '@/components/account-feedback': { AccountFeedback: 'AccountFeedback', focusAccountNotice() {} }, '@/components/ui': components, '@/components/inbox-list': components,
     '@/lib/api': api, '@/lib/tasks': core, '@/lib/session': { useSession: () => ({ ...session, request }) }, '@/lib/theme': { useTheme: () => ({}) },
   };
