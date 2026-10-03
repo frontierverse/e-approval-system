@@ -31,8 +31,14 @@ export function AccountImageEditor({ kind, info, disabled, acquire, release, onC
   const alive = useRef(true);
   const confirmButton = useRef<View>(null);
   const deleteButton = useRef<View>(null);
+  const chooseButton = useRef<View>(null);
+  const wasConfirming = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; selection.current?.release(); }; }, []);
-  useEffect(() => { if (confirming) focusAccountNotice(confirmButton.current); }, [confirming]);
+  useEffect(() => {
+    if (confirming) focusAccountNotice(confirmButton.current);
+    else if (wasConfirming.current) focusAccountNotice(deleteButton.current ?? chooseButton.current);
+    wasConfirming.current = confirming;
+  }, [confirming]);
   const choose = async () => {
     if (!token || !acquire()) return;
     setPending("pick"); setError(null); setMessage(null);
@@ -79,15 +85,15 @@ export function AccountImageEditor({ kind, info, disabled, acquire, release, onC
       <TextAction accessibilityLabel={label + " 선택 취소"} label="취소" disabled={disabled || confirming} onPress={() => { selection.current?.release(); selection.current = null; setSelected(null); setError(null); setMessage(null); }} />
     </View> : null}
     <View style={styles.actions}>
-      <TextAction label={pending === "pick" ? "선택 중..." : selected ? "다른 이미지 선택" : "이미지 선택"} accessibilityLabel={kind === "signature" ? "도장/서명 이미지 선택" : "프로필 이미지 선택"} icon="image-outline" disabled={disabled || confirming} onPress={() => void choose()} />
+      <TextAction ref={chooseButton} label={pending === "pick" ? "선택 중..." : selected ? "다른 이미지 선택" : "이미지 선택"} accessibilityLabel={kind === "signature" ? "도장/서명 이미지 선택" : "프로필 이미지 선택"} icon="image-outline" disabled={disabled || confirming} onPress={() => void choose()} />
       {selected ? <View style={{ flex: 1 }}><PrimaryButton title={pending === "upload" ? "저장 중..." : "이미지 저장"} disabled={disabled || confirming} onPress={() => void upload()} /></View> : null}
       {info.exists && !selected && !confirming ? <TextAction ref={deleteButton} label="이미지 삭제" accessibilityLabel={label + " 삭제"} icon="trash-outline" disabled={disabled} onPress={() => { setError(null); setMessage(null); setConfirming(true); }} /> : null}
     </View>
     <Text style={[styles.policy, { color: theme.secondary }]}>JPG·PNG·WEBP · 원본 4MB 이하 · 자동 압축 후 2MB 이하{kind === "signature" ? "\n투명 배경 PNG를 권장합니다." : ""}</Text>
     {confirming ? <View style={[styles.confirm, { backgroundColor: theme.dangerSoft, borderColor: theme.border }]}>
-      <Text style={{ color: theme.text, fontSize: 13, lineHeight: 20 }}>등록된 {label}를 삭제하시겠습니까?{kind === "signature" ? " 다음 결재에는 기본 도장이 사용됩니다." : " 이름 첫 글자가 기본 이미지로 표시됩니다."}</Text>
+      <Text style={{ color: theme.text, fontSize: 13, lineHeight: 20 }}>등록된 {kind === "signature" ? "결재 도장/서명 이미지" : label}를 삭제하시겠습니까?{kind === "signature" ? " 다음 결재에는 기본 도장이 사용됩니다." : " 이름 첫 글자가 기본 이미지로 표시됩니다."}</Text>
       <View style={styles.actions}>
-        <TextAction label="취소" disabled={disabled} onPress={() => { setConfirming(false); setError(null); deleteButton.current?.focus(); }} />
+        <TextAction label="취소" disabled={disabled} onPress={() => { setConfirming(false); setError(null); }} />
         <View style={{ flex: 1 }}><PrimaryButton ref={confirmButton} title={pending === "delete" ? "삭제 중..." : "삭제 확인"} danger disabled={disabled} onPress={() => void remove()} /></View>
       </View>
     </View> : null}
