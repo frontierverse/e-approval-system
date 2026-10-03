@@ -9,9 +9,10 @@ export type ResourceCleanupContext = { actorId?: string; db?: Pick<PrismaClient,
 const nowOf = (context: ResourceCleanupContext) => new Date((context.now?.() ?? new Date()).getTime());
 export async function enqueueResourceFileCleanup(tx: Prisma.TransactionClient, input: { ref: ResourceStorageRef; objectKind: "staging" | "final" | "legacy"; sourceUploadId?: string; sourceMutationId?: string; notBefore?: Date }, now: Date): Promise<string> {
   await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtext('resource-file-cleanup'), hashtext(${input.ref.storageProvider + ":" + input.ref.storageKey}))`);
-  const where = { storageProvider_storageKey: input.ref }, old = await tx.resourceFileCleanup.findUnique({ where });
+  const ref = { storageProvider: input.ref.storageProvider, storageKey: input.ref.storageKey };
+  const where = { storageProvider_storageKey: ref }, old = await tx.resourceFileCleanup.findUnique({ where });
   const notBefore = new Date(Math.max(now.getTime(), input.notBefore?.getTime() ?? 0, old?.notBefore.getTime() ?? 0));
-  const row = await tx.resourceFileCleanup.upsert({ where, create: { ...input.ref, objectKind: input.objectKind, sourceUploadId: input.sourceUploadId ?? null, sourceMutationId: input.sourceMutationId ?? null, notBefore, nextAttemptAt: notBefore }, update: { ...(input.sourceUploadId && !old?.sourceUploadId ? { sourceUploadId: input.sourceUploadId, objectKind: input.objectKind } : {}), notBefore, nextAttemptAt: notBefore, state: "pending", claimId: null, leaseUntil: null, completedAt: null, lastErrorCode: null } });
+  const row = await tx.resourceFileCleanup.upsert({ where, create: { ...ref, objectKind: input.objectKind, sourceUploadId: input.sourceUploadId ?? null, sourceMutationId: input.sourceMutationId ?? null, notBefore, nextAttemptAt: notBefore }, update: { ...(input.sourceUploadId && !old?.sourceUploadId ? { sourceUploadId: input.sourceUploadId, objectKind: input.objectKind } : {}), notBefore, nextAttemptAt: notBefore, state: "pending", claimId: null, leaseUntil: null, completedAt: null, lastErrorCode: null } });
   return row.id;
 }
 export async function queueResourceUploadFiles(tx: Prisma.TransactionClient, upload: { id: string; storageProvider: string; stagingKey: string | null; finalKey: string | null; lastGrantExpiresAt: Date | null; finalizeLeaseUntil: Date | null }, now: Date, mutationId?: string) {
