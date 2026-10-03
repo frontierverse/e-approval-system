@@ -31,7 +31,7 @@ test("CI PostgreSQL executes actual schedule CAS, monotonic time, audit rollback
   await assert.rejects(domain.saveWorkSchedule(ctx,input,{id,expectedUpdatedAt:latest}),(e:unknown)=>e instanceof domain.WorkScheduleMutationError&&e.code==="NOT_FOUND");
   await assert.rejects(domain.saveWorkSchedule({...ctx,client:"web"},input,{scheduleDate:date,startMinute:540,baseline:{manualScheduleId:id,expectedUpdatedAt:latest}}),(e:unknown)=>e instanceof domain.WorkScheduleMutationError&&e.code==="SCHEDULE_CONFLICT");
   const today=getKoreanDateValue(),youth=await tx.youth.create({data:{id:"ci-schedule-domain-youth",name:"검증 청소년"}});
-  await tx.youthPersonalSchedule.create({data:{youthId:youth.id,scheduleType:"HOSPITAL",content:"진료",hospitalName:"병원",escortName:"인솔자",selectionMode:"DATES",startMinute:480,endMinute:500,occurrenceDates:[today]}});
+  await tx.youthPersonalSchedule.create({data:{youthId:youth.id,scheduleType:"HOSPITAL",content:"진료",hospitalName:"병원",escortType:"OTHER",escortName:"인솔자",selectionMode:"DATES",startMinute:480,endMinute:500,occurrenceDates:[today]}});
   assert.ok((await queries.getWorkSchedules(today.slice(0,7),tx,today)).some(row=>row.sourceType==="hospitalAppointment"&&row.youthName===youth.name));
   await tx.youth.update({where:{id:youth.id},data:{actualDischargeDate:today}});assert.ok(!(await queries.getWorkSchedules(today.slice(0,7),tx,today)).some(row=>row.youthName===youth.name));
   for(const [index,month]of ["0001-01","0099-12","0100-01","0999-12","9999-12"].entries()) {

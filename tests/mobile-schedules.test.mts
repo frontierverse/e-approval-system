@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, beforeEach, test } from "node:test";
 import ts from "typescript";
 import { Prisma } from "../src/generated/prisma/client.ts";
+import { DriverAdapterError } from "@prisma/driver-adapter-utils";
 import { getWorkScheduleMonthRange, getWorkScheduleMonthDates, getWorkScheduleWeekday, isWorkScheduleDate } from "../src/lib/work-schedule-calendar.ts";
 import { getKoreanDateValue } from "../src/lib/document-archive-policy.ts";
 
@@ -51,7 +52,7 @@ const db={
   async count(args:Row){read("auditLog",args);return h.audits.filter((r:Row)=>matches(r,args.where)).length;},
   async findMany(args:Row){read("auditLog",args);return findMany(h.audits,args);},
  },
- async $transaction(operation:(client:Row)=>Promise<unknown>,options:Row){h.transactions.push(options);h.beforeTx?.();if(h.txErrors-->0)throw new Prisma.PrismaClientKnownRequestError("retry",{code:h.txErrorCode,clientVersion:"fixture"});const before=structuredClone({schedules:h.schedules,audits:h.audits});h.snapshot++;try{return await operation({...db});}catch(error){Object.assign(h,before);throw error;}},
+ async $transaction(operation:(client:Row)=>Promise<unknown>,options:Row){h.transactions.push(options);h.beforeTx?.();const failure=h.txErrors-->0?(h.txErrorFactory?.()??new Prisma.PrismaClientKnownRequestError("retry",{code:h.txErrorCode,clientVersion:"fixture"})):null;if(failure&&!h.txErrorAtCommit)throw failure;const before=structuredClone({schedules:h.schedules,audits:h.audits});h.snapshot++;try{const result=await operation({...db});if(failure)throw failure;return result;}catch(error){Object.assign(h,before);throw error;}},
 };
 const key="__mobileSchedulesHarness";(globalThis as Row)[key]={h,db};
 const url=(source:string)=>`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
@@ -75,7 +76,7 @@ function seed(extra:Row={}){const row={id:`manual-${++h.nextId}`,scheduleDate:to
 function appointment(youthExtra:Row={},extra:Row={}){h.appointments.push({id:`hospital-${h.appointments.length}`,scheduleType:"HOSPITAL",occurrenceDates:[today],startMinute:480,endMinute:500,hospitalName:"병원",escortName:"인솔자",content:"PRIVATE_APPOINTMENT",nextAppointmentDate:today,youth:{name:"청소년",dischargeDate:null,actualDischargeDate:null,purgeStartedAt:null,purgedAt:null,...youthExtra},...extra});}
 function vacation(extra:Row={}){h.documents.push({id:"vacation",templateId:"template-vacation-request",status:"APPROVED",createdAt:new Date(0),completedAt:new Date(0),content:`연차 ${today} PRIVATE_REASON`,template:{name:"휴가",schema:{}},drafter:{id:"other",name:"다른 직원",department:{name:"부서"},position:{name:"직급"}},attachments:[{storageKey:"PRIVATE_STORAGE"}],...extra});}
 function privateJson(response:Response){assert.equal(response.headers.get("cache-control"),"private, no-store");assert.equal(response.headers.get("pragma"),"no-cache");assert.equal(response.headers.get("location"),null);}
-beforeEach(()=>{Object.assign(h,{users:structuredClone([employee,{...employee,id:"other"}]),schedules:[],documents:[],appointments:[],audits:[],reads:[],transactions:[],invalidated:[],nextId:0,nextAudit:0,snapshot:0,auditFailure:false,cacheFailure:false,workScheduleFailure:false,approvalDocumentFailure:false,youthPersonalScheduleFailure:false,updateRace:false,deleteRace:false,txErrors:0,txErrorCode:"P2034",beforeTx:null});signIn();});
+beforeEach(()=>{Object.assign(h,{users:structuredClone([employee,{...employee,id:"other"}]),schedules:[],documents:[],appointments:[],audits:[],reads:[],transactions:[],invalidated:[],nextId:0,nextAudit:0,snapshot:0,auditFailure:false,cacheFailure:false,workScheduleFailure:false,approvalDocumentFailure:false,youthPersonalScheduleFailure:false,updateRace:false,deleteRace:false,txErrors:0,txErrorCode:"P2034",txErrorFactory:null,txErrorAtCommit:false,beforeTx:null});signIn();});
 after(()=>{delete(globalThis as Row)[key];});
 
 test("actual routes authenticate before invalid IDs/query/body and always private JSON",async()=>{
@@ -159,6 +160,28 @@ test("serialization/unique/conditional races retry three times with fresh checks
  for(const code of ["P2034","P2002"]){h.txErrorCode=code;h.txErrors=2;const before=h.transactions.length;assert.equal((await create({startMinute:540+h.schedules.length*60,endMinute:600+h.schedules.length*60})).status,200);assert.equal(h.transactions.length-before,3);}
  const row=structuredClone(h.schedules[0]);for(const flag of ["updateRace","deleteRace"]){h[flag]=true;const before=h.transactions.length;const response=flag==="updateRace"?await update(row,{content:"new"}):await remove(row.id,row.updatedAt.toISOString());assert.equal(response.status,409);assert.equal((await response.json()).code,"SCHEDULE_CONFLICT");assert.equal(h.transactions.length-before,3);h[flag]=false;}
  h.txErrors=3;assert.equal((await create({startMinute:900,endMinute:950})).status,409);assert.equal(h.audits.length,2);assert.ok(h.transactions.every((v:Row)=>v.isolationLevel==="Serializable"));
+});
+test("actual pg adapter commit conflicts retry atomically, including wrapped Prisma adapter errors",async()=>{
+ const adapter=()=>new DriverAdapterError({kind:"TransactionWriteConflict"});
+ const factories=[adapter,()=>new Prisma.PrismaClientKnownRequestError("adapter",{code:"P2039",clientVersion:"7.10.0",meta:{driverAdapterError:adapter()}}),()=>new Error("transaction wrapper",{cause:new Error("inner wrapper",{cause:adapter()})})];
+ for(const[index,factory]of factories.entries()){
+  h.txErrorFactory=factory;h.txErrorAtCommit=true;h.txErrors=2;const before=h.transactions.length,minute=540+index*60;
+  assert.equal((await create({startMinute:minute,endMinute:minute+50})).status,200);assert.equal(h.transactions.length-before,3);assert.equal(h.schedules.length,index+1);assert.equal(h.audits.length,index+1);
+ }
+ h.txErrorFactory=adapter;h.txErrors=3;const before=h.transactions.length;const response=await create({startMinute:900,endMinute:950});assert.equal(response.status,409);assert.equal((await response.json()).code,"SCHEDULE_CONFLICT");assert.equal(h.transactions.length-before,3);assert.equal(h.schedules.length,3);assert.equal(h.audits.length,3);
+});
+test("adapter conflict retry rechecks current actor after a rolled-back commit",async()=>{
+ h.txErrorFactory=()=>new DriverAdapterError({kind:"TransactionWriteConflict"});h.txErrorAtCommit=true;h.txErrors=1;h.beforeTx=()=>{if(h.transactions.length===2)h.users[0].status="INACTIVE";};
+ assert.equal((await create()).status,401);assert.equal(h.transactions.length,2);assert.deepEqual(h.schedules,[]);assert.deepEqual(h.audits,[]);
+});
+test("constraint, unknown, cyclic and overdeep adapter-looking errors are never retried",async()=>{
+ const postgres=()=>new DriverAdapterError({kind:"postgres",code:"23514",severity:"ERROR",message:'violates check constraint "YouthPersonalSchedule_hospital_fields_check"',detail:undefined,column:undefined,hint:undefined});
+ const cycle=()=>{const error=new Error("cycle");error.cause=error;return error;};
+ const deep=()=>{let error:Error=new DriverAdapterError({kind:"TransactionWriteConflict"});for(let n=0;n<5;n++)error=new Error("wrapper",{cause:error});return error;};
+ const factories=[postgres,()=>new Prisma.PrismaClientKnownRequestError("constraint",{code:"P2039",clientVersion:"7.10.0",meta:{driverAdapterError:postgres()}}),()=>new Error("TransactionWriteConflict"),()=>Object.assign(new Error("unrelated"),{code:"40001"}),()=>Object.assign(new Error("unrelated"),{kind:"TransactionWriteConflict"}),()=>new Error("unrelated",{cause:{name:"DriverAdapterError",cause:{kind:"TransactionWriteConflict"}}}),cycle,deep];
+ for(const factory of factories){const failure=factory();h.txErrorFactory=()=>failure;h.txErrors=3;h.txErrorAtCommit=true;const before=h.transactions.length;
+  await assert.rejects(domain.saveWorkSchedule({actorId:employee.id,client:"mobile",requestData:{}},values()),error=>error===failure);assert.equal(h.transactions.length-before,1);assert.deepEqual(h.schedules,[]);assert.deepEqual(h.audits,[]);
+ }
 });
 test("actual domain retries uniqueness into latest overlap and web baseline detects a moved source",async()=>{
  let winner:Row|null=null;h.txErrors=1;h.txErrorCode="P2002";h.beforeTx=()=>{if(!winner)winner=seed();};

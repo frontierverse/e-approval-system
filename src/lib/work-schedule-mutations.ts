@@ -55,12 +55,37 @@ async function sourceRecord(tx: Prisma.TransactionClient, source: WorkScheduleSo
   if (row && source.baseline) throw conflict();
   return row;
 }
+function errorRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+function adapterWriteConflict(value: unknown): boolean {
+  const adapter = errorRecord(value);
+  // Prisma 7's pg adapter reports SQLSTATE 40001/40P01 as this exact payload.
+  // A message mentioning a conflict, or an unrelated PostgreSQL error, is not enough.
+  return adapter?.name === "DriverAdapterError" && errorRecord(adapter.cause)?.kind === "TransactionWriteConflict";
+}
+function retryableTransactionError(value: unknown): boolean {
+  const seen = new Set<Error>();
+  let error = value;
+  // Only inspect a bounded Error.cause chain and Prisma's documented adapter payload.
+  // Do not scan arbitrary metadata, messages or raw SQLSTATE-looking strings.
+  for (let depth = 0; depth <= 4 && error instanceof Error && !seen.has(error); depth++) {
+    seen.add(error);
+    const record = errorRecord(error)!;
+    if (error.name === "PrismaClientKnownRequestError") {
+      if (record.code === "P2002" || record.code === "P2034") return true;
+      if (adapterWriteConflict(errorRecord(record.meta)?.driverAdapterError)) return true;
+    }
+    if (adapterWriteConflict(error)) return true;
+    error = record.cause;
+  }
+  return false;
+}
 async function transact<T>(db: Pick<PrismaClient, "$transaction">, operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try { return await db.$transaction(operation, { isolationLevel: "Serializable" }); }
     catch (error) {
-      const code = error && typeof error === "object" && "code" in error ? error.code : null;
-      if (!(error instanceof ConditionalScheduleRace) && code !== "P2002" && code !== "P2034") throw error;
+      if (!(error instanceof ConditionalScheduleRace) && !retryableTransactionError(error)) throw error;
       if (attempt === 2) throw conflict();
     }
   }
