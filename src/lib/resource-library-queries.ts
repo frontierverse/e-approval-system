@@ -35,7 +35,7 @@ export async function lockResourceActor(tx: Prisma.TransactionClient, actorId: s
 }
 export function assertResourceManager(actor: ResourceActor, post: { authorId: string }) { if (actor.role !== "ADMIN" && post.authorId !== actor.id) throw new ResourceError("이 자료를 수정할 권한이 없습니다.", "FORBIDDEN", 403); }
 export async function lockResourcePost(tx: Prisma.TransactionClient, id: string) { await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "ResourcePost" WHERE "id" = ${id} FOR UPDATE`); }
-export async function lockResourceRequest(tx: Prisma.TransactionClient, actorId: string, requestId: string, scope = "resource-mutation") { await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${scope}), hashtext(${actorId + ":" + requestId}))`); }
+export async function lockResourceRequest(tx: Prisma.TransactionClient, actorId: string, requestId: string, scope = "resource-mutation") { await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${scope}), hashtext(${actorId + ":" + requestId}))`); }
 function errorRecord(value: unknown): Record<string, unknown> | null { return value !== null && typeof value === "object" ? value as Record<string, unknown> : null; }
 function adapterConflict(value: unknown) { const record = errorRecord(value); return record?.name === "DriverAdapterError" && errorRecord(record.cause)?.kind === "TransactionWriteConflict"; }
 export function resourceTransactionConflict(value: unknown) {

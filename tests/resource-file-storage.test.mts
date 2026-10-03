@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createHash, createCipheriv } from "node:crypto";
 import * as fs from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { createResourceFileStorageCore, ResourceFileStorageError, resourceFileMaximumBytes, type ResourceStorageAdapter, type ResourceStorageRef } from "../src/lib/resource-file-storage-core";
 import { createResourceFileStorage } from "../src/lib/resource-file-storage";
 import { decryptAttachmentBuffer, encryptAttachmentBuffer } from "../src/lib/attachment-encryption-core";
@@ -35,7 +36,7 @@ function memory() {
   return { files, calls, adapter };
 }
 async function context(t: Parameters<Parameters<typeof test>[1]>[0], overrides: Record<string, unknown> = {}) {
-  const root = await fs.mkdtemp("/private/tmp/bajaul-resource-test-"); const m = memory();
+  const root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-test-")); const m = memory();
   const counts = { opens: 0, closes: 0, maxOpen: 0, writes: [] as { length: number; prefix: string }[] };
   const fileSystem = {
     async open(...args: Parameters<typeof fs.open>) {
@@ -128,14 +129,14 @@ test("resource late immutable write after timeout remains unknown even after del
   await c.core.deleteResourceStoredFile(ref("final/a")); assert.equal(await c.core.resourceStoredFileExists(ref("final/a")), false); commit(); await delay(0); assert.equal(await c.core.resourceStoredFileExists(ref("final/a")), true);
 });
 test("resource low free-space and ENOSPC fail without provider write or leaked spool", async t => {
-  const m = memory(), root = await fs.mkdtemp("/private/tmp/bajaul-resource-enospc-"); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("input"); m.files.set(id(ref("staging/a")), bytes);
+  const m = memory(), root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-enospc-")); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("input"); m.files.set(id(ref("staging/a")), bytes);
   const low = createResourceFileStorageCore({ adapter: m.adapter, getEncryptionKey: () => key, temporaryRoot: root, fileSystem: { statfs: async () => ({ bavail: 1n, bsize: 1n }) as Awaited<ReturnType<typeof fs.statfs>> } });
   await assert.rejects(low.finalizeResourceStoredUpload({ staging: ref("staging/a"), final: ref("final/a"), size: bytes.length, wholeSha256: hash(bytes) }), error("STORAGE_UNAVAILABLE")); assert.deepEqual(await fs.readdir(root), []);
   let closed = 0; const noSpace = createResourceFileStorageCore({ adapter: m.adapter, getEncryptionKey: () => key, temporaryRoot: root, fileSystem: { async open(...args) { const file = await fs.open(...args); return new Proxy(file, { get(target, prop) { if (prop === "write") return async () => { throw Object.assign(new Error("synthetic secret ENOSPC"), { code: "ENOSPC" }); }; if (prop === "close") return async () => { closed++; await target.close(); }; const value = Reflect.get(target, prop, target); return typeof value === "function" ? value.bind(target) : value; } }); } } });
   await assert.rejects(noSpace.finalizeResourceStoredUpload({ staging: ref("staging/a"), final: ref("final/a"), size: bytes.length, wholeSha256: hash(bytes) }), error("STORAGE_UNAVAILABLE")); assert.equal(closed, 1); assert.equal(m.calls.write, 0); assert.deepEqual(await fs.readdir(root), []);
 });
 test("resource partial writes are completed and every spool write stays <=64KiB", async t => {
-  const m = memory(), root = await fs.mkdtemp("/private/tmp/bajaul-resource-partial-"); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.alloc(150000, 11); m.files.set(id(ref("staging/a")), bytes); let max = 0;
+  const m = memory(), root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-partial-")); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.alloc(150000, 11); m.files.set(id(ref("staging/a")), bytes); let max = 0;
   const core = createResourceFileStorageCore({ adapter: m.adapter, getEncryptionKey: () => key, temporaryRoot: root, fileSystem: { async open(...args) { const file = await fs.open(...args); return new Proxy(file, { get(target, prop) { if (prop === "write") return async (b: Uint8Array, off: number, len: number, pos: number) => { max = Math.max(max, len); return target.write(b, off, Math.min(997, len), pos); }; const value = Reflect.get(target, prop, target); return typeof value === "function" ? value.bind(target) : value; } }); } } });
   await core.finalizeResourceStoredUpload({ staging: ref("staging/a"), final: ref("final/a"), size: bytes.length, wholeSha256: hash(bytes) }); assert.ok(max <= 65536); assert.deepEqual(decryptAttachmentBuffer(m.files.get(id(ref("final/a")))!, { ATTACHMENT_ENCRYPTION_KEY: key.toString("base64") }), bytes);
 });
@@ -167,12 +168,12 @@ test("resource owned orphan directory sweep excludes unrelated and live namespac
 
 const syntheticEnv = { SUPABASE_URL: "https://synthetic.invalid", SUPABASE_STORAGE_BUCKET: "private-fixtures", SUPABASE_SERVICE_ROLE_KEY: "synthetic-service-role" };
 test("resource Supabase signed grant uses POST sign, raw PUT grant, conservative 7200s", async t => {
-  const root = await fs.mkdtemp("/private/tmp/bajaul-resource-rest-"); t.after(() => fs.rm(root, { recursive: true, force: true })); let request!: RequestInit; let requested = ""; const now = 1_700_000_000_000;
+  const root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-rest-")); t.after(() => fs.rm(root, { recursive: true, force: true })); let request!: RequestInit; let requested = ""; const now = 1_700_000_000_000;
   const storage = createResourceFileStorage({ env: syntheticEnv, temporaryRoot: root, now: () => now, fetch: async (url, init) => { requested = String(url); request = init!; return Response.json({ url: "/object/upload/sign/private-fixtures/resources/staging/a?token=synthetic" }); } });
   const grant = await storage.createResourceStagingGrant(ref("staging/a"), { mimeType: "application/pdf" }); assert.ok(requested.endsWith("/object/upload/sign/private-fixtures/resources/staging/a")); assert.equal(request.method, "POST"); assert.equal(request.body, "{}"); assert.equal(grant.method, "PUT"); assert.equal(grant.expiresAt, new Date(now + 7200000).toISOString()); assert.equal(grant.headers["Content-Type"], "application/pdf");
 });
 test("resource Supabase refuses untrusted signed URLs and oversized or stalled sign JSON", async t => {
-  const root = await fs.mkdtemp("/private/tmp/bajaul-resource-rest-bad-"); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-rest-bad-")); t.after(() => fs.rm(root, { recursive: true, force: true }));
   for (const url of ["https://evil.invalid/object/upload/sign/private-fixtures/resources/staging/a?token=x", "/object/upload/sign/private-fixtures/resources/final/a?token=x", "/object/upload/sign/private-fixtures/resources/staging/a?token=x&extra=y", "/object/upload/sign/private-fixtures/resources/staging/a?token="]) {
     const core = createResourceFileStorage({ env: syntheticEnv, temporaryRoot: root, fetch: async () => Response.json({ url }) }); await assert.rejects(core.createResourceStagingGrant(ref("staging/a"), { mimeType: "application/pdf" }), error("STORAGE_UNAVAILABLE"));
   }
@@ -180,12 +181,12 @@ test("resource Supabase refuses untrusted signed URLs and oversized or stalled s
   const large = createResourceFileStorage({ env: syntheticEnv, temporaryRoot: root, fetch: async () => new Response(stream(Buffer.alloc(17000, 32))) }); await assert.rejects(large.createResourceStagingGrant(ref("staging/a"), { mimeType: "x/y" }), error("STORAGE_UNAVAILABLE"));
 });
 test("resource Supabase actual adapter sends streamed POST create-only, then authenticated reread", async t => {
-  const root = await fs.mkdtemp("/private/tmp/bajaul-resource-rest-stream-"); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("web FormData File stream"), calls: RequestInit[] = []; let stored = Buffer.alloc(0);
+  const root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-rest-stream-")); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("web FormData File stream"), calls: RequestInit[] = []; let stored = Buffer.alloc(0);
   const storage = createResourceFileStorage({ env: syntheticEnv, temporaryRoot: root, fetch: async (_url, init) => { calls.push(init!); if (init?.method === "POST") { assert.ok(init.body instanceof ReadableStream); assert.equal((init as RequestInit & { duplex: string }).duplex, "half"); assert.equal(new Headers(init.headers).get("x-upsert"), "false"); assert.equal(new Headers(init.headers).get("Content-Length"), String(bytes.length)); stored = await collect(init.body as ReadableStream<Uint8Array>); return new Response(null, { status: 200 }); } return new Response(stream(stored), { headers: { "Content-Type": "text/html" } }); } });
   const value = await storage.writeResourceStagingFile(ref("staging/a"), { body: stream(bytes), size: bytes.length, mimeType: "text/plain" }); assert.equal(value.storedSha256, hash(bytes)); assert.equal(calls.length, 2); assert.equal(calls[1].cache, "no-store"); assert.equal(new Headers(calls[1].headers).get("Accept-Encoding"), "identity");
 });
 test("resource real local adapter creates immutable final, streams verification and deletes", async t => {
-  const root = await fs.mkdtemp("/private/tmp/bajaul-resource-local-"); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("local private fixture"), storage = createResourceFileStorage({ env: { ATTACHMENT_ENCRYPTION_KEY: key.toString("hex") }, localRoot: root, temporaryRoot: root });
+  const root = await fs.mkdtemp(path.join(tmpdir(), "bajaul-resource-local-")); t.after(() => fs.rm(root, { recursive: true, force: true })); const bytes = Buffer.from("local private fixture"), storage = createResourceFileStorage({ env: { ATTACHMENT_ENCRYPTION_KEY: key.toString("hex") }, localRoot: root, temporaryRoot: root });
   await storage.writeResourceStagingFile(ref("staging/a", "local"), { body: stream(bytes), size: bytes.length, mimeType: "text/plain" }); const first = await storage.finalizeResourceStoredUpload({ staging: ref("staging/a", "local"), final: ref("final/a", "local"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") });
   const second = await storage.finalizeResourceStoredUpload({ staging: ref("staging/a", "local"), final: ref("final/a", "local"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") }); assert.equal(second.reused, true); assert.equal(first.storedSha256, second.storedSha256);
   const value = await storage.readResourceStoredFile(ref("final/a", "local"), { expectedSize: bytes.length, beforeExpose() {} }); assert.deepEqual(await collect(value.body), bytes); await storage.deleteResourceStoredFile(ref("final/a", "local")); assert.equal(await storage.resourceStoredFileExists(ref("final/a", "local")), false); await assert.rejects(storage.createResourceStagingGrant(ref("staging/a", "local"), { mimeType: "text/plain" }), error("STORAGE_UNAVAILABLE"));
