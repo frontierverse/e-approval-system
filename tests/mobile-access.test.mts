@@ -29,6 +29,7 @@ const effectsUrl = moduleUrl(`
   export const prisma = globalThis.${key}.prisma;
   const state = globalThis.${key}.state;
   export async function getReadableDocumentById(...args) { state.effects.push(args); return state.document; }
+  export async function getMobileHomeTaskCounts(...args) { state.effects.push(["taskCounts", ...args]); return {pending:2, overdue:1}; }
   export async function getHomeDashboardData(...args) { state.effects.push(args); return state.dashboard; }
   export async function getMobileInboxPage(...args) { state.effects.push(args); return {documents:[], total:0, page:1, pageSize:20, totalPages:1}; }
   export async function getMobileDocumentPage(...args) { state.effects.push(args); return {documents:[], total:0, page:1, pageSize:20, totalPages:1}; }
@@ -59,7 +60,7 @@ const { getMobileSession, hashMobileToken, createMobileSession } = await import(
 const replacements = Object.fromEntries([
   "@/lib/prisma", "@/lib/approval-queries", "@/lib/approval-mutations",
   "@/lib/generated-approval-pdf", "@/lib/approval-attachment-file", "@/lib/notifications",
-  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "@/lib/mobile-notifications", "next/cache",
+  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "@/lib/mobile-notifications", "@/lib/mobile-staff-tasks", "next/cache",
 ].map(name => [name, effectsUrl]));
 replacements["@/lib/mobile-auth"] = authUrl;
 const route = (path: string) => import(compile(`app/api/mobile/${path}/route.ts`, replacements));
@@ -265,6 +266,8 @@ describe("staff-only mobile access", () => {
     assert.deepEqual(state.effects[0], ["staff", {includeApprovalQueue:false}]);
     assert.equal(body.canApproveDocuments, false);
     assert.deepEqual(body.counts, {activeSent:1, recalled:2});
+    assert.deepEqual(body.taskCounts, {pending:2, overdue:1});
+    assert.deepEqual(state.effects[1], ["taskCounts", "staff"]);
     assert.equal("inboxDocuments" in body, false);
     assert.equal(body.sentDocuments[0].id, "own-document");
     assert.equal(body.sentDocuments[0].currentApproverName, "Facility head");
@@ -280,7 +283,9 @@ describe("staff-only mobile access", () => {
     assert.deepEqual(body.inboxDocuments, []);
     const inbox = handlers.find(row => row.path === "inbox")!;
     assert.equal((await inbox.handler(request("inbox", "Bearer " + token))).status, 200);
-    assert.deepEqual(state.effects[1], ["staff", {query:"", dateFrom:"", dateTo:"", sort:"latest", page:1}]);
+    assert.deepEqual(body.taskCounts, {pending:2, overdue:1});
+    assert.deepEqual(state.effects[1], ["taskCounts", "staff"]);
+    assert.deepEqual(state.effects[2], ["staff", {query:"", dateFrom:"", dateTo:"", sort:"latest", page:1}]);
   });
   test("detail offers decisions only to the facility head in the current pending step", async () => {
     const detail = handlers.find(row => row.path === "documents/[id]")!;

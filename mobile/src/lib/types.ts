@@ -19,6 +19,7 @@ export type HomeDocument = {
 export type HomeResponse = {
   canApproveDocuments: boolean;
   counts: { activeSent: number; recalled: number; activeInbox?: number };
+  taskCounts: { pending: number; overdue: number };
   sentDocuments: HomeDocument[];
   inboxDocuments?: HomeDocument[];
 };
@@ -120,4 +121,33 @@ export type MobileAccount = {
   canChangePassword: boolean;
   profileImage: AccountImageInfo;
   signatureImage: AccountImageInfo;
+};
+
+
+export type MobileStaffTaskStatus = "pending" | "overdue" | "completed" | "all" | "deleted";
+export type MobileStaffTaskItem = {
+  id: string; title: string; description: string | null; meetingTitle: string | null;
+  dueDate: string | null; assigneeId: string; assigneeName: string; departmentName: string;
+  completedAt: string | null; deletedAt: string | null; createdAt: string; updatedAt: string; version: number;
+};
+export type MobileStaffTaskCounts = { pending: number; overdue: number; completed: number; deleted: number };
+export type MobileStaffTasksResponse = {
+  status: MobileStaffTaskStatus; today: string; tasks: MobileStaffTaskItem[]; counts: MobileStaffTaskCounts;
+  page: number; pageSize: 20; total: number; totalPages: number;
+};
+export type MobileStaffTaskMutationResponse = { ok: true; message: string; task: MobileStaffTaskItem };
+export type MobileStaffTaskCreateInput = {
+  title: string; requestId: string; description?: string; meetingTitle?: string; dueDate?: string;
+};
+export type MobileStaffTaskCompletionInput = { completed: boolean; version: number };
+export type MobileStaffTaskDeleteInput = { version: number };
+export type MobileStaffTaskHistoryField = "title" | "description" | "meetingTitle" | "assigneeName" | "dueDate" | "completedAt" | "deletedAt";
+export type MobileStaffTaskHistoryLog = {
+  id: string; createdAt: string; message: string | null; actorName: string;
+  changeType: "staffTask.create" | "staffTask.update" | "staffTask.complete" | "staffTask.reopen" | "staffTask.delete" | null;
+  changes: { field: MobileStaffTaskHistoryField; label: string; before: string | null; after: string | null }[];
+};
+export type MobileStaffTaskHistoryResponse = {
+  task: MobileStaffTaskItem; logs: MobileStaffTaskHistoryLog[]; today: string;
+  page: number; pageSize: 20; total: number; totalPages: number;
 };

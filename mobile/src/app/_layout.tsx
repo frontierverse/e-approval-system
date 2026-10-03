@@ -26,6 +26,9 @@ function Navigation() {
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
         <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
+        <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
+        <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
+        <Stack.Screen name="tasks/[id]" options={{ title: "할 일 상세·이력" }} />
       </Stack.Protected>
     </Stack>
   </>;
