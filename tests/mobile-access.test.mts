@@ -302,7 +302,8 @@ describe("staff-only mobile access", () => {
     state.session = activeSession();
     const detail = handlers.find(row => row.path === "documents/[id]")!;
     state.document = {
-      id:"document", status:"rejected", drafter:{name:"Test staff"}, attachments:[],
+      id:"document", status:"rejected", drafter:{name:"Test staff"}, attachments:[{id:"original", originalName:"계획.hwp", mimeType:"application/x-hwp", size:123, storageKey:"private-file", signedSourceAttachmentId:null, signedAt:null},
+        {id:"signed", originalName:"계획_서명.pdf", mimeType:"application/pdf", size:456, signedSourceAttachmentId:"original", signedAt:"2026-10-01T04:00:00Z", signedBy:{profileImageStorageKey:"private-signature"}}],
       createdAt:"2026-09-30T15:00:00Z", submittedAt:"2026-10-01T01:00:00Z", completedAt:"2026-10-01T05:00:00Z",
       approvalSteps:[{id:"step", order:1, approverId:"original", approver:{name:"원 결재자", profileImageStorageKey:"private-profile"},
         actedBy:{name:"실제 반려자", id:"private-actor"}, proxyApprovedBy:{name:"이전 대리 승인자"}, decisionType:"PROXY_REJECT",
@@ -320,6 +321,10 @@ describe("staff-only mobile access", () => {
     assert.deepEqual(body.document.approvalSteps[0], {id:"step", order:1, name:"원 결재자", status:"rejected", actedAt:"2026-10-01T05:00:00Z",
       comment:"예산 근거를 보완하세요.\n첨부 확인도 필요합니다.", actedByName:"실제 반려자", proxyApprovedByName:"이전 대리 승인자", decisionType:"PROXY_REJECT"});
     assert.deepEqual(body.document.histories, [{id:"history", action:"대리결재 반려", actorName:"실제 반려자", createdAt:"2026-10-01T05:00:00Z", description:"대리결재를 반려했습니다."}]);
+    assert.deepEqual(body.document.attachments, [
+      {id:"original", name:"계획.hwp", mimeType:"application/x-hwp", size:123, isSigned:false, signedAt:null, previewKind:null},
+      {id:"signed", name:"계획_서명.pdf", mimeType:"application/pdf", size:456, isSigned:true, signedAt:"2026-10-01T04:00:00Z", previewKind:"pdf"},
+    ]);
     assert.equal(JSON.stringify(body).includes("private-"), false);
     assert.equal(body.document.canDecide, false);
   });
