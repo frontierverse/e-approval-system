@@ -3,6 +3,8 @@ import { canViewHomeApprovalQueue } from "@/lib/home-dashboard-visibility";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
 import { getMobileHomeTaskCounts } from "@/lib/mobile-staff-tasks";
 
+import { getMobileDailyReportHomeSummary } from "@/lib/mobile-daily-reports";
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
@@ -10,14 +12,16 @@ export async function GET(request: Request) {
     const session = await getMobileSession(request);
     if (!session) return mobileJson({ error: "로그인이 필요합니다." }, 401);
     const canApproveDocuments = canViewHomeApprovalQueue(session.user.position.name);
-    const [dashboard, taskCounts] = await Promise.all([
+    const [dashboard, taskCounts, dailyReportSummary] = await Promise.all([
       getHomeDashboardData(session.userId, { includeApprovalQueue: canApproveDocuments }),
       getMobileHomeTaskCounts(session.userId),
+      getMobileDailyReportHomeSummary(session.userId),
     ]);
 
     return mobileJson({
       canApproveDocuments,
       taskCounts,
+      dailyReportSummary,
       counts: {
         activeSent: dashboard.counts.activeSent,
         recalled: dashboard.counts.recalled,

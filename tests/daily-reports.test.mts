@@ -55,7 +55,7 @@ const db = {
       Object.assign(row, data, { version, updatedAt: new Date() }); return { count: 1 };
     },
   },
-  user: { async findMany({ where, select }: Row) { return harness.users.filter(row => matches(row, where)).map(row => selected(row, select)); } },
+  user: { async findUnique({ where, select }: Row) { const row = harness.users.find(row => matches(row, where)); return row ? selected(row, select) : null; }, async findMany({ where, select }: Row) { return harness.users.filter(row => matches(row, where)).map(row => selected(row, select)); } },
   youth: { async findMany({ where, select }: Row) { return harness.youths.filter(row => matches(row, where)).map(row => selected(row, select)); } },
   auditLog: { async create({ data }: Row) { if (harness.failAudit) throw new Error("Audit unavailable"); harness.audits.push(data); } },
   async $transaction(operation: (tx: Row) => Promise<unknown>) {
@@ -81,9 +81,13 @@ function compile(file: string, replacements: Record<string, string>) {
 }
 const accessUrl = compile("../src/lib/youth-record-access.ts", aliases);
 const queryAliases = { ...aliases, "@/lib/youth-record-access": accessUrl };
-const queryUrl = compile("../src/lib/daily-reports.ts", queryAliases);
+const queryDomainUrl = compile("../src/lib/daily-report-queries.ts", queryAliases);
+const sharedAliases = { ...queryAliases, "@/lib/daily-report-queries": queryDomainUrl };
+const queryUrl = compile("../src/lib/daily-reports.ts", sharedAliases);
+const mutationUrl = compile("../src/lib/daily-report-mutations.ts", sharedAliases);
+const cacheUrl = compile("../src/lib/daily-report-cache.ts", aliases);
 const queries = await import(queryUrl);
-const actions = await import(compile("../src/app/work-schedule/daily-reports/actions.ts", { ...queryAliases, "@/lib/daily-reports": queryUrl }));
+const actions = await import(compile("../src/app/work-schedule/daily-reports/actions.ts", { ...sharedAliases, "@/lib/daily-report-mutations": mutationUrl, "@/lib/daily-report-cache": cacheUrl }));
 function form(overrides: Row = {}) {
   const data = new FormData();
   for (const [key, value] of Object.entries({ workDate: "2026-09-01", mainContent: "당일 주요 업무", youthReports: "[]", version: "0", intent: "submit", ...overrides })) data.set(key, String(value));

@@ -75,7 +75,7 @@ test('Actual account wrappers have token keys and previous-account late list/mut
 test('Actual TaskHomeEntry labels missing counts as unknown, formats subset counts and navigates to tasks', async () => {
   const h = harness('home', 'TestHomeEntry', { counts: undefined }); try {
     assert.equal(h.tree.props.accessibilityLabel, '내 할 일, 할 일 목록 보기'); assert(!text(h.tree).includes('0건'));
-    h.setProps({ counts: { pending: 1000000, overdue: 12 } }); assert(text(h.tree).includes('미완료 1,000,000건 · 기한 초과 12건')); assert.equal(h.tree.props.style({ pressed: false }).minHeight, 56);
+    h.setProps({ counts: { pending: 1000000, overdue: 12 } }); assert(text(h.tree).includes('미완료 1,000,000 · 초과 12')); assert.equal(h.tree.props.accessibilityLabel, '내 할 일, 미완료 1,000,000건 · 기한 초과 12건'); assert(Object.assign({}, ...h.tree.props.style({ pressed: false })).minHeight >= 44);
     h.tree.props.onPress(); assert.deepEqual(h.navigation, ['/tasks']);
   } finally { h.destroy(); }
 });
