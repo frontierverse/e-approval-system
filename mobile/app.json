@@ -3,7 +3,7 @@
     "name": "바자울",
     "slug": "gyeoljaeon",
     "scheme": "gyeoljaeon",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -41,6 +41,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-sharing",
       "expo-secure-store",
       "expo-notifications",
       "@config-plugins/react-native-pdf",

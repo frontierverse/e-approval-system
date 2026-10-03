@@ -14,7 +14,7 @@ export async function GET(
   const session = await getMobileSession(request);
   if (!session) return mobileJson({ error: "로그인이 필요합니다." }, 401);
   const { id } = await params;
-  const document = await getReadableDocumentById(id, session.userId, session.user.role);
+  const document = await getReadableDocumentById(id, session.userId, "USER");
   if (!document) return mobileJson({ error: "문서를 찾을 수 없습니다." }, 404);
 
   const currentStep = getCurrentApprovalStep(document);
@@ -64,6 +64,8 @@ export async function GET(
         name: attachment.originalName,
         mimeType: attachment.mimeType,
         size: attachment.size,
+        isSigned: Boolean(attachment.signedSourceAttachmentId),
+        signedAt: attachment.signedAt ?? null,
         previewKind: getAttachmentPreviewKind(attachment.originalName, attachment.mimeType),
       })),
       canDecide,

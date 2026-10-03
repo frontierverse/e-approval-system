@@ -1,5 +1,4 @@
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
-import { getAttachmentPreviewContentType, isPreviewableAttachmentFile } from "@/lib/attachment-preview";
 import { readApprovalAttachmentFile } from "@/lib/approval-attachment-file";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +15,7 @@ export async function GET(
   const attachment = await prisma.attachment.findFirst({
     where: {
       id,
+      // Mobile document access is personal, including for administrator accounts.
       document: getReadableDocumentWhere(session.userId, "USER"),
     },
     select: {
@@ -29,28 +29,40 @@ export async function GET(
     },
   });
   if (!attachment) return mobileJson({ error: "파일을 찾을 수 없습니다." }, 404);
-  if (!isPreviewableAttachmentFile(attachment.originalName, attachment.mimeType)) {
-    return mobileJson({ error: "미리보기를 지원하지 않는 파일입니다." }, 415);
-  }
 
   try {
+    // Signed, converted and generated files have their own attachment IDs.
+    // This also decrypts storage and marks invalidated automatic approval PDFs.
     const file = await readApprovalAttachmentFile(attachment);
-    const contentType = getAttachmentPreviewContentType(
-      attachment.originalName,
-      attachment.mimeType,
-    ) ?? getAttachmentPreviewContentType(
-      attachment.originalName,
-      file.mimeType,
-    ) ?? "application/octet-stream";
     return new Response(file.body, {
       headers: {
         "Cache-Control": "private, no-store",
-        "Content-Type": contentType,
+        Pragma: "no-cache",
+        "Content-Type": getContentType(file.mimeType, attachment.mimeType),
         "Content-Length": String(file.size ?? attachment.size),
+        "Content-Disposition": getContentDisposition(attachment.originalName),
+        "Access-Control-Expose-Headers": "Content-Disposition, Content-Length, Content-Type",
         "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {
     return mobileJson({ error: "파일을 불러올 수 없습니다." }, 404);
   }
+}
+
+function getContentType(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const type = value?.split(";")[0]?.trim().toLowerCase();
+    if (type && /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(type)) return type;
+  }
+  return "application/octet-stream";
+}
+
+function getContentDisposition(originalName: string) {
+  const filename = (originalName.split(/[\\/]/).pop() ?? "")
+    .replace(/[\x00-\x1f\x7f]/g, "_").trim() || "attachment";
+  const fallback = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const encoded = encodeURIComponent(filename).replace(/[!'()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }

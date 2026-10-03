@@ -2,6 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { apiRequest, ApiError } from "./api";
+import { clearAttachmentTransferCache } from "./attachment-transfer";
 import type { MobileUser } from "./types";
 
 const SESSION_KEY = "gyeoljaeon.mobile.session";
@@ -33,6 +34,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MobileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear private exported copies and cancel transfers when the account changes.
+  useEffect(() => { void clearAttachmentTransferCache().catch(() => undefined); }, [token]);
 
   useEffect(() => {
     let active = true;

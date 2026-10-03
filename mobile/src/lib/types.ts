@@ -36,6 +36,16 @@ export type InboxDocument = {
 
 export type InboxResponse = { total: number; documents: InboxDocument[] };
 
+export type MobileAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  previewKind: "pdf" | "image" | null;
+  isSigned: boolean;
+  signedAt: string | null;
+};
+
 export type MobileDocument = {
   id: string;
   documentNo: string;
@@ -61,13 +71,7 @@ export type MobileDocument = {
     decisionType?: string;
   }[];
   histories?: MobileDocumentHistory[];
-  attachments: {
-    id: string;
-    name: string;
-    mimeType: string;
-    size: number;
-    previewKind: "pdf" | "image" | null;
-  }[];
+  attachments: MobileAttachment[];
   canDecide: boolean;
   canRecall?: boolean;
   canEdit?: boolean;

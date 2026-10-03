@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, 
 import { ErrorState, PrimaryButton, TextAction } from "@/components/ui";
 import { DocumentProgress, RejectionReason } from "@/components/document-progress";
 import { DocumentDraftActions } from "@/components/document-draft-actions";
+import { attachmentFileSize } from "@/lib/attachment-file";
 import { detailDate, detailStatusLabels } from "@/lib/document-detail";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -30,6 +31,7 @@ function DocumentDetailScreen({ id }: { id: string }) {
   const canDecide = user?.canApproveDocuments === true && document?.canDecide === true;
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [comment, setComment] = useState("");
+  const [focusedAttachment, setFocusedAttachment] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submit = async () => {
@@ -81,13 +83,16 @@ function DocumentDetailScreen({ id }: { id: string }) {
         <Text accessibilityRole="header" {...sectionLevel} style={[styles.sectionTitle, { color: theme.text }]}>첨부파일 {document.attachments.length}</Text>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, padding: 0, overflow: "hidden" }]}>
           {document.attachments.map((attachment, index) => <Pressable key={attachment.id} accessibilityRole="link"
-            accessibilityLabel={attachment.name + (attachment.previewKind ? " 미리보기" : " 미리보기 불가")}
-            disabled={!attachment.previewKind}
-            onPress={() => router.push({ pathname: "/attachments/[id]", params: { id: attachment.id, name: attachment.name, kind: attachment.previewKind ?? "" } })}
-            style={({ pressed }) => [styles.fileRow, index > 0 && { borderTopWidth: 1, borderTopColor: theme.border }, pressed && { backgroundColor: theme.surfaceMuted }]}>
+            onFocus={() => setFocusedAttachment(attachment.id)} onBlur={() => setFocusedAttachment(null)}
+            accessibilityLabel={attachment.name + (attachment.isSigned ? " 서명본" : " 원본") + " 보기·저장·공유"}
+            onPress={() => router.push({ pathname: "/attachments/[id]", params: { id: attachment.id } })}
+            style={({ pressed }) => [styles.fileRow, { borderLeftWidth: 3, borderLeftColor: focusedAttachment === attachment.id ? theme.accent : "transparent" }, focusedAttachment === attachment.id && { backgroundColor: theme.accentSoft }, index > 0 && { borderTopWidth: 1, borderTopColor: theme.border }, pressed && { backgroundColor: theme.surfaceMuted }]}>
             <Ionicons name="attach" size={19} color={theme.secondary} />
-            <Text numberOfLines={2} style={{ color: attachment.previewKind ? theme.text : theme.muted, flex: 1, fontSize: 14 }}>{attachment.name}</Text>
-            {attachment.previewKind ? <Ionicons name="chevron-forward" size={17} color={theme.muted} /> : <Text style={{ color: theme.muted, fontSize: 12 }}>웹에서 확인</Text>}
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text numberOfLines={2} style={{ color: theme.text, fontSize: 14, lineHeight: 20 }}>{attachment.name}</Text>
+              <Text style={{ color: theme.secondary, fontSize: 12 }}>{attachment.isSigned ? "서명본" : "원본"} · {attachmentFileSize(attachment.size)} · {attachment.previewKind ? "미리보기·저장·공유" : "저장·공유"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={theme.muted} />
           </Pressable>)}
         </View>
       </> : null}
