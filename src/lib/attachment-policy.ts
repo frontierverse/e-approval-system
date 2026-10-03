@@ -6,6 +6,7 @@ import {
 } from "@/lib/attachment-storage";
 import { normalizeExtensionList } from "@/lib/attachment-policy-core";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 export {
   normalizeExtensionList,
@@ -14,15 +15,15 @@ export {
 
 export const attachmentPolicyId = "default";
 
-export async function getAttachmentPolicy(): Promise<AttachmentPolicyConfig> {
-  const policy = await prisma.attachmentPolicy.findUnique({
+export async function getAttachmentPolicy(db: Pick<Prisma.TransactionClient, "attachmentPolicy"> = prisma): Promise<AttachmentPolicyConfig> {
+  const policy = await db.attachmentPolicy.findUnique({
     where: {
       id: attachmentPolicyId,
     },
   });
 
   if (!policy) {
-    return createDefaultAttachmentPolicy();
+    return createDefaultAttachmentPolicy(db);
   }
 
   return {
@@ -32,14 +33,14 @@ export async function getAttachmentPolicy(): Promise<AttachmentPolicyConfig> {
   };
 }
 
-export async function upsertAttachmentPolicy(policy: AttachmentPolicyConfig) {
+export async function upsertAttachmentPolicy(policy: AttachmentPolicyConfig, db: Pick<Prisma.TransactionClient, "attachmentPolicy"> = prisma) {
   const normalizedPolicy = {
     maxFileCount: policy.maxFileCount,
     maxFileSizeMb: policy.maxFileSizeMb,
     allowedExtensions: normalizeExtensionList(policy.allowedExtensions),
   };
 
-  await prisma.attachmentPolicy.upsert({
+  await db.attachmentPolicy.upsert({
     where: {
       id: attachmentPolicyId,
     },
@@ -53,6 +54,13 @@ export async function upsertAttachmentPolicy(policy: AttachmentPolicyConfig) {
   return normalizedPolicy;
 }
 
-async function createDefaultAttachmentPolicy() {
-  return upsertAttachmentPolicy(defaultAttachmentPolicy);
+async function createDefaultAttachmentPolicy(db: Pick<Prisma.TransactionClient, "attachmentPolicy">) {
+  return upsertAttachmentPolicy(defaultAttachmentPolicy, db);
+}
+
+/** Pure policy query for mobile reads; the existing web initializer stays unchanged. */
+export async function getAttachmentPolicySnapshot(db: Pick<Prisma.TransactionClient, "attachmentPolicy"> = prisma): Promise<AttachmentPolicyConfig> {
+  const policy = await db.attachmentPolicy.findUnique({ where: { id: attachmentPolicyId } });
+  return policy ? { maxFileCount: policy.maxFileCount, maxFileSizeMb: policy.maxFileSizeMb, allowedExtensions: normalizeExtensionList(policy.allowedExtensions) }
+    : { ...defaultAttachmentPolicy, allowedExtensions: [...defaultAttachmentPolicy.allowedExtensions] };
 }

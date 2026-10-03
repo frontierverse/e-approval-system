@@ -6,11 +6,13 @@ export type ChatEmployee = {
   active: boolean;
 };
 
+export type ChatAttachmentStatus = "available" | "downloading" | "deleting" | "deleted";
+
 export type ChatAttachment = {
   id: string;
   originalName: string;
   size: number;
-  status: "available" | "downloading" | "deleting" | "deleted";
+  status: ChatAttachmentStatus;
 };
 
 export type ChatFilePolicy = { maxFileSize: number; zipMaxFileSize: number; uploadChunkSize: number; maxFileCount: 1; allowedExtensions: string[] };
@@ -39,3 +41,6 @@ export type ChatSummary = {
 };
 
 export type ChatMessagePage = { messages: ChatMessage[]; hasMore: boolean };
+
+export type ChatUploadStatus = { uploadId: string; uploadedParts: number[]; message?: ChatMessage };
+export type ChatReceiptStatus = { match: boolean; status: ChatAttachmentStatus };

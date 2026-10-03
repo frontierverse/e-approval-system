@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { DailyReportBackButton } from "@/components/daily-report-back-button";
 import { TextAction } from "@/components/ui";
+import { ChatProvider } from "@/lib/chat-provider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -26,6 +27,9 @@ function Navigation() {
         <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정" }} />
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
+        <Stack.Screen name="chat/index" options={{ title: "직원 채팅", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
+        <Stack.Screen name="chat/[peerId]" options={{ title: "직원 대화", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
+        <Stack.Screen name="chat/file-preview" options={{ title: "채팅 파일 미리보기", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />
         <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
@@ -46,5 +50,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><Navigation /></NotificationsProvider></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><ChatProvider><Navigation /></ChatProvider></NotificationsProvider></SessionProvider>;
 }

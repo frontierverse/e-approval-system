@@ -153,18 +153,11 @@ function compileModule(path: string, aliases: Record<string, string>) {
 const baseModule = compileModule("../src/lib/staff-chat.ts", {
   "@/lib/prisma": mocks, "@/lib/auth": mocks, "@/lib/staff-chat-events": mocks,
 });
-// Compile just the real participant lock to avoid loading storage providers or
-// introducing a second copy of the chat service through circular imports.
-const filesSource = readFileSync(new URL("../src/lib/staff-chat-files.ts", import.meta.url), "utf8");
-const lockSource = filesSource.slice(filesSource.indexOf("export async function lockActiveParticipants("), filesSource.indexOf("async function lockParticipantAttachment("));
-const lockModule = moduleUrl(ts.transpileModule(`
-  import { Prisma } from "@/generated/prisma/client";
-  import { StaffChatError, getStaffChatToday } from "@/lib/staff-chat-core";
-  ${lockSource}
-`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
+// Compile the actual shared eligibility lock, without a copied predicate.
+const lockModule = compileModule("../src/lib/staff-chat-actor.ts", {});
 const uploadModule = compileModule("../src/lib/staff-chat-uploads.ts", {
   "@/lib/prisma": mocks, "@/lib/staff-chat-chunk-storage": mocks,
-  "@/lib/staff-chat-files": lockModule, "@/lib/staff-chat": baseModule, "@/lib/staff-chat-events": mocks,
+  "@/lib/staff-chat-files": lockModule, "@/lib/staff-chat-actor": lockModule, "@/lib/staff-chat": baseModule, "@/lib/staff-chat-events": mocks,
 });
 const service = await import(uploadModule);
 const aliases = { "@/lib/staff-chat": baseModule, "@/lib/staff-chat-uploads": uploadModule };

@@ -3,20 +3,23 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
-import { getAttachmentPolicy } from "@/lib/attachment-policy";
+import { getAttachmentPolicy, getAttachmentPolicySnapshot } from "@/lib/attachment-policy";
 import {
   persistAttachmentFiles, prepareAttachmentFiles, readStoredAttachmentFile,
-  removeStoredAttachmentFiles, type PreparedAttachmentFile,
+  removeStoredAttachmentFiles, type PreparedAttachmentFile, type AttachmentPolicyConfig,
 } from "@/lib/attachment-storage";
 import { prisma } from "@/lib/prisma";
 import { mapMessage, messageSelect } from "@/lib/staff-chat";
-import { getStaffChatToday, parseStaffChatId, parseStaffChatSend, StaffChatError } from "@/lib/staff-chat-core";
+import { getStaffChatToday, getStaffChatAttachmentStatus, parseStaffChatId, parseStaffChatSend, StaffChatError } from "@/lib/staff-chat-core";
 import { publishStaffChatChange } from "@/lib/staff-chat-events";
 import { staffChatFileLeaseMs, staffChatFileMaxBytes } from "@/lib/staff-chat-file-core";
 import { getStaffChatFileSizeLimit, staffChatChunkSize, staffChatZipMaxBytes } from "@/lib/staff-chat-file-limits";
 import { readStaffChatStoredFile, removeStoredStaffChatFiles } from "@/lib/staff-chat-chunk-storage";
 import { getStaffChatPreviewContentType } from "@/lib/staff-chat-preview-core";
-import type { ChatFilePolicy, ChatMessage } from "@/lib/staff-chat-types";
+import { lockActiveParticipants, type StaffChatContext } from "@/lib/staff-chat-actor";
+import type { ChatFilePolicy, ChatMessage, ChatReceiptStatus } from "@/lib/staff-chat-types";
+
+export { lockActiveParticipants } from "@/lib/staff-chat-actor";
 
 const attachmentSelect = {
   id: true, messageId: true, originalName: true, mimeType: true, size: true,
@@ -29,8 +32,14 @@ type AttachmentRecord = Prisma.StaffChatAttachmentGetPayload<{ select: typeof at
 const uploadMessageSelect = { ...messageSelect, attachment: { select: attachmentSelect } } satisfies Prisma.StaffChatMessageSelect;
 type UploadMessageRecord = Prisma.StaffChatMessageGetPayload<{ select: typeof uploadMessageSelect }>;
 
-export async function getStaffChatFilePolicy(): Promise<ChatFilePolicy> {
-  const policy = await getAttachmentPolicy();
+export async function getStaffChatFilePolicy(db?: Pick<Prisma.TransactionClient, "attachmentPolicy">): Promise<ChatFilePolicy> {
+  const policy = await getAttachmentPolicy(db);
+  return toStaffChatFilePolicy(policy);
+}
+export async function getStaffChatFilePolicySnapshot(db?: Pick<Prisma.TransactionClient, "attachmentPolicy">): Promise<ChatFilePolicy> {
+  return toStaffChatFilePolicy(await getAttachmentPolicySnapshot(db));
+}
+function toStaffChatFilePolicy(policy: AttachmentPolicyConfig): ChatFilePolicy {
   return {
     maxFileSize: Math.min(staffChatFileMaxBytes, Math.floor(policy.maxFileSizeMb * 1024 * 1024)),
     zipMaxFileSize: staffChatZipMaxBytes,
@@ -41,7 +50,8 @@ export async function getStaffChatFilePolicy(): Promise<ChatFilePolicy> {
   };
 }
 
-export async function sendStaffChatFile(userId: string, form: FormData): Promise<ChatMessage> {
+export async function sendStaffChatFile(userId: string, form: FormData, context: StaffChatContext = {}): Promise<ChatMessage> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const entries = form.getAll("file");
   if (entries.length !== 1 || typeof entries[0] === "string" || entries[0].size <= 0) {
     throw new StaffChatError("전송할 파일을 한 개 선택해 주세요.");
@@ -54,7 +64,10 @@ export async function sendStaffChatFile(userId: string, form: FormData): Promise
   if (/[\x00-\x1f\x7f]/.test(input.name) || input.type.length > 255) {
     throw new StaffChatError("파일 이름이나 형식이 올바르지 않습니다.");
   }
-  const policy = await getStaffChatFilePolicy();
+  const policy = await db.$transaction(async tx => {
+    await lockActiveParticipants(tx, userId, undefined, today);
+    return getStaffChatFilePolicy(tx);
+  });
   const prepared = await prepareAttachmentFiles(entries, {
     maxFileCount: 1, maxFileSizeMb: getStaffChatFileSizeLimit(input.name, policy) / 1024 / 1024, allowedExtensions: policy.allowedExtensions,
   }, { storageKeyPrefix: "staff-chat/" });
@@ -67,17 +80,21 @@ export async function sendStaffChatFile(userId: string, form: FormData): Promise
   }, userId);
   const fileDigest = createHash("sha256").update(file.buffer).digest("hex");
   const uniqueRequest = { senderId_requestId: { senderId: userId, requestId } };
-  const existing = await prisma.staffChatMessage.findUnique({ where: uniqueRequest, select: uploadMessageSelect });
-  if (existing) return reuseFileMessage(existing, peerId, body, file, fileDigest);
+  const replay = await db.$transaction(async tx => {
+    await lockActiveParticipants(tx, userId, undefined, today);
+    const existing = await tx.staffChatMessage.findUnique({ where: uniqueRequest, select: uploadMessageSelect });
+    return existing ? reuseFileMessage(existing, peerId, body, file, fileDigest) : null;
+  });
+  if (replay) return replay;
 
   let message: UploadMessageRecord;
   try {
     // Check eligibility before persisting bytes, then lock and re-check it during
     // message creation so a concurrent employee deactivation cannot race send.
-    await prisma.$transaction((tx) => lockActiveParticipants(tx, userId, peerId));
+    await db.$transaction((tx) => lockActiveParticipants(tx, userId, peerId, today));
     await persistAttachmentFiles([file]);
-    message = await prisma.$transaction(async (tx) => {
-      await lockActiveParticipants(tx, userId, peerId);
+    message = await db.$transaction(async (tx) => {
+      await lockActiveParticipants(tx, userId, peerId, today);
       return tx.staffChatMessage.create({
         data: {
           senderId: userId, recipientId: peerId, body, requestId,
@@ -93,9 +110,12 @@ export async function sendStaffChatFile(userId: string, form: FormData): Promise
     // Includes ambiguous storage-write failures, not just database failures.
     await removeStoredAttachmentFiles([file], { signal: AbortSignal.timeout(10_000) }).catch(() => { console.error("Staff chat orphan file cleanup failed"); });
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-    const raced = await prisma.staffChatMessage.findUnique({ where: uniqueRequest, select: uploadMessageSelect });
-    if (!raced) throw error;
-    return reuseFileMessage(raced, peerId, body, file, fileDigest);
+    return db.$transaction(async tx => {
+      await lockActiveParticipants(tx, userId, undefined, today);
+      const raced = await tx.staffChatMessage.findUnique({ where: uniqueRequest, select: uploadMessageSelect });
+      if (!raced) throw error;
+      return reuseFileMessage(raced, peerId, body, file, fileDigest);
+    });
   }
   await publishStaffChatChange([userId, peerId]);
   return mapMessage(message);
@@ -111,21 +131,8 @@ function reuseFileMessage(existing: UploadMessageRecord, peerId: string, body: s
   return mapMessage(existing);
 }
 
-export async function lockActiveParticipants(tx: Prisma.TransactionClient, actorId: string, peerId?: string): Promise<void> {
-  const participants = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-    SELECT "id" FROM "User"
-    WHERE "id" IN (${actorId}, ${peerId ?? actorId}) AND "status" = 'ACTIVE'
-      AND ("resignationDate" IS NULL OR "resignationDate" > ${getStaffChatToday()})
-    ORDER BY "id" FOR SHARE
-  `);
-  if (!participants.some((participant) => participant.id === actorId)) throw new StaffChatError("인증이 필요합니다.", 401);
-  if (peerId && !participants.some((participant) => participant.id === peerId)) {
-    throw new StaffChatError("현재 메시지를 받을 수 없는 직원입니다.", 404);
-  }
-}
-
-async function lockParticipantAttachment(tx: Prisma.TransactionClient, userId: string, id: string): Promise<AttachmentRecord> {
-  await lockActiveParticipants(tx, userId);
+async function lockParticipantAttachment(tx: Prisma.TransactionClient, userId: string, id: string, today = getStaffChatToday()): Promise<AttachmentRecord> {
+  await lockActiveParticipants(tx, userId, undefined, today);
   // Both the authorization predicate and row lock are in SQL. Administrators
   // receive no override, and all lease/consume decisions occur under this lock.
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -147,10 +154,11 @@ function parseDownloadValue(value: unknown, key: "requestId" | "token"): string 
   return parsed;
 }
 
-export async function previewStaffChatFile(userId: string, requestedId: unknown): Promise<Response> {
+export async function previewStaffChatFile(userId: string, requestedId: unknown, context: StaffChatContext = {}): Promise<Response> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const id = parseStaffChatId(requestedId);
-  const attachment = await prisma.$transaction(async (tx) => {
-    const attachment = await lockParticipantAttachment(tx, userId, id);
+  const attachment = await db.$transaction(async (tx) => {
+    const attachment = await lockParticipantAttachment(tx, userId, id, today);
     assertPreviewAvailable(attachment);
     return attachment;
   });
@@ -170,7 +178,7 @@ export async function previewStaffChatFile(userId: string, requestedId: unknown)
   if (!contentType) throw new StaffChatError("파일 내용이 지원하는 미리보기 형식과 일치하지 않습니다.", 415);
   // Storage reads happen outside a transaction. Re-check after reading to avoid
   // publishing a preview when a concurrent completed download consumed the file.
-  await prisma.$transaction(async (tx) => assertPreviewAvailable(await lockParticipantAttachment(tx, userId, id)));
+  await db.$transaction(async (tx) => assertPreviewAvailable(await lockParticipantAttachment(tx, userId, id, today)));
   return new Response(bytes, { headers: {
     "Cache-Control": "private, no-store", "Vary": "Cookie",
     "Content-Type": contentType, "Content-Length": String(bytes.byteLength),
@@ -187,11 +195,12 @@ function assertPreviewAvailable(attachment: AttachmentRecord): void {
   }
 }
 
-export async function downloadStaffChatFile(userId: string, requestedId: unknown, value: unknown): Promise<Response> {
+export async function downloadStaffChatFile(userId: string, requestedId: unknown, value: unknown, context: StaffChatContext = {}): Promise<Response> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const id = parseStaffChatId(requestedId);
   const requestId = parseDownloadValue(value, "requestId");
-  const { attachment, token } = await prisma.$transaction(async (tx) => {
-    const attachment = await lockParticipantAttachment(tx, userId, id);
+  const { attachment, token } = await db.$transaction(async (tx) => {
+    const attachment = await lockParticipantAttachment(tx, userId, id, today);
     if (attachment.deletedAt || attachment.deletionRequestedAt || !attachment.storageKey) {
       throw new StaffChatError("수신자가 다운로드하여 삭제된 파일입니다.", 410);
     }
@@ -224,7 +233,7 @@ export async function downloadStaffChatFile(userId: string, requestedId: unknown
     return new Response(file.body, { headers });
   } catch (error) {
     if (token) {
-      await prisma.staffChatAttachment.updateMany({
+      await db.staffChatAttachment.updateMany({
         where: { id, downloadToken: token, deletionRequestedAt: null, deletedAt: null },
         data: { downloadExpiresAt: new Date(0) },
       }).catch(() => undefined);
@@ -233,11 +242,12 @@ export async function downloadStaffChatFile(userId: string, requestedId: unknown
   }
 }
 
-export async function completeStaffChatFileDownload(userId: string, requestedId: unknown, value: unknown): Promise<ChatMessage> {
+export async function completeStaffChatFileDownload(userId: string, requestedId: unknown, value: unknown, context: StaffChatContext = {}): Promise<ChatMessage> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const id = parseStaffChatId(requestedId);
   const token = parseDownloadValue(value, "token");
-  const attachment = await prisma.$transaction(async (tx) => {
-    const attachment = await lockParticipantAttachment(tx, userId, id);
+  const attachment = await db.$transaction(async (tx) => {
+    const attachment = await lockParticipantAttachment(tx, userId, id, today);
     if (attachment.message.recipientId !== userId) throw new StaffChatError("파일을 찾을 수 없습니다.", 404);
     if (attachment.downloadToken !== token) throw new StaffChatError("다운로드 확인 정보가 만료되었습니다. 다시 시도해 주세요.", 409);
     if (attachment.deletedAt || attachment.deletionRequestedAt) return attachment;
@@ -248,18 +258,21 @@ export async function completeStaffChatFileDownload(userId: string, requestedId:
   });
   // The durable pending state commits before external storage removal. A failure
   // keeps its storage references for retry and never advertises false deletion.
-  await deleteConsumedAttachment(attachment);
-  const message = await prisma.staffChatMessage.findUnique({ where: { id: attachment.messageId }, select: messageSelect });
-  if (!message) throw new StaffChatError("메시지를 찾을 수 없습니다.", 404);
-  return mapMessage(message);
+  await deleteConsumedAttachment(attachment, undefined, db);
+  return db.$transaction(async tx => {
+    await lockActiveParticipants(tx, userId, undefined, today);
+    const message = await tx.staffChatMessage.findUnique({ where: { id: attachment.messageId }, select: messageSelect });
+    if (!message) throw new StaffChatError("메시지를 찾을 수 없습니다.", 404);
+    return mapMessage(message);
+  });
 }
 
-async function deleteConsumedAttachment(attachment: AttachmentRecord, signal = AbortSignal.timeout(10_000)): Promise<void> {
+async function deleteConsumedAttachment(attachment: AttachmentRecord, signal = AbortSignal.timeout(10_000), db = prisma): Promise<void> {
   if (attachment.deletedAt) return;
   if (!attachment.deletionRequestedAt || !attachment.storageKey) throw new Error("Invalid staff chat deletion state");
   try {
     await removeStoredStaffChatFiles([{ storageKey: attachment.storageKey, storageProvider: attachment.storageProvider }], { signal });
-    const changed = await prisma.staffChatAttachment.updateMany({
+    const changed = await db.staffChatAttachment.updateMany({
       where: { id: attachment.id, deletedAt: null, deletionRequestedAt: { not: null }, storageKey: attachment.storageKey },
       data: { deletedAt: new Date(), storageKey: null, storageProvider: null, downloadExpiresAt: null },
     });
@@ -269,13 +282,28 @@ async function deleteConsumedAttachment(attachment: AttachmentRecord, signal = A
   }
 }
 
-export async function retryPendingStaffChatFileDeletes(userId: string): Promise<void> {
-  const pending = await prisma.staffChatAttachment.findMany({
+export async function retryPendingStaffChatFileDeletes(userId: string, context: StaffChatContext = {}): Promise<void> {
+  const db = context.db ?? prisma;
+  const pending = await db.staffChatAttachment.findMany({
     where: { deletedAt: null, deletionRequestedAt: { not: null }, message: { OR: [{ senderId: userId }, { recipientId: userId }] } },
     orderBy: { deletionRequestedAt: "asc" }, take: 3, select: attachmentSelect,
   });
   // Storage trouble must not stall the primary conversation. Aborted deletions
   // keep their durable pending record and retry on a later chat refresh.
   const signal = AbortSignal.timeout(2_000);
-  await Promise.allSettled(pending.map((attachment) => deleteConsumedAttachment(attachment, signal)));
+  await Promise.allSettled(pending.map((attachment) => deleteConsumedAttachment(attachment, signal, db)));
+}
+
+/** Pure recipient-scoped check. It neither renews a lease nor reconciles deletion. */
+export async function getStaffChatFileReceiptStatus(userId: string, requestedId: unknown, value: unknown, context: StaffChatContext = {}): Promise<ChatReceiptStatus> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
+  const id = parseStaffChatId(requestedId), requestId = parseDownloadValue(value, "requestId"), token = parseDownloadValue(value, "token");
+  return db.$transaction(async tx => {
+    await lockActiveParticipants(tx, userId, undefined, today);
+    const attachment = await tx.staffChatAttachment.findFirst({ where: { id, message: { recipientId: userId } }, select: {
+      downloadRequestId: true, downloadToken: true, downloadExpiresAt: true, deletionRequestedAt: true, deletedAt: true,
+    } });
+    if (!attachment) throw new StaffChatError("파일을 찾을 수 없습니다.", 404);
+    return { match: attachment.downloadRequestId === requestId && attachment.downloadToken === token, status: getStaffChatAttachmentStatus(attachment) };
+  }, { isolationLevel: "RepeatableRead" });
 }

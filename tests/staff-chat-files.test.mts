@@ -156,6 +156,7 @@ const mocks = moduleUrl(`
   export async function getCurrentUser() { return state.harness.currentUser; }
   export async function publishStaffChatChange(ids) { state.harness.changes.push(ids); }
   export async function getAttachmentPolicy() { return state.harness.policy; }
+  export async function getAttachmentPolicySnapshot() { return state.harness.policy; }
   export async function retryPendingStaffChatFileDeletes(userId) { return state.harness.fileService?.retryPendingStaffChatFileDeletes(userId); }
   export const prepareAttachmentFiles = state.prepareAttachmentFiles;
   export async function persistAttachmentFiles(files) {

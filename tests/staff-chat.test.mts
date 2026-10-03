@@ -64,6 +64,7 @@ const fakePrisma = {
     },
   },
   user: {
+    async findUnique({ where }: Row) { return harness.users.find(user => matches(user, where)) ?? null; },
     async findMany(options: Row) {
       return harness.users.map((user) => ({
         ...user,

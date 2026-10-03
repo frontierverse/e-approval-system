@@ -1,0 +1,52 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+const ciUrl="postgresql://postgres:postgres@127.0.0.1:5432/e_approval_test";
+function disposable(){if(process.env.DATABASE_URL!==ciUrl||process.env.DIRECT_URL!==ciUrl)throw Error("Disposable CI database required");}
+test("CI PostgreSQL actual chat SQL blank eligibility, read scope, inactive replay and pure statuses",{skip:process.env.GITHUB_ACTIONS!=="true",timeout:30000},async()=>{
+ disposable();
+ const[{PrismaClient,Prisma},{PrismaPg},chat,files,uploads,{getStaffChatToday}]=await Promise.all([import("../src/generated/prisma/client.ts"),import("@prisma/adapter-pg"),import("../src/lib/staff-chat.ts"),import("../src/lib/staff-chat-files.ts"),import("../src/lib/staff-chat-uploads.ts"),import("../src/lib/staff-chat-core.ts")]);
+ const db=new PrismaClient({adapter:new PrismaPg({connectionString:ciUrl,max:1})}),rollback=Error("chat-domain-fixture-rollback");let verified=false;
+ try{await assert.rejects(db.$transaction(async tx=>{
+  const prefix="ci-mobile-chat-domain",department=await tx.department.create({data:{id:prefix+"-dept",name:"채팅 검증",code:"CI_MOBILE_CHAT_DOMAIN"}}),position=await tx.position.create({data:{id:prefix+"-pos",name:"담당",level:1}});
+  const actor=await tx.user.create({data:{id:prefix+"-actor",name:"검증 직원",departmentId:department.id,positionId:position.id,resignationDate:""}}),peer=await tx.user.create({data:{id:prefix+"-peer",name:"상대 직원",departmentId:department.id,positionId:position.id}}),admin=await tx.user.create({data:{id:prefix+"-admin",name:"타인 관리자",role:"ADMIN",departmentId:department.id,positionId:position.id}});
+  const store={staffChatUpload:tx.staffChatUpload,$transaction:async(operation:(client:typeof tx)=>Promise<unknown>)=>{await tx.$executeRaw(Prisma.sql`SAVEPOINT mobile_chat_case`);try{const result=await operation(tx);await tx.$executeRaw(Prisma.sql`RELEASE SAVEPOINT mobile_chat_case`);return result;}catch(error){await tx.$executeRaw(Prisma.sql`ROLLBACK TO SAVEPOINT mobile_chat_case`);await tx.$executeRaw(Prisma.sql`RELEASE SAVEPOINT mobile_chat_case`);throw error;}}}as unknown as typeof db;
+  const context={db:store,today:getStaffChatToday()},input={peerId:peer.id,body:"검증 본문",requestId:prefix+"-send"};
+  await tx.attachmentPolicy.upsert({where:{id:"default"},create:{id:"default",maxFileCount:1,maxFileSizeMb:2,allowedExtensions:[".txt"]},update:{maxFileCount:1,maxFileSizeMb:2,allowedExtensions:[".txt"]}});assert.equal((await files.getStaffChatFilePolicy(tx)).maxFileSize,2*1024*1024);
+  const sent=await chat.sendStaffChatMessage(actor.id,input,context);assert.equal((await chat.sendStaffChatMessage(actor.id,input,context)).id,sent.id);assert.equal(await tx.staffChatMessage.count({where:{senderId:actor.id,requestId:input.requestId}}),1);
+  const inbound=await tx.staffChatMessage.create({data:{senderId:peer.id,recipientId:actor.id,body:"확인할 수신",requestId:prefix+"-incoming"}}),later=await tx.staffChatMessage.create({data:{senderId:peer.id,recipientId:actor.id,body:"아직 보지 않은 수신",requestId:prefix+"-later"}});
+  await tx.user.update({where:{id:peer.id},data:{status:"INACTIVE"}});assert.equal((await chat.sendStaffChatMessage(actor.id,input,context)).id,sent.id);await assert.rejects(chat.sendStaffChatMessage(actor.id,{...input,requestId:prefix+"-new"},context),{status:404});
+  await chat.markStaffChatRead(actor.id,{peerId:peer.id,messageId:inbound.id},context);assert((await tx.staffChatMessage.findUniqueOrThrow({where:{id:inbound.id}})).readAt);assert.equal((await tx.staffChatMessage.findUniqueOrThrow({where:{id:later.id}})).readAt,null);await assert.rejects(chat.markStaffChatRead(actor.id,{peerId:peer.id,messageId:sent.id},context),{status:404});
+  const attachment=await tx.staffChatAttachment.create({data:{messageId:inbound.id,originalName:"검증.txt",mimeType:"text/plain",size:1,fileDigest:"a".repeat(64),storageProvider:"local",storageKey:"synthetic-unread-object",downloadRequestId:prefix+"-download",downloadToken:prefix+"-token",downloadExpiresAt:new Date(0)}});
+  const baseline=await tx.staffChatAttachment.findUniqueOrThrow({where:{id:attachment.id}}),known={requestId:prefix+"-download",token:prefix+"-token"};assert.deepEqual(await files.getStaffChatFileReceiptStatus(actor.id,attachment.id,known,context),{match:true,status:"available"});assert.deepEqual(await files.getStaffChatFileReceiptStatus(actor.id,attachment.id,{...known,requestId:prefix+"-other"},context),{match:false,status:"available"});
+  for(const id of [peer.id,admin.id])await assert.rejects(files.getStaffChatFileReceiptStatus(id,attachment.id,known,context),{status:id===peer.id?401:404});assert.deepEqual(await tx.staffChatAttachment.findUniqueOrThrow({where:{id:attachment.id}}),baseline);
+  await tx.staffChatAttachment.update({where:{id:attachment.id},data:{downloadToken:prefix+"-replacement"}});await assert.rejects(files.completeStaffChatFileDownload(actor.id,attachment.id,{token:known.token},context),{status:409});assert.equal((await tx.staffChatAttachment.findUniqueOrThrow({where:{id:attachment.id}})).deletionRequestedAt,null);
+  const upload=await tx.staffChatUpload.create({data:{id:"12345678-1234-1234-1234-123456789abc",senderId:actor.id,recipientId:peer.id,requestId:prefix+"-zip",body:input.body,originalName:"검증.zip",mimeType:"application/zip",size:4194305,chunkDigests:["a".repeat(64),"b".repeat(64)],fileDigest:"c".repeat(64),uploadedParts:[0,1],storageProvider:"local",messageId:sent.id,expiresAt:new Date(0)}});
+  const result=await uploads.getStaffChatUploadStatus(actor.id,upload.requestId,context);assert.equal(result.message!.id,sent.id);assert.deepEqual(result.uploadedParts,[0,1]);assert.deepEqual(await tx.staffChatUpload.findUniqueOrThrow({where:{id:upload.id}}),upload);await assert.rejects(uploads.getStaffChatUploadStatus(admin.id,upload.requestId,context),{status:404});
+  await tx.user.update({where:{id:actor.id},data:{resignationDate:context.today}});for(const run of [()=>chat.sendStaffChatMessage(actor.id,input,context),()=>chat.markStaffChatRead(actor.id,{peerId:peer.id,messageId:later.id},context),()=>files.getStaffChatFileReceiptStatus(actor.id,attachment.id,known,context),()=>uploads.getStaffChatUploadStatus(actor.id,upload.requestId,context)])await assert.rejects(run(),{status:401});
+  await tx.staffChatUpload.update({where:{id:upload.id},data:{messageId:null}});const expired=await tx.staffChatUpload.findUniqueOrThrow({where:{id:upload.id}});await assert.rejects(uploads.cleanupExpiredStaffChatUploads(actor.id,context),{status:401});assert.deepEqual(await tx.staffChatUpload.findUniqueOrThrow({where:{id:upload.id}}),expired);
+  verified=true;throw rollback;
+ },{timeout:25000}),error=>error===rollback);assert.equal(verified,true);}finally{await db.$disconnect();}
+});
+
+test("CI PostgreSQL actual chat concurrent requests deduplicate and read actor lock blocks deactivation",{skip:process.env.GITHUB_ACTIONS!=="true",timeout:30000},async()=>{
+ disposable();
+ const[{PrismaClient,Prisma},{PrismaPg},chat]=await Promise.all([import("../src/generated/prisma/client.ts"),import("@prisma/adapter-pg"),import("../src/lib/staff-chat.ts")]);
+ const db=new PrismaClient({adapter:new PrismaPg({connectionString:ciUrl,max:4})}),prefix="ci-mobile-chat-concurrency",userIds=[prefix+"-actor",prefix+"-peer"],messageIds=new Set<string>();let release:()=>void=()=>{};
+ try{
+  await db.department.create({data:{id:prefix+"-dept",name:"채팅 경합 검증",code:"CI_MOBILE_CHAT_CONCURRENCY"}});await db.position.create({data:{id:prefix+"-pos",name:"담당",level:1}});for(const id of userIds)await db.user.create({data:{id,name:id,departmentId:prefix+"-dept",positionId:prefix+"-pos"}});
+  const input={peerId:userIds[1],body:"같은 요청",requestId:prefix+"-request"},context={db};const results=await Promise.all([chat.sendStaffChatMessage(userIds[0],input,context),chat.sendStaffChatMessage(userIds[0],input,context)]);results.forEach(row=>messageIds.add(row.id));assert.equal(results[0].id,results[1].id);assert.equal(await db.staffChatMessage.count({where:{senderId:userIds[0],requestId:input.requestId}}),1);
+  const inbound=await db.staffChatMessage.create({data:{senderId:userIds[1],recipientId:userIds[0],body:"보이는 수신",requestId:prefix+"-inbound"}});messageIds.add(inbound.id);
+  let entered:()=>void=()=>{};const ready=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{release=resolve;});
+  const lockedStore={$transaction:(operation:(tx:unknown)=>Promise<unknown>,options?:object)=>db.$transaction(async tx=>{
+   const messages=new Proxy(tx.staffChatMessage,{get(target,key){if(key==="findFirst")return async(args:Parameters<typeof target.findFirst>[0])=>{const result=await target.findFirst(args);entered();await gate;return result;};const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}});
+   return operation(new Proxy(tx,{get(target,key){if(key==="staffChatMessage")return messages;const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;}}));
+  },options)}as unknown as typeof db;
+  const read=chat.markStaffChatRead(userIds[0],{peerId:userIds[1],messageId:inbound.id},{db:lockedStore});await ready;
+  let pidReady:(value:number)=>void=()=>{};const started=new Promise<number>(resolve=>{pidReady=resolve;});const deactivate=db.$transaction(async tx=>{const rows=await tx.$queryRaw<Array<{pid:number}>>(Prisma.sql`SELECT pg_backend_pid()::int AS pid`);pidReady(rows[0]!.pid);return tx.user.update({where:{id:userIds[0]},data:{status:"INACTIVE"}});});const pid=await started;
+  let blocked=false;for(let n=0;n<200;n++){const rows=await db.$queryRaw<Array<{blocked:boolean}>>(Prisma.sql`SELECT cardinality(pg_blocking_pids(${pid}::int)) > 0 AS blocked`);if(rows[0]!.blocked){blocked=true;break;}await new Promise(resolve=>setTimeout(resolve,5));}assert.equal(blocked,true,"actor deactivation must wait for the read receipt transaction");release();await read;await deactivate;
+  assert((await db.staffChatMessage.findUniqueOrThrow({where:{id:inbound.id}})).readAt);await assert.rejects(chat.markStaffChatRead(userIds[0],{peerId:userIds[1],messageId:inbound.id},context),{status:401});
+ }finally{
+  release();await db.staffChatMessage.deleteMany({where:{OR:[{id:{in:[...messageIds]}},{senderId:{in:userIds}}]}});await db.user.deleteMany({where:{id:{in:userIds}}});await db.position.deleteMany({where:{id:prefix+"-pos"}});await db.department.deleteMany({where:{id:prefix+"-dept"}});await db.$disconnect();
+ }
+});
