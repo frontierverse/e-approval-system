@@ -1,0 +1,8 @@
+import { getMobileChatResponse } from "@/lib/mobile-chat";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export function GET(request: Request) {
+  return getMobileChatResponse(request, "summary");
+}

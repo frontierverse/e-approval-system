@@ -13,7 +13,7 @@ export function isStaffChatEmployeeActive(
   user: { status: string; resignationDate: string | null },
   today = getStaffChatToday(),
 ): boolean {
-  return user.status === "ACTIVE" && (!user.resignationDate || user.resignationDate > today);
+  return user.status === "ACTIVE" && (user.resignationDate === null || user.resignationDate === "" || user.resignationDate > today);
 }
 
 export class StaffChatError extends Error {
@@ -110,4 +110,9 @@ export async function readStaffChatJson(request: Request): Promise<unknown> {
   } finally {
     reader.releaseLock();
   }
+}
+
+export function getStaffChatAttachmentStatus(attachment: { deletedAt: Date | null; deletionRequestedAt: Date | null; downloadExpiresAt: Date | null }, now = new Date()) {
+  return attachment.deletedAt ? "deleted" as const : attachment.deletionRequestedAt ? "deleting" as const
+    : attachment.downloadExpiresAt && attachment.downloadExpiresAt > now ? "downloading" as const : "available" as const;
 }

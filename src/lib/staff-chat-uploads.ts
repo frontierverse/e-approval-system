@@ -4,22 +4,26 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type StaffChatUpload } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAttachmentStorageConfig, resolveAttachmentStorageProvider } from "@/lib/attachment-storage-core";
+import { staffChatChunkSize } from "@/lib/staff-chat-file-limits";
 import { getStaffChatChunkRef, removeStaffChatChunkUpload, writeStaffChatChunk, writeStaffChatManifest } from "@/lib/staff-chat-chunk-storage";
-import { StaffChatError } from "@/lib/staff-chat-core";
-import { lockActiveParticipants } from "@/lib/staff-chat-files";
+import { StaffChatError, getStaffChatToday, parseStaffChatId } from "@/lib/staff-chat-core";
+import { lockActiveParticipants, type StaffChatContext } from "@/lib/staff-chat-actor";
 import { mapMessage, messageSelect } from "@/lib/staff-chat";
 import { publishStaffChatChange } from "@/lib/staff-chat-events";
 import { getStaffChatPartSize, parseStaffChatUpload, parseStaffChatUploadId, staffChatUploadLifetimeMs } from "@/lib/staff-chat-upload-core";
 
+import type { ChatUploadStatus } from "@/lib/staff-chat-types";
+
 const transactionOptions = { maxWait: 10_000, timeout: 60_000 };
 
-export async function startStaffChatUpload(userId: string, value: unknown) {
+export async function startStaffChatUpload(userId: string, value: unknown, context: StaffChatContext = {}) {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const input = parseStaffChatUpload(value, userId);
   const storage = getAttachmentStorageConfig(process.env);
   if (!storage.ok) throw new StaffChatError("첨부파일 저장소 설정이 올바르지 않습니다. 관리자에게 문의하세요.", 503);
-  await cleanupExpiredStaffChatUploads(userId);
-  return prisma.$transaction(async (tx) => {
-    await lockActiveParticipants(tx, userId, input.peerId);
+  await cleanupExpiredStaffChatUploads(userId, { db, today });
+  return db.$transaction(async (tx) => {
+    await lockActiveParticipants(tx, userId, input.peerId, today);
     // Return an integer column: Prisma's PostgreSQL adapter cannot decode void.
     await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${`staff-chat-upload:${userId}`}))`);
     let upload = await tx.staffChatUpload.findUnique({ where: { senderId_requestId: { senderId: userId, requestId: input.requestId } } });
@@ -44,7 +48,7 @@ export async function startStaffChatUpload(userId: string, value: unknown) {
   }, transactionOptions);
 }
 
-async function lockUpload(tx: Prisma.TransactionClient, userId: string, id: string): Promise<StaffChatUpload> {
+async function lockUpload(tx: Prisma.TransactionClient, userId: string, id: string, today = getStaffChatToday()): Promise<StaffChatUpload> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT "id" FROM "StaffChatUpload" WHERE "id" = ${id} AND "senderId" = ${userId} FOR UPDATE
   `);
@@ -52,11 +56,11 @@ async function lockUpload(tx: Prisma.TransactionClient, userId: string, id: stri
   const upload = await tx.staffChatUpload.findUnique({ where: { id } });
   if (!upload) throw new StaffChatError("파일 전송 정보를 찾을 수 없습니다.", 404);
   assertUploadAvailable(upload);
-  await lockActiveParticipants(tx, userId, upload.recipientId);
+  await lockActiveParticipants(tx, userId, upload.recipientId, today);
   return upload;
 }
 
-function assertUploadAvailable(upload: StaffChatUpload) {
+function assertUploadAvailable(upload: Pick<StaffChatUpload, "deletionRequestedAt" | "messageId" | "expiresAt">) {
   if (upload.deletionRequestedAt || (!upload.messageId && upload.expiresAt <= new Date())) {
     throw new StaffChatError("파일 전송이 만료되었습니다. 파일을 다시 전송해 주세요.", 410);
   }
@@ -68,11 +72,12 @@ function uploadProvider(upload: StaffChatUpload) {
   return provider;
 }
 
-export async function putStaffChatUploadPart(userId: string, requestedId: unknown, index: number, bytes: Buffer) {
+export async function putStaffChatUploadPart(userId: string, requestedId: unknown, index: number, bytes: Buffer, context: StaffChatContext = {}) {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const id = parseStaffChatUploadId(requestedId);
   const digest = createHash("sha256").update(bytes).digest("hex");
-  await prisma.$transaction(async (tx) => {
-    const upload = await lockUpload(tx, userId, id);
+  await db.$transaction(async (tx) => {
+    const upload = await lockUpload(tx, userId, id, today);
     const expectedSize = getStaffChatPartSize(upload.size, index);
     const digests = upload.chunkDigests as string[];
     if (bytes.byteLength !== expectedSize || digest !== digests[index]) throw new StaffChatError("파일 내용이 일치하지 않습니다. 파일을 다시 선택해 주세요.", 409);
@@ -90,10 +95,11 @@ export async function putStaffChatUploadPart(userId: string, requestedId: unknow
   return { ok: true };
 }
 
-export async function completeStaffChatUpload(userId: string, requestedId: unknown) {
+export async function completeStaffChatUpload(userId: string, requestedId: unknown, context: StaffChatContext = {}) {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
   const id = parseStaffChatUploadId(requestedId);
-  const message = await prisma.$transaction(async (tx) => {
-    const upload = await lockUpload(tx, userId, id);
+  const message = await db.$transaction(async (tx) => {
+    const upload = await lockUpload(tx, userId, id, today);
     if (upload.messageId) {
       const existing = await tx.staffChatMessage.findUnique({ where: { id: upload.messageId }, select: messageSelect });
       if (!existing) throw new StaffChatError("메시지를 찾을 수 없습니다.", 404);
@@ -124,14 +130,18 @@ export async function completeStaffChatUpload(userId: string, requestedId: unkno
   return mapMessage(message);
 }
 
-export async function cleanupExpiredStaffChatUploads(userId: string) {
-  const candidates = await prisma.staffChatUpload.findMany({ where: {
+export async function cleanupExpiredStaffChatUploads(userId: string, context: StaffChatContext = {}) {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
+  // Authenticate before the candidate query, then recheck under each claim lock.
+  await db.$transaction(tx => lockActiveParticipants(tx, userId, undefined, today));
+  const candidates = await db.staffChatUpload.findMany({ where: {
     senderId: userId, messageId: null, OR: [{ expiresAt: { lte: new Date() } }, { deletionRequestedAt: { not: null } }],
   }, orderBy: { expiresAt: "asc" }, take: 3 });
   for (const candidate of candidates) {
     // Claim cleanup under the same row lock as parts/finalization. Once marked,
     // no request can add bytes or publish a message referencing these objects.
-    const claimed = await prisma.$transaction(async (tx) => {
+    const claimed = await db.$transaction(async (tx) => {
+      await lockActiveParticipants(tx, userId, undefined, today);
       const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "StaffChatUpload" WHERE "id" = ${candidate.id} AND "senderId" = ${userId} FOR UPDATE
       `);
@@ -143,9 +153,29 @@ export async function cleanupExpiredStaffChatUploads(userId: string) {
     if (!claimed) continue;
     try {
       await removeStaffChatChunkUpload(claimed.id, uploadProvider(claimed), { signal: AbortSignal.timeout(10_000) });
-      await prisma.staffChatUpload.deleteMany({ where: { id: claimed.id, messageId: null, deletionRequestedAt: { not: null } } });
+      await db.staffChatUpload.deleteMany({ where: { id: claimed.id, messageId: null, deletionRequestedAt: { not: null } } });
     } catch {
       console.error("Staff chat expired upload cleanup pending");
     }
   }
+}
+
+/** Pure sender recovery by original request ID; published results survive peer retirement. */
+export async function getStaffChatUploadStatus(userId: string, requestedRequestId: unknown, context: StaffChatContext = {}): Promise<ChatUploadStatus> {
+  const db = context.db ?? prisma, today = context.today ?? getStaffChatToday();
+  const requestId = parseStaffChatId(requestedRequestId);
+  if (requestId.length < 8) throw new StaffChatError("파일 전송 정보가 올바르지 않습니다.");
+  return db.$transaction(async tx => {
+    await lockActiveParticipants(tx, userId, undefined, today);
+    const upload = await tx.staffChatUpload.findUnique({ where: { senderId_requestId: { senderId: userId, requestId } }, select: {
+      id: true, senderId: true, recipientId: true, size: true, uploadedParts: true, messageId: true, expiresAt: true, deletionRequestedAt: true,
+    } });
+    if (!upload || upload.senderId !== userId) throw new StaffChatError("파일 전송 정보를 찾을 수 없습니다.", 404);
+    assertUploadAvailable(upload);
+    const message = upload.messageId ? await tx.staffChatMessage.findFirst({ where: { id: upload.messageId, senderId: userId, recipientId: upload.recipientId }, select: messageSelect }) : null;
+    if (upload.messageId && !message) throw new StaffChatError("메시지를 찾을 수 없습니다.", 404);
+    const count = Math.ceil(upload.size / staffChatChunkSize), parts = upload.uploadedParts;
+    if (!Array.isArray(parts) || parts.some(part => typeof part !== "number" || !Number.isInteger(part) || part < 0 || part >= count)) throw new StaffChatError("파일 전송 정보를 확인할 수 없습니다.", 503);
+    return { uploadId: upload.id, uploadedParts: [...new Set(parts as number[])].sort((a, b) => a - b), ...(message ? { message: mapMessage(message) } : {}) };
+  }, { isolationLevel: "RepeatableRead" });
 }
