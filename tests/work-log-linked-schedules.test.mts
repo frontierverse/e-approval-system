@@ -289,6 +289,7 @@ describe("work-log linked schedule integration contracts", () => {
       querySource,
       /occurrenceDates:\s*\{\s*has:\s*workDate/,
     );
+    assert.match(querySource, /youthOperationalWhere\(today\)/);
     assert.match(querySource, /dischargeDate:\s*null/);
     assert.match(querySource, /dischargeDate:\s*""/);
     assert.match(querySource, /dischargeDate:\s*\{\s*gte:\s*workDate/);
@@ -328,7 +329,7 @@ describe("work-log linked schedule integration contracts", () => {
     );
     assert.match(
       workLogsSource,
-      /getWorkLogLinkedScheduleLoadState\(selectedDate\)/,
+      /getWorkLogLinkedScheduleLoadState\(selectedDate, db, today\)/,
     );
     assert.match(
       workLogsSource,
@@ -416,7 +417,7 @@ describe("work-log linked schedule integration contracts", () => {
     );
     assert.match(
       workLogsSource,
-      /getWorkLogLinkedScheduleLoadState\(selectedDate\)/,
+      /getWorkLogLinkedScheduleLoadState\(selectedDate, db, today\)/,
     );
     assert.match(
       apiSource,

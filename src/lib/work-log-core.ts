@@ -304,3 +304,8 @@ export function formatWorkLogDateLabel(value: string) {
 
   return `${year}년 ${month}월 ${day}일${weekday ? ` (${weekday})` : ""}`;
 }
+
+export function isExactWorkLogTimestamp(value: string) {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.toISOString() === value;
+}

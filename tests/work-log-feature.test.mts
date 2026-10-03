@@ -21,6 +21,8 @@ const updaterMigrationSource = read(
   "../prisma/migrations-postgresql/20260903100000_add_work_log_updater/migration.sql",
 );
 const actionSource = read("../src/app/work-schedule/work-log/actions.ts");
+const domainSource = read("../src/lib/work-log-mutations.ts");
+const cacheSource = read("../src/lib/work-log-cache.ts");
 const detailRouteSource = read("../src/app/api/work-logs/[date]/route.ts");
 const querySource = read("../src/lib/work-logs.ts");
 const boardSource = read("../src/components/work-log-board.tsx");
@@ -77,13 +79,15 @@ describe("work log feature", () => {
 
   test("authenticates and scopes every save and read to the current user", () => {
     assert.match(actionSource, /const user = await requireUser\(\)/);
-    assert.match(actionSource, /authorId: user\.id/);
-    assert.match(actionSource, /updatedById: user\.id/);
-    assert.match(actionSource, /tx\.workLog\.upsert/);
-    assert.match(actionSource, /tx\.workLog\.findUnique/);
-    assert.match(actionSource, /TransactionIsolationLevel\.Serializable/);
-    assert.match(actionSource, /P2002[\s\S]*?P2034/);
-    assert.match(actionSource, /revalidatePath\(workLogPath\)/);
+    assert.match(actionSource, /saveOwnWorkLog\(\{ actor: user/);
+    assert.match(domainSource, /authorId = context\.actor\.id/);
+    assert.match(domainSource, /updatedById: authorId/);
+    assert.match(domainSource, /tx\.workLog\.upsert/);
+    assert.match(domainSource, /tx\.workLog\.findUnique/);
+    assert.match(domainSource, /TransactionIsolationLevel\.Serializable/);
+    assert.match(domainSource, /P2002[\s\S]*?P2034/);
+    assert.match(actionSource, /revalidateWorkLogs\(\)/);
+    assert.match(cacheSource, /revalidatePath\("\/work-schedule\/work-log"\)/);
     assert.doesNotMatch(actionSource, /formData\.get\("authorId"\)/);
     assert.match(querySource, /where: \{[\s\S]*?authorId,/);
     assert.match(querySource, /authorId_workDate/);
@@ -387,28 +391,20 @@ describe("work log feature", () => {
   });
 
   test("authenticates and atomically deletes only the owner's unchanged work log", () => {
-    const deleteActionSource = actionSource.slice(
-      actionSource.indexOf("export async function deleteWorkLogAction("),
-      actionSource.indexOf("class WorkLogSaveConflictError"),
-    );
-
+    const deleteActionSource = actionSource.slice(actionSource.indexOf("export async function deleteWorkLogAction("));
+    const deleteDomainSource = domainSource.slice(domainSource.indexOf("export async function deleteOwnWorkLog("));
     assert.match(deleteActionSource, /const user = await requireUser\(\)/);
     assert.match(deleteActionSource, /formData\.get\("workLogId"\)/);
     assert.match(deleteActionSource, /formData\.get\("expectedUpdatedAt"\)/);
-    assert.match(
-      deleteActionSource,
-      /tx\.workLog\.findFirst\([\s\S]*?authorId: user\.id,[\s\S]*?id: workLogId/,
-    );
-    assert.match(
-      deleteActionSource,
-      /tx\.workLog\.deleteMany\([\s\S]*?authorId: user\.id,[\s\S]*?updatedAt: existingLog\.updatedAt/,
-    );
-    assert.match(deleteActionSource, /deleted\.count !== 1/);
-    assert.match(deleteActionSource, /TransactionIsolationLevel\.Serializable/);
-    assert.match(deleteActionSource, /tx\.auditLog\.create/);
-    assert.match(deleteActionSource, /changeType: "workLog\.delete"/);
-    assert.match(deleteActionSource, /next: null/);
-    assert.match(deleteActionSource, /revalidatePath\(workLogPath\)/);
+    assert.match(deleteActionSource, /deleteOwnWorkLog\(\{ actor: user/);
+    assert.match(deleteDomainSource, /tx\.workLog\.findFirst\([\s\S]*?authorId, id: input\.manualLogId/);
+    assert.match(deleteDomainSource, /tx\.workLog\.deleteMany\([\s\S]*?authorId, id: input\.manualLogId[\s\S]*?updatedAt: existingLog\.updatedAt/);
+    assert.match(deleteDomainSource, /deleted\.count !== 1/);
+    assert.match(domainSource, /TransactionIsolationLevel\.Serializable/);
+    assert.match(deleteDomainSource, /tx\.auditLog\.create/);
+    assert.match(deleteDomainSource, /changeType: "workLog\.delete"/);
+    assert.match(deleteDomainSource, /next: null/);
+    assert.match(deleteActionSource, /revalidateWorkLogs\(\)/);
     assert.doesNotMatch(deleteActionSource, /formData\.get\("authorId"\)/);
   });
 
@@ -497,12 +493,12 @@ describe("work log feature", () => {
 
   test("does not create a false edit event for an unchanged save", () => {
     assert.match(
-      actionSource,
+      domainSource,
       /existingLog\.keyword === values\.keyword[\s\S]*?existingLog\.content === values\.content[\s\S]*?change: "unchanged"/,
     );
     assert.match(
       actionSource,
-      /savedResult\.change !== "unchanged"[\s\S]*?revalidatePath/,
+      /savedResult\.change !== "unchanged"[\s\S]*?revalidateWorkLogs/,
     );
     assert.match(actionSource, /entry: savedResult\.entry/);
   });
@@ -510,11 +506,11 @@ describe("work log feature", () => {
   test("preserves input and requires an explicit overwrite for stale saves", () => {
     assert.match(
       actionSource,
-      /formData\.get\("expectedUpdatedAt"\)[\s\S]*?hasWorkLogSaveConflict/,
+      /formData\.get\("expectedUpdatedAt"\)[\s\S]*?saveOwnWorkLog/,
     );
     assert.match(
-      actionSource,
-      /WorkLogSaveConflictError[\s\S]*?다른 창에서 이 업무일지가 먼저 저장되었습니다/,
+      domainSource,
+      /workLogSaveConflictMessage = "다른 창에서 이 업무일지가 먼저 저장되었습니다/,
     );
     assert.match(
       actionSource,

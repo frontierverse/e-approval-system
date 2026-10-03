@@ -76,7 +76,6 @@ export async function getWorkLogPageData(
   const { startDate } = getWorkLogContributionRange(today);
   const [
     selectedRecord,
-    linkedScheduleState,
     contributionRecords,
     recentRecords,
     contributionTaskDates,
@@ -92,7 +91,6 @@ export async function getWorkLogPageData(
       },
       select: workLogSelect,
     }),
-    getWorkLogLinkedScheduleLoadState(selectedDate),
     db.workLog.findMany({
       where: {
         authorId,
@@ -188,6 +186,7 @@ export async function getWorkLogPageData(
     workDate: selectedDate,
   });
 
+  const linkedScheduleState = await getWorkLogLinkedScheduleLoadState(selectedDate, db, today);
   return {
     contributionDates: [
       ...new Set([
