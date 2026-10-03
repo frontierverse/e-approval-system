@@ -1,70 +1,34 @@
 import "server-only";
 
-import { UserStatus, UserRole, type Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  eligibleStaffTaskAssigneeWhere,
+  getStaffTaskCounts,
+  getStaffTaskHistoryForActor,
+  getStaffTaskPage,
+  mapStaffTask,
+  pendingOrder,
+  staffTaskSelect,
+  type StaffTaskPageOptions,
+} from "@/lib/staff-task-queries";
+import {
   getStaffTaskToday,
-  normalizeStaffTaskStatus,
   type StaffTaskAssignee,
   type StaffTaskCounts,
   type StaffTaskEmployeeSummary,
   type StaffTaskItem,
   type StaffTaskPage,
-  type StaffTaskStatus,
 } from "@/lib/staff-tasks-core";
 
-const staffTaskPageSize = 20;
-const staffTaskSelect = {
-  id: true,
-  title: true,
-  description: true,
-  meetingTitle: true,
-  dueDate: true,
-  assigneeId: true,
-  completedAt: true,
-  deletedAt: true,
-  createdAt: true,
-  updatedAt: true,
-  version: true,
-  assignee: { select: { name: true, department: { select: { name: true } } } },
-} as const satisfies Prisma.StaffTaskSelect;
+export { eligibleStaffTaskAssigneeWhere } from "@/lib/staff-task-queries";
 
-const pendingOrder = [
-  { dueDate: { sort: "asc", nulls: "last" } },
-  { createdAt: "asc" },
-  { id: "asc" },
-] satisfies Prisma.StaffTaskOrderByWithRelationInput[];
-
-type StaffTaskPageOptions = { page?: number; status?: StaffTaskStatus };
 type AdminStaffTaskOptions = StaffTaskPageOptions & { assigneeId?: string; query?: string };
 
 export async function getStaffTaskHistory(id: string, requestedPage = 1) {
   const user = await requireUser();
-  const task = await prisma.staffTask.findFirst({
-    where: { id, ...(user.role === UserRole.ADMIN ? {} : { assigneeId: user.id }) },
-    select: staffTaskSelect,
-  });
-  if (!task) return null;
-  const where = { targetType: "StaffTask", targetId: task.id };
-  const total = await prisma.auditLog.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / staffTaskPageSize));
-  const page = Math.min(totalPages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
-  const logs = await prisma.auditLog.findMany({ where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: staffTaskPageSize, skip: (page - 1) * staffTaskPageSize,
-    select: { id: true, createdAt: true, message: true, metadata: true, actor: { select: { name: true } } },
-  });
-  // Resolve only assignees actually present in this authorized task's history.
-  const ids = new Set<string>();
-  for (const log of logs) {
-    const metadata = log.metadata as Record<string, unknown> | null;
-    for (const key of ["before", "after"]) {
-      const snapshot = metadata?.[key] as Record<string, unknown> | undefined;
-      if (typeof snapshot?.assigneeId === "string") ids.add(snapshot.assigneeId);
-    }
-  }
-  const assignees = ids.size ? await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true } }) : [];
-  return { task: mapStaffTask(task), logs, assignees, page, totalPages, total, isAdmin: user.role === UserRole.ADMIN };
+  return getStaffTaskHistoryForActor(user, id, requestedPage);
 }
 
 export async function getMyStaffTasks(options: StaffTaskPageOptions = {}): Promise<StaffTaskPage> {
@@ -147,13 +111,6 @@ export async function getStaffTaskEmployeeSummaries(
   })).sort((left, right) => right.overdue - left.overdue || right.pending - left.pending);
 }
 
-export function eligibleStaffTaskAssigneeWhere(today: string): Prisma.UserWhereInput {
-  return {
-    status: UserStatus.ACTIVE,
-    OR: [{ resignationDate: null }, { resignationDate: { gt: today } }],
-  };
-}
-
 function getAdminStaffTaskWhere(options: Pick<AdminStaffTaskOptions, "assigneeId" | "query">): Prisma.StaffTaskWhereInput {
   const query = options.query?.trim().slice(0, 160);
   return {
@@ -165,59 +122,5 @@ function getAdminStaffTaskWhere(options: Pick<AdminStaffTaskOptions, "assigneeId
         { meetingTitle: { contains: query, mode: "insensitive" as const } },
       ],
     } : {}),
-  };
-}
-
-async function getStaffTaskPage(baseWhere: Prisma.StaffTaskWhereInput, options: StaffTaskPageOptions): Promise<StaffTaskPage> {
-  const status = normalizeStaffTaskStatus(options.status);
-  const today = getStaffTaskToday();
-  const counts = await getStaffTaskCounts(baseWhere, today);
-  const total = status === "all" ? counts.pending + counts.completed : counts[status];
-  const totalPages = Math.max(1, Math.ceil(total / staffTaskPageSize));
-  const requestedPage = Number.isSafeInteger(options.page) && (options.page ?? 0) > 0 ? options.page! : 1;
-  const page = Math.min(requestedPage, totalPages);
-  const statusWhere: Prisma.StaffTaskWhereInput =
-    status === "completed" ? { completedAt: { not: null } } :
-    status === "overdue" ? { completedAt: null, dueDate: { lt: today } } :
-    status === "pending" ? { completedAt: null } : {};
-  const tasks = await prisma.staffTask.findMany({
-    where: { AND: [baseWhere, statusWhere, { deletedAt: status === "deleted" ? { not: null } : null }] },
-    orderBy: status === "deleted" ? [{ deletedAt: "desc" }, { id: "desc" }] : status === "completed"
-      ? [{ completedAt: "desc" }, { id: "desc" }]
-      : status === "all"
-        ? [{ completedAt: { sort: "asc", nulls: "first" } }, ...pendingOrder]
-        : pendingOrder,
-    skip: (page - 1) * staffTaskPageSize,
-    take: staffTaskPageSize,
-    select: staffTaskSelect,
-  });
-  return { tasks: tasks.map(mapStaffTask), counts, page, totalPages, total };
-}
-
-async function getStaffTaskCounts(where: Prisma.StaffTaskWhereInput, today: string): Promise<StaffTaskCounts> {
-  const [pending, completed, overdue, deleted] = await Promise.all([
-    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: null }] } }),
-    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: { not: null } }] } }),
-    prisma.staffTask.count({ where: { AND: [where, { deletedAt: null, completedAt: null, dueDate: { lt: today } }] } }),
-    prisma.staffTask.count({ where: { AND: [where, { deletedAt: { not: null } }] } }),
-  ]);
-  return { pending, completed, overdue, deleted };
-}
-
-function mapStaffTask(task: Prisma.StaffTaskGetPayload<{ select: typeof staffTaskSelect }>): StaffTaskItem {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    meetingTitle: task.meetingTitle,
-    dueDate: task.dueDate,
-    assigneeId: task.assigneeId,
-    assigneeName: task.assignee.name,
-    departmentName: task.assignee.department.name,
-    completedAt: task.completedAt?.toISOString() ?? null,
-    deletedAt: task.deletedAt?.toISOString() ?? null,
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-    version: task.version,
   };
 }

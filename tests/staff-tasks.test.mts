@@ -123,9 +123,12 @@ const replacements: Record<string, string> = {
   "next/cache": mockModule,
   "@/lib/audit-log-request": mockModule,
 };
-const queryModule = compileModule("../src/lib/staff-tasks.ts", replacements);
+const domainQueryModule = compileModule("../src/lib/staff-task-queries.ts", replacements);
+const mutationModule = compileModule("../src/lib/staff-task-mutations.ts", { ...replacements, "@/lib/staff-task-queries": domainQueryModule });
+const cacheModule = compileModule("../src/lib/staff-task-cache.ts", replacements);
+const queryModule = compileModule("../src/lib/staff-tasks.ts", { ...replacements, "@/lib/staff-task-queries": domainQueryModule });
 const queries = await import(queryModule);
-const actions = await import(compileModule("../src/app/tasks/actions.ts", { ...replacements, "@/lib/staff-tasks": queryModule }));
+const actions = await import(compileModule("../src/app/tasks/actions.ts", { ...replacements, "@/lib/staff-task-mutations": mutationModule, "@/lib/staff-task-cache": cacheModule }));
 
 function moduleUrl(source: string) { return `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`; }
 function compileModule(path: string, aliases: Record<string, string>) {
