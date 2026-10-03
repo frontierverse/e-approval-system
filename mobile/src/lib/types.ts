@@ -191,3 +191,57 @@ export type MobileDailyReportSaveInput = {
   workDate: string; mainContent: string; youthReports: { youthId: string; content: string }[];
   intent: "draft" | "submit"; version: number;
 };
+
+
+export type MobileWorkLogAttachment = {
+  id: string; name: string; mimeType: string; size: number;
+  isSigned: boolean; previewKind: "pdf" | "image" | null;
+};
+export type MobileWorkLogMeeting = {
+  id: string; title: string; meetingDate: string; documentNo: string | null;
+  status: "APPROVED"; attachments: MobileWorkLogAttachment[];
+};
+export type MobileWorkLogTask = {
+  id: string; title: string; description: string | null;
+  meetingTitle: string | null; completedAt: string;
+};
+export type MobileWorkLogEntry = {
+  id: string; workDate: string; keyword: string; content: string;
+  authorName: string; createdAt: string; updatedByName: string | null; updatedAt: string;
+  manualLogId: string | null; manualUpdatedAt: string | null;
+  completedTasks: MobileWorkLogTask[]; meetingDocuments: MobileWorkLogMeeting[];
+};
+export type MobileWorkLogRecent = {
+  id: string; workDate: string; keyword: string; hasManual: boolean;
+  manualLogId: string | null; manualUpdatedAt: string | null;
+  createdAt: string; updatedAt: string; completedTaskCount: number;
+  meetingDocumentCount: number; meetingAttachmentCount: number;
+};
+export type MobileWorkLogLinkedSchedule = {
+  id: string; youthId: string; youthName: string; content: string;
+  startMinute: number; endMinute: number;
+};
+export type MobileWorkLogLinkedScheduleState =
+  | { status: "ready"; schedules: MobileWorkLogLinkedSchedule[] }
+  | { status: "error" };
+export type MobileWorkLogPage = {
+  today: string; selectedDate: string; userName: string;
+  contributionDates: string[]; recentLogs: MobileWorkLogRecent[];
+  selectedEntry: MobileWorkLogEntry | null; linkedScheduleState: MobileWorkLogLinkedScheduleState;
+};
+export type MobileWorkLogDate = {
+  today: string; workDate: string; entry: MobileWorkLogEntry | null;
+  linkedScheduleState: MobileWorkLogLinkedScheduleState;
+};
+export type MobileWorkLogSaveInput = {
+  workDate: string; keyword: string; content: string;
+  manualLogId: string | null; expectedUpdatedAt: string;
+};
+export type MobileWorkLogDeleteInput = { manualLogId: string; expectedUpdatedAt: string };
+export type MobileWorkLogSave = {
+  ok: true; message: string; change: "create" | "update" | "unchanged"; entry: MobileWorkLogEntry;
+};
+export type MobileWorkLogDelete = {
+  ok: true; message: string; change: "deleted" | "missing"; deletedId: string;
+  workDate: string; entry: MobileWorkLogEntry | null;
+};

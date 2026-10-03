@@ -79,7 +79,7 @@ const database = {
       let record = harness.logs.find((row) => matches(row, options.where));
       if (record) {
         Object.assign(record, options.update, {
-          updatedAt: new Date(record.updatedAt.getTime() + 1000),
+          updatedAt: options.update.updatedAt,
           updatedBy: { name: "테스트 직원" },
         });
       } else {
@@ -158,10 +158,14 @@ const aliases = {
   "next/cache": mockModule,
   "@/lib/work-log-linked-schedules": mockModule,
 };
-const queryModule = compileModule("../src/lib/work-logs.ts", aliases);
+const linkedTaskModule = compileModule("../src/lib/work-log-linked-tasks.ts", aliases);
+const linkedMeetingModule = compileModule("../src/lib/work-log-linked-meetings.ts", aliases);
+const queryModule = compileModule("../src/lib/work-logs.ts", { ...aliases, "@/lib/work-log-linked-tasks": linkedTaskModule, "@/lib/work-log-linked-meetings": linkedMeetingModule });
 const queries = await import(queryModule);
 const route = await import(compileModule("../src/app/api/work-logs/[date]/route.ts", { ...aliases, "@/lib/work-logs": queryModule }));
-const actions = await import(compileModule("../src/app/work-schedule/work-log/actions.ts", { ...aliases, "@/lib/work-logs": queryModule }));
+const mutationModule = compileModule("../src/lib/work-log-mutations.ts", { ...aliases, "@/lib/work-logs": queryModule });
+const cacheModule = compileModule("../src/lib/work-log-cache.ts", aliases);
+const actions = await import(compileModule("../src/app/work-schedule/work-log/actions.ts", { ...aliases, "@/lib/work-log-mutations": mutationModule, "@/lib/work-log-cache": cacheModule }));
 
 function moduleUrl(source: string) {
   return `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;

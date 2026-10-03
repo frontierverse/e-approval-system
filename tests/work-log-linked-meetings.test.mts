@@ -108,7 +108,9 @@ const aliases = {
   "@/lib/auth": mockModule,
   "@/lib/work-log-linked-schedules": mockModule,
 };
-const queryModule = compileModule("../src/lib/work-logs.ts", aliases);
+const linkedTaskModule = compileModule("../src/lib/work-log-linked-tasks.ts", aliases);
+const linkedMeetingModule = compileModule("../src/lib/work-log-linked-meetings.ts", aliases);
+const queryModule = compileModule("../src/lib/work-logs.ts", { ...aliases, "@/lib/work-log-linked-tasks": linkedTaskModule, "@/lib/work-log-linked-meetings": linkedMeetingModule });
 const queries = await import(queryModule);
 const route = await import(compileModule("../src/app/api/work-logs/[date]/route.ts", { ...aliases, "@/lib/work-logs": queryModule }));
 

@@ -2,12 +2,13 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isWorkLogDate } from "@/lib/work-log-core";
+import { getWorkLogToday, isWorkLogDate } from "@/lib/work-log-core";
 import {
   sortWorkLogLinkedSchedules,
   type WorkLogLinkedSchedule,
   type WorkLogLinkedScheduleLoadState,
 } from "@/lib/work-log-linked-schedule-core";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
 import { getSafeErrorDigest, logServerEvent } from "@/lib/observability";
 
 export const workLogLinkedScheduleSelect = {
@@ -32,24 +33,31 @@ export type WorkLogLinkedScheduleRecord = Prisma.YouthPersonalScheduleGetPayload
  * They are shown alongside the staff work log so the same activities do not
  * have to be typed twice; the data stays owned by the personal schedule page.
  */
+type ScheduleDb = Pick<Prisma.TransactionClient, "youthPersonalSchedule"> & Partial<Pick<Prisma.TransactionClient, "$executeRawUnsafe">>;
+
 export async function getWorkLogLinkedSchedules(
   workDate: string,
+  db: ScheduleDb = prisma,
+  today = getWorkLogToday(),
 ): Promise<WorkLogLinkedSchedule[]> {
   if (!isWorkLogDate(workDate)) {
     return [];
   }
 
-  const records = await prisma.youthPersonalSchedule.findMany({
+  const records = await db.youthPersonalSchedule.findMany({
     where: {
       occurrenceDates: {
         has: workDate,
       },
       youth: {
         is: {
-          OR: [
-            { dischargeDate: null },
-            { dischargeDate: "" },
-            { dischargeDate: { gte: workDate } },
+          AND: [
+            youthOperationalWhere(today),
+            { OR: [
+              { dischargeDate: null },
+              { dischargeDate: "" },
+              { dischargeDate: { gte: workDate } },
+            ] },
           ],
         },
       },
@@ -63,13 +71,22 @@ export async function getWorkLogLinkedSchedules(
 
 export async function getWorkLogLinkedScheduleLoadState(
   workDate: string,
+  db: ScheduleDb = prisma,
+  today = getWorkLogToday(),
 ): Promise<WorkLogLinkedScheduleLoadState> {
+  // Call after other snapshot reads: a failed optional SQL query must not poison
+  // the transaction or roll back a valid manual write/mandatory projection.
+  const savepoint = db !== prisma && Boolean(db.$executeRawUnsafe);
   try {
-    return {
-      schedules: await getWorkLogLinkedSchedules(workDate),
-      status: "ready",
-    };
+    if (savepoint) await db.$executeRawUnsafe!("SAVEPOINT work_log_optional_schedules");
+    const schedules = await getWorkLogLinkedSchedules(workDate, db, today);
+    if (savepoint) await db.$executeRawUnsafe!("RELEASE SAVEPOINT work_log_optional_schedules");
+    return { schedules, status: "ready" };
   } catch (error) {
+    if (savepoint) {
+      await db.$executeRawUnsafe!("ROLLBACK TO SAVEPOINT work_log_optional_schedules");
+      await db.$executeRawUnsafe!("RELEASE SAVEPOINT work_log_optional_schedules");
+    }
     logServerEvent("error", "work_log.linked_schedules_load_failed", {
       errorDigest: getSafeErrorDigest(error),
       workDate: isWorkLogDate(workDate) ? workDate : null,

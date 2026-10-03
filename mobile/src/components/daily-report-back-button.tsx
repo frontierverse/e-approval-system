@@ -4,12 +4,12 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet } from "react-native";
 import { useTheme } from "@/lib/theme";
 
-export function DailyReportBackButton() {
+export function DailyReportBackButton({ label = "업무보고 뒤로" }: { label?: string }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel="업무보고 뒤로"
+    accessibilityLabel={label}
     onPress={() => router.back()}
     onFocus={() => setFocused(true)}
     onBlur={() => setFocused(false)}

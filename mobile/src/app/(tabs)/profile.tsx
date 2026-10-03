@@ -31,6 +31,10 @@ export default function Profile() {
       <Text style={{ color: theme.text, fontSize: 20, fontWeight: "800", marginTop: 4 }}>{user?.name}</Text>
       <Text style={{ color: theme.secondary, fontSize: 13, marginTop: 4 }}>{user?.positionName ?? "직원"}</Text>
     </View>
+    <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 12 }]}>
+      <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>업무 기능</Text>
+      <TextAction label="업무일지" icon="journal-outline" onPress={() => router.push("/work-logs")} />
+    </View>
     <View style={{ marginVertical: 8 }}>
       <TextAction label="계정·도장 설정" icon="settings-outline" onPress={() => router.push("/account")} />
     </View>

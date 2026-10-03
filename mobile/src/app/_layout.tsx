@@ -30,6 +30,9 @@ function Navigation() {
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
         <Stack.Screen name="tasks/[id]" options={{ title: "할 일 상세·이력" }} />
+        <Stack.Screen name="work-logs/index" options={{ title: "업무일지", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="업무일지 뒤로" /> : null }} />
+        <Stack.Screen name="work-logs/edit" options={{ title: "업무일지 작성", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="업무일지 뒤로" /> : null }} />
+        <Stack.Screen name="work-logs/[date]" options={{ title: "업무일지 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="업무일지 뒤로" /> : null }} />
         <Stack.Screen name="daily-reports/index" options={{ title: "일일 업무보고", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
         <Stack.Screen name="daily-reports/edit" options={{ title: "업무보고 작성", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
         <Stack.Screen name="daily-reports/[id]" options={{ title: "업무보고 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
