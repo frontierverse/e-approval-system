@@ -1,18 +1,20 @@
 import "server-only";
 
+import { getKoreanDateValue } from "@/lib/document-archive-policy";
+import { youthOperationalWhere } from "@/lib/youth-retention-core";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   getWorkScheduleMonthRange,
+  getWorkScheduleMonthDates,
+  getWorkScheduleWeekday,
+  isWorkScheduleDate,
   normalizeWorkScheduleMonth,
   shiftWorkScheduleDate,
 } from "@/lib/work-schedule-calendar";
 import { createHospitalAppointmentWorkSchedules } from "@/lib/work-schedule-hospital-appointments";
 import { prisma } from "@/lib/prisma";
 import { getApprovedStaffVacationDateEntries } from "@/lib/staff-vacations";
-import { getYouthPersonalScheduleMonthDates } from "@/lib/youth-personal-schedule-core";
 import {
-  getYouthLearningScheduleWeekday,
-  isYouthLearningScheduleDate,
   type YouthLearningScheduleWeekday,
 } from "@/lib/youth-management-core";
 
@@ -29,6 +31,14 @@ export type WorkSchedule = {
   readOnly?: boolean;
   sourceType?: "approvedVacation" | "hospitalAppointment" | "manual";
   timeLabel?: string;
+  updatedAt?: string;
+  staffName?: string;
+  vacationLabel?: string;
+  departmentName?: string;
+  positionName?: string;
+  youthName?: string;
+  hospitalName?: string;
+  escortName?: string;
 };
 
 export type WorkScheduleDateFilter = "" | (string & {});
@@ -63,6 +73,7 @@ export type WorkScheduleChangeLogFilters = {
 };
 
 type WorkScheduleRecord = {
+  updatedAt: Date;
   id: string;
   scheduleDate: string;
   weekday: number;
@@ -79,17 +90,21 @@ export type WorkScheduleChangeLogsResult = WorkScheduleChangeLogFilters & {
 
 const workScheduleChangeLogPageSize = 5;
 
+export type WorkScheduleReadClient = Pick<Prisma.TransactionClient, "workSchedule" | "approvalDocument" | "youthPersonalSchedule" | "auditLog">;
+
 export async function getWorkSchedules(
   month?: string,
+  db: WorkScheduleReadClient = prisma,
+  today = getKoreanDateValue(),
 ): Promise<WorkSchedule[]> {
   const normalizedMonth = normalizeWorkScheduleMonth(month);
   const { endDate, startDate } = getWorkScheduleMonthRange(normalizedMonth);
-  const appointmentDates = getYouthPersonalScheduleMonthDates(
+  const appointmentDates = getWorkScheduleMonthDates(
     normalizedMonth,
   );
   const [schedules, vacationEntries, hospitalAppointmentRecords] =
     await Promise.all([
-      prisma.workSchedule.findMany({
+      db.workSchedule.findMany({
         where: {
           scheduleDate: {
             gte: startDate,
@@ -102,8 +117,8 @@ export async function getWorkSchedules(
       getApprovedStaffVacationDateEntries({
         fromDate: startDate,
         toDate: shiftWorkScheduleDate(endDate, -1),
-      }),
-      prisma.youthPersonalSchedule.findMany({
+      }, db),
+      db.youthPersonalSchedule.findMany({
         where: {
           occurrenceDates: {
             hasSome: appointmentDates,
@@ -111,6 +126,7 @@ export async function getWorkSchedules(
           scheduleType: "HOSPITAL",
           youth: {
             is: {
+              AND: youthOperationalWhere(today),
               OR: [
                 { dischargeDate: null },
                 { dischargeDate: "" },
@@ -129,7 +145,7 @@ export async function getWorkSchedules(
     ...vacationEntries.map((entry, index) => ({
       id: `approved-vacation:${entry.id}`,
       scheduleDate: entry.date,
-      weekday: getYouthLearningScheduleWeekday(entry.date),
+      weekday: getWorkScheduleWeekday(entry.date),
       startHour: 0,
       startMinute: -1000 + index,
       endHour: 0,
@@ -139,11 +155,17 @@ export async function getWorkSchedules(
       readOnly: true,
       sourceType: "approvedVacation" as const,
       timeLabel: entry.vacationLabel,
+      staffName: entry.staffName, vacationLabel: entry.vacationLabel,
+      departmentName: entry.departmentName, positionName: entry.positionName,
     })),
     ...createHospitalAppointmentWorkSchedules(
       hospitalAppointmentRecords,
       appointmentDates,
-    ),
+    ).map((schedule) => {
+      const record = hospitalAppointmentRecords.find(row => `hospital-appointment:${row.id}` === schedule.id)!;
+      const label = (value: string | null) => (value ?? "").trim().replace(/\s+/gu, " ");
+      return { ...schedule, youthName: label(record.youth.name), hospitalName: label(record.hospitalName), escortName: label(record.escortName) };
+    }),
   ].sort(sortWorkSchedules);
 }
 
@@ -172,7 +194,7 @@ export async function getWorkScheduleChangeLogs({
   page?: number;
   pageSize?: number;
   scheduleDate?: WorkScheduleDateFilter;
-} = {}): Promise<WorkScheduleChangeLogsResult> {
+} = {}, db: Pick<Prisma.TransactionClient, "auditLog"> = prisma): Promise<WorkScheduleChangeLogsResult> {
   const normalizedActorId = actorId.trim() || "all";
   const normalizedPageSize = Math.max(1, pageSize);
   const normalizedScheduleDate = normalizeWorkScheduleDateFilter(scheduleDate);
@@ -180,14 +202,12 @@ export async function getWorkScheduleChangeLogs({
     actorId: normalizedActorId,
     scheduleDate: normalizedScheduleDate,
   });
-  const total = await prisma.auditLog.count({ where });
+  const total = await db.auditLog.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
   const normalizedPage = clampPage(page, totalPages);
-  const logs = await prisma.auditLog.findMany({
+  const logs = await db.auditLog.findMany({
     where,
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (normalizedPage - 1) * normalizedPageSize,
     take: normalizedPageSize,
     select: {
@@ -228,15 +248,13 @@ export async function getWorkScheduleChangeLogs({
   };
 }
 
-export async function getWorkScheduleChangeLogActors(): Promise<
+export async function getWorkScheduleChangeLogActors(db: Pick<Prisma.TransactionClient, "auditLog"> = prisma): Promise<
   WorkScheduleChangeLogActor[]
 > {
-  const rows = await prisma.auditLog.findMany({
+  const rows = await db.auditLog.findMany({
     distinct: ["actorId"],
     where: createWorkScheduleChangeLogWhere(),
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
       actor: {
         select: {
@@ -254,6 +272,7 @@ export async function getWorkScheduleChangeLogActors(): Promise<
 }
 
 export const workScheduleSelect = {
+  updatedAt: true,
   id: true,
   scheduleDate: true,
   weekday: true,
@@ -267,8 +286,9 @@ export const workScheduleSelect = {
 export function mapWorkSchedule(schedule: WorkScheduleRecord): WorkSchedule {
   return {
     ...schedule,
+    updatedAt: schedule.updatedAt.toISOString(),
     sourceType: "manual",
-    weekday: getYouthLearningScheduleWeekday(schedule.scheduleDate),
+    weekday: getWorkScheduleWeekday(schedule.scheduleDate),
   };
 }
 
@@ -327,7 +347,7 @@ function createWorkScheduleChangeLogWhere({
 function normalizeWorkScheduleDateFilter(
   value: WorkScheduleDateFilter,
 ): WorkScheduleDateFilter {
-  return value && isYouthLearningScheduleDate(value) ? value : "";
+  return value && isWorkScheduleDate(value) ? value : "";
 }
 
 function clampPage(page: number, totalPages: number) {

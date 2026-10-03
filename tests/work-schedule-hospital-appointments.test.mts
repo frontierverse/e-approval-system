@@ -107,7 +107,7 @@ describe("hospital appointment work schedule integration", () => {
   test("queries only real hospital occurrences and does not create a next-date phantom", () => {
     assert.match(
       workSchedulesSource,
-      /prisma\.youthPersonalSchedule\.findMany\([\s\S]*?scheduleType:\s*"HOSPITAL"/,
+      /db\.youthPersonalSchedule\.findMany\([\s\S]*?scheduleType:\s*"HOSPITAL"/,
     );
     assert.match(workSchedulesSource, /hasSome:\s*appointmentDates/);
     assert.match(
