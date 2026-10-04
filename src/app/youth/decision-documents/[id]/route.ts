@@ -1,218 +1,50 @@
-import { AuditAction, UserRole } from "@/generated/prisma/client";
+import { randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth";
-import { readStoredAttachmentFile } from "@/lib/attachment-storage";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
-import { prisma } from "@/lib/prisma";
-import { hasYouthPermission } from "@/lib/youth-permissions-core";
-import { isRestrictedYouth } from "@/lib/youth-retention-core";
-import { getYouthLearningScheduleToday } from "@/lib/youth-management-core";
+import { YouthError, youthId } from "@/lib/mobile-youth-core";
+import { youthTransaction, assertYouthPermission } from "@/lib/youth-mobile-context";
+import { parseYouthDecisionDownload, youthDecisionDisposition } from "@/lib/youth-decision-file-core";
+import { downloadYouthDecisionDocument, recordYouthDecisionDownloadFailure } from "@/lib/youth-decision-documents";
+import { resourceSafeMimeType } from "@/lib/resource-file-storage-core";
 
 export const runtime = "nodejs";
-
-const downloadReasons = {
-  CASE_SUPPORT: "사건 지원 업무",
-  EXTERNAL_SUBMISSION: "법원·보호관찰소 등 외부기관 제출",
-  INTERNAL_REVIEW: "기관 내부 검토",
-  OTHER: "기타",
-} as const;
-
-type DecisionDocumentDownloadReason = keyof typeof downloadReasons;
-
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+const privateHeaders = { "Cache-Control": "private, no-store", Pragma: "no-cache", Vary: "Cookie, Authorization", "X-Content-Type-Options": "nosniff" };
+async function boundedForm(request: Request) {
+  const mime = request.headers.get("content-type") ?? "";
+  if (!/^(application\/x-www-form-urlencoded|multipart\/form-data)(;|$)/i.test(mime) || !request.body) throw new YouthError();
+  const reader = request.body.getReader(), signal = AbortSignal.timeout(5000); let size = 0; const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      const part = await new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+        const abort = () => reject(new YouthError("요청을 읽지 못했습니다.", "INVALID_REQUEST", 400));
+        signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) { abort(); return; }
+        reader.read().then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+      });
+      if (part.done) break; size += part.value.byteLength; if (size > 16384) throw new YouthError(); chunks.push(part.value);
+    }
+  } finally { void reader.cancel().catch(() => {}); }
+  const form = await new Request("https://internal.invalid", { method: "POST", headers: { "Content-Type": mime }, body: Buffer.concat(chunks) }).formData();
+  const allowed = new Set(["reason", "reasonDetail", "requestId"]);
+  for (const key of form.keys()) if (!allowed.has(key) || form.getAll(key).length !== 1) throw new YouthError();
+  return parseYouthDecisionDownload({ requestId: form.get("requestId") ?? randomUUID(), reason: form.get("reason"), reasonDetail: form.get("reasonDetail") });
+}
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-
-  if (!user) {
-    return new Response("인증이 필요합니다.", { status: 401 });
-  }
-
-  if (!hasYouthPermission(user, "canDownloadYouthDocuments")) {
-    await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: id,
-      outcome: "forbidden",
-    });
-
-    return new Response("결정문 다운로드 권한이 없습니다.", { status: 403 });
-  }
-
-  const formData = await request.formData();
-  const requestedReason = formData.get("reason");
-  const reason = isDecisionDocumentDownloadReason(requestedReason)
-    ? requestedReason
-    : null;
-  const rawReasonDetail = formData.get("reasonDetail");
-  const reasonDetail =
-    typeof rawReasonDetail === "string" ? rawReasonDetail.trim() : "";
-
-  if (!reason || (reason === "OTHER" && reasonDetail.length === 0)) {
-    await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: id,
-      outcome: "invalid_reason",
-    });
-
-    return new Response("다운로드 사유를 선택하거나 입력해주세요.", {
-      status: 400,
-    });
-  }
-
-  if (reasonDetail.length > 200) {
-    await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: id,
-      outcome: "invalid_reason",
-      reason,
-    });
-
-    return new Response("기타 사유는 200자 이내로 입력해주세요.", {
-      status: 400,
-    });
-  }
-
-  const document = await prisma.youthDecisionDocument.findUnique({
-    where: {
-      id,
-      youth: { is: { purgeStartedAt: null, purgedAt: null } },
-    },
-    select: {
-      id: true,
-      originalName: true,
-      storageProvider: true,
-      storageKey: true,
-      mimeType: true,
-      size: true,
-      youth: { select: { actualDischargeDate: true, dischargeDate: true, purgeStartedAt: true, purgedAt: true } },
-    },
-  });
-
-  if (!document) {
-    await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: id,
-      outcome: "not_found",
-      reason,
-      reasonDetail,
-    });
-
-    return new Response("결정문 파일을 찾을 수 없습니다.", { status: 404 });
-  }
-
-  if (user.role !== UserRole.ADMIN && isRestrictedYouth(document.youth, getYouthLearningScheduleToday())) {
-    await recordDecisionDocumentDownloadAudit({ actorId: user.id, decisionDocumentId: id, outcome: "forbidden" });
-    return new Response("퇴소 기록은 관리자만 열람할 수 있습니다.", { status: 403 });
-  }
-
+  if (!user) return new Response("인증이 필요합니다.", { status: 401, headers: privateHeaders });
+  const context = { actorId: user.id, client: "web" as const, requestData: await getCurrentAuditLogRequestData() };
+  let id = "";
   try {
-    const storedFile = await readStoredAttachmentFile({
-      storageProvider: document.storageProvider,
-      storageKey: document.storageKey,
-    });
-
-    const audited = await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: document.id,
-      outcome: "downloaded",
-      reason,
-      reasonDetail,
-    });
-    if (!audited) return new Response("열람 이력을 기록하지 못했습니다. 잠시 후 다시 시도하세요.", { status: 503 });
-
-    return new Response(storedFile.body, {
-      headers: {
-        "Cache-Control": "private, no-store",
-        "Content-Type":
-          storedFile.mimeType ||
-          document.mimeType ||
-          "application/octet-stream",
-        "Content-Length": String(storedFile.size ?? document.size),
-        "Content-Disposition": getContentDisposition(document.originalName),
-      },
-    });
-  } catch {
-    await recordDecisionDocumentDownloadAudit({
-      actorId: user.id,
-      decisionDocumentId: document.id,
-      outcome: "storage_error",
-      reason,
-      reasonDetail,
-    });
-
-    return new Response("결정문 파일을 찾을 수 없습니다.", { status: 404 });
-  }
-}
-
-async function recordDecisionDocumentDownloadAudit({
-  actorId,
-  decisionDocumentId,
-  outcome,
-  reason,
-  reasonDetail,
-}: {
-  actorId: string;
-  decisionDocumentId: string;
-  outcome:
-    | "downloaded"
-    | "forbidden"
-    | "invalid_reason"
-    | "not_found"
-    | "storage_error";
-  reason?: DecisionDocumentDownloadReason;
-  reasonDetail?: string;
-}) {
-  const messages = {
-    downloaded: "결정문 다운로드를 요청했습니다.",
-    forbidden: "권한 없이 결정문 다운로드를 요청했습니다.",
-    invalid_reason: "사유 없이 또는 올바르지 않은 사유로 결정문 다운로드를 요청했습니다.",
-    not_found: "존재하지 않는 결정문 다운로드를 요청했습니다.",
-    storage_error: "결정문 다운로드를 요청했으나 파일을 찾을 수 없습니다.",
-  } as const;
-
-  try {
-    await prisma.auditLog.create({
-      data: {
-        actorId,
-        ...(await getCurrentAuditLogRequestData()),
-        action: AuditAction.DOWNLOAD_YOUTH_DECISION_DOCUMENT,
-        targetType: "YouthDecisionDocument",
-        targetId: decisionDocumentId,
-        message: messages[outcome],
-        metadata: {
-          outcome,
-          ...(reason
-            ? {
-                reason,
-                reasonLabel: downloadReasons[reason],
-              }
-            : {}),
-          ...(reason === "OTHER" && reasonDetail
-            ? { reasonDetail }
-            : {}),
-        },
-      },
-    });
-    return true;
+    await youthTransaction(context, async (_tx, actor) => assertYouthPermission(actor, "canDownloadYouthDocuments"));
+    id = youthId((await params).id);
+    let input;
+    try { input = await boundedForm(request); }
+    catch (error) { await recordYouthDecisionDownloadFailure(context, id, "invalid_reason"); throw error; }
+    const result = await downloadYouthDecisionDocument(context, id, input, { retainedAdmin: true });
+    return new Response(result.body, { headers: { ...privateHeaders, "Content-Type": resourceSafeMimeType(result.mimeType || result.file.mimeType), "Content-Length": String(result.size), "Content-Disposition": youthDecisionDisposition(result.file.name) } });
   } catch (error) {
-    console.error("Failed to record youth decision document download", error);
-    return false;
+    if (id && error instanceof YouthError && error.status === 403) await recordYouthDecisionDownloadFailure(context, id, "forbidden");
+    return new Response(error instanceof YouthError ? error.message : "결정문 다운로드를 완료하지 못했습니다. 같은 요청으로 확인하세요.", { status: error instanceof YouthError ? error.status : 503, headers: privateHeaders });
   }
-}
-
-function isDecisionDocumentDownloadReason(
-  value: FormDataEntryValue | null,
-): value is DecisionDocumentDownloadReason {
-  return (
-    typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(downloadReasons, value)
-  );
-}
-
-function getContentDisposition(filename: string) {
-  const fallback = filename.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "");
-  const encoded = encodeURIComponent(filename);
-
-  return `attachment; filename="${fallback || "decision-document"}"; filename*=UTF-8''${encoded}`;
 }

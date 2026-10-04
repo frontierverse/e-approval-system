@@ -1,16 +1,14 @@
 "use server";
+import { assertYouthWebActor, youthActivityFailure, type YouthActivityResult } from "@/lib/youth-activity-web-core";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import {
   requireYouthBasicAccess,
   requireYouthPermission,
 } from "@/lib/youth-permissions";
-import { prisma } from "@/lib/prisma";
-import { requireOperationalYouth } from "@/lib/youth-record-access";
 import {
   getYouthRuleChangeLogs,
   getYouthRules,
@@ -18,13 +16,13 @@ import {
   type YouthRulesResult,
 } from "@/lib/youth-rules";
 import {
-  isYouthRuleCategory,
-  youthRuleDetailMaxLength,
-  type YouthActionResult,
   type YouthRuleCategoryFilter,
   type YouthRuleTargetFilter,
 } from "@/lib/youth-management-core";
 
+import { YouthError } from "@/lib/mobile-youth-core";
+import { createMobileYouthRule, deleteMobileYouthRule } from "@/lib/youth-mobile-rules";
+import { withYouthRead } from "@/lib/youth-mobile-context";
 const youthRulesPath = "/youth/rules";
 
 export async function getYouthRulesAction({
@@ -35,7 +33,7 @@ export async function getYouthRulesAction({
   category: YouthRuleCategoryFilter;
   page: number;
   target: YouthRuleTargetFilter;
-}): Promise<YouthActionResult<{ ruleResult: YouthRulesResult }>> {
+}): Promise<YouthActivityResult<{ ruleResult: YouthRulesResult }>> {
   await requireYouthBasicAccess();
   const ruleResult = await getYouthRules({
     category,
@@ -61,7 +59,7 @@ export async function getYouthRuleChangeLogsAction({
   category: YouthRuleCategoryFilter;
   page: number;
   target: YouthRuleTargetFilter;
-}): Promise<YouthActionResult<{ changeLogResult: YouthRuleChangeLogsResult }>> {
+}): Promise<YouthActivityResult<{ changeLogResult: YouthRuleChangeLogsResult }>> {
   await requireYouthBasicAccess();
   const changeLogResult = await getYouthRuleChangeLogs({
     actorId,
@@ -80,156 +78,25 @@ export async function getYouthRuleChangeLogsAction({
 
 export async function createYouthRuleAction(formData: FormData) {
   const user = await requireYouthPermission("canManageYouth");
-  const category = String(formData.get("category") ?? "").trim();
-  const detail = String(formData.get("detail") ?? "").trim();
-  const targetYouthIdValue = String(formData.get("targetYouthId") ?? "").trim();
-
-  if (!isYouthRuleCategory(category)) {
-    redirectWithRuleError("규칙 카테고리를 선택하세요.");
-  }
-
-  if (!detail) {
-    redirectWithRuleError("세부사항을 입력하세요.");
-  }
-
-  if (detail.length > youthRuleDetailMaxLength) {
-    redirectWithRuleError(
-      `세부사항은 ${youthRuleDetailMaxLength}자 이내로 입력하세요.`,
-    );
-  }
-
-  const targetYouth = targetYouthIdValue
-    ? await prisma.youth.findUnique({
-        where: {
-          id: targetYouthIdValue,
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      })
-    : null;
-
-  if (targetYouth) await requireOperationalYouth(targetYouth.id);
-
-  if (targetYouthIdValue && !targetYouth) {
-    redirectWithRuleError("적용 대상을 다시 선택하세요.");
-  }
-
-  const auditRequestData = await getCurrentAuditLogRequestData();
-  const ruleId = `youth-rule-${randomUUID()}`;
-  const targetYouthId = targetYouth?.id ?? null;
-  const targetLabel = targetYouth?.name ?? "공통";
-
-  await prisma.$transaction(async (tx) => {
-    if (targetYouthId) await requireOperationalYouth(targetYouthId, tx);
-    await tx.$executeRaw`
-      INSERT INTO "YouthRule" (
-        "id",
-        "category",
-        "detail",
-        "targetYouthId",
-        "createdAt",
-        "updatedAt"
-      )
-      VALUES (
-        ${ruleId},
-        ${category},
-        ${detail},
-        ${targetYouthId},
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP
-      )
-    `;
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "YouthRule",
-        targetId: ruleId,
-        message: `${targetLabel} 대상 ${category} 규칙을 생성했습니다.`,
-        metadata: {
-          category,
-          source: "youth-rules",
-          targetYouthId,
-          targetYouthName: targetYouth?.name ?? null,
-        },
-      },
-    });
-  });
-
-  revalidatePath(youthRulesPath);
-  redirect(youthRulesPath);
+  try {
+    assertYouthWebActor(user.id, typeof formData.get("expectedActorId") === "string" ? String(formData.get("expectedActorId")) : undefined);
+    await createMobileYouthRule({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, { requestId: typeof formData.get("requestId") === "string" && formData.get("requestId") ? formData.get("requestId") : randomUUID(), category: String(formData.get("category") ?? "").trim(), detail: String(formData.get("detail") ?? "").trim(), targetYouthId: String(formData.get("targetYouthId") ?? "").trim() || null });
+  } catch (error) { redirectWithRuleError(error instanceof YouthError ? error.message : "규칙을 저장하지 못했습니다."); }
+  revalidatePath(youthRulesPath); redirect(youthRulesPath);
 }
-
-export async function deleteYouthRuleAction(ruleId: string) {
-  const user = await requireYouthPermission("canManageYouth");
-  const auditRequestData = await getCurrentAuditLogRequestData();
-  const deletedRules = await prisma.$transaction(async (tx) => {
-    const target = await tx.youthRule.findUnique({ where: { id: ruleId }, select: { targetYouthId: true } });
-    if (target?.targetYouthId) await requireOperationalYouth(target.targetYouthId, tx);
-    const rules = await tx.$queryRaw<
-      Array<{
-        id: string;
-        category: string;
-        detail: string;
-        targetYouthId: string | null;
-        targetYouthName: string | null;
-      }>
-    >`
-      WITH deleted_rule AS (
-        DELETE FROM "YouthRule"
-        WHERE "id" = ${ruleId}
-        RETURNING "id", "category", "detail", "targetYouthId"
-      )
-      SELECT
-        deleted_rule."id",
-        deleted_rule."category",
-        deleted_rule."detail",
-        deleted_rule."targetYouthId",
-        youth."name" AS "targetYouthName"
-      FROM deleted_rule
-      LEFT JOIN "Youth" youth ON youth."id" = deleted_rule."targetYouthId"
-    `;
-
-    const deletedRule = rules[0];
-
-    if (!deletedRule) {
-      return [];
-    }
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "YouthRule",
-        targetId: deletedRule.id,
-        message: `${deletedRule.targetYouthName ?? "공통"} 대상 ${
-          deletedRule.category
-        } 규칙을 삭제했습니다.`,
-        metadata: {
-          category: deletedRule.category,
-          source: "youth-rules",
-          targetYouthId: deletedRule.targetYouthId,
-          targetYouthName: deletedRule.targetYouthName,
-        },
-      },
-    });
-
-    return rules;
-  });
-
-  if (deletedRules.length === 0) {
-    redirectWithRuleError("삭제할 규칙을 찾을 수 없습니다.");
-  }
-
-  revalidatePath(youthRulesPath);
-  redirect(youthRulesPath);
+export async function deleteYouthRuleAction(ruleId: string, baseline?: { requestId?: string; expectedActorId?: string; targetYouthId: string | null; expectedUpdatedAt: string }) {
+  const user = await requireYouthPermission("canManageYouth"), ctx = { actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" as const };
+  try {
+    assertYouthWebActor(user.id, baseline?.expectedActorId);
+    const targetYouthId = baseline ? baseline.targetYouthId : await withYouthRead(ctx, async tx => { const row = await tx.youthRule.findUnique({ where: { id: ruleId }, select: { targetYouthId: true } }); if (!row) throw new YouthError("삭제할 규칙을 찾을 수 없습니다.", "NOT_FOUND", 404); return row.targetYouthId; });
+    await deleteMobileYouthRule(ctx, ruleId, { requestId: baseline?.requestId ?? randomUUID(), targetYouthId, ...(baseline ? { expectedUpdatedAt: baseline.expectedUpdatedAt } : {}) }, !baseline);
+  } catch (error) { redirectWithRuleError(error instanceof YouthError ? error.message : "규칙을 삭제하지 못했습니다."); }
+  revalidatePath(youthRulesPath); redirect(youthRulesPath);
 }
-
-function redirectWithRuleError(message: string): never {
-  redirect(`${youthRulesPath}?ruleError=${encodeURIComponent(message)}`);
+function redirectWithRuleError(message: string): never { redirect(`${youthRulesPath}?ruleError=${encodeURIComponent(message)}`); }
+export async function createYouthRuleClientAction(input: { targetYouthId: string | null; category: string; detail: string }, requestId: string, expectedActorId: string) {
+  try { const actor = await requireYouthPermission("canManageYouth"); assertYouthWebActor(actor.id, expectedActorId); const result = await createMobileYouthRule({ actorId: actor.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, { ...input, requestId }); revalidatePath(youthRulesPath); return { ok: true as const, data: result }; } catch (error) { return youthActivityFailure(error); }
+}
+export async function deleteYouthRuleClientAction(ruleId: string, baseline: { requestId: string; targetYouthId: string | null; expectedUpdatedAt: string; expectedActorId: string }) {
+  try { const actor = await requireYouthPermission("canManageYouth"); assertYouthWebActor(actor.id, baseline.expectedActorId); const result = await deleteMobileYouthRule({ actorId: actor.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, ruleId, { requestId: baseline.requestId, expectedUpdatedAt: baseline.expectedUpdatedAt, targetYouthId: baseline.targetYouthId }); revalidatePath(youthRulesPath); return { ok: true as const, data: result }; } catch (error) { return youthActivityFailure(error); }
 }

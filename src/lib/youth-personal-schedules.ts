@@ -17,6 +17,7 @@ import {
 
 export type YouthPersonalSchedule = {
   id: string;
+  updatedAt?: string;
   youthId: string;
   content: string;
   scheduleType: YouthPersonalScheduleType;
@@ -36,6 +37,7 @@ export type YouthPersonalSchedule = {
 
 export const youthPersonalScheduleSelect = {
   id: true,
+  updatedAt: true,
   youthId: true,
   content: true,
   scheduleType: true,
@@ -157,6 +159,7 @@ export function mapYouthPersonalSchedule(
 ): YouthPersonalSchedule {
   return {
     id: schedule.id,
+    updatedAt: schedule.updatedAt.toISOString(),
     youthId: schedule.youthId,
     content: schedule.content,
     scheduleType:

@@ -12,20 +12,11 @@ function authorized(request: Request) {
 }
 export async function GET(request: Request) {
   if (!authorized(request)) return json({ error: "인증이 필요합니다.", code: "UNAUTHORIZED" }, 401);
-  const deadline = Date.now() + 45000;
-  let checked = 0, completed = 0;
   try {
-    // Load the DB/storage maintenance domain only after exact cron authentication.
-    const { reconcileResourceLibraryMaintenance } = await import("@/lib/resource-file-cleanup");
-    for (let batch = 0; batch < 4; batch++) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) throw new Error("MAINTENANCE_DEADLINE");
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("MAINTENANCE_DEADLINE")), remaining); });
-      const result = await Promise.race([reconcileResourceLibraryMaintenance({}, { limit: 10, budgetMs: Math.min(10000, remaining) }), timeout]).finally(() => clearTimeout(timer));
-      checked += result.checked; completed += result.completed;
-      if (result.checked === 0 && (result.expired ?? 0) === 0) break;
-    }
-    return json({ ok: true, checked, completed });
+    // Authentication stays before the dispatcher and every DB/storage domain import.
+    const { runInternalFileMaintenance } = await import("@/lib/internal-file-maintenance");
+    const result = await runInternalFileMaintenance({ signal: request.signal });
+    if (!result.ok) return json({ ...result, error: "파일 정리 작업을 완료하지 못했습니다. 다음 실행에서 다시 확인합니다.", code: "MAINTENANCE_FAILED" }, 500);
+    return json(result);
   } catch { return json({ error: "파일 정리 작업을 완료하지 못했습니다. 다음 실행에서 다시 확인합니다.", code: "MAINTENANCE_FAILED" }, 500); }
 }

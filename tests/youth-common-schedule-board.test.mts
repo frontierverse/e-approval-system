@@ -199,6 +199,7 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /오전 9시 -/);
     assert.match(html, /오후 10시/);
     assert.match(overlayHtml, /absolute inset-0/);
+    assert.doesNotMatch(html, /h-3\.5/);
   });
 
   test("renders weekday columns, hourly rows, and change logs", () => {
@@ -238,13 +239,15 @@ describe("YouthCommonScheduleBoard", () => {
     assert.match(html, /오전 9시 - 오전 10시 30분/);
     assert.match(html, /주간 점검/);
     assert.match(html, /오후 3시 - 오후 4시/);
-    assert.match(html, /시작 시간 조절/);
-    assert.match(html, /종료 시간 조절/);
+    assert.doesNotMatch(html, /시작 시간 조절|종료 시간 조절|h-3\.5/);
+    assert.match(html, /cursor-move/);
     assert.doesNotMatch(html, /반복 요일/);
     assert.match(html, /변경내역/);
     assert.match(html, /8건 중 1-5건 표시/);
     assert.match(html, /name="logStaff"/);
     assert.match(html, /name="logWeekday"/);
+    assert.match(html, /name="logStaff"[^>]*class="[^"]*h-11/);
+    assert.match(html, /name="logWeekday"[^>]*class="[^"]*h-11/);
     assert.match(html, /staff@example\.com/);
     assert.match(html, /김로리/);
     assert.match(html, /박서준/);

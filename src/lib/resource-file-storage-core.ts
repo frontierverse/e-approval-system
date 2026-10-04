@@ -432,6 +432,34 @@ export function createResourceFileStorageCore(options: ResourceFileStorageCoreOp
     finally { await op.cleanup(); }
   }
 
+  /** Immutable legacy migration; source and destination are never overwritten. */
+  async function reencryptResourceStoredFile(input: { source: ResourceStorageRef; final: ResourceStorageRef; size: number; wholeSha256: string; ivBase64: string } & CommonOptions) {
+    validateResourceStorageRef(input.source); validateResourceStorageRef(input.final); sizeInput(input.size); hashInput(input.wholeSha256);
+    if (input.source.storageProvider === input.final.storageProvider && input.source.storageKey === input.final.storageKey) throw new ResourceFileStorageError("UPLOAD_CONFLICT");
+    const iv = Buffer.from(input.ivBase64, "base64");
+    if (iv.byteLength !== 12 || iv.toString("base64") !== input.ivBase64) throw new ResourceFileStorageError("UPLOAD_CONFLICT");
+    const op = operation(input); let attempted = false;
+    try {
+      const key = op.encryptionKey(); if (!key) throw new ResourceFileStorageError("STORAGE_UNAVAILABLE");
+      const original = await op.storedSpool(input.source, input.size, input.wholeSha256);
+      if (original.encrypted) return { alreadyEncrypted: true as const, size: input.size, wholeSha256: original.hash, storedSize: original.storedSize, storedSha256: original.storedHash, encryptionIvBase64: original.spool.iv.toString("base64"), reused: true, writeEvidence: "confirmed" as const };
+      await original.spool.dispose();
+      // Re-read against the verified digest after closing the source spool.
+      const source = await op.remote(input.source);
+      const temp = await op.plainSpool(op.chunks(source.body), input.size, input.wholeSha256, key, iv);
+      const body = op.bodyFromSpool(temp.spool, false, input.size + headerSize);
+      let reused = false;
+      try { attempted = true; await op.wait(options.adapter.write(input.final, body, { size: input.size + headerSize, mimeType: "application/octet-stream", signal: op.signal })); }
+      catch (cause) { if (!(cause instanceof ResourceFileStorageError && cause.code === "UPLOAD_CONFLICT")) throw cause; reused = true; }
+      finally { void body.cancel().catch(() => {}); }
+      await temp.spool.dispose();
+      const actual = await op.storedSpool(input.final, input.size, input.wholeSha256);
+      if (!actual.encrypted || !actual.spool.iv.equals(iv)) throw new ResourceFileStorageError("UPLOAD_CONFLICT");
+      return { alreadyEncrypted: false as const, size: input.size, wholeSha256: actual.hash, storedSize: actual.storedSize, storedSha256: actual.storedHash, encryptionIvBase64: actual.spool.iv.toString("base64"), reused, writeEvidence: "confirmed" as const };
+    } catch (cause) { throw safeError(cause, attempted ? "unknown" : "none"); }
+    finally { await op.cleanup(); }
+  }
+
   async function readResourceStoredFile(ref: ResourceStorageRef, input: { expectedSize: number; expectedSha256?: string; beforeExpose: () => Promise<void> | void } & CommonOptions) {
     validateResourceStorageRef(ref); sizeInput(input.expectedSize, true); hashInput(input.expectedSha256);
     const op = operation(input);
@@ -442,7 +470,7 @@ export function createResourceFileStorageCore(options: ResourceFileStorageCoreOp
       catch (cause) { authorizationFailed = true; authorizedError = cause; throw cause; }
       op.check();
       const body = op.bodyFromSpool(actual.spool, true, input.expectedSize, actual.hash, () => op.cleanup());
-      return { body, size: input.expectedSize, verifiedSha256: actual.hash, ...sniffPreview(actual.prefix) };
+      return { body, size: input.expectedSize, verifiedSha256: actual.hash, encrypted: actual.encrypted, ...sniffPreview(actual.prefix) };
     } catch (cause) {
       await op.cleanup();
       if (authorizationFailed && cause === authorizedError) throw cause;
@@ -461,5 +489,5 @@ export function createResourceFileStorageCore(options: ResourceFileStorageCoreOp
     catch (cause) { throw safeError(cause); }
     finally { await op.cleanup(); }
   }
-  return { createResourceStagingGrant, writeResourceStagingFile, finalizeResourceStoredUpload, readResourceStoredFile, deleteResourceStoredFile, resourceStoredFileExists };
+  return { createResourceStagingGrant, writeResourceStagingFile, finalizeResourceStoredUpload, reencryptResourceStoredFile, readResourceStoredFile, deleteResourceStoredFile, resourceStoredFileExists };
 }

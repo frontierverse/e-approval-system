@@ -174,8 +174,11 @@ describe("removed youth roster academy schedule contracts", () => {
       detailViewActionSource,
       /requireYouthPermission\("canViewYouthDetails"\)/,
     );
-    assert.match(detailViewActionSource, /AuditAction\.VIEW_YOUTH_DETAIL/);
-    assert.match(detailViewActionSource, /await prisma\.auditLog\.create\(/);
+    assert.match(detailViewActionSource, /await viewMobileYouth\([\s\S]*?youthId, "details", randomUUID\(\)/);
+    const sharedViewSource = readFileSync(new URL("../src/lib/youth-mobile-queries.ts", import.meta.url), "utf8");
+    assert.match(sharedViewSource, /AuditAction\.VIEW_YOUTH_DETAIL/);
+    assert.match(sharedViewSource, /await tx\.auditLog\.create\(/);
+    assert.doesNotMatch(sharedViewSource, /academySchedules|youthAcademySchedule|mapYouthAcademySchedule/);
     assert.doesNotMatch(
       detailViewActionSource,
       /academySchedules|youthAcademySchedule|mapYouthAcademySchedule/,

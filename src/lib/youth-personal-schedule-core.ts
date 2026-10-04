@@ -408,7 +408,9 @@ export function isYouthPersonalScheduleDate(
     return false;
   }
 
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(0, 0, 0, 0);
 
   return (
     date.getUTCFullYear() === year &&
@@ -515,7 +517,7 @@ export function getYouthPersonalScheduleCalendarDates(month: string) {
     date.setUTCDate(gridStart.getUTCDate() + index);
 
     return formatDate(date);
-  });
+  }).filter(isYouthPersonalScheduleDate);
 }
 
 export function getYouthPersonalScheduleDateIntersection(
@@ -643,13 +645,14 @@ function getInclusiveDateCount(startDate: string, endDate: string) {
 function parseDate(value: string) {
   const [yearText, monthText, dayText] = value.split("-");
 
-  return new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
+  const date = new Date(0);
+  date.setUTCFullYear(Number(yearText), Number(monthText) - 1, Number(dayText));
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
 }
 
 function formatDate(value: Date) {
-  const year = value.getUTCFullYear();
+  const year = String(value.getUTCFullYear()).padStart(4, "0");
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
   const day = String(value.getUTCDate()).padStart(2, "0");
 

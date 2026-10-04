@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { YouthCommonScheduleBoard } from "@/components/youth-common-schedule-board";
 import { PageTitle } from "@/components/page-title";
+import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import {
   getYouthCommonScheduleChangeLogActors,
@@ -34,7 +35,7 @@ type YouthCommonSchedulePageProps = {
 export default async function YouthCommonSchedulePage({
   searchParams,
 }: YouthCommonSchedulePageProps) {
-  await requireYouthBasicAccess();
+  const user = await requireYouthBasicAccess();
   const params = await searchParams;
   const [schedules, changeLogActors] = await Promise.all([
     getYouthCommonSchedules(),
@@ -54,6 +55,8 @@ export default async function YouthCommonSchedulePage({
     <>
       <PageTitle title="공통 일정표" />
       <YouthCommonScheduleBoard
+        actorId={user.id}
+        canManage={getEffectiveYouthPermissions(user).canManageYouth}
         changeLogActors={changeLogActors}
         changeLogFilters={{
           actorId: changeLogResult.actorId,

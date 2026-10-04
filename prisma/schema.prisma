@@ -537,6 +537,124 @@ model ResourceFileCleanup {
   @@index([sourceMutationId, state])
 }
 
+model YouthMutationReceipt {
+  id                   String   @id @default(uuid())
+  actorId              String
+  requestId            String
+  operation            String
+  targetType           String
+  targetId             String
+  youthId              String?
+  payloadHash          String?
+  committedUpdatedAt   DateTime?
+  committedTargetsJson Json?
+  state                String   @default("committed")
+  committedAt          DateTime @default(now())
+  scrubbedAt           DateTime?
+
+  @@unique([actorId, requestId])
+  @@index([youthId, state])
+  @@index([targetType, targetId])
+}
+
+model YouthViewRequest {
+  id                  String   @id @default(uuid())
+  actorId             String
+  requestId           String
+  youthId             String
+  kind                String
+  sourceUpdatedAt     DateTime?
+  documentId          String?
+  requestHash         String?
+  sourceFileUpdatedAt DateTime?
+  auditLogId          String?
+  auditedAt           DateTime?
+  disclosureUntil     DateTime?
+  state               String   @default("recorded")
+  createdAt           DateTime @default(now())
+  scrubbedAt          DateTime?
+
+  @@unique([actorId, requestId])
+  @@index([youthId, state])
+  @@index([actorId, youthId, kind, createdAt])
+}
+
+model YouthDecisionUpload {
+  id                    String   @id @default(uuid())
+  actorId               String
+  startRequestId        String
+  startPayloadHash      String?
+  purpose               String   @default("youth-decision")
+  sourceKind            String   @default("client-file")
+  targetYouthId         String?
+  originalName          String?
+  mimeType              String?
+  size                  Int?
+  expectedSha256        String?
+  storageProvider       String
+  stagingKey            String?  @unique
+  finalKey              String?  @unique
+  state                 String   @default("uploading")
+  plaintextSha256       String?
+  storedSha256          String?
+  storedSize            Int?
+  expiresAt             DateTime
+  completedAt           DateTime?
+  lastGrantExpiresAt    DateTime?
+  finalizeClaimId       String?
+  finalizeLeaseUntil    DateTime?
+  finalizeIv            String?
+  finalizeWriteEvidence String?
+  hadUnknownWrite       Boolean  @default(false)
+  consumedYouthId       String?
+  consumedMutationId    String?
+  consumedDocumentId    String?
+  sourceDocumentId      String?
+  sourceFileUpdatedAt   DateTime?
+  sourceStorageProvider String?
+  sourceStorageKey      String?
+  sourceYouthUpdatedAt  DateTime?
+  sourceCleanupId       String?
+  terminalReason        String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  scrubbedAt            DateTime?
+
+  @@unique([actorId, startRequestId])
+  @@index([state, expiresAt])
+  @@index([state, finalizeLeaseUntil])
+  @@index([targetYouthId, state])
+  @@index([consumedYouthId, state])
+  @@index([consumedDocumentId])
+  @@index([sourceDocumentId])
+}
+
+model YouthDecisionFileCleanup {
+  id               String   @id @default(uuid())
+  storageProvider  String
+  storageKey       String
+  objectKind       String
+  sourceUploadId   String?
+  sourceMutationId String?
+  youthId          String?
+  state            String   @default("pending")
+  notBefore        DateTime
+  nextAttemptAt    DateTime
+  claimId          String?
+  leaseUntil       DateTime?
+  attemptCount     Int      @default(0)
+  lastErrorCode    String?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([storageProvider, storageKey])
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseUntil])
+  @@index([sourceUploadId, state])
+  @@index([youthId, state])
+}
+
 model Youth {
   id                   String   @id @default(cuid())
   name                 String   @unique
@@ -557,6 +675,9 @@ model Youth {
   retentionVersion     Int      @default(0)
   purgeStartedAt       DateTime?
   purgeLeaseUntil      DateTime?
+  purgeBlockedReason   String?
+  purgeLastCheckedAt   DateTime?
+  purgeNextCheckAt     DateTime?
   purgedAt             DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -580,6 +701,7 @@ model Youth {
   @@index([initialDischargeDate])
   @@index([actualDischargeDate, retentionUntil])
   @@index([purgedAt])
+  @@index([purgeStartedAt, purgeNextCheckAt])
 }
 
 model MathProblem {

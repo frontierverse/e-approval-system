@@ -28,6 +28,7 @@ export type YouthRuleTargetFilter = "all" | "common" | (string & {});
 
 export type YouthRule = {
   id: string;
+  updatedAt?: string;
   category: YouthRuleCategory;
   detail: string;
   targetYouthId: string | null;
@@ -91,6 +92,7 @@ export const youthDecisionDocumentFormFieldName = "decisionDocuments";
 export const youthDischargeExtensionReasonMaxLength = 500;
 
 export type YouthDecisionDocumentItem = {
+  updatedAt?: string;
   id: string;
   originalName: string;
   size: number;
@@ -170,6 +172,7 @@ export const youthCommonScheduleWeekdays = [
 
 export type YouthCommonSchedule = {
   id: string;
+  updatedAt?: string;
   weekday: YouthLearningScheduleWeekday;
   startHour: number;
   startMinute: number;
@@ -246,6 +249,8 @@ export type YouthFamilyContactInput = {
 };
 
 export type YouthCreateInput = {
+  expectedActorId?: string;
+  requestId?: string;
   name: string;
   admissionDate: string;
   birthDate: string;
@@ -256,14 +261,19 @@ export type YouthCreateInput = {
 
 export type YouthUpdateInput = Omit<
   YouthCreateInput,
-  "familyContacts" | "phone"
+  "familyContacts" | "phone" | "birthDate" | "dischargeDate"
 > & {
+  birthDate?: string;
+  dischargeDate?: string;
   expectedUpdatedAt?: string;
   familyContacts?: YouthFamilyContactInput[];
   phone?: string;
 };
 
 export type YouthDischargeExtensionInput = {
+  requestId?: string;
+  expectedActorId?: string;
+  expectedUpdatedAt?: string;
   extendedDischargeDate: string;
   reason: string;
 };
@@ -278,6 +288,8 @@ export type YouthActionResult<T> =
   | {
       ok: false;
       error: string;
+      code?: string;
+      status?: number;
     };
 
 export function isYouthNoteCategory(value: string): value is YouthNoteCategory {

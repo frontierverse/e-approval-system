@@ -16,6 +16,7 @@ export async function getYouthStudyConcepts(): Promise<YouthStudyConcept[]> {
       subunitId: true,
       content: true,
       createdAt: true,
+      updatedAt: true,
     },
   });
 
@@ -28,6 +29,7 @@ export async function getYouthStudyConcepts(): Promise<YouthStudyConcept[]> {
             subunitId: concept.subunitId,
             content: concept.content,
             createdAt: concept.createdAt.toISOString(),
+            updatedAt: concept.updatedAt.toISOString(),
           },
         ]
       : [],

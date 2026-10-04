@@ -23,6 +23,7 @@ export type YouthStudySemester = {
 
 export type YouthStudyConcept = {
   id: string;
+  updatedAt?: string;
   subject: YouthStudySubject;
   subunitId: string;
   content: string;

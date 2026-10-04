@@ -5,6 +5,7 @@ import {
   YouthRuleChangeLogList,
   YouthRulesBoard,
 } from "@/components/youth-rules-board";
+import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import { requireYouthBasicAccess } from "@/lib/youth-permissions";
 import {
   getYouthRuleChangeLogActors,
@@ -75,6 +76,7 @@ async function YouthRulePanel({
 }: {
   params: Awaited<YouthRulesPageProps["searchParams"]>;
 }) {
+  const user = await requireYouthBasicAccess();
   const selectedCategory = getSelectedRuleCategory(params.category);
   const selectedPage = getSelectedPage(params.page);
   const targets = await getYouthRuleTargets();
@@ -87,6 +89,8 @@ async function YouthRulePanel({
 
   return (
     <YouthRulesBoard
+      actorId={user.id}
+      canManage={getEffectiveYouthPermissions(user).canManageYouth}
       key={[
         ruleResult.category,
         ruleResult.target,

@@ -1,6 +1,10 @@
 "use client";
+import { useYouthActivityLeaveGuard } from "@/lib/youth-activity-leave";
 
 import Link from "next/link";
+import { getYouthActivityReceiptAction, getYouthPersonalBaselineAction } from "@/app/youth/activity-actions";
+import { newYouthActivityAttempt, runYouthActivity, invalidateYouthActivity, type ActivityAttempt } from "@/lib/youth-activity-client";
+import type { PersonalScheduleBaseline } from "@/app/youth/personal-schedule/actions";
 import {
   useEffect,
   useMemo,
@@ -55,18 +59,22 @@ export type YouthPersonalScheduleStaffDirectoryItem = {
 type CreatePersonalSchedule = (
   youthId: string,
   input: YouthPersonalScheduleInput,
+  options?: { requestId?: string; expectedActorId?: string },
 ) => Promise<YouthActionResult<{ schedule: YouthPersonalSchedule }>>;
 
 type UpdatePersonalSchedule = (
   scheduleId: string,
   input: YouthPersonalScheduleInput,
+  baseline?: PersonalScheduleBaseline,
 ) => Promise<YouthActionResult<{ schedule: YouthPersonalSchedule }>>;
 
 type DeletePersonalSchedule = (
   scheduleId: string,
+  baseline?: PersonalScheduleBaseline,
 ) => Promise<YouthActionResult<{ scheduleId: string }>>;
 
 export type YouthPersonalScheduleCalendarBoardProps = {
+  actorId?: string;
   canManage: boolean;
   createSchedule: CreatePersonalSchedule;
   deleteSchedule: DeletePersonalSchedule;
@@ -153,6 +161,7 @@ export function YouthPersonalScheduleCalendarBoard(
 }
 
 function YouthPersonalScheduleCalendarBoardContent({
+  actorId = "",
   canManage,
   createSchedule,
   deleteSchedule,
@@ -168,6 +177,15 @@ function YouthPersonalScheduleCalendarBoardContent({
   const [formError, setFormError] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const attemptRef = useRef<ActivityAttempt<{ id?: string; youthId: string; expectedUpdatedAt?: string; input?: YouthPersonalScheduleInput }> | null>(null);
+  const baselineRef = useRef<PersonalScheduleBaseline | null>(null);
+  const busyRef = useRef(false);
+  const aliveRef = useRef(true);
+  const [recovery, setRecovery] = useState<"idle" | "unknown" | "conflict">("idle");
+  const [accessBlocked, setAccessBlocked] = useState(false);
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; invalidateYouthActivity(attemptRef.current); }; }, []);
+  const [sourceSchedules, setSourceSchedules] = useState(schedules);
+  if (schedules !== sourceSchedules) { setSourceSchedules(schedules); setScheduleItems(schedules); }
   const errorRef = useRef<HTMLParagraphElement>(null);
   const generalContentRef = useRef<HTMLTextAreaElement>(null);
   const hospitalNameRef = useRef<HTMLInputElement>(null);
@@ -185,7 +203,8 @@ function YouthPersonalScheduleCalendarBoardContent({
   const nextMonth = shiftWorkScheduleMonth(selectedMonth, 1);
   const currentMonth = getWorkScheduleCurrentMonth();
   const isPending = pendingAction !== null;
-  const isFormDisabled = isPending || !canManage;
+  const isFormDisabled = isPending || !canManage || accessBlocked || recovery !== "idle";
+  useYouthActivityLeaveGuard({ dirty: isDirty || recovery !== "idle", pending: isPending, discard: () => invalidateYouthActivity(attemptRef.current) });
   const appointmentDate =
     draft?.scheduleType === "HOSPITAL" ? draft.occurrenceDates[0] ?? "" : "";
   const eligibleStaffDirectory = useMemo(
@@ -227,6 +246,8 @@ function YouthPersonalScheduleCalendarBoardContent({
       return;
     }
 
+    if (busyRef.current || recovery !== "idle" || accessBlocked) return;
+    baselineRef.current = null; invalidateYouthActivity(attemptRef.current); attemptRef.current = null;
     setDraft(createPersonalScheduleDraft(scheduleDate));
     setFormError("");
     setIsDirty(false);
@@ -243,15 +264,17 @@ function YouthPersonalScheduleCalendarBoardContent({
       return;
     }
 
+    if (busyRef.current || recovery !== "idle" || accessBlocked) return;
+    baselineRef.current = { youthId: schedule.youthId, expectedUpdatedAt: schedule.updatedAt ?? "", expectedActorId: actorId };
+    invalidateYouthActivity(attemptRef.current); attemptRef.current = null;
     setDraft(createPersonalScheduleEditDraft(schedule, fallbackDate));
     setFormError("");
     setIsDirty(false);
   }
 
   function closeModal() {
-    if (isPending) {
-      return;
-    }
+    if (isPending || busyRef.current) return;
+    if (recovery !== "idle" && !window.confirm("처리 결과를 확인하지 못한 요청이 남아 있습니다. 서버 처리를 취소하지 않고 이 화면의 입력을 버리고 닫으시겠습니까?")) return;
 
     if (
       isDirty &&
@@ -262,6 +285,7 @@ function YouthPersonalScheduleCalendarBoardContent({
       return;
     }
 
+    invalidateYouthActivity(attemptRef.current); attemptRef.current = null; setRecovery("idle");
     setDraft(null);
     setFormError("");
     setIsDirty(false);
@@ -412,89 +436,64 @@ function YouthPersonalScheduleCalendarBoardContent({
     setIsDirty(true);
   }
 
-  async function submitSchedule(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!draft || isPending || !canManage || !selectedYouthId) {
-      return;
+  async function runAttempt(action: "save" | "delete") {
+    if (!draft || busyRef.current || !canManage || accessBlocked || recovery === "conflict") return;
+    if (!attemptRef.current) {
+      if (action === "save") { const error = getPersonalScheduleDraftError(draft, staffDirectory); if (error) { setFormError(error); return; } }
+      const fence = baselineRef.current;
+      attemptRef.current = newYouthActivityAttempt(action === "delete" ? "personal.delete" : draft.scheduleId ? "personal.update" : "personal.create", { id: draft.scheduleId, youthId: fence?.youthId ?? selectedYouthId, expectedUpdatedAt: fence?.expectedUpdatedAt, ...(action === "save" ? { input: normalizePersonalScheduleDraft(draft) } : {}) });
     }
-
-    const error = getPersonalScheduleDraftError(draft, staffDirectory);
-
-    if (error) {
-      setFormError(error);
-      return;
-    }
-
-    setPendingAction("save");
-    setFormError("");
-
+    const attempt = attemptRef.current;
+    if ((action === "delete") !== (attempt.operation === "personal.delete")) return;
+    busyRef.current = true; setPendingAction(action); setFormError("");
     try {
-      const input = normalizePersonalScheduleDraft(draft);
-      const result = draft.scheduleId
-        ? await updateSchedule(draft.scheduleId, input)
-        : await createSchedule(selectedYouthId, input);
-
-      if (!result.ok) {
-        setFormError(result.error);
+      const outcome = await runYouthActivity<typeof attempt.payload, { schedule?: YouthPersonalSchedule; scheduleId?: string }>(attempt, async (payload, requestId) => {
+        const baseline = { youthId: payload.youthId, expectedUpdatedAt: payload.expectedUpdatedAt ?? "", requestId, expectedActorId: actorId };
+        if (attempt.operation === "personal.delete") return deleteSchedule(payload.id!, baseline);
+        if (payload.id) return updateSchedule(payload.id, payload.input!, baseline);
+        return createSchedule(payload.youthId, payload.input!, { requestId, expectedActorId: actorId });
+      }, requestId => getYouthActivityReceiptAction(requestId, actorId));
+      if (!aliveRef.current || attemptRef.current !== attempt || outcome.kind === "blocked") return;
+      if (outcome.kind === "committed") {
+        if (attempt.operation === "personal.delete") setScheduleItems(current => current.filter(item => item.id !== outcome.receipt.targetId));
+        else { const latest = await getYouthPersonalBaselineAction(outcome.receipt.targetId, actorId); if (!aliveRef.current || attemptRef.current !== attempt) return; if (latest.ok) setScheduleItems(current => mergePersonalSchedule(current, latest.data.schedule)); }
+      } else if (!outcome.result.ok) {
+        setFormError(outcome.result.error); setRecovery(attempt.conflict ? "conflict" : attempt.unknown ? "unknown" : "idle");
+        if (outcome.result.status === 401 || outcome.result.status === 403 || outcome.result.status === 404) { setAccessBlocked(true); setDraft(null); if (outcome.result.status === 404) setScheduleItems([]); }
+        if (!attempt.unknown && !attempt.conflict) attemptRef.current = null;
         return;
+      } else {
+        const data = outcome.result.data as { schedule?: YouthPersonalSchedule; scheduleId?: string };
+        if (data.schedule) setScheduleItems(current => mergePersonalSchedule(current, data.schedule!));
+        if (data.scheduleId) setScheduleItems(current => current.filter(item => item.id !== data.scheduleId));
       }
-
-      setScheduleItems((current) =>
-        mergePersonalSchedule(current, result.data.schedule),
-      );
-      setIsDirty(false);
-      setDraft(null);
-    } catch {
-      setFormError("일정을 저장하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.");
-    } finally {
-      setPendingAction(null);
-    }
+      attemptRef.current = null; setRecovery("idle"); setIsDirty(false); setDraft(null);
+    } finally { busyRef.current = false; if (aliveRef.current) setPendingAction(null); }
   }
-
+  async function submitSchedule(event: FormEvent<HTMLFormElement>) { event.preventDefault(); await runAttempt(attemptRef.current?.operation === "personal.delete" ? "delete" : "save"); }
   async function removeSchedule() {
-    if (!draft?.scheduleId || isPending || !canManage) {
-      return;
-    }
-
-    const schedule = scheduleItems.find((item) => item.id === draft.scheduleId);
-    const scheduleLabel = schedule
-      ? formatPersonalScheduleCalendarLabel(schedule)
-      : draft.scheduleType === "HOSPITAL"
-        ? `병원 · ${draft.hospitalName || "병원명 미입력"}`
-        : draft.content;
-    const confirmed = window.confirm(
-      `"${scheduleLabel}" 일정을 삭제하시겠습니까? 삭제한 일정은 복구할 수 없습니다.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setPendingAction("delete");
-    setFormError("");
-
+    if (!draft?.scheduleId || busyRef.current || recovery === "conflict") return;
+    if (recovery !== "unknown" && !window.confirm("이 개인 일정의 모든 반복 날짜를 삭제하시겠습니까? 삭제한 일정은 복구할 수 없습니다.")) return;
+    await runAttempt("delete");
+  }
+  async function recoverSchedule() {
+    const id = draft?.scheduleId;
+    if (!id || busyRef.current) return;
+    busyRef.current = true; setPendingAction("save");
     try {
-      const result = await deleteSchedule(draft.scheduleId);
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setScheduleItems((current) =>
-        current.filter((item) => item.id !== result.data.scheduleId),
-      );
-      setIsDirty(false);
-      setDraft(null);
-    } catch {
-      setFormError("일정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setPendingAction(null);
-    }
+      const latest = await getYouthPersonalBaselineAction(id, actorId);
+      if (!aliveRef.current) return;
+      if (!latest.ok) { setFormError(latest.error); if (latest.status === 401 || latest.status === 403 || latest.status === 404) { setDraft(null); setAccessBlocked(true); setScheduleItems([]); } return; }
+      setScheduleItems(current => mergePersonalSchedule(current, latest.data.schedule));
+      if (!window.confirm("최신 개인 일정을 확인했습니다. 현재 입력한 변경사항을 이 최신 일정을 기준으로 다시 저장할 준비를 하시겠습니까? 아직 저장하지 않습니다.")) return;
+      baselineRef.current = { youthId: latest.data.youth.id, expectedUpdatedAt: latest.data.schedule.updatedAt, expectedActorId: actorId };
+      invalidateYouthActivity(attemptRef.current); attemptRef.current = null; setRecovery("idle"); setFormError("최신 기준을 확인했습니다. 입력 내용을 검토한 뒤 저장하세요.");
+    } finally { busyRef.current = false; if (aliveRef.current) setPendingAction(null); }
   }
 
   function navigateToMonth(date: string) {
+    if (busyRef.current || (isDirty || recovery !== "idle") && !window.confirm("저장하지 않은 입력 또는 결과를 확인하지 못한 요청을 화면에서 버리고 이동하시겠습니까? 서버 처리는 취소하지 않습니다.")) return;
+    invalidateYouthActivity(attemptRef.current);
     if (!isYouthPersonalScheduleDate(date)) {
       return;
     }
@@ -1220,6 +1219,7 @@ function YouthPersonalScheduleCalendarBoardContent({
               ) : null}
             </div>
 
+            {recovery === "conflict" ? <button type="button" className={secondaryButtonClassName} disabled={isPending} onClick={recoverSchedule}>최신 내용 확인</button> : null}
             <footer className="grid min-w-0 gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-4 py-3 sm:grid-cols-[auto_1fr] sm:px-5">
               {canManage ? (
                 <>
@@ -1228,7 +1228,7 @@ function YouthPersonalScheduleCalendarBoardContent({
                       <button
                         type="button"
                         className="h-11 w-full rounded-md border border-[#efb4b4] bg-[var(--surface)] px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] focus:outline-none focus:ring-2 focus:ring-[#f0c6c6] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#7f3b3b] dark:text-[#ffb4b4] sm:w-auto"
-                        disabled={isPending}
+                        disabled={isPending || recovery !== "idle" || accessBlocked}
                         onClick={removeSchedule}
                       >
                         {pendingAction === "delete"
@@ -1251,9 +1251,9 @@ function YouthPersonalScheduleCalendarBoardContent({
                     <button
                       type="submit"
                       className="h-11 min-w-0 rounded-md bg-[var(--brand)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] disabled:text-[var(--text-muted)]"
-                      disabled={isPending}
+                      disabled={isPending || accessBlocked || recovery === "conflict"}
                     >
-                      {pendingAction === "save" ? "저장 중" : "저장"}
+                      {recovery === "unknown" ? "같은 요청 결과 확인" : pendingAction === "save" ? "저장 중" : "저장"}
                     </button>
                   </div>
                 </>
@@ -1812,36 +1812,7 @@ function createPersonalScheduleHref(youthId: string, month: string) {
   return `${personalScheduleBasePath}?${params.toString()}`;
 }
 
-function createPersonalScheduleBoardRevision({
-  schedules,
-  selectedMonth,
-  selectedYouthId,
-}: YouthPersonalScheduleCalendarBoardProps) {
-  const scheduleRevision = schedules
-    .map((schedule) =>
-      [
-        schedule.id,
-        schedule.youthId,
-        schedule.content,
-        schedule.scheduleType,
-        schedule.hospitalName ?? "",
-        schedule.escortType ?? "",
-        schedule.escortUserId ?? "",
-        schedule.escortName ?? "",
-        schedule.nextAppointmentDate ?? "",
-        schedule.startMinute,
-        schedule.endMinute,
-        schedule.selectionMode,
-        schedule.occurrenceDates.join(","),
-        schedule.recurrenceWeekdays.join(","),
-        schedule.recurrenceStartDate ?? "",
-        schedule.recurrenceEndDate ?? "",
-      ].join("\u001f"),
-    )
-    .join("\u001e");
-
-  return `${selectedYouthId}\u001d${selectedMonth}\u001d${scheduleRevision}`;
-}
+function createPersonalScheduleBoardRevision({ actorId, selectedMonth, selectedYouthId }: YouthPersonalScheduleCalendarBoardProps) { return [actorId ?? "", selectedMonth, selectedYouthId].join(":"); }
 
 function createModeButtonClassName(selected: boolean) {
   return [

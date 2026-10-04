@@ -214,3 +214,27 @@ test("resource provider undefined rejection remains a safe storage error", async
   const c = await context(t); c.adapter.read = async () => { throw undefined; };
   await assert.rejects(c.core.readResourceStoredFile(ref("final/a"), { expectedSize: 3, beforeExpose() {} }), error("STORAGE_UNAVAILABLE"));
 });
+
+test("youth legacy reencrypt uses a new immutable key, one spool peak, full crypto proof and leaves source intact", async t => {
+  const c = await context(t), bytes = Buffer.from("%PDF-1.7\nlegacy court order\n".repeat(20)); c.files.set(id(ref("legacy/youth")), bytes);
+  const before = c.files.get(id(ref("legacy/youth"))), result = await c.core.reencryptResourceStoredFile({ source: ref("legacy/youth"), final: ref("final/youth"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") });
+  assert.equal(result.alreadyEncrypted, false); assert.equal(result.writeEvidence, "confirmed"); assert.equal(c.files.get(id(ref("legacy/youth"))), before);
+  assert.deepEqual(decryptAttachmentBuffer(c.files.get(id(ref("final/youth")))!, { ATTACHMENT_ENCRYPTION_KEY: key.toString("hex") }), bytes);
+  assert.equal(result.storedSha256, hash(c.files.get(id(ref("final/youth")))!)); assert.equal(c.counts.maxOpen, 1);
+});
+test("youth reencrypt verifies already encrypted source and skips provider writes", async t => {
+  const c = await context(t), bytes = Buffer.from("already encrypted court order"); c.files.set(id(ref("legacy/youth")), enc(bytes));
+  const result = await c.core.reencryptResourceStoredFile({ source: ref("legacy/youth"), final: ref("final/youth"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") });
+  assert.equal(result.alreadyEncrypted, true); assert.equal(c.calls.write, 0); assert.equal(c.files.has(id(ref("final/youth"))), false);
+  c.files.get(id(ref("legacy/youth")))![40] ^= 1;
+  await assert.rejects(c.core.reencryptResourceStoredFile({ source: ref("legacy/youth"), final: ref("final/youth"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") }), error("STORAGE_UNAVAILABLE")); assert.equal(c.calls.write, 0);
+});
+test("youth reencrypt changed plaintext between reads fails before write and late write remains unknown", async t => {
+  const c = await context(t), bytes = Buffer.from("unchanged court order"), read = c.adapter.read; c.files.set(id(ref("legacy/youth")), bytes); let n = 0;
+  c.adapter.read = async (...args) => { n++; if (n === 2) c.files.set(id(ref("legacy/youth")), Buffer.alloc(bytes.length, 13)); return read(...args); };
+  await assert.rejects(c.core.reencryptResourceStoredFile({ source: ref("legacy/youth"), final: ref("final/youth"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64") }), error("UPLOAD_CONFLICT")); assert.equal(c.calls.write, 0);
+  c.adapter.read = read; c.files.set(id(ref("legacy/youth")), bytes); let commit!: () => void;
+  c.adapter.write = async (value, body) => { const written = await collect(body); await new Promise<void>(resolve => { commit = () => { c.files.set(id(value), written); resolve(); }; }); };
+  await assert.rejects(c.core.reencryptResourceStoredFile({ source: ref("legacy/youth"), final: ref("final/youth"), size: bytes.length, wholeSha256: hash(bytes), ivBase64: iv.toString("base64"), timeoutMs: 25 }), error("STORAGE_TIMEOUT", "unknown"));
+  await c.core.deleteResourceStoredFile(ref("final/youth")); commit(); await delay(0); assert.equal(await c.core.resourceStoredFileExists(ref("final/youth")), true);
+});
