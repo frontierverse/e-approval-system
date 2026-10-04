@@ -307,6 +307,49 @@ test('CAS rejection keeps input and requires an explicit confirmed fresh baselin
   } finally { f.h.dispose(); }
 });
 
+test('CAS baseline choices stay disabled until a successful fresh read and old enabled callbacks cannot bypass a later conflict', async () => {
+  const f = editorFixture({ document: true }), held = deferred();
+  try {
+    await f.update(); f.field('제목 필수').onChangeText('Preserved conflict input'); await f.update();
+    const original = f.h.state.onRequest;
+    const conflict = async (path: string, options: Record<string, unknown>) => options.method === 'POST' ? Promise.reject(new f.ApiError('CAS conflict', 409, undefined, 'DRAFT_CONFLICT')) : original(path, options);
+    f.h.state.onRequest = conflict;
+    f.button('임시저장').onPress(); await f.update();
+    const blockedApply = f.button('입력 유지·최신 기준 적용'), blockedReplace = f.button('서버 내용으로 교체');
+    assert.equal(blockedApply.disabled, true); assert.equal(blockedReplace.disabled, true);
+    const confirmations = f.h.state.confirmations.length;
+    blockedApply.onPress(); blockedReplace.onPress(); await f.update();
+    assert.equal(f.h.state.confirmations.length, confirmations); assert.equal(f.button('임시저장').disabled, true);
+    assert.equal(f.field('제목 필수').value, 'Preserved conflict input');
+
+    f.h.state.onRequest = async (path: string, options: Record<string, unknown>) => path === '/drafts/draft-a' ? held.promise : conflict(path, options);
+    f.button('최신 내용 확인').onPress(); await f.update();
+    assert.equal(nodes(f.editor.tree).some(v => v.type === 'TextInput'), false);
+    blockedApply.onPress(); blockedReplace.onPress(); await f.update();
+    assert.equal(f.h.state.confirmations.length, confirmations);
+    held.reject(new f.ApiError('Latest read unavailable', 503)); await f.update();
+    assert.match(f.h.find(f.editor, 'ErrorState').message, /Latest read unavailable/);
+    blockedApply.onPress(); await f.update();
+    assert.equal(f.h.state.requests.filter(v => v.method === 'POST').length, 1);
+
+    f.setDraft({ ...f.getDraft(), title: 'Authoritative replacement', updatedAt: '2026-10-04T03:00:02.000Z' });
+    f.h.state.onRequest = conflict;
+    f.h.find(f.editor, 'ErrorState').retry(); await f.update();
+    const enabledApply = f.button('입력 유지·최신 기준 적용'), enabledReplace = f.button('서버 내용으로 교체');
+    assert.equal(enabledApply.disabled, false); assert.equal(enabledReplace.disabled, false);
+    assert.equal(f.field('제목 필수').value, 'Preserved conflict input');
+    enabledApply.onPress(); await f.update(); assert.equal(f.button('임시저장').disabled, false);
+    f.button('임시저장').onPress(); await f.update();
+    assert.equal(f.button('입력 유지·최신 기준 적용').disabled, true); assert.equal(f.button('서버 내용으로 교체').disabled, true);
+    const afterConflict = f.h.state.confirmations.length;
+    enabledApply.onPress(); enabledReplace.onPress(); await f.update();
+    assert.equal(f.h.state.confirmations.length, afterConflict);
+    assert.equal(f.field('제목 필수').value, 'Preserved conflict input'); assert.equal(f.button('임시저장').disabled, true);
+    f.button('임시저장').onPress(); await f.update();
+    assert.equal(f.h.state.requests.filter(v => v.method === 'POST').length, 2);
+  } finally { held.resolve({}); f.h.dispose(); }
+});
+
 test('confirmed target denial removes rendered and stored text while retaining only minimal unknown-request proof', async () => {
   const f = editorFixture({ document: true });
   try {

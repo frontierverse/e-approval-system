@@ -39,6 +39,8 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   const [form, setForm] = useState<Form>(emptyForm()), [files, setFiles] = useState<PendingAttachment[]>([]), [options, setOptions] = useState<DraftOptions | null>(null), optionsRef = useRef<DraftOptions | null>(null);
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState(''), [busy, setBusy] = useState(false), [progress, setProgress] = useState(''), [error, setError] = useState(''), [errors, setErrors] = useState<Record<string, string>>({}), [notice, setNotice] = useState(''), [storageNotice, setStorageNotice] = useState('');
   const [candidate, setCandidate] = useState<RecoveryMetadata | null>(null), candidateRef = useRef<RecoveryMetadata | null>(null), [pendingVersion, setPendingVersion] = useState(0), [statusMissing, setStatusMissing] = useState(false), [freshDraft, setFreshDraft] = useState<DraftData | null>(null), [needsBaseline, setNeedsBaseline] = useState(false), [settledTarget, setSettledTarget] = useState<{ id: string; deleted: boolean; editable: boolean } | null>(null);
+  const freshDraftRef = useRef<DraftData | null>(null);
+  const publishFreshDraft = useCallback((value: DraftData | null) => { freshDraftRef.current = value; setFreshDraft(value); }, []);
   const [restricted, setRestricted] = useState(false), [followupAvailable, setFollowupAvailable] = useState(false);
   const privateMasked = useRef(false), textRevision = useRef(0);
   const [picker, setPicker] = useState<null | { title: string; selected: string; items: { label: string; value: string }[]; choose(value: string): void; epoch: number }>(null), [focusedOption, setFocusedOption] = useState(''), [focusedField, setFocusedField] = useState('');
@@ -84,7 +86,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     if (!canAccount() || !isForeground() || !focused.current) return;
     const sequence = ++loadSequence.current, foregroundAtStart = foregroundGeneration(), discoverMetadata = !initialized.current;
     const current = () => canAccount() && focused.current && epoch === focusEpoch.current && sequence === loadSequence.current && foregroundAtStart === foregroundGeneration() && isForeground();
-    verified.current = false; setValidation(null); setLoading(true); setLoadError('');
+    verified.current = false; setValidation(null); publishFreshDraft(null); setLoading(true); setLoadError('');
     try {
       const rawOptions = await request<unknown>('/drafts/options');
       if (!current()) return;
@@ -96,7 +98,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       catch (cause) {
         if (!(cause instanceof ApiError) || ![403, 404].includes(cause.status)) throw cause;
         if (!current()) return;
-        formRef.current = emptyForm(); setForm(emptyForm()); filesRef.current = []; setFiles([]); setBaseline(''); setFreshDraft(null); privateMasked.current = true; setRestricted(true); initialized.current = false;
+        formRef.current = emptyForm(); setForm(emptyForm()); filesRef.current = []; setFiles([]); setBaseline(''); publishFreshDraft(null); privateMasked.current = true; setRestricted(true); initialized.current = false;
         if (pending.current) { pending.current.body = null; pending.current.fingerprint = ''; bumpPending(); }
         let metadata: RecoveryMetadata | null = null;
         try { metadata = await restrictScope(scope); }
@@ -110,7 +112,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       if (rawDraft && !isDraftData(rawDraft.draft, documentId)) throw new ApiError('작성 화면 응답을 확인하지 못했습니다.', 200);
       privateMasked.current = false; setRestricted(false);
       const d = rawDraft?.draft as DraftData | undefined;
-      optionsRef.current = o; setOptions(o); setFreshDraft(d ?? null);
+      optionsRef.current = o; setOptions(o); publishFreshDraft(d ?? null);
       if (!initialized.current || formSnapshot(formRef.current, filesRef.current) === baseline.current && !pending.current) {
         const t = o.templates.find(item => item.id === d?.templateId) ?? (!d ? o.templates[0] : undefined);
         const next: Form = { title: d?.title === '제목 없는 기안' ? '' : d?.title ?? '', templateId: d?.templateId ?? t?.id ?? '', values: d?.fieldValues ?? t?.initialValues ?? {}, approverIds: d?.approverIds ?? (o.approvers.length === 1 ? [o.approvers[0].id] : []), attachments: d?.attachments ?? [], updatedAt: d?.updatedAt ?? null };
@@ -125,14 +127,14 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       if (!current()) return;
       verified.current = false; setValidation(null);
       if (cause instanceof ApiError && [403, 404].includes(cause.status)) {
-        formRef.current = emptyForm(); setForm(emptyForm()); filesRef.current = []; setFiles([]); setBaseline(''); optionsRef.current = null; setOptions(null); setFreshDraft(null); initialized.current = false;
+        formRef.current = emptyForm(); setForm(emptyForm()); filesRef.current = []; setFiles([]); setBaseline(''); optionsRef.current = null; setOptions(null); publishFreshDraft(null); initialized.current = false;
         if (pending.current) { pending.current.body = null; pending.current.fingerprint = ''; bumpPending(); }
         candidateRef.current = null; setCandidate(null);
         void purgeScope(scope).then(() => { const original = pending.current; if (!original || !actorId || !canAccount()) return; return checkpoint({ version: 1, actorId, scope, revision: Math.max(revision.current, original.revision), savedAt: new Date().toISOString(), mode: 'proof-only', pending: { requestId: original.requestId, intent: original.intent, revision: original.revision, expectedUpdatedAt: original.expectedUpdatedAt, stage: 'unknown', hasNewUploads: original.hasNewUploads, replayable: false } }); }).catch(() => undefined);
       }
       setLoadError(message(cause, '작성 화면을 확인하지 못했습니다.'));
     } finally { if (current()) setLoading(false); }
-  }, [canAccount, isForeground, foregroundGeneration, request, documentId, scope, listMetadata, restrictScope, purgeScope, checkpoint, actorId]);
+  }, [canAccount, isForeground, foregroundGeneration, request, documentId, scope, listMetadata, restrictScope, purgeScope, checkpoint, actorId, publishFreshDraft]);
   useFocusEffect(useCallback(() => {
     void foregroundRevision; void bindingRevision;
     focused.current = true; setFocusState(true); const epoch = ++focusEpoch.current; setFocusStamp(epoch); verified.current = false; setValidation(null); setLoading(true); setPicker(null);
@@ -243,9 +245,9 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     try { if (!await discard(scope, metadata.revision)) throw new Error('더 최근의 보관 내용이 있어 삭제하지 않았습니다.'); if (canAct(epoch)) { setCandidateBoth(null); setStorageNotice('기기 보관 내용을 버렸습니다.'); } } catch (cause) { if (canAct(epoch)) setError(message(cause, '기기 보관 내용 삭제를 확인하지 못했습니다.')); }
   };
   const adoptBaseline = async (replace: boolean) => {
-    const d = freshDraft, epoch = focusEpoch.current;
+    const d = freshDraftRef.current, epoch = focusEpoch.current;
     if (!d || pending.current || !canAct(epoch) || !await confirmed(replace ? '서버 내용으로 교체' : '최신 기준 적용', replace ? '현재 입력을 최신 서버 내용으로 교체합니다. 새로 선택한 첨부파일은 제거됩니다.' : '현재 입력을 유지하고 최신 수정 기준을 적용합니다. 이후 저장 버튼을 눌러야 반영됩니다.', replace ? '교체' : '적용', replace)) return;
-    if (!canAct(epoch)) return;
+    if (!canAct(epoch) || freshDraftRef.current !== d) return;
     if (replace) { publishForm({ title: d.title === '제목 없는 기안' ? '' : d.title, templateId: d.templateId, values: d.fieldValues, approverIds: d.approverIds, attachments: d.attachments, updatedAt: d.updatedAt }); filesRef.current = []; setFiles([]); setBaseline(formSnapshot(formRef.current, [])); }
     else publishForm({ ...formRef.current, attachments: d.attachments, updatedAt: d.updatedAt });
     revision.current++; setNeedsBaseline(false); setSettledTarget(null); setErrors({}); setError(''); setNotice('최신 기준을 적용했습니다. 저장 여부를 직접 선택하세요.');
@@ -270,13 +272,13 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
         if (cause instanceof ApiError && [403, 404].includes(cause.status)) {
           // Keep RAM input intact, but never render, checkpoint, or resend it
           // after the current document permission check fails.
-          privateMasked.current = true; setRestricted(true); setFreshDraft(null); setPicker(null);
+          privateMasked.current = true; setRestricted(true); publishFreshDraft(null); setPicker(null);
           setFollowupAvailable(false); setSettledTarget({ id: proof.documentId, deleted: false, editable: false });
           pending.current = null; bumpPending();
           setNotice('원 요청의 저장은 확인했습니다. 현재 문서 권한을 확인할 수 없어 입력과 첨부 정보를 숨겼습니다.');
           return;
         }
-        refreshFailed = true;
+        publishFreshDraft(null); refreshFailed = true;
       }
     }
     if (hasFollowup) {
@@ -302,7 +304,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     if (!documentId) { allowLeave.current = true; router.replace('/drafts/' + proof.documentId); return; }
     publishForm({ ...formRef.current, attachments: refreshed?.attachments ?? formRef.current.attachments, updatedAt: refreshed?.updatedAt ?? proof.committedUpdatedAt });
     setBaseline(formSnapshot(formRef.current, []));
-    if (refreshed) { setFreshDraft(refreshed); setNeedsBaseline(false); }
+    if (refreshed) { publishFreshDraft(refreshed); setNeedsBaseline(false); }
     if (refreshFailed) { setError('저장은 완료됐지만 최신 문서 조회에 실패했습니다. 입력은 유지됩니다. 최신 내용을 확인하세요.'); setNeedsBaseline(true); }
   };
   const sendOriginal = async (original: Pending, epoch: number) => {
@@ -365,8 +367,8 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       if (!draftRequestId(key)) throw new Error('저장 요청 정보를 생성하지 못했습니다.');
       pending.current = original; bumpPending(); setProgress(intent === 'submit' ? '상신 중' : '저장 중'); await sendOriginal(original, epoch);
     } catch (cause) {
-      if (original && pending.current === original) { if (unknown(cause)) { original.stage = 'unknown'; bumpPending(); void flush(); } else { pending.current = null; bumpPending(); if (cause instanceof ApiError && cause.status === 409) setNeedsBaseline(true); void flush(); } }
-      if (canAct(epoch)) { if (cause instanceof ApiError && [403, 404].includes(cause.status)) { verified.current = false; setValidation(null); publishForm(emptyForm()); filesRef.current = []; setFiles([]); optionsRef.current = null; setOptions(null); setFreshDraft(null); setLoadError('이 문서의 작성 권한을 확인할 수 없습니다.'); void purgeScope(scope).catch(() => undefined); } else if (cause instanceof ApiError && cause.fields) setErrors(cause.fields); setError(message(cause, '저장하지 못했습니다. 입력은 유지됩니다.')); }
+      if (original && pending.current === original) { if (unknown(cause)) { original.stage = 'unknown'; bumpPending(); void flush(); } else { pending.current = null; bumpPending(); if (cause instanceof ApiError && cause.status === 409) { publishFreshDraft(null); setNeedsBaseline(true); } void flush(); } }
+      if (canAct(epoch)) { if (cause instanceof ApiError && [403, 404].includes(cause.status)) { verified.current = false; setValidation(null); publishForm(emptyForm()); filesRef.current = []; setFiles([]); optionsRef.current = null; setOptions(null); publishFreshDraft(null); setLoadError('이 문서의 작성 권한을 확인할 수 없습니다.'); void purgeScope(scope).catch(() => undefined); } else if (cause instanceof ApiError && cause.fields) setErrors(cause.fields); setError(message(cause, '저장하지 못했습니다. 입력은 유지됩니다.')); }
     } finally { busyRef.current = false; if (canAccount()) { setBusy(false); setProgress(''); } }
   };
   const continueFollowup = async () => {
@@ -395,7 +397,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       if (!canAct(epoch)) return;
       if (saved.mode !== 'full-text' || !verifiedRecord || JSON.stringify(saved) !== JSON.stringify(verifiedRecord)) throw new Error('후속 입력의 보관을 확인하지 못했습니다. 원 입력은 유지됩니다.');
       if (sameScope && d) {
-        revision.current = next.revision; pending.current = null; bumpPending(); setCandidateBoth(null); setSettledTarget(null); setFollowupAvailable(false); setNeedsBaseline(false); optionsRef.current = o; setOptions(o); setFreshDraft(d); publishForm({ ...formRef.current, attachments: d.attachments, updatedAt: d.updatedAt }); filesRef.current = []; setFiles([]); setNotice('후속 입력에 최신 기준을 적용했습니다. 저장 여부를 직접 선택하세요.'); return;
+        revision.current = next.revision; pending.current = null; bumpPending(); setCandidateBoth(null); setSettledTarget(null); setFollowupAvailable(false); setNeedsBaseline(false); optionsRef.current = o; setOptions(o); publishFreshDraft(d); publishForm({ ...formRef.current, attachments: d.attachments, updatedAt: d.updatedAt }); filesRef.current = []; setFiles([]); setNotice('후속 입력에 최신 기준을 적용했습니다. 저장 여부를 직접 선택하세요.'); return;
       }
       try { await discard(scope, sourceRevision); } catch { setStorageNotice('후속 입력은 보관했습니다. 원 범위의 기기 기록 정리는 확인하지 못했습니다.'); }
       if (!canAct(epoch)) return;
