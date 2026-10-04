@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { AppUpdateProgress, appUpdateTitle, formatAppUpdateTime } from "@/components/app-update-status";
-import { PrimaryButton, ScreenHeading, TextAction } from "@/components/ui";
+import { PrimaryButton, TextAction } from "@/components/ui";
 import { useAppUpdates } from "@/providers/AppUpdatesProvider";
 import { useTheme } from "@/lib/theme";
 
@@ -14,7 +14,7 @@ export default function AppUpdatesScreen() {
   const row = (label: string, value: string) => <View style={[styles.row, { borderBottomColor: theme.border }]}><Text style={{ color: theme.secondary, fontSize: 13 }}>{label}</Text><Text selectable style={{ color: theme.text, fontSize: 14, lineHeight: 21, fontVariant: ["tabular-nums"] }}>{value}</Text></View>;
   const download = updates.available !== null && updates.phase !== "ready";
   return <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={[styles.content, { paddingBottom: Math.max(24, bottom + 16) }]}>
-    <ScreenHeading title="앱 업데이트" subtitle={`앱 버전 ${Constants.expoConfig?.version ?? "확인 불가"}`} />
+    <Text style={{ color: theme.secondary, fontSize: 13, paddingVertical: 12 }}>앱 버전 {Constants.expoConfig?.version ?? "확인 불가"}</Text>
     <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.surface }]}>
       <Text accessibilityLiveRegion="polite" style={{ color: updates.phase === "ready" ? theme.success : theme.text, fontSize: 17, lineHeight: 24, fontWeight: "800" }}>{appUpdateTitle(updates.phase, updates.progress)}</Text>
       {updates.phase === "downloading" ? <AppUpdateProgress progress={updates.progress} /> : null}
@@ -23,7 +23,7 @@ export default function AppUpdatesScreen() {
       <AccountFeedback error={updates.phase === "error" ? updates.error : null} />
     </View>
     <View style={[styles.panel, { marginTop: 12, borderColor: theme.border, backgroundColor: theme.surface }]}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>현재 적용된 업데이트</Text>
+      <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>현재 적용된 업데이트</Text>
       {row("코드 버전", updates.current.updateId ? updates.current.updateId.slice(0, 8) : updates.current.embedded ? "설치 파일에 포함된 기본 버전" : "확인 불가")}
       {row("게시 시각", formatAppUpdateTime(updates.current.publishedAt))}
       {row("이 기기에서 적용 확인", formatAppUpdateTime(updates.observedAt))}
@@ -31,7 +31,7 @@ export default function AppUpdatesScreen() {
       {updates.current.emergency ? <Text style={[styles.detail, { color: theme.danger }]}>업데이트를 실행하지 못해 기본 버전으로 복구해 실행했습니다. 네트워크를 확인하고 업데이트를 다시 확인하세요.</Text> : null}
     </View>
     <View style={[styles.panel, { marginTop: 12, borderColor: theme.border, backgroundColor: theme.surface }]}>
-      <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>확인·다운로드 기록</Text>
+      <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>확인·다운로드 기록</Text>
       {row("최근 확인 시도", formatAppUpdateTime(updates.lastCheckAt))}
       {row("최근 다운로드 확인", formatAppUpdateTime(updates.lastDownloadedAt))}
       {updates.phase === "ready" || updates.phase === "available" || updates.phase === "downloading" ? row("새 업데이트 게시 시각", formatAppUpdateTime((updates.phase === "ready" ? updates.downloaded : updates.available)?.publishedAt ?? null)) : null}

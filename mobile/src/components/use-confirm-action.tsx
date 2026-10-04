@@ -54,9 +54,10 @@ export function useConfirmAction({ inlineNative = false }: { inlineNative?: bool
   const ask = (value: Confirmation) => choose(value).then(choice => choice === "confirm");
   const resolution = pending.current;
   const respond = (choice: Choice) => { if (resolution) finish(choice, resolution); };
-  const content = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 480, maxHeight: "100%", padding: 16, borderRadius: 12, backgroundColor: theme.surface, gap: 12 }}>
+  const content = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 480, maxHeight: "100%", borderRadius: 12, backgroundColor: theme.surface, overflow: "hidden" }}>
+    <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
     <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "700" }}>{confirmation?.title}</Text>
-    <ScrollView style={{ flexShrink: 1 }}><Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 22 }}>{confirmation?.message}</Text></ScrollView>
+    <Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 22 }}>{confirmation?.message}</Text>
     {inlineNative || confirmation?.alternative ? <>
       <PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} />
       {confirmation?.alternative ? <PrimaryButton title={confirmation.alternative} danger onPress={() => respond("alternative")} /> : null}
@@ -65,6 +66,7 @@ export function useConfirmAction({ inlineNative = false }: { inlineNative?: bool
       <View style={{ flex: 1 }}><TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} /></View>
       <View style={{ flex: 1 }}><PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} /></View>
     </View>}
+    </ScrollView>
   </View>;
   const inline = inlineNative && Platform.OS !== "web" && !!confirmation;
   const dialog = inline ? content : Platform.OS === "web" ? <Modal visible={!!confirmation} transparent animationType="none"

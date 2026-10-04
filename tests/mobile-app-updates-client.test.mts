@@ -306,7 +306,7 @@ test('app updates ready page explains a manual cold restart and has no reload/do
     assert.match(text, /현재 적용된 업데이트/); assert.match(text, /게시 시각/); assert.match(text, /이 기기에서 적용 확인/);
     assert.match(text, /실제 설치 시각과 다를 수/);
     assert.equal(nodes(page.tree).filter(row => ['PrimaryButton', 'TextAction'].includes(row.type)).length, 0);
-    assert.equal(nodes(page.tree).find(row => row.type === 'ScreenHeading')!.props.subtitle, '앱 버전 1.0.5');
+    assert.match(text, /앱 버전 1\.0\.5/);
   } finally { s.dispose(); }
 });
 
