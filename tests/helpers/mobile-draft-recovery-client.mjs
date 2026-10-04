@@ -74,6 +74,7 @@ export function createDraftRecoveryHarness({ protectedPort = createProtectedPort
   const controls = Object.fromEntries(['ErrorState', 'PrimaryButton', 'TextAction', 'AccountFeedback'].map(v => [v, v]));
   const listeners = (name, fn) => { const bucket = state.listeners.get(name) ?? new Set(); bucket.add(fn); state.listeners.set(name, bucket); return { remove: () => bucket.delete(fn) }; };
   const noPlainStorage = new Proxy({}, { get() { throw Error('Recovery must not use plaintext fallback storage'); } });
+  const cancelConfirmation = () => {};
   const mocks = {
     '@/components/keyboard-screen': { KeyboardScreen: 'KeyboardScreen' },
     '@/components/keyboard-scroll-view': { KeyboardScrollView: 'ScrollView', KeyboardFlatList: 'FlatList' },
@@ -90,7 +91,7 @@ export function createDraftRecoveryHarness({ protectedPort = createProtectedPort
     '@/lib/session': { useSession: () => ({ ...state.session, request, expireSession: async token => { state.expired.push(token); } }) },
     '@/lib/upload-file': { async uploadFile(...args) { state.uploads.push(args); return state.onUpload(...args); } },
     '@/components/ui': controls,
-    '@/components/use-confirm-action': { useConfirmAction: () => ({ dialog: null, ask: async options => { state.confirmations.push(options); return typeof state.confirm === 'function' ? state.confirm(options) : state.confirm; } }) },
+    '@/components/use-confirm-action': { useConfirmAction: () => ({ dialog: null, inline: false, cancel: cancelConfirmation, choose: async options => { state.confirmations.push(options); return (typeof state.confirm === 'function' ? await state.confirm(options) : state.confirm) ? 'confirm' : 'cancel'; }, ask: async options => { state.confirmations.push(options); return typeof state.confirm === 'function' ? state.confirm(options) : state.confirm; } }) },
   };
   const modules = new Map();
   const root = new URL('../../mobile/src/', import.meta.url);

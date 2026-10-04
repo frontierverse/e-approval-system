@@ -1,6 +1,8 @@
 import { Stack } from "expo-router";
 import { ActivityIndicator, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { AppUpdateStatus } from "@/components/app-update-status";
+import { AppUpdatesProvider } from "@/providers/AppUpdatesProvider";
 import { DailyReportBackButton } from "@/components/daily-report-back-button";
 import { TextAction } from "@/components/ui";
 import { ChatProvider } from "@/lib/chat-provider";
@@ -16,14 +18,14 @@ function Navigation() {
   const { user, loading } = useSession();
   const theme = useTheme();
   const { notificationOpenError, retryNotificationOpen, dismissNotificationOpenError } = useNotifications();
-  if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.background }}><ActivityIndicator color={theme.accent} /></View>;
-  return <>
+  if (loading) return <View style={{ flex: 1, backgroundColor: theme.background }}><View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={theme.accent} /></View><AppUpdateStatus canNavigate={false} /></View>;
+  return <View style={{ flex: 1, backgroundColor: theme.background }}>
     <StatusBar style="auto" />
     {notificationOpenError ? <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: theme.dangerSoft, borderBottomWidth: 1, borderBottomColor: theme.border }}>
       <Text accessibilityRole="alert" style={{ color: theme.danger, fontSize: 13, lineHeight: 19 }}>{notificationOpenError}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}><TextAction label="알림 문서 다시 열기" icon="refresh" onPress={() => void retryNotificationOpen()} /><TextAction label="닫기" onPress={dismissNotificationOpenError} /></View>
     </View> : null}
-    <Stack screenOptions={{ headerStyle: { backgroundColor: theme.surface }, headerTintColor: theme.text, contentStyle: { backgroundColor: theme.background }, headerShadowVisible: false }}>
+    <View style={{ flex: 1 }}><Stack screenOptions={{ headerStyle: { backgroundColor: theme.surface }, headerTintColor: theme.text, contentStyle: { backgroundColor: theme.background }, headerShadowVisible: false }}>
       <Stack.Protected guard={!user}><Stack.Screen name="login" options={{ headerShown: false }} /></Stack.Protected>
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -79,10 +81,12 @@ function Navigation() {
         <Stack.Screen name="daily-reports/edit" options={{ title: "업무보고 작성", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
         <Stack.Screen name="daily-reports/[id]" options={{ title: "업무보고 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
       </Stack.Protected>
-    </Stack>
-  </>;
+      <Stack.Screen name="app-updates" options={{ title: "앱 업데이트" }} />
+    </Stack></View>
+    <AppUpdateStatus />
+  </View>;
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><LunchCafeProvider><DraftRecoveryProvider><Navigation /></DraftRecoveryProvider></LunchCafeProvider></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
+  return <AppUpdatesProvider><SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><LunchCafeProvider><DraftRecoveryProvider><Navigation /></DraftRecoveryProvider></LunchCafeProvider></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider></AppUpdatesProvider>;
 }

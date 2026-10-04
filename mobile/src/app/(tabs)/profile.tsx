@@ -50,6 +50,7 @@ export default function Profile() {
     </View>
     <View style={{ marginVertical: 8 }}>
       <TextAction label="계정·도장 설정" icon="settings-outline" onPress={() => router.push("/account")} />
+      <TextAction label="앱 업데이트" icon="cloud-download-outline" onPress={() => router.push("/app-updates")} />
     </View>
     <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>기기 알림</Text>
