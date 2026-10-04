@@ -41,13 +41,13 @@ export function createProtectedPort(disk = new Map()) {
 
 // Production TS/TSX modules run unchanged. Only external boundaries are lexical;
 // global Date, FormData, timers, storage and React are never replaced.
-export function createDraftRecoveryHarness({ protectedPort = createProtectedPort(), os = 'ios' } = {}) {
+export function createDraftRecoveryHarness({ protectedPort = createProtectedPort(), os = 'ios', sourceOverrides = new Map() } = {}) {
   let active;
   const activate = scope => { active = scope; };
   const state = {
     session: { token: 'synthetic-a', user: { id: 'actor-a', name: 'Synthetic A' }, loading: false },
     contexts: new Map(), requests: [], routes: [], expired: [], confirmations: [], confirm: true,
-    listeners: new Map(), timers: new Map(), timerId: 0, picks: [], uploads: [], cleanup: [],
+    listeners: new Map(), timers: new Map(), timerId: 0, picks: [], uploads: [], cleanup: [], keyboardDismisses: 0, alerts: [],
     platform: os, appState: 'active', params: {}, clock: new Date('2026-10-04T03:00:00.000Z').getTime(),
     onRequest: async () => { throw Error('Unexpected request'); },
     onFetch: async () => { throw Error('Unexpected fetch'); },
@@ -78,7 +78,7 @@ export function createDraftRecoveryHarness({ protectedPort = createProtectedPort
     '@/components/keyboard-screen': { KeyboardScreen: 'KeyboardScreen' },
     '@/components/keyboard-scroll-view': { KeyboardScrollView: 'ScrollView', KeyboardFlatList: 'FlatList' },
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: v => v }, AppState: { get currentState() { return state.appState; }, addEventListener: listeners } },
+    'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: v => v }, AppState: { get currentState() { return state.appState; }, addEventListener: listeners }, BackHandler: { addEventListener: listeners }, Keyboard: { dismiss() { state.keyboardDismisses++; } }, Alert: { alert(...args) { state.alerts.push(args); } } },
     'expo-router': { router, useLocalSearchParams: () => state.params, useFocusEffect(fn) { const c = cell('focus'); if (c.fn !== fn) { c.fn = fn; active.effects.push(c); } } },
     'expo-router/react-navigation': { useNavigation: () => ({ dispatch: action => state.routes.push({ method: 'dispatch', value: action }) }), usePreventRemove(enabled, callback) { active.prevent = { enabled, callback }; } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 16 }) },
@@ -102,7 +102,7 @@ export function createDraftRecoveryHarness({ protectedPort = createProtectedPort
   class ScopedDate extends Date { constructor(...args) { super(...(args.length ? args : [state.clock])); } static now() { return state.clock; } }
   function load(file, expose = '') {
     file = resolve(file); const key = file + expose; if (modules.has(key)) return modules.get(key);
-    const source = readFileSync(new URL(file, root), 'utf8');
+    const source = sourceOverrides.get(file) ?? readFileSync(new URL(file, root), 'utf8');
     const extra = expose ? '\nexport const QAExposed = ' + expose + ';\n' : '';
     const output = ts.transpileModule(source + extra, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
     const evaluated = { exports: {} }; modules.set(key, evaluated.exports);
