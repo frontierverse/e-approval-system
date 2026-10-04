@@ -33,7 +33,8 @@ export function DraftEditor({ documentId, localScopeId }: { documentId?: string;
   return <ScopedDraftEditor key={`${user?.id ?? ''}:${documentId ?? local}`} scope={scope} />;
 }
 function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), navigation = useNavigation(), confirmation = useConfirmAction();
+  const theme = useTheme(), insets = useSafeAreaInsets(), navigation = useNavigation(), confirmation = useConfirmAction({ inlineNative: true });
+  const cancelConfirmation = confirmation.cancel;
   const { actorId, foreground, foregroundRevision, bindingRevision, storageReady, recoveryUnavailable, durable, isCurrentAccount, isForeground, foregroundGeneration, request, listMetadata, loadForExplicitRestore, checkpoint, restrictScope, purgeScope, discard } = useDraftRecovery();
   const documentId = scope.kind === 'document' ? scope.documentId : undefined;
   const alive = useRef(false), focused = useRef(false), focusEpoch = useRef(0), verified = useRef(false), verifiedForeground = useRef(-1), loadSequence = useRef(0);
@@ -45,6 +46,8 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   const publishFreshDraft = useCallback((value: DraftData | null) => { freshDraftRef.current = value; setFreshDraft(value); }, []);
   const [restricted, setRestricted] = useState(false), [followupAvailable, setFollowupAvailable] = useState(false);
   const privateMasked = useRef(false), textRevision = useRef(0);
+  const leaving = useRef(false);
+  const [exitError, setExitError] = useState('');
   const [picker, setPicker] = useState<null | { key: string; title: string; selected: string; items: { label: string; value: string }[]; choose(value: string): void; epoch: number; confirmValue?: string; onReturnFocus?: () => void }>(null), [focusedOption, setFocusedOption] = useState(''), [focusedField, setFocusedField] = useState('');
   const pickerCancel = useRef<View>(null), pickerOrigin = useRef<HTMLElement | null>(null), submitButton = useRef<View>(null);
   const [focusStamp, setFocusStamp] = useState(0), [focusState, setFocusState] = useState(false), [validation, setValidation] = useState<{ focus: number; foreground: number } | null>(null), [baselineState, setBaselineState] = useState(''), [pendingState, setPendingState] = useState<Pending | null>(null);
@@ -58,7 +61,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   const currentPending = pendingState;
   const locked = busy || !!currentPending || !!candidate || needsBaseline || !!settledTarget || !!picker;
   const publishForm = (next: Form) => { formRef.current = next; setForm(next); };
-  const update = (next: Partial<Form>) => { if (!canAct() || privateMasked.current || busyRef.current || settledTarget) return; revision.current++; textRevision.current = revision.current; publishForm({ ...formRef.current, ...next }); setNotice(''); setErrors({}); };
+  const update = (next: Partial<Form>) => { if (!canAct() || privateMasked.current || busyRef.current || settledTarget) return; revision.current++; textRevision.current = revision.current; publishForm({ ...formRef.current, ...next }); setNotice(''); setErrors({}); setExitError(''); };
   const touchFiles = (next: PendingAttachment[]) => { revision.current++; filesRef.current = next; setFiles([...next]); setNotice(''); };
   const setCandidateBoth = (next: RecoveryMetadata | null) => { candidateRef.current = next; setCandidate(next); };
   const bumpPending = () => { setPendingState(pending.current ? { ...pending.current } : null); setPendingVersion(value => value + 1); };
@@ -72,6 +75,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     return { ...base, mode: 'full-text', templateFingerprint: templateFingerprint(t), baselineUpdatedAt: formRef.current.updatedAt, text, omittedAttachmentCount: filesRef.current.length, pending: attempt && attempt.body ? { requestId: attempt.requestId, intent: attempt.intent, revision: attempt.revision, expectedUpdatedAt: attempt.expectedUpdatedAt, stage: attempt.stage, hasNewUploads: false, replayable: true, templateFingerprint: attempt.fingerprint, text: { title: attempt.body.title, templateId: attempt.body.templateId, fieldValues: attempt.body.fieldValues, approverIds: attempt.body.approverIds } } : null };
   };
   const flush = async (): Promise<boolean> => {
+    if (leaving.current || allowLeave.current) return false;
     if (!canAccount() || candidateRef.current || !storageReady) { if (canAccount() && !storageReady) setStorageNotice('작성 내용을 이 기기에 보관하지 못했습니다. 현재 입력은 유지됩니다.'); return false; }
     const record = makeRecord(); if (!record) return false;
     try { const saved = await checkpoint(record); if (canAccount() && saved.revision === revision.current && isForeground()) setStorageNotice(saved.mode === 'proof-only' ? '요청 결과 확인 정보만 보관했습니다. 작성 내용과 첨부파일은 보관되지 않았습니다.' : durable ? '작성 내용을 이 기기에 보관했습니다. 첨부파일은 다시 선택해야 합니다.' : '작성 내용을 현재 화면에만 보관합니다. 앱을 닫으면 복구할 수 없습니다.'); return true; }
@@ -141,8 +145,8 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     void foregroundRevision; void bindingRevision;
     focused.current = true; setFocusState(true); const epoch = ++focusEpoch.current; setFocusStamp(epoch); verified.current = false; setValidation(null); setLoading(true); setPicker(null);
     if (isForeground()) void load(epoch);
-    return () => { focused.current = false; setFocusState(false); verified.current = false; setValidation(null); loadSequence.current++; setPicker(null); };
-  }, [load, foregroundRevision, bindingRevision, isForeground]));
+    return () => { focused.current = false; setFocusState(false); verified.current = false; setValidation(null); loadSequence.current++; setPicker(null); cancelConfirmation(); };
+  }, [load, foregroundRevision, bindingRevision, isForeground, cancelConfirmation]));
   useEffect(() => {
     if (!visible || !dirty && !currentPending || candidate || busy) return;
     const timer = setTimeout(() => { void checkpointRef.current?.(); }, 800);
@@ -156,15 +160,30 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   };
   usePreventRemove((dirty || !!currentPending || busy) && !!actorId, ({ data }) => {
     if (allowLeave.current) { navigation.dispatch(data.action); return; }
-    const epoch = focusEpoch.current;
-    const canLeave = () => canAccount() && focused.current && epoch === focusEpoch.current && isForeground();
+    const epoch = focusEpoch.current, foregroundAtStart = foregroundGeneration();
+    const canLeave = () => canAccount() && focused.current && epoch === focusEpoch.current && foregroundAtStart === foregroundGeneration() && isForeground();
     if (!canLeave() || busyRef.current) return;
-    void confirmation.ask({ title: '작성 화면 나가기', message: currentPending ? '원 요청의 결과 확인 정보와 현재 입력을 기기에 보관한 뒤 나가시겠습니까? 첨부파일은 보관되지 않습니다.' : '현재 입력을 기기에 보관한 뒤 나가시겠습니까? 첨부파일은 보관되지 않습니다.', confirm: '보관하고 나가기' }).then(async accepted => {
-      if (!accepted || !canLeave() || busyRef.current) return;
-      const saved = await checkpointRef.current?.();
-      if (!canLeave()) return;
-      if (!saved) { const leave = await confirmation.ask({ title: '기기 보관 확인 불가', message: '현재 입력을 기기에 보관하지 못했습니다. 나가면 현재 입력이나 원 요청의 결과 확인 정보를 잃을 수 있습니다. 서버에 처리된 요청은 취소되지 않습니다. 보관 없이 나가시겠습니까?', confirm: '보관 없이 나가기', danger: true }); if (!leave || !canLeave() || busyRef.current) return; }
-      allowLeave.current = true; navigation.dispatch(data.action);
+    const keepDescription = currentPending && (currentPending.hasNewUploads || !currentPending.body) ? '원 요청의 결과 확인 정보만 보관됩니다. 작성 내용과 첨부파일은 보관되지 않습니다.' : durable ? '보관하면 입력한 텍스트를 작성 복구에서 이어 쓸 수 있습니다. 첨부파일은 다시 선택해야 합니다.' : '텍스트는 이번 앱 실행 중에만 보관됩니다. 앱을 완전히 닫으면 복구할 수 없으며 첨부파일은 다시 선택해야 합니다.';
+    void confirmation.choose({ title: '작성 화면 나가기', message: keepDescription + ' 저장하지 않고 나가면 이 작성 내용의 기기 보관본도 지워집니다. 서버에 임시저장한 기안은 유지됩니다.' + (currentPending ? ' 결과를 확인하지 못한 원 요청 정보도 지워지며, 이미 서버에서 처리된 요청은 취소되지 않습니다.' : ''), confirm: '보관하고 나가기', alternative: '저장하지 않고 나가기' }).then(async choice => {
+      if (choice === 'cancel' || !canLeave() || busyRef.current) return;
+      busyRef.current = true; setBusy(true); setError(''); setExitError(''); setProgress(choice === 'alternative' ? '기기 보관본을 지우고 있습니다…' : '작성 내용을 보관하고 있습니다…');
+      try {
+        if (choice === 'alternative') {
+          // Stop delayed checkpoints before reading the exact stored revision.
+          // discard also invalidates writes already queued for this scope.
+          leaving.current = true;
+          const stored = (await listMetadata()).find(item => recoveryScopeKey(item.scope) === recoveryScopeKey(scope));
+          if (!canLeave()) return;
+          if (stored && (stored.revision > revision.current || !await discard(scope, stored.revision))) throw new Error('더 최근의 보관 내용이 있어 삭제하지 않았습니다. 작성 복구에서 확인하세요.');
+        } else {
+          const saved = await checkpointRef.current?.();
+          if (!canLeave()) return;
+          if (!saved) throw new Error('기기에 보관하지 못했습니다. 입력은 유지됩니다. 뒤로 가기를 눌러 다시 선택하세요.');
+        }
+        if (!canLeave()) return;
+        allowLeave.current = true; navigation.dispatch(data.action);
+      } catch (cause) { if (canLeave()) setExitError(message(cause, '나가기를 완료하지 못했습니다. 현재 입력은 유지됩니다.')); }
+      finally { leaving.current = false; busyRef.current = false; if (canAccount()) { setBusy(false); setProgress(''); } }
     });
   });
   useEffect(() => {
@@ -268,7 +287,10 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   const discardCandidate = async () => {
     const metadata = candidateRef.current, epoch = focusEpoch.current;
     if (!metadata || !canAct(epoch) || !await confirmed('기기 보관 내용 버리기', metadata.pending ? '보관한 원 요청의 결과 확인 정보도 버립니다. 이미 처리된 요청은 취소되지 않습니다. 버리시겠습니까?' : '이 기기에 보관한 작성 내용을 삭제합니다. 현재 화면의 입력은 유지됩니다.', '버리기', true)) return;
+    if (!canAct(epoch) || busyRef.current) return;
+    busyRef.current = true; setBusy(true); setError('');
     try { if (!await discard(scope, metadata.revision)) throw new Error('더 최근의 보관 내용이 있어 삭제하지 않았습니다.'); if (canAct(epoch)) { setCandidateBoth(null); setStorageNotice('기기 보관 내용을 버렸습니다.'); } } catch (cause) { if (canAct(epoch)) setError(message(cause, '기기 보관 내용 삭제를 확인하지 못했습니다.')); }
+    finally { busyRef.current = false; if (canAccount()) setBusy(false); }
   };
   const adoptBaseline = async (replace: boolean) => {
     const d = freshDraftRef.current, epoch = focusEpoch.current;
@@ -444,6 +466,7 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
   };
   if (!visible) return <View style={[styles.loading, { backgroundColor: theme.background }]}>{loading || !foreground ? <><ActivityIndicator color={theme.accent} /><Text style={{ color: theme.secondary }}>{!foreground ? '작성 내용을 보호하고 있습니다.' : '작성 화면 확인 중'}</Text></> : <ErrorState message={loadError || '작성 화면을 확인하지 못했습니다.'} retry={() => { if (canAccount() && isForeground()) void load(focusEpoch.current); }} />}</View>;
   if (!options) return <View style={{ padding: 16 }}><ErrorState message={loadError || '양식을 확인하지 못했습니다.'} retry={() => void load(focusEpoch.current)} /></View>;
+  if (restricted && confirmation.inline) return <View style={{ flex: 1, padding: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>{confirmation.dialog}</View>;
   if (restricted) return <View style={{ flex: 1, padding: 16, gap: 8, backgroundColor: theme.background }}>{confirmation.dialog}<Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontWeight: '700' }}>원 요청 결과 확인</Text><Text style={{ color: theme.secondary }}>이 문서는 현재 수정할 수 없습니다. 본문과 첨부 정보를 숨기고 원 요청의 결과만 확인합니다.</Text>{candidate ? <TextAction label="요청 확인 정보 열기" disabled={busy} onPress={() => void restore()} /> : null}{currentPending && !settledTarget ? <TextAction label="원 요청 결과 확인" disabled={busy} onPress={() => void resolvePending()} /> : null}{settledTarget ? <TextAction label={settledTarget.deleted ? "기안함으로 이동" : "결과 문서 확인"} disabled={busy} onPress={() => { if (!canAct() || busyRef.current) return; router.push(settledTarget.deleted ? "/drafts?folder=drafts" : "/documents/" + settledTarget.id); }} /> : null}<TextAction label="작성 복구" disabled={busy} onPress={() => void openRecovery()} /><TextAction label="기안함으로 이동" disabled={busy} onPress={() => { if (canAct()) router.push('/drafts?folder=drafts'); }} /><AccountFeedback error={error} message={notice} /></View>;
   const inputStyle = (name: string) => [styles.input, { color: theme.text, backgroundColor: theme.surface, borderColor: errors[name] ? theme.danger : focusedField === name ? theme.accent : theme.muted, borderWidth: focusedField === name ? 2 : 1 }];
   const setField = (name: string, value: string) => update({ values: { ...formRef.current.values, [name]: value } });
@@ -464,7 +487,8 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
     return <View key={field.name} style={styles.field}><Text style={[styles.label, { color: theme.text }]}>{field.label}{field.required ? ' *' : ''}</Text>{field.type === 'select' ? <Choice expanded={Platform.OS === 'android' ? picker?.key === 'field:' + field.name : undefined} label={field.options?.find(item => item.value === form.values[field.name])?.label || '선택하세요'} disabled={busy || !!settledTarget} onPress={onReturnFocus => showPicker('field:' + field.name, field.label, form.values[field.name] ?? '', field.options ?? [], value => setField(field.name, value), onReturnFocus)} /> : field.type === 'checkbox' ? <View style={[styles.checkRow, { borderColor: theme.muted }]}><Text style={{ color: theme.secondary, flex: 1 }}>{field.helpText || field.label}</Text><Switch accessibilityLabel={field.label} disabled={busy || !!settledTarget} value={form.values[field.name] === 'true'} onValueChange={checked => setField(field.name, checked ? 'true' : 'false')} trackColor={{ true: theme.actionFill }} /></View> : <TextInput accessibilityLabel={field.label + (field.required ? ' 필수' : '')} value={form.values[field.name] ?? ''} maxLength={5000} editable={!busy && !settledTarget} multiline={field.type === 'textarea'} keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'} autoCapitalize={field.type === 'date' ? 'none' : 'sentences'} placeholder={field.placeholder || (field.type === 'date' ? 'YYYY-MM-DD' : field.label + ' 입력')} placeholderTextColor={theme.muted} onFocus={() => setFocusedField(field.name)} onBlur={() => setFocusedField('')} style={[inputStyle(field.name), field.type === 'textarea' && styles.textarea]} onChangeText={value => setField(field.name, value)} />}{field.helpText && field.type !== 'checkbox' ? <Text style={[styles.hint, { color: theme.secondary }]}>{field.helpText}</Text> : null}{inlinePicker('field:' + field.name)}{errors[field.name] ? <Text style={{ color: theme.danger }}>{errors[field.name]}</Text> : null}</View>;
   };
   return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
-    {confirmation.dialog}
+    {!confirmation.inline ? confirmation.dialog : null}
+    <View style={{ flex: 1 }} pointerEvents={confirmation.inline ? 'none' : 'auto'} accessibilityElementsHidden={confirmation.inline} importantForAccessibility={confirmation.inline ? 'no-hide-descendants' : 'auto'}>
     <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.sectionRow}><Text accessibilityRole="header" aria-level={2} style={[styles.label, { color: theme.text }]}>{freshDraft?.status === 'recalled' ? '회수 문서 수정' : '작성 내용'}</Text><TextAction label="작성 복구" disabled={busy} onPress={() => void openRecovery()} /></View>
       <Text accessibilityLiveRegion="polite" style={[styles.hint, { color: recoveryUnavailable ? theme.danger : theme.secondary }]}>{recoveryUnavailable ? '기기 보관을 사용할 수 없습니다. 현재 입력은 유지됩니다.' : storageNotice || (durable ? '작성 내용은 기기에 보관할 수 있습니다. 첨부파일은 보관되지 않습니다.' : '현재 화면에만 보관합니다. 앱을 닫으면 복구할 수 없습니다.')}</Text>
@@ -480,8 +504,11 @@ function ScopedDraftEditor({ scope }: { scope: RecoveryScope }) {
       <View style={styles.field}><View style={styles.sectionRow}><Text style={[styles.label, { color: theme.text }]}>첨부파일 {form.attachments.length + files.length}/{options.attachmentPolicy.maxFileCount}</Text><TextAction label="파일 추가" icon="attach" disabled={locked} onPress={() => void addFiles()} /></View><Text style={[styles.hint, { color: theme.secondary }]}>파일당 {options.attachmentPolicy.maxFileSizeMb}MB · {options.attachmentPolicy.allowedExtensions.map(extension => extension.replace(/^\./, '')).join(', ')}</Text>{[...form.attachments.map(file => ({ file, pending: false })), ...files.map(file => ({ file, pending: true }))].map(({ file, pending: isPending }) => <View key={isPending ? (file as PendingAttachment).key : (file as DraftAttachment).id} style={[styles.fileRow, { borderColor: theme.border, backgroundColor: theme.surface }]}><View style={{ flex: 1, minWidth: 0 }}><Text style={{ color: theme.text, flexShrink: 1 }}>{file.name}</Text><Text style={[styles.hint, { color: theme.secondary }]}>{fileSize(file.size ?? 0)} · {isPending ? (file as PendingAttachment).completed ? '업로드 완료' : '저장 시 업로드' : '저장된 파일'}</Text></View><TextAction label="제거" disabled={locked} onPress={() => isPending ? removePending(file as PendingAttachment) : void removeExisting(file as DraftAttachment)} /></View>)}</View>
       <Text style={[styles.hint, { color: theme.secondary }]}>* 항목은 상신 시 필수입니다. 작성 중에는 임시저장할 수 있습니다.</Text><AccountFeedback error={error || errors.content} message={notice} />
     </KeyboardScrollView>
+    {exitError ? <Text accessibilityRole="alert" style={{ color: theme.danger, backgroundColor: theme.surface, padding: 12, fontSize: 13, lineHeight: 19 }}>{exitError}</Text> : null}
     <View style={[styles.footer, { backgroundColor: theme.surface, borderColor: theme.border, paddingBottom: Math.max(insets.bottom, 12) }]}>{progress ? <Text accessibilityLiveRegion="polite" style={{ color: theme.secondary, width: '100%', fontSize: 13 }}>{progress}</Text> : null}<View style={{ flex: 1 }}><Choice label="임시저장" disabled={locked || !template} onPress={() => void save('draft')} /></View><View style={{ flex: 1 }}><PrimaryButton ref={submitButton} title={busy ? '처리 중…' : freshDraft?.status === 'recalled' ? '재상신' : '상신'} disabled={locked || !template || !options.approvers.length} onPress={() => { const epoch = focusEpoch.current; void confirmed('결재 상신', '작성한 문서를 시설장에게 상신하시겠습니까?' + (freshDraft?.status === 'recalled' ? ' 결재가 처음부터 진행됩니다.' : ''), freshDraft?.status === 'recalled' ? '재상신' : '상신').then(accepted => { if (accepted && canAct(epoch)) void save('submit'); }); }} /></View></View>
     {Platform.OS !== 'android' ? <Modal visible={!!picker} transparent animationType="none" onRequestClose={closePicker} onShow={() => pickerCancel.current?.focus()} accessibilityLabel={picker?.title}><View style={styles.modalBackdrop}><View style={[styles.modal, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 16) }]}><View style={styles.sectionRow}><Text accessibilityRole="header" aria-level={2} style={[styles.label, { color: theme.text }]}>{picker?.title}</Text><TextAction ref={pickerCancel} label="닫기" onPress={closePicker} /></View><ScrollView>{pickerOptions}</ScrollView>{!picker?.items.length ? <Text style={{ color: theme.secondary }}>선택할 항목이 없습니다.</Text> : null}</View></View></Modal> : null}
+    </View>
+    {confirmation.inline ? <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, padding: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>{confirmation.dialog}</View> : null}
   </KeyboardScreen>;
 }
 function Choice({ label, disabled, expanded, onPress }: { label: string; disabled?: boolean; expanded?: boolean; onPress(onReturnFocus: () => void): void }) {
