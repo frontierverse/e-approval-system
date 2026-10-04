@@ -1,5 +1,9 @@
 "use server";
+import { assertYouthWebActor, youthActivityFailure, type YouthActivityResult } from "@/lib/youth-activity-web-core";
 
+import { randomUUID } from "node:crypto";
+import { YouthError } from "@/lib/mobile-youth-core";
+import { createMobileYouthConcept, checkMobileYouthConcept, deleteMobileYouthConcept } from "@/lib/youth-mobile-learning";
 import { revalidatePath } from "next/cache";
 import { AuditAction, type Prisma } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
@@ -31,263 +35,34 @@ import {
 } from "@/lib/youth-management-core";
 
 import {
-  getYouthStudySubjectLabel,
-  getYouthStudySubunitLabel,
-  isYouthStudySubject,
-  isYouthStudySubunitId,
   normalizeYouthStudyConceptContent,
-  validateYouthStudyConceptContent,
   type YouthStudyConceptFormState,
 } from "@/lib/youth-subject-progress-core";
 
 const learningProgressPath = "/youth/learning-progress";
 const weeklyRepeatOccurrenceWeeks = 52;
-const studyConceptSelect = {
-  id: true,
-  subject: true,
-  subunitId: true,
-  content: true,
-} as const;
-
-export async function createYouthStudyConceptAction(
-  subject: string,
-  subunitId: string,
-  _previousState: YouthStudyConceptFormState,
-  formData: FormData,
-): Promise<YouthStudyConceptFormState> {
-  const user = await requireYouthPermission("canManageYouth");
-
-  const content = normalizeYouthStudyConceptContent(formData.get("content"));
-  const validationError = validateYouthStudyConceptContent(content);
-
-  if (validationError) {
-    return {
-      error: validationError,
-      values: {
-        content,
-      },
-    };
-  }
-
-  if (
-    !isYouthStudySubject(subject) ||
-    !isYouthStudySubunitId(subject, subunitId)
-  ) {
-    return {
-      error: "단원을 다시 선택하세요.",
-      values: {
-        content,
-      },
-    };
-  }
-
-  const subjectLabel = getYouthStudySubjectLabel(subject);
-  const subunitLabel = getYouthStudySubunitLabel(subject, subunitId);
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  await prisma.$transaction(async (tx) => {
-    const concept = await tx.studyConcept.create({
-      data: {
-        subject,
-        subunitId,
-        content,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "StudyConcept",
-        targetId: concept.id,
-        message: `${subjectLabel} ${subunitLabel} 단원에 개념을 추가했습니다.`,
-        metadata: {
-          changeType: "studyConcept.create",
-          content,
-          source: "learning-progress",
-          subject,
-          subjectLabel,
-          subunitId,
-          subunitLabel,
-        },
-      },
-    });
-  });
-
-  revalidatePath(learningProgressPath);
-
-  return {
-    resetKey: `${Date.now()}:${Math.random()}`,
-    success: "개념을 추가했습니다.",
-  };
+export async function createYouthStudyConceptAction(subject: string, subunitId: string, _previousState: YouthStudyConceptFormState, formData: FormData): Promise<YouthStudyConceptFormState> {
+  const user = await requireYouthPermission("canManageYouth"), content = normalizeYouthStudyConceptContent(formData.get("content"));
+  try {
+    assertYouthWebActor(user.id, typeof formData.get("expectedActorId") === "string" ? String(formData.get("expectedActorId")) : undefined);
+    await createMobileYouthConcept({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, { requestId: typeof formData.get("requestId") === "string" && formData.get("requestId") ? formData.get("requestId") : randomUUID(), subject, subunitId, content });
+    revalidatePath(learningProgressPath); return { resetKey: randomUUID(), success: "개념을 추가했습니다." };
+  } catch (error) { return { error: error instanceof YouthError ? error.message : "개념을 추가하지 못했습니다.", values: { content } }; }
 }
-
-export async function toggleYouthStudyConceptCheckAction(
-  conceptId: string,
-  youthId: string,
-  isChecked: boolean,
-): Promise<
-  YouthActionResult<{ conceptId: string; youthId: string; isChecked: boolean }>
-> {
-  const user = await requireYouthPermission("canManageYouth");
-  await requireOperationalYouth(youthId);
-
-  const concept = await prisma.studyConcept.findUnique({
-    where: {
-      id: conceptId,
-    },
-    select: studyConceptSelect,
-  });
-
-  if (!concept) {
-    return {
-      ok: false,
-      error: "개념을 찾을 수 없습니다.",
-    };
-  }
-
-  const youth = await prisma.youth.findUnique({
-    where: {
-      id: youthId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  if (!youth) {
-    return {
-      ok: false,
-      error: "학생을 찾을 수 없습니다.",
-    };
-  }
-
-  const nextChecked = Boolean(isChecked);
-  const subjectLabel = getYouthStudySubjectLabel(concept.subject);
-  const subunitLabel = isYouthStudySubject(concept.subject)
-    ? getYouthStudySubunitLabel(concept.subject, concept.subunitId)
-    : concept.subunitId;
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  await prisma.$transaction(async (tx) => {
-    await requireOperationalYouth(youthId, tx);
-    if (nextChecked) {
-      await tx.studyConceptCheck.upsert({
-        where: {
-          conceptId_youthId: {
-            conceptId: concept.id,
-            youthId: youth.id,
-          },
-        },
-        update: {
-          checkedAt: new Date(),
-        },
-        create: {
-          conceptId: concept.id,
-          youthId: youth.id,
-        },
-      });
-    } else {
-      await tx.studyConceptCheck.deleteMany({
-        where: {
-          conceptId: concept.id,
-          youthId: youth.id,
-        },
-      });
-    }
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "StudyConceptCheck",
-        targetId: concept.id,
-        message: `${youth.name} ${subjectLabel} ${subunitLabel} 개념을 ${
-          nextChecked ? "숙지 완료" : "미숙지"
-        }로 표시했습니다.`,
-        metadata: {
-          changeType: "studyConcept.toggle",
-          content: concept.content,
-          nextChecked,
-          source: "learning-progress",
-          subject: concept.subject,
-          subjectLabel,
-          subunitId: concept.subunitId,
-          subunitLabel,
-          youthId: youth.id,
-          youthName: youth.name,
-        },
-      },
-    });
-  });
-
-  revalidatePath(learningProgressPath);
-
-  return {
-    ok: true,
-    data: {
-      conceptId: concept.id,
-      youthId: youth.id,
-      isChecked: nextChecked,
-    },
-  };
+export async function toggleYouthStudyConceptCheckAction(conceptId: string, youthId: string, isChecked: boolean, baseline?: { requestId?: string; expectedActorId?: string; expectedYouthUpdatedAt: string; expectedConceptUpdatedAt: string }): Promise<YouthActivityResult<{ conceptId: string; youthId: string; isChecked: boolean; youthUpdatedAt?: string; conceptUpdatedAt?: string }>> {
+  try {
+    const user = await requireYouthPermission("canManageYouth");
+    assertYouthWebActor(user.id, baseline?.expectedActorId);
+    const result = await checkMobileYouthConcept({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, youthId, conceptId, { requestId: baseline?.requestId ?? randomUUID(), checked: isChecked, ...(baseline ? { expectedYouthUpdatedAt: baseline.expectedYouthUpdatedAt, expectedConceptUpdatedAt: baseline.expectedConceptUpdatedAt } : {}) }, !baseline);
+    if (!result.result) return { ok: false, error: "개념을 더 이상 확인할 수 없습니다." };
+    revalidatePath(learningProgressPath); return { ok: true, data: { conceptId, youthId, isChecked: result.result.checked, youthUpdatedAt: result.result.youthUpdatedAt, conceptUpdatedAt: result.result.conceptUpdatedAt } };
+  } catch (error) { return youthActivityFailure(error); }
 }
-
-export async function deleteYouthStudyConceptAction(conceptId: string) {
+export async function deleteYouthStudyConceptAction(conceptId: string, baselineOrForm?: { requestId?: string; expectedActorId?: string; expectedUpdatedAt: string } | FormData) {
+  const baseline = baselineOrForm instanceof FormData ? (baselineOrForm.get("expectedUpdatedAt") ? { expectedUpdatedAt: String(baselineOrForm.get("expectedUpdatedAt")), requestId: String(baselineOrForm.get("requestId") ?? "") || undefined, expectedActorId: String(baselineOrForm.get("expectedActorId") ?? "") || undefined } : undefined) : baselineOrForm;
   const user = await requireYouthPermission("canManageYouth");
-
-  const concept = await prisma.studyConcept.findUnique({
-    where: {
-      id: conceptId,
-    },
-    select: studyConceptSelect,
-  });
-
-  if (!concept) {
-    revalidatePath(learningProgressPath);
-    return;
-  }
-
-  const subjectLabel = getYouthStudySubjectLabel(concept.subject);
-  const subunitLabel = isYouthStudySubject(concept.subject)
-    ? getYouthStudySubunitLabel(concept.subject, concept.subunitId)
-    : concept.subunitId;
-  const auditRequestData = await getCurrentAuditLogRequestData();
-
-  await prisma.$transaction(async (tx) => {
-    await tx.studyConcept.delete({
-      where: {
-        id: concept.id,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actorId: user.id,
-        ...auditRequestData,
-        action: AuditAction.UPDATE_YOUTH,
-        targetType: "StudyConcept",
-        targetId: concept.id,
-        message: `${subjectLabel} ${subunitLabel} 단원의 개념을 삭제했습니다.`,
-        metadata: {
-          changeType: "studyConcept.delete",
-          content: concept.content,
-          source: "learning-progress",
-          subject: concept.subject,
-          subjectLabel,
-          subunitId: concept.subunitId,
-          subunitLabel,
-        },
-      },
-    });
-  });
-
+  assertYouthWebActor(user.id, baseline?.expectedActorId);
+  await deleteMobileYouthConcept({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, conceptId, { requestId: baseline?.requestId ?? randomUUID(), ...(baseline ? { expectedUpdatedAt: baseline.expectedUpdatedAt } : {}) }, !baseline);
   revalidatePath(learningProgressPath);
 }
 
@@ -1147,4 +922,10 @@ function formatMinuteLabel(minute: number) {
   return minutePart === 0
     ? formatHourLabel(hour)
     : `${formatHourLabel(hour)} ${minutePart}분`;
+}
+export async function createYouthStudyConceptClientAction(input: { subject: string; subunitId: string; content: string }, requestId: string, expectedActorId: string) {
+  try { const user = await requireYouthPermission("canManageYouth"); assertYouthWebActor(user.id, expectedActorId); const result = await createMobileYouthConcept({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, { ...input, requestId }); revalidatePath(learningProgressPath); return { ok: true as const, data: result }; } catch (error) { return youthActivityFailure(error); }
+}
+export async function deleteYouthStudyConceptClientAction(conceptId: string, baseline: { requestId: string; expectedUpdatedAt: string; expectedActorId: string }) {
+  try { const user = await requireYouthPermission("canManageYouth"); assertYouthWebActor(user.id, baseline.expectedActorId); const result = await deleteMobileYouthConcept({ actorId: user.id, requestData: await getCurrentAuditLogRequestData(), client: "web" }, conceptId, { requestId: baseline.requestId, expectedUpdatedAt: baseline.expectedUpdatedAt }); revalidatePath(learningProgressPath); return { ok: true as const, data: result }; } catch (error) { return youthActivityFailure(error); }
 }

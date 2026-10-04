@@ -1,9 +1,12 @@
 "use client";
+import { useYouthActivityLeaveGuard } from "@/lib/youth-activity-leave";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import type { MouseEvent } from "react";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import type { FormEvent, MouseEvent } from "react";
+import { YouthActivityDeleteForm } from "@/components/youth-activity-controls";
+import { createYouthRuleClientAction, deleteYouthRuleClientAction } from "@/app/youth/rules/actions";
+import { getYouthActivityReceiptAction } from "@/app/youth/activity-actions";
+import { newYouthActivityAttempt, runYouthActivity, invalidateYouthActivity, type ActivityAttempt } from "@/lib/youth-activity-client";
 import { YouthRuleChangeLogFilterControls } from "@/components/youth-rule-change-log-filter-controls";
 import { UserIdentity } from "@/components/user-identity";
 import {
@@ -31,6 +34,8 @@ import type {
 } from "@/lib/youth-rules";
 
 type YouthRulesBoardProps = {
+  actorId?: string;
+  canManage?: boolean;
   createRuleAction: (formData: FormData) => Promise<void>;
   deleteRuleAction: (ruleId: string) => Promise<void>;
   filterControls?: React.ReactNode;
@@ -50,7 +55,10 @@ type YouthRulesBoardProps = {
   totalPages: number;
 };
 
-export function YouthRulesBoard({
+export function YouthRulesBoard(props: YouthRulesBoardProps) { return <YouthRulesBoardContent key={props.actorId ?? "legacy"} {...props} />; }
+function YouthRulesBoardContent({
+  actorId = "",
+  canManage = true,
   createRuleAction,
   deleteRuleAction,
   filterControls,
@@ -81,6 +89,25 @@ export function YouthRulesBoard({
   const [pendingRulePage, setPendingRulePage] = useState<number | null>(null);
   const [isRulePagePending, startRulePageTransition] = useTransition();
   const currentRules = ruleState.rules;
+  const formRef = useRef<HTMLFormElement>(null), createErrorRef = useRef<HTMLParagraphElement>(null), createAlive = useRef(true), createBusy = useRef(false), createAttempt = useRef<ActivityAttempt<{ category: string; detail: string; targetYouthId: string | null }> | null>(null);
+  const [createDirty, setCreateDirty] = useState(false);
+  const ruleSequence = useRef(0);
+  const [createPending, setCreatePending] = useState(false), [createUnknown, setCreateUnknown] = useState(false), [createBlocked, setCreateBlocked] = useState(false), [createError, setCreateError] = useState("");
+  useEffect(() => { createAlive.current = true; return () => { createAlive.current = false; invalidateYouthActivity(createAttempt.current); }; }, []);
+  useEffect(() => { if (createError) createErrorRef.current?.focus(); }, [createError]);
+  useYouthActivityLeaveGuard({ dirty: createDirty || createUnknown, pending: createPending, discard: () => invalidateYouthActivity(createAttempt.current) });
+  async function submitRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (createBusy.current || createBlocked || !canManage) return;
+    const form = new FormData(event.currentTarget);
+    if (!createAttempt.current) createAttempt.current = newYouthActivityAttempt("rule.create", { category: String(form.get("category") ?? ""), detail: String(form.get("detail") ?? ""), targetYouthId: String(form.get("targetYouthId") ?? "") || null });
+    const attempt = createAttempt.current; createBusy.current = true; setCreatePending(true); setCreateError("");
+    try {
+      const outcome = await runYouthActivity(attempt, (payload, key) => createYouthRuleClientAction(payload, key, actorId), key => getYouthActivityReceiptAction(key, actorId));
+      if (!createAlive.current || createAttempt.current !== attempt || outcome.kind === "blocked") return;
+      if (outcome.kind === "committed" || outcome.result.ok) { createAttempt.current = null; setCreateUnknown(false); setCreateDirty(false); formRef.current?.reset(); if (outcome.kind === "committed") window.location.reload(); return; }
+      setCreateError(outcome.result.error); setCreateUnknown(attempt.unknown); setCreateBlocked(attempt.conflict || [401,403,404].includes(outcome.result.status ?? 0)); if (!attempt.unknown && !attempt.conflict) createAttempt.current = null;
+    } finally { createBusy.current = false; if (createAlive.current) setCreatePending(false); }
+  }
 
   const loadRulePage = useCallback(
     (
@@ -105,10 +132,12 @@ export function YouthRulesBoard({
       };
       const updateHistory = options?.updateHistory ?? true;
 
+      const generation = ++ruleSequence.current;
       setPendingRulePage(nextPage);
       startRulePageTransition(async () => {
         try {
           const result = await loadRules(nextFilters);
+          if (!createAlive.current || generation !== ruleSequence.current) return;
 
           if (!result.ok) {
             setRulePageError(result.error);
@@ -140,7 +169,7 @@ export function YouthRulesBoard({
             );
           }
         } finally {
-          setPendingRulePage(null);
+          if (createAlive.current && generation === ruleSequence.current) setPendingRulePage(null);
         }
       });
     },
@@ -179,13 +208,18 @@ export function YouthRulesBoard({
   return (
     <section
       aria-label="청소년 규칙 관리"
-      className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]"
+      className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)] [&_select]:min-h-11 [&_button]:min-h-11"
     >
-      <form
+      {canManage ? <form
+        ref={formRef}
         action={createRuleAction}
+        onSubmit={submitRule}
+        onChange={() => setCreateDirty(true)}
         className="rounded-md border border-[#d9dee7] bg-white p-5"
       >
+        <input type="hidden" name="expectedActorId" value={actorId} />
         <h2 className="text-base font-semibold text-[#16181d]">규칙 생성</h2>
+        <fieldset disabled={createPending || createUnknown || createBlocked}>
         <div className="mt-4 grid gap-4">
           <label>
             <span className="text-sm font-semibold text-[#394150]">
@@ -194,7 +228,7 @@ export function YouthRulesBoard({
             <select
               name="category"
               defaultValue={youthRuleCategories[0]}
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               {youthRuleCategories.map((category) => (
                 <option key={category} value={category}>
@@ -211,7 +245,7 @@ export function YouthRulesBoard({
             <select
               name="targetYouthId"
               defaultValue=""
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               <option value="">공통</option>
               {targets.map((target) => (
@@ -234,25 +268,19 @@ export function YouthRulesBoard({
             />
           </label>
 
-          {ruleError ? (
-            <p className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-              {ruleError}
+          {createError || ruleError ? (
+            <p ref={createErrorRef} tabIndex={-1} role="alert" className="rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+              {createError || ruleError}
             </p>
           ) : null}
 
-          <PendingSubmitButton
-            type="submit"
-            pendingLabel="규칙 저장 중"
-            className={buttonClass(
-              buttonStyles.base,
-              buttonStyles.primary,
-              "h-10 px-4 text-sm",
-            )}
-          >
-            저장
-          </PendingSubmitButton>
         </div>
-      </form>
+        </fieldset>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="submit" disabled={createPending || createBlocked} className={buttonClass(buttonStyles.base, buttonStyles.primary, "min-h-11 px-4 text-sm")}>{createPending ? "규칙 저장 중" : createUnknown ? "같은 요청 결과 확인" : "저장"}</button>
+          {createBlocked ? <button type="button" className="min-h-11 rounded-md border border-[var(--border-strong)] px-3 text-sm" onClick={() => { if (window.confirm("현재 입력을 버리고 최신 목록을 확인하시겠습니까? 새 변경 요청은 보내지 않습니다.")) window.location.reload(); }}>최신 목록 확인</button> : null}
+        </div>
+      </form> : null}
 
       <RulesListWrapper>
         <section className="relative overflow-hidden rounded-md border border-[#d9dee7] bg-white">
@@ -308,19 +336,7 @@ export function YouthRulesBoard({
                         {formatDateTime(rule.createdAt)}
                       </time>
                     </div>
-                    <form action={deleteRuleAction.bind(null, rule.id)}>
-                      <ConfirmSubmitButton
-                        message="이 규칙을 삭제하시겠습니까?"
-                        type="submit"
-                        className={buttonClass(
-                          buttonStyles.base,
-                          buttonStyles.dangerOutline,
-                          "h-8 px-3 text-xs",
-                        )}
-                      >
-                        삭제
-                      </ConfirmSubmitButton>
-                    </form>
+                    {canManage ? <YouthActivityDeleteForm key={`${actorId}:${rule.id}`} actorId={actorId} id={rule.id} expectedUpdatedAt={rule.updatedAt} targetYouthId={rule.targetYouthId} operation="rule.delete" message="이 규칙을 삭제하시겠습니까? 삭제한 규칙은 복구할 수 없습니다." dispatch={(id, baseline) => deleteYouthRuleClientAction(id, baseline)} fallbackAction={deleteRuleAction.bind(null, rule.id)} onUnavailable={() => setRuleState(current => ({ ...current, rules: current.rules.filter(item => item.id !== rule.id) }))} /> : null}
                   </div>
                   <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#394150] [overflow-wrap:anywhere]">
                     {rule.detail}
@@ -455,7 +471,7 @@ function YouthRulesPaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+      <span className="inline-flex h-11 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
         {pending ? "..." : children}
       </span>
     );
@@ -468,7 +484,7 @@ function YouthRulesPaginationLink({
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
-        "h-10 px-4 text-sm",
+        "h-11 px-4 text-sm",
       )}
       onClick={(event) => {
         if (!onPageChange || shouldUseNativeNavigation(event)) {
@@ -666,7 +682,7 @@ export function YouthRuleChangeLogList({
   return (
     <section
       aria-label="규칙 변경 내역"
-      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white xl:col-span-2"
+      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white xl:col-span-2 [&_select]:min-h-11 [&_button]:min-h-11"
     >
       <header className="border-b border-[#eef1f5] px-5 py-4">
         <h2 className="text-base font-semibold text-[#16181d]">

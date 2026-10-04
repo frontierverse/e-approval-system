@@ -596,11 +596,11 @@ describe("youth personal schedule calendar board", () => {
     assert.match(componentSource, /grid-cols-4[\s\S]*?sm:grid-cols-7/);
     assert.match(componentSource, /window\.confirm\(/);
     assert.match(componentSource, /삭제한 일정은 복구할 수 없습니다/);
-    assert.match(componentSource, /if \(!draft \|\| isPending/);
+    assert.match(componentSource, /if \(!draft \|\| busyRef\.current/);
     assert.match(componentSource, /disabled=\{isFormDisabled\}/);
     assert.match(componentSource, /maxLength=\{personalScheduleContentMaxLength\}/);
-    assert.match(componentSource, /await updateSchedule\(draft\.scheduleId, input\)/);
-    assert.match(componentSource, /await createSchedule\(selectedYouthId, input\)/);
+    assert.match(componentSource, /return updateSchedule\(payload\.id, payload\.input!, baseline\)/);
+    assert.match(componentSource, /return createSchedule\(payload\.youthId, payload\.input!,/);
     assert.match(componentSource, /일정 종류/);
     assert.match(componentSource, /일반 일정/);
     assert.match(componentSource, /병원 진료 예약/);

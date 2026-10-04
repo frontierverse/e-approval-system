@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-const actionsSource = read("../src/app/youth/personal-schedule/actions.ts");
+import { createYouthActivitiesHarness } from "./helpers/youth-activities.mjs";
+const hospital = (patch = {}) => ({ content: "", startMinute: 540, endMinute: 600, selectionMode: "DATES", occurrenceDates: ["2026-10-04"], recurrenceWeekdays: [], recurrenceStartDate: "", recurrenceEndDate: "", scheduleType: "HOSPITAL", hospitalName: "합성 병원", escortType: "STAFF", escortUserId: "actor", nextAppointmentDate: "2026-10-10", ...patch });
 const pageSource = read("../src/app/youth/personal-schedule/page.tsx");
 const prismaSource = read("../src/lib/prisma.ts");
 const schedulesSource = read("../src/lib/youth-personal-schedules.ts");
@@ -76,128 +77,45 @@ describe("youth hospital schedule persistence contracts", () => {
     assert.match(pageSource, /staffDirectory=\{staffDirectory\}/);
   });
 
-  test("revalidates a selected staff escort against the visit-date employment period", () => {
-    const resolverSource = extractSection(
-      actionsSource,
-      "async function resolveYouthPersonalScheduleEscortSnapshot(",
-      "async function findConflictingYouthPersonalSchedule(",
-    );
-
-    assert.match(resolverSource, /input\.scheduleType !== "HOSPITAL"/);
-    assert.match(resolverSource, /input\.escortType === "OTHER"/);
-    assert.match(resolverSource, /escortName: input\.escortOtherName/);
-    assert.match(resolverSource, /input\.escortType !== "STAFF"/);
-    assert.match(resolverSource, /const appointmentDate = input\.occurrenceDates\[0\]/);
-    assert.match(resolverSource, /tx\.user\.findFirst/);
-    assert.match(resolverSource, /\{ hireDate: null \}/);
-    assert.match(resolverSource, /\{ hireDate: "" \}/);
-    assert.match(resolverSource, /hireDate: \{ lte: appointmentDate \}/);
-    assert.match(resolverSource, /\{ resignationDate: null \}/);
-    assert.match(resolverSource, /\{ resignationDate: "" \}/);
-    assert.match(resolverSource, /resignationDate: \{ gte: appointmentDate \}/);
-    assert.doesNotMatch(resolverSource, /status/);
-    assert.match(resolverSource, /select:\s*\{\s*id: true,\s*name: true/);
-    assert.match(resolverSource, /existingEscortName \?\? escortUser\.name/);
+  test("revalidates a selected staff escort against the visit-date employment period", async () => {
+    const f = createYouthActivitiesHarness(), domain = f.load("lib/youth-mobile-schedules.ts");
+    f.h.user[0].hireDate = "2026-10-04"; f.h.user[0].resignationDate = "2026-10-04";
+    const created = await domain.createMobilePersonalSchedule(f.ctx, "youth-a", { requestId: "medical-eligible", input: hospital() });
+    assert.equal(created.result.schedule.escortName, "합성 직원");
+    await assert.rejects(domain.createMobilePersonalSchedule(f.ctx, "youth-a", { requestId: "medical-after", input: hospital({ occurrenceDates: ["2026-10-05"] }) }), { code: "VALIDATION_ERROR" });
+    await assert.rejects(domain.createMobilePersonalSchedule(f.ctx, "youth-a", { requestId: "medical-before", input: hospital({ occurrenceDates: ["2026-10-03"] }) }), { code: "VALIDATION_ERROR" });
+    f.h.user.push({ ...f.h.user[0], id: "former", name: "당시 직원", status: "INACTIVE" });
+    const historical = await domain.createMobilePersonalSchedule(f.ctx, "youth-b", { requestId: "medical-former", input: hospital({ escortUserId: "former" }) });
+    assert.equal(historical.result.schedule.escortName, "당시 직원");
   });
 
-  test("preserves the original staff-name snapshot when an update keeps the same escort", () => {
-    const updateSource = extractSection(
-      actionsSource,
-      "export async function updateYouthPersonalScheduleAction(",
-      "export async function deleteYouthPersonalScheduleAction(",
-    );
-    const resolverSource = extractSection(
-      actionsSource,
-      "async function resolveYouthPersonalScheduleEscortSnapshot(",
-      "async function findConflictingYouthPersonalSchedule(",
-    );
-
-    assert.match(
-      updateSource,
-      /resolveYouthPersonalScheduleEscortSnapshot\([\s\S]*?normalizedInput\.value,[\s\S]*?escortName: existingSchedule\.escortName,[\s\S]*?escortType: existingSchedule\.escortType,[\s\S]*?escortUserId: existingSchedule\.escortUserId,[\s\S]*?scheduleType: existingSchedule\.scheduleType/,
-    );
-    assert.match(
-      resolverSource,
-      /existingSchedule\?\.scheduleType === "HOSPITAL"[\s\S]*?existingSchedule\.escortType === "STAFF"[\s\S]*?existingSchedule\.escortUserId === escortUser\.id[\s\S]*?existingSchedule\.escortName\?\.trim\(\)/,
-    );
-    assert.match(
-      resolverSource,
-      /escortName: existingEscortName \?\? escortUser\.name/,
-    );
+  test("preserves the original staff-name snapshot when an update keeps the same escort", async () => {
+    const f = createYouthActivitiesHarness(), domain = f.load("lib/youth-mobile-schedules.ts");
+    const created = await domain.createMobilePersonalSchedule(f.ctx, "youth-a", { requestId: "medical-create", input: hospital() });
+    f.h.user[0].name = "변경된 현재 이름";
+    const updated = await domain.updateMobilePersonalSchedule(f.ctx, created.targetId, { requestId: "medical-update", youthId: "youth-a", expectedUpdatedAt: created.committedUpdatedAt, input: hospital({ startMinute: 600, endMinute: 660 }) });
+    assert.equal(updated.result.schedule.escortName, "합성 직원");
+    assert.equal(f.h.auditLog.at(-1).metadata.previous.escortName, "합성 직원");
+    assert.equal(f.h.auditLog.at(-1).metadata.next.escortName, "합성 직원");
   });
 
-  test("rejects legacy updates before they can clear an existing hospital appointment", () => {
-    const updateSource = extractSection(
-      actionsSource,
-      "export async function updateYouthPersonalScheduleAction(",
-      "export async function deleteYouthPersonalScheduleAction(",
-    );
-    const scheduleLookupIndex = updateSource.indexOf(
-      "const existingSchedule = await tx.youthPersonalSchedule.findUnique",
-    );
-    const staleGuardIndex = updateSource.indexOf(
-      'existingSchedule.scheduleType === "HOSPITAL"',
-    );
-
-    assert.match(
-      updateSource,
-      /Object\.prototype\.hasOwnProperty\.call\(input, "scheduleType"\)/,
-    );
-    assert.match(
-      updateSource,
-      /input\.scheduleType !== undefined/,
-    );
-    assert.ok(scheduleLookupIndex >= 0);
-    assert.ok(staleGuardIndex > scheduleLookupIndex);
-    assert.match(
-      updateSource,
-      /existingSchedule\.scheduleType === "HOSPITAL"\s*&&\s*!hasExplicitScheduleType[\s\S]*?throw new YouthPersonalScheduleStalePayloadError\(\)/,
-    );
-    assert.match(
-      actionsSource,
-      /병원 진료 예약 수정 정보에 일정 종류가 누락되었습니다\. 페이지를 새로고침한 뒤 다시 시도하세요\./,
-    );
+  test("rejects legacy updates before they can clear an existing hospital appointment", async () => {
+    const f = createYouthActivitiesHarness(), web = f.load("app/youth/personal-schedule/actions.ts");
+    const created = await web.createYouthPersonalScheduleAction("youth-a", hospital());
+    assert.equal(created.ok, true); const legacy = hospital(); delete legacy.scheduleType; legacy.content = "일반 일정으로 잘못 전송된 본문";
+    const updated = await web.updateYouthPersonalScheduleAction(created.data.schedule.id, legacy);
+    assert.equal(updated.ok, false); assert.equal(updated.status, 400); assert.equal(updated.code, "INVALID_REQUEST");
+    assert.equal(f.h.youthPersonalSchedule[0].scheduleType, "HOSPITAL"); assert.equal(f.h.auditLog.length, 1);
   });
 
-  test("persists normalized medical data and records it in create/update audit snapshots", () => {
-    const dataSource = extractSection(
-      actionsSource,
-      "function createYouthPersonalScheduleData(",
-      "type YouthPersonalScheduleEscortSnapshot",
-    );
-    const auditSource = extractSection(
-      actionsSource,
-      "function createYouthPersonalScheduleAuditSnapshot(",
-      "function mapYouthPersonalScheduleMutationError(",
-    );
-
-    for (const field of [
-      "scheduleType",
-      "hospitalName",
-      "escortType",
-      "escortUserId",
-      "escortName",
-      "nextAppointmentDate",
-    ]) {
-      assert.match(dataSource, new RegExp(`\\b${field}\\b`));
-      assert.match(auditSource, new RegExp(`\\b${field}\\b`));
-    }
-
-    assert.equal(
-      (actionsSource.match(/resolveYouthPersonalScheduleEscortSnapshot\(/g) ?? [])
-        .length,
-      3,
-      "the helper definition plus create and update calls are required",
-    );
-    assert.match(
-      actionsSource,
-      /createYouthPersonalScheduleData\([\s\S]*?normalizedInput\.value,[\s\S]*?escortSnapshot/,
-    );
-    assert.match(
-      actionsSource,
-      /next: createYouthPersonalScheduleAuditSnapshot\([\s\S]*?\.\.\.escortSnapshot/,
-    );
-    assert.match(actionsSource, /진료일에 재직 중이 아닙니다/);
+  test("persists normalized medical data and records it in create/update audit snapshots", async () => {
+    const f = createYouthActivitiesHarness(), domain = f.load("lib/youth-mobile-schedules.ts");
+    const created = await domain.createMobilePersonalSchedule(f.ctx, "youth-a", { requestId: "medical-audit", input: hospital({ hospitalName: "  합성 병원  ", escortType: "OTHER", escortUserId: "", escortOtherName: "  합성 보호자  " }) });
+    const expected = { scheduleType: "HOSPITAL", hospitalName: "합성 병원", escortType: "OTHER", escortUserId: null, escortName: "합성 보호자", nextAppointmentDate: "2026-10-10" };
+    for (const [field, value] of Object.entries(expected)) { assert.equal(created.result.schedule[field], value); assert.equal(f.h.auditLog[0].metadata.next[field], value); }
+    f.h.auditFailure = true;
+    await assert.rejects(domain.updateMobilePersonalSchedule(f.ctx, created.targetId, { requestId: "medical-rollback", youthId: "youth-a", expectedUpdatedAt: created.committedUpdatedAt, input: hospital({ hospitalName: "덮어쓰기 금지", startMinute: 600, endMinute: 660 }) }));
+    assert.equal(f.h.youthPersonalSchedule[0].hospitalName, "합성 병원"); assert.equal(f.h.youthMutationReceipt.length, 1);
   });
 
   test("rejects a stale cached Prisma client that lacks hospital schedule fields", () => {

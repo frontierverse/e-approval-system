@@ -21,7 +21,7 @@ export function apiUrl(path: string) {
 
 export async function apiRequest<T>(
   path: string,
-  options: { token?: string; method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {},
+  options: { token?: string; method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown } = {},
 ): Promise<T> {
   let response: Response;
   try {

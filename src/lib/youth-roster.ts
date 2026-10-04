@@ -190,6 +190,7 @@ async function getYouthRosterRows() {
           originalName: true,
           size: true,
           createdAt: true,
+          updatedAt: true,
         },
       },
       dischargeDate: true,

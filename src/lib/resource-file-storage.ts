@@ -222,6 +222,7 @@ const resourceStorage = createResourceFileStorage();
 export const createResourceStagingGrant = resourceStorage.createResourceStagingGrant;
 export const writeResourceStagingFile = resourceStorage.writeResourceStagingFile;
 export const finalizeResourceStoredUpload = resourceStorage.finalizeResourceStoredUpload;
+export const reencryptResourceStoredFile = resourceStorage.reencryptResourceStoredFile;
 export const readResourceStoredFile = resourceStorage.readResourceStoredFile;
 export const deleteResourceStoredFile = resourceStorage.deleteResourceStoredFile;
 export const resourceStoredFileExists = resourceStorage.resourceStoredFileExists;

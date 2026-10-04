@@ -12,6 +12,8 @@ import {
   deleteYouthDecisionDocumentAction,
   extendYouthDischargeAction,
   getYouthRosterChangeLogsAction,
+  getYouthProfileMutationStatusAction,
+  getYouthProfileEditorAction,
   recordYouthContactViewAction,
   recordYouthDetailViewAction,
   updateYouthAction,
@@ -45,6 +47,7 @@ export default async function YouthRosterPage({
 
   return (
     <YouthRosterBoard
+      actorId={user.id}
       dischargedRecordsRestricted
       changeLogFilters={{
         page: changeLogResult.page,
@@ -69,6 +72,8 @@ export default async function YouthRosterPage({
       recordYouthDetailView={
         permissions.canViewYouthDetails ? recordYouthDetailViewAction : undefined
       }
+      mutationStatus={getYouthProfileMutationStatusAction}
+      loadEditor={getYouthProfileEditorAction}
       updateYouth={updateYouthAction}
     />
   );

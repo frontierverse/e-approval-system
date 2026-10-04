@@ -17,6 +17,7 @@ import {
   type YouthPersonalScheduleInput,
 } from "../src/lib/youth-personal-schedule-core.ts";
 
+import { createYouthActivitiesHarness } from "./helpers/youth-activities.mjs";
 const schemaSource = readFileSync(
   new URL("../prisma/schema.prisma", import.meta.url),
   "utf8",
@@ -41,13 +42,6 @@ const querySource = readFileSync(
 );
 const prismaSource = readFileSync(
   new URL("../src/lib/prisma.ts", import.meta.url),
-  "utf8",
-);
-const actionsSource = readFileSync(
-  new URL(
-    "../src/app/youth/personal-schedule/actions.ts",
-    import.meta.url,
-  ),
   "utf8",
 );
 const pageSource = readFileSync(
@@ -703,65 +697,27 @@ describe("youth personal schedule persistence contracts", () => {
     );
   });
 
-  test("rechecks management permission for every mutation", () => {
-    for (const actionName of [
-      "createYouthPersonalScheduleAction",
-      "updateYouthPersonalScheduleAction",
-      "deleteYouthPersonalScheduleAction",
-    ]) {
-      const actionSource = extractAction(actionsSource, actionName);
-
-      assert.match(
-        actionSource,
-        /requireYouthPermission\("canManageYouth"\)/,
-      );
+  test("rechecks management permission for every mutation", async () => {
+    const f = createYouthActivitiesHarness(), web = f.load("app/youth/personal-schedule/actions.ts"), value = createInput({ occurrenceDates: ["2026-10-04"] });
+    const first = await web.createYouthPersonalScheduleAction("youth-a", value); assert.equal(first.ok, true);
+    f.h.authSnapshot = structuredClone(f.h.user[0]); f.h.user[0].canManageYouth = false;
+    for (const request of [() => web.createYouthPersonalScheduleAction("youth-a", value), () => web.updateYouthPersonalScheduleAction(first.data.schedule.id, value), () => web.deleteYouthPersonalScheduleAction(first.data.schedule.id)]) {
+      const result = await request(); assert.equal(result.ok, false); assert.equal(result.status, 403);
     }
-
-    assert.equal(
-      countMatches(actionsSource, /typeof youthId === "string"/g),
-      1,
-    );
-    assert.equal(
-      countMatches(actionsSource, /typeof scheduleId === "string"/g),
-      2,
-    );
+    assert.equal(f.h.youthPersonalSchedule.length, 1); assert.equal(f.h.auditLog.length, 1);
   });
 
-  test("keeps validation, overlap checks, writes, and audit logs atomic", () => {
-    assert.match(actionsSource, /normalizeYouthPersonalScheduleInput\(input\)/);
-    assert.equal(
-      countMatches(
-        actionsSource,
-        /TransactionIsolationLevel\.Serializable/g,
-      ),
-      3,
-    );
-    assert.match(actionsSource, /occurrenceDates:\s*\{\s*hasSome:\s*input\.occurrenceDates/);
-    assert.match(actionsSource, /startMinute:\s*\{\s*lt:\s*input\.endMinute/);
-    assert.match(actionsSource, /endMinute:\s*\{\s*gt:\s*input\.startMinute/);
-    assert.match(
-      actionsSource,
-      /getYouthPersonalScheduleDateIntersection\([\s\S]*?conflict\.occurrenceDates,[\s\S]*?input\.occurrenceDates/,
-    );
-    assert.match(actionsSource, /youthPersonalSchedule\.create/);
-    assert.match(actionsSource, /youthPersonalSchedule\.update/);
-    assert.match(actionsSource, /youthPersonalSchedule\.delete/);
-    assert.equal(countMatches(actionsSource, /await tx\.auditLog\.create/g), 3);
-    assert.match(actionsSource, /targetType:\s*"YouthPersonalSchedule"/);
-    assert.match(actionsSource, /source:\s*"youth-personal-schedule"/);
-    assert.match(actionsSource, /error\.code === "P2034"/);
-    assert.match(actionsSource, /동시에 변경되었습니다/);
-    assert.equal(
-      countMatches(
-        actionsSource,
-        /revalidatePersonalScheduleConsumers\(\);/g,
-      ),
-      3,
-    );
-    assert.match(
-      actionsSource,
-      /function revalidatePersonalScheduleConsumers\(\)\s*\{[\s\S]*?revalidatePath\(youthPersonalSchedulePath\)/,
-    );
+  test("keeps validation, overlap checks, writes, and audit logs atomic", async () => {
+    const f = createYouthActivitiesHarness(), web = f.load("app/youth/personal-schedule/actions.ts"), value = createInput({ occurrenceDates: ["2026-10-04"] });
+    assert.equal((await web.createYouthPersonalScheduleAction("youth-a", { ...value, startMinute: 555 })).ok, false);
+    const first = await web.createYouthPersonalScheduleAction("youth-a", value); assert.equal(first.ok, true);
+    assert.equal((await web.createYouthPersonalScheduleAction("youth-a", value)).ok, false);
+    f.h.auditFailure = true; assert.equal((await web.updateYouthPersonalScheduleAction(first.data.schedule.id, { ...value, content: "취소할 입력" })).ok, false);
+    assert.equal(f.h.youthPersonalSchedule[0].content, "상담"); assert.equal(f.h.auditLog.length, 1); assert.equal(f.h.youthMutationReceipt.length, 1);
+    f.h.auditFailure = false; assert.equal((await web.deleteYouthPersonalScheduleAction(first.data.schedule.id)).ok, true);
+    assert.equal(f.h.youthPersonalSchedule.length, 0); assert.equal(f.h.auditLog.length, 2);
+    for (const path of ["/youth/personal-schedule", "/work-schedule", "/work-schedule/work-log"]) assert.ok(f.h.invalidated.includes(path));
+    assert.ok(f.h.transactions.filter(value => value.isolationLevel === "Serializable").length >= 3);
   });
 });
 
@@ -791,18 +747,4 @@ function extractSection(source: string, startMarker: string, endMarker: string) 
   assert.notEqual(end, -1, `${endMarker} section is required`);
 
   return source.slice(start, end);
-}
-
-function extractAction(source: string, actionName: string) {
-  const startMarker = `export async function ${actionName}(`;
-  const start = source.indexOf(startMarker);
-  const nextAction = source.indexOf("\nexport async function ", start + startMarker.length);
-
-  assert.notEqual(start, -1, `${actionName} is required`);
-
-  return source.slice(start, nextAction === -1 ? source.length : nextAction);
-}
-
-function countMatches(source: string, pattern: RegExp) {
-  return [...source.matchAll(pattern)].length;
 }

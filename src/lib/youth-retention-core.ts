@@ -9,7 +9,21 @@ export type YouthRetentionRecord = {
   retentionUntil: string | null; retentionBasis: string | null; retentionHoldReason: string | null;
   retentionVersion: number; purgeStartedAt: string | null; purgedAt: string | null;
   decisionDocumentCount: number;
+  purgeProgress?: YouthPurgeProgress | null;
 };
+export const youthPurgeBlockedReasons = ["FILE_CLEANUP_PENDING", "WRITE_PENDING", "LIVE_REFERENCE", "LEGACY_WRITER_UNTRACKED", "PURGE_RETRY_REQUIRED"] as const;
+export type YouthPurgeBlockedReason = (typeof youthPurgeBlockedReasons)[number];
+export type YouthPurgeProgress = { phase: "running" | "waiting-provider" | "retryable" | "completed"; blockedReason: YouthPurgeBlockedReason | null; lastCheckedAt: string | null; nextCheckAt: string | null; leaseUntil: string | null; canRetry: boolean };
+export type YouthPurgeResult = { status: "pending" | "complete"; youthId: string; retentionVersion: number; progress: YouthPurgeProgress };
+type PurgeProgressRecord = { purgeStartedAt: Date | string | null; purgedAt: Date | string | null; purgeLeaseUntil?: Date | string | null; purgeBlockedReason?: string | null; purgeLastCheckedAt?: Date | string | null; purgeNextCheckAt?: Date | string | null };
+const purgeIso = (value: Date | string | null | undefined) => value instanceof Date ? value.toISOString() : value ?? null;
+export function getYouthPurgeProgress(record: PurgeProgressRecord, now = new Date()): YouthPurgeProgress | null {
+  if (!record.purgeStartedAt && !record.purgedAt) return null;
+  const blockedReason = youthPurgeBlockedReasons.find(code => code === record.purgeBlockedReason) ?? null, leaseUntil = purgeIso(record.purgeLeaseUntil);
+  const running = !!leaseUntil && new Date(leaseUntil).getTime() > now.getTime(), waiting = blockedReason === "WRITE_PENDING" || blockedReason === "LEGACY_WRITER_UNTRACKED" || blockedReason === "LIVE_REFERENCE";
+  return { phase: record.purgedAt ? "completed" : running ? "running" : waiting ? "waiting-provider" : "retryable", blockedReason: record.purgedAt ? null : blockedReason, lastCheckedAt: purgeIso(record.purgeLastCheckedAt), nextCheckAt: record.purgedAt ? null : purgeIso(record.purgeNextCheckAt), leaseUntil: record.purgedAt ? null : leaseUntil, canRetry: !record.purgedAt && !running && !waiting && (!record.purgeNextCheckAt || new Date(record.purgeNextCheckAt).getTime() <= now.getTime()) };
+}
+
 export type YouthRetentionState = "pending" | "aftercare" | "retained" | "due" | "held" | "purging" | "purged";
 export type RetentionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 export type RetentionInput = { actualDischargeDate: string; caseClosedDate: string; holdReason: string; version: number; correctedDischargeDate?: string };
@@ -39,7 +53,7 @@ export function getYouthRetentionState(record: Pick<YouthRetentionRecord, "actua
 }
 
 export const youthRetentionStateLabels: Record<YouthRetentionState, string> = {
-  pending: "퇴소 확인 필요", aftercare: "사후관리 중", retained: "보존 중", due: "파기 검토", held: "보존 보류", purging: "파기 재시도 필요", purged: "파기 완료",
+  pending: "퇴소 확인 필요", aftercare: "사후관리 중", retained: "보존 중", due: "파기 검토", held: "보존 보류", purging: "파기 처리 대기", purged: "파기 완료",
 };
 
 export function youthOperationalWhere(today: string): Prisma.YouthWhereInput {

@@ -62,5 +62,46 @@ test("small mobile dark theme and 200 percent zoom keep actions reachable", asyn
   await page.getByRole("button", { name: "검토청소년 개인정보 파기" }).click();
   await noOverflow(page); await page.screenshot({ path: `output/retention-small-dark-${info.project.name}.png` });
   await page.goto(`${fixture.url}/?zoom`); await noOverflow(page);
+  const refresh = page.getByRole("button", { name: "상태 새로고침", exact: true });
+  const discharge = page.getByLabel("조기 퇴소 대상 선택");
+  for (const control of [discharge, refresh]) {
+    await expect(control).toBeVisible();
+    const bounds = (await control.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as { fixtureCalls: { refresh: number } }).fixtureCalls.refresh)).toBe(1);
   await expect(page.getByRole("button", { name: "검토청소년 보존 관리" })).toBeVisible();
+  await page.screenshot({ path: `output/retention-small-zoom-${info.project.name}.png` });
+});
+
+test("pending purge ends processing without claiming completion and status refresh performs no purge", async ({ page }, info) => {
+  await page.goto(`${fixture.url}/?pending-purge`);
+  const trigger = page.getByRole("button", { name: "검토청소년 개인정보 파기" });
+  await trigger.click();
+  const confirmation = page.getByRole("dialog");
+  await confirmation.getByRole("checkbox").check();
+  await confirmation.getByLabel("확인을 위해 청소년 이름 입력").fill("검토청소년");
+  await confirmation.getByRole("button", { name: "개인정보 영구 파기" }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("파기 요청을 접수했습니다");
+  await expect(page.getByRole("status")).not.toContainText("파기했습니다");
+  const check = page.getByRole("button", { name: "검토청소년 파기 상태 확인" });
+  await check.click();
+  const progress = page.getByRole("dialog");
+  await expect(progress.getByRole("status")).toContainText("파일 전송 종료");
+  await expect(progress.getByRole("button", { name: "승인된 파기 재점검" })).toHaveCount(0);
+  await expect(progress.getByRole("checkbox")).toHaveCount(0);
+  await progress.getByRole("button", { name: "상태 새로고침", exact: true }).click();
+  await expect(progress.getByRole("button", { name: "상태 확인 중…" })).toBeDisabled();
+  await expect(progress.getByRole("button", { name: "상태 새로고침", exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as { fixtureCalls: { purge: number; refresh: number } }).fixtureCalls)).toMatchObject({ purge: 1, refresh: 1 });
+  await noOverflow(page);
+  await page.screenshot({ path: `output/retention-pending-${info.project.name}.png` });
+  await page.keyboard.press("Escape");
+  await expect(progress).toHaveCount(0);
+  await expect(check).toBeFocused();
 });

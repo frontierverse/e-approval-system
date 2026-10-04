@@ -6,6 +6,8 @@ import { clearAttachmentTransferCache } from "./attachment-transfer";
 import { clearAccountImageResources } from "./account-image";
 import { clearChatFileResources } from "./chat-file-transfer";
 import { clearResourceFileResources } from "./resource-file-transfer";
+import { clearYouthResources } from "./youth-privacy";
+import { clearYouthFileResources } from "./youth-file-transfer";
 import type { MobileUser } from "./types";
 
 const SESSION_KEY = "gyeoljaeon.mobile.session";
@@ -18,7 +20,7 @@ type SessionContextValue = {
   signIn: (name: string, password: string) => Promise<void>;
   signOut: (options?: { message?: string }) => Promise<void>;
   expireSession: (expectedToken: string, message?: string) => Promise<void>;
-  request: <T,>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown }) => Promise<T>;
+  request: <T,>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown }) => Promise<T>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -55,7 +57,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       try {
-        await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined)]);
+        await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined), clearYouthResources().catch(() => undefined), clearYouthFileResources().catch(() => undefined)]);
         await clearAccountImageResources().catch(() => undefined);
         const stored = await readToken();
         if (!stored) return;
@@ -75,13 +77,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const result = await apiRequest<{ token: string; user: MobileUser }>("/auth/login", {
       method: "POST", body: { name, password },
     });
-    await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined)]);
+    await Promise.all([clearChatFileResources().catch(() => undefined), clearResourceFileResources().catch(() => undefined), clearYouthResources().catch(() => undefined), clearYouthFileResources().catch(() => undefined)]);
     await clearAccountImageResources().catch(() => undefined);
     await saveToken(result.token);
     // Cancel old-account work started while the encrypted token write awaited.
     if (currentToken.current && currentToken.current !== result.token) {
       void clearChatFileResources().catch(() => undefined);
       void clearResourceFileResources().catch(() => undefined);
+      void clearYouthResources().catch(() => undefined);
+      void clearYouthFileResources().catch(() => undefined);
     }
     currentToken.current = result.token;
     setToken(result.token);
@@ -94,6 +98,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // Invalidate private operations synchronously before a late transfer can publish.
     void clearChatFileResources().catch(() => undefined);
     void clearResourceFileResources().catch(() => undefined);
+    void clearYouthResources({ expectedToken }).catch(() => undefined);
+    void clearYouthFileResources({ expectedToken }).catch(() => undefined);
     void clearAccountImageResources().catch(() => undefined);
     currentToken.current = null;
     setToken(null); setUser(null); setError(message);
@@ -107,7 +113,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     finally { await apiRequest("/auth/logout", { method: "POST", token: current }).catch(() => undefined); }
   }, [expireSession]);
 
-  const request = useCallback(async <T,>(path: string, options: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {}) => {
+  const request = useCallback(async <T,>(path: string, options: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown } = {}) => {
     if (!token) throw new ApiError("로그인이 필요합니다.", 401);
     try {
       return await apiRequest<T>(path, { ...options, token });
