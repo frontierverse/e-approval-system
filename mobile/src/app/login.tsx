@@ -1,5 +1,7 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { PrimaryButton } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -19,8 +21,8 @@ export default function Login() {
     catch (cause) { setError(cause instanceof Error ? cause.message : "로그인하지 못했습니다."); }
     finally { setPending(false); }
   };
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <View style={styles.brand}>
         <View style={[styles.mark, { backgroundColor: theme.actionFill }]}><Text style={styles.markText}>바</Text></View>
         <Text style={[styles.brandTitle, { color: theme.text }]}>바자울</Text>
@@ -38,8 +40,8 @@ export default function Login() {
         {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{error}</Text> : null}
         <View style={{ marginTop: 20 }}><PrimaryButton title={pending ? "로그인 중..." : "로그인"} disabled={pending} onPress={submit} /></View>
       </View>
-    </ScrollView>
-  </KeyboardAvoidingView>;
+    </KeyboardScrollView>
+  </KeyboardScreen>;
 }
 
 const styles = StyleSheet.create({

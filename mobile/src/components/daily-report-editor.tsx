@@ -1,7 +1,9 @@
+import { KeyboardFlatList } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { PrimaryButton, TextAction } from "@/components/ui";
@@ -222,8 +224,8 @@ function DailyReportEditorContent({ date, isCurrentAccount }: { date?: string; i
     {!notesHidden && !youths.length ? <Text style={[styles.small, { color: theme.secondary }]}>{search.trim() || writtenOnly ? "조건에 맞는 청소년이 없습니다." : "보고할 청소년이 없습니다."}</Text> : null}
     <TextAction label="일일 업무보고 목록" icon="arrow-back" disabled={!!busy} onPress={() => router.push("/daily-reports")} />
   </> : <TextAction label="일일 업무보고 목록" icon="arrow-back" onPress={() => router.push("/daily-reports")} />}</View>;
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top + 56}>
-    <FlatList style={{ flex: 1 }} data={youths} keyExtractor={item => item.id} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" extraData={{ values, expanded, disabled }} ListHeaderComponent={header} ListFooterComponent={footer}
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardFlatList style={{ flex: 1 }} data={youths} keyExtractor={item => item.id} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" extraData={{ values, expanded, disabled }} ListHeaderComponent={header} ListFooterComponent={footer}
       renderItem={({ item }) => <View style={[styles.youthRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TextAction label={`${item.name}${values.youthContents[item.id]?.trim() ? " · 작성됨" : ""}`} icon={expanded[item.id] ? "chevron-up" : "chevron-down"} accessibilityLabel={`${item.name} 보고 ${expanded[item.id] ? "접기" : "펼치기"}`} accessibilityState={{ expanded: !!expanded[item.id] }} disabled={notesHidden || loading || !!busy} onPress={() => setExpanded(previous => ({ ...previous, [item.id]: !previous[item.id] }))} />
         {expanded[item.id] ? <ReportField name={`youth-${item.id}`} label={`${item.name} 보고`} value={values.youthContents[item.id] ?? ""} error={errors[`youth-${item.id}`]} disabled={disabled} multiline maxLength={dailyReportYouthLimit} onChange={change} /> : null}
@@ -234,7 +236,7 @@ function DailyReportEditorContent({ date, isCurrentAccount }: { date?: string; i
       </View>
     </View> : null}
     {confirmation.dialog}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }
 function ReportField({ name, label, value, onChange, multiline, error, disabled, maxLength, placeholder }: { name: string; label: string; value: string; onChange: (name: string, value: string) => void; multiline?: boolean; error?: string; disabled?: boolean; maxLength: number; placeholder?: string }) {
   const theme = useTheme();

@@ -1,6 +1,8 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { AccountImageEditor } from "@/components/account-image-editor";
@@ -44,8 +46,8 @@ function AccountScreen() {
   };
   const release = () => { locked.current = false; if (alive.current) setBusy(false); };
   const disabled = busy || !!error;
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top + 48}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
       <View style={styles.heading}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "800" }}>계정 정보</Text><TextAction label={loading ? "확인 중..." : "새로고침"} icon="refresh" disabled={busy || loading} onPress={() => void load()} /></View>
       {!account ? error ? <ErrorState message={error} retry={() => void load()} /> : <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.surface }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.accent} /><Text accessibilityLiveRegion="polite" style={{ color: theme.secondary }}>계정 정보를 불러오는 중...</Text></View>
@@ -65,8 +67,8 @@ function AccountScreen() {
           <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 }}>비밀번호 로그인 계정이 아닙니다. 관리자에게 문의하세요.</Text>
         </View>}
       </>}
-    </ScrollView>
-  </KeyboardAvoidingView>;
+    </KeyboardScrollView>
+  </KeyboardScreen>;
 }
 function Info({ label, value }: { label: string; value: string }) {
   const theme = useTheme();

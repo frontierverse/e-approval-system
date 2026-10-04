@@ -1,7 +1,9 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { ResourceField } from "@/components/ResourceContent";
@@ -452,8 +454,8 @@ function Editor({ id, isAccount }: {
     const visible = foreground && isForeground() && permission && acceptedRevision === foregroundRevision && isAccount() && isCurrentAccount();
     const disabled = loading || busy || fileBusy || !!recovery || !!completed;
     void revision;
-    return <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={64} style={{ flex: 1, backgroundColor: theme.background }}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 12, maxWidth: 960, width: "100%", alignSelf: "center", paddingBottom: 24 }}>
+    return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 12, maxWidth: 960, width: "100%", alignSelf: "center", paddingBottom: 24 }}>
       <AccountFeedback error={loadError ?? error} message={notice}/>
       {!visible && recovery === "check" ? <TextAction label="원래 저장 결과 확인" disabled={loading || busy} onPress={() => void load()}/> : null}
       {loadError ? <TextAction label="작성 권한·자료 다시 확인" disabled={loading || busy} onPress={() => void load()}/> : null}
@@ -479,7 +481,7 @@ function Editor({ id, isAccount }: {
                 entry.operation.cancel(); }}/> : null}
       </> : loading ? <ActivityIndicator color={theme.accent}/> : null}
       {confirmation.dialog}
-    </ScrollView>
+    </KeyboardScrollView>
     {visible && !completed ? <View style={{ backgroundColor: theme.surface, borderTopWidth: 1, borderColor: theme.border, padding: 12, paddingBottom: Math.max(12, insets.bottom), width: "100%" }}><View style={{ maxWidth: 960, width: "100%", alignSelf: "center" }}><PrimaryButton title={busy ? "저장 중" : recovery ? "저장 결과 확인 필요" : "자료 저장"} disabled={disabled} onPress={() => void save()}/></View></View> : null}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }

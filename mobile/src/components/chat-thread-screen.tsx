@@ -1,7 +1,8 @@
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View, type ViewToken } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Text, View, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { ChatInput } from "@/components/chat-content";
@@ -484,7 +485,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     atBottom.current = false;
   };
   const masked = privacy || !appForeground || !isForegroundCurrent(foregroundEpoch) || verifiedRenderEpoch !== foregroundEpoch;
-  return <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={64} style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
   <View style={{ paddingHorizontal: 16, paddingTop: 8 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>{masked ? "대화 확인 중" : peer?.name ?? "대화"}</Text><TextAction label="새로고침" disabled={busy || loading} icon="refresh" onPress={() => void load(true)}/></View><AccountFeedback error={error} message={notice}/>{readError ? <><AccountFeedback error={`읽음 상태: ${readError}`}/><TextAction label="읽음 상태 다시 확인" onPress={() => void markVisibleRead()}/></> : null}</View>
   {masked ? <View style={{ flex: 1, padding: 16 }}>{loading ? <ActivityIndicator color={theme.accent}/> : <EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요."/>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" contentContainerStyle={{ padding: 16, gap: 8 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
     if (!readyForAction()) return;
@@ -512,5 +513,5 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     }
   }}/> : null}
   {confirmation.dialog}
- </KeyboardAvoidingView>;
+ </KeyboardScreen>;
 }
