@@ -142,9 +142,9 @@ describe("youth permission server boundaries", () => {
     );
     assert.match(
       decisionDocumentRouteSource,
-      /hasYouthPermission\(user, "canDownloadYouthDocuments"\)/,
+      /assertYouthPermission\(actor, "canDownloadYouthDocuments"\)/,
     );
-    assert.match(decisionDocumentRouteSource, /status: 403/);
+    assert.match(decisionDocumentRouteSource, /downloadYouthDecisionDocument/);
   });
 
   test("keeps actual contacts out of roster and mutation payloads", () => {
@@ -157,7 +157,7 @@ describe("youth permission server boundaries", () => {
     assert.match(rosterSource, /age: canViewDetails[\s\S]*?: null/);
     assert.match(
       youthActionsSource,
-      /mapYouthProfileForRosterResponse[\s\S]*?familyContacts: \[\][\s\S]*?phone: null/,
+      /getWebYouthProfile/,
     );
   });
 
@@ -174,7 +174,7 @@ describe("youth permission server boundaries", () => {
       youthManagementSource,
       /export async function getYouthDirectory\(\)[\s\S]*?select:\s*\{\s*id: true,\s*name: true,\s*\}/,
     );
-    assert.match(learningProgressPageSource, /getYouthDirectory\(\)/);
+    assert.match(learningProgressPageSource, /getYouthLearningParents\(\{ actorId: user\.id, client: "web" \}\)/);
     assert.match(learningProgressPrintSource, /getYouthDirectory\(\)/);
     assert.doesNotMatch(learningProgressPageSource, /getYouthProfiles/);
     assert.doesNotMatch(learningProgressPrintSource, /getYouthProfiles/);

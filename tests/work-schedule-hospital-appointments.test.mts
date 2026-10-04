@@ -7,10 +7,7 @@ const workSchedulesSource = readFileSync(
   new URL("../src/lib/work-schedules.ts", import.meta.url),
   "utf8",
 );
-const personalScheduleActionsSource = readFileSync(
-  new URL("../src/app/youth/personal-schedule/actions.ts", import.meta.url),
-  "utf8",
-);
+import { createYouthActivitiesHarness } from "./helpers/youth-activities.mjs";
 const workSchedulePageSource = readFileSync(
   new URL("../src/app/work-schedule/page.tsx", import.meta.url),
   "utf8",
@@ -138,32 +135,18 @@ describe("hospital appointment work schedule integration", () => {
     );
   });
 
-  test("revalidates every personal-schedule consumer after mutations", () => {
-    assert.match(
-      personalScheduleActionsSource,
-      /const workSchedulePath = "\/work-schedule"/,
-    );
-    assert.match(
-      personalScheduleActionsSource,
-      /const workLogPath = "\/work-schedule\/work-log"/,
-    );
-    assert.equal(
-      (
-        personalScheduleActionsSource.match(
-          /revalidatePersonalScheduleConsumers\(\);/g,
-        ) ?? []
-      ).length,
-      3,
-    );
-    assert.match(
-      personalScheduleActionsSource,
-      /function revalidatePersonalScheduleConsumers\(\)\s*\{[\s\S]*?revalidatePath\(youthPersonalSchedulePath\);[\s\S]*?revalidatePath\(workSchedulePath\);[\s\S]*?revalidatePath\(workLogPath\);/,
-    );
+  test("revalidates every personal-schedule consumer after mutations", async () => {
+    const f = createYouthActivitiesHarness(), web = f.load("app/youth/personal-schedule/actions.ts");
+    const input = { content: "", startMinute: 540, endMinute: 600, selectionMode: "DATES", occurrenceDates: ["2026-10-04"], recurrenceWeekdays: [], recurrenceStartDate: "", recurrenceEndDate: "", scheduleType: "HOSPITAL", hospitalName: "합성 병원", escortType: "OTHER", escortOtherName: "합성 보호자", nextAppointmentDate: "2026-10-10" };
+    const created = await web.createYouthPersonalScheduleAction("youth-a", input); assert.equal(created.ok, true);
+    const projected = createHospitalAppointmentWorkSchedules(f.h.youthPersonalSchedule.map(row => ({ ...row, youth: { name: "합성 청소년", dischargeDate: null } })), ["2026-10-04", "2026-10-10"]);
+    assert.equal(projected.length, 1); assert.equal(projected[0].scheduleDate, "2026-10-04"); assert.equal(projected[0].readOnly, true);
+    for (const request of [() => web.updateYouthPersonalScheduleAction(created.data.schedule.id, { ...input, hospitalName: "변경 병원" }), () => web.deleteYouthPersonalScheduleAction(created.data.schedule.id)]) {
+      f.h.invalidated = []; assert.equal((await request()).ok, true);
+      for (const path of ["/youth/personal-schedule", "/work-schedule", "/work-schedule/work-log"]) assert.ok(f.h.invalidated.includes(path));
+    }
     assert.match(workSchedulePageSource, /병원 진료 예약을 한 달력에서 확인/);
-    assert.match(
-      youthActionsSource,
-      /function revalidateYouthPaths\(\)\s*\{[\s\S]*?revalidatePath\("\/work-schedule"\);[\s\S]*?revalidatePath\("\/work-schedule\/work-log"\);/,
-    );
+    assert.match(youthActionsSource, /function revalidateYouthPaths\(\)\s*\{[\s\S]*?revalidatePath\("\/work-schedule"\);[\s\S]*?revalidatePath\("\/work-schedule\/work-log"\);/);
   });
 });
 

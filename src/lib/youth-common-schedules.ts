@@ -14,6 +14,7 @@ import {
 
 type YouthCommonScheduleRecord = {
   id: string;
+  updatedAt?: Date;
   weekday: number;
   startHour: number;
   startMinute: number;
@@ -39,6 +40,7 @@ export async function getYouthCommonSchedules(): Promise<YouthCommonSchedule[]> 
     orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
     select: {
       id: true,
+      updatedAt: true,
       weekday: true,
       startHour: true,
       startMinute: true,
@@ -147,6 +149,7 @@ export function mapYouthCommonSchedule(
 ): YouthCommonSchedule {
   return {
     ...schedule,
+    updatedAt: schedule.updatedAt?.toISOString(),
     weekday: isYouthCommonScheduleWeekday(schedule.weekday)
       ? schedule.weekday
       : 1,

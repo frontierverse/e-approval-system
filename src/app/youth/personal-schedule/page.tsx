@@ -66,6 +66,7 @@ export default async function YouthPersonalSchedulePage({
         }
       />
       <YouthPersonalScheduleCalendarBoard
+        actorId={user.id}
         canManage={permissions.canManageYouth}
         createSchedule={createYouthPersonalScheduleAction}
         deleteSchedule={deleteYouthPersonalScheduleAction}

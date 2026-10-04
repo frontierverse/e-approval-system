@@ -40,6 +40,7 @@ type YouthRuleRecord = {
   targetYouthId: string | null;
   targetYouthName: string | null;
   createdAt: Date | string;
+  updatedAt: Date | string;
 };
 
 const youthRulesPageSize = 10;
@@ -82,7 +83,8 @@ export async function getYouthRules({
       rule."detail",
       rule."targetYouthId",
       youth."name" AS "targetYouthName",
-      rule."createdAt"
+      rule."createdAt",
+      rule."updatedAt"
     FROM "YouthRule" rule
     LEFT JOIN "Youth" youth ON youth."id" = rule."targetYouthId"
     ${whereClause}
@@ -210,6 +212,7 @@ export function mapYouthRule(record: YouthRuleRecord): YouthRule {
     detail: record.detail,
     targetYouthId: record.targetYouthId,
     targetYouthName: record.targetYouthName,
+    updatedAt: record.updatedAt instanceof Date ? record.updatedAt.toISOString() : record.updatedAt,
     createdAt:
       record.createdAt instanceof Date
         ? record.createdAt.toISOString()

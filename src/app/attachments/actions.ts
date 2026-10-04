@@ -16,6 +16,21 @@ export async function createSignedUploadUrlAction(
     throw new Error("Unauthorized");
   }
 
+  // Public attachment grants cannot enter the purpose-owned Youth namespace.
+  // Match the storage helper's slash normalization before checking the root.
+  const storageKeyPrefix = options?.storageKeyPrefix
+    ?.replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+  if (
+    storageKeyPrefix === "youth-decision-documents" ||
+    storageKeyPrefix?.startsWith("youth-decision-documents/")
+  ) {
+    return {
+      ok: false as const,
+      error: "이 파일 저장 경로는 사용할 수 없습니다.",
+    };
+  }
+
   const attachmentPolicy = await getAttachmentPolicy();
   const extension = getFileExtension(originalName);
   const allowedExtensions = new Set(

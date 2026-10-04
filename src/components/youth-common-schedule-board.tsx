@@ -1,8 +1,12 @@
 "use client";
+import { useYouthActivityLeaveGuard } from "@/lib/youth-activity-leave";
 
 import Link from "next/link";
+import { getYouthActivityReceiptAction, getYouthCommonBaselineAction } from "@/app/youth/activity-actions";
+import { newYouthActivityAttempt, runYouthActivity, invalidateYouthActivity, type ActivityAttempt } from "@/lib/youth-activity-client";
+import type { CommonBaseline } from "@/lib/youth-mobile-activity-core";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type {
   ChangeEvent,
   FormEvent,
@@ -38,6 +42,8 @@ import {
 } from "@/lib/youth-common-schedule-time";
 
 type YouthCommonScheduleBoardProps = {
+  actorId?: string;
+  canManage?: boolean;
   changeLogActors: YouthCommonScheduleChangeLogActor[];
   changeLogFilterControls?: React.ReactNode;
   changeLogFilters: YouthCommonScheduleChangeLogFilters;
@@ -45,6 +51,7 @@ type YouthCommonScheduleBoardProps = {
   deleteSchedule: (
     weekday: number,
     startMinute: number,
+    baseline?: { requestId?: string; expectedActorId?: string; scheduleId: string | null; expectedUpdatedAt: string | null },
   ) => Promise<
     YouthActionResult<{
       weekday: YouthLearningScheduleWeekday;
@@ -66,6 +73,7 @@ type YouthCommonScheduleBoardProps = {
     content: string,
     recurrenceWeekdays: number[],
     sourceStartMinute?: number,
+    baseline?: { requestId?: string; expectedActorId?: string; baselines: CommonBaseline[] },
   ) => Promise<
     YouthActionResult<{
       schedules: YouthCommonSchedule[];
@@ -104,17 +112,12 @@ type SelectedCell = {
   weekday: YouthLearningScheduleWeekday;
 };
 
-type ScheduleDragMode = "move" | "resize-end" | "resize-start";
-
 type ScheduleDragState = {
   hasMoved: boolean;
   initialEndMinute: number;
   initialStartMinute: number;
-  maxEndMinute: number;
   maxStartMinute: number;
-  minEndMinute: number;
   minStartMinute: number;
-  mode: ScheduleDragMode;
   previewEndMinute: number;
   previewStartMinute: number;
   scheduleId: string;
@@ -168,7 +171,10 @@ const commonTimeSlots: CommonTimeSlot[] = Array.from(
   },
 );
 
-export function YouthCommonScheduleBoard({
+export function YouthCommonScheduleBoard(props: YouthCommonScheduleBoardProps) { return <YouthCommonScheduleBoardContent key={props.actorId ?? "legacy"} {...props} />; }
+function YouthCommonScheduleBoardContent({
+  actorId = "",
+  canManage = true,
   changeLogActors,
   changeLogFilterControls,
   changeLogFilters,
@@ -195,6 +201,18 @@ export function YouthCommonScheduleBoard({
   const [formError, setFormError] = useState("");
   const [scheduleDragState, setScheduleDragState] =
     useState<ScheduleDragState | null>(null);
+  const busyRef = useRef(false);
+  const aliveRef = useRef(true);
+  const sourceSnapshot = useRef<YouthCommonSchedule[]>([]);
+  const attemptRef = useRef<ActivityAttempt<{ weekday: YouthLearningScheduleWeekday; startMinute: number; endMinute: number; content: string; targetWeekdays: YouthLearningScheduleWeekday[]; sourceStartMinute: number; baselines: CommonBaseline[]; delete: boolean }> | null>(null);
+  const [recovery, setRecovery] = useState<"idle" | "unknown" | "conflict">("idle");
+  const [accessBlocked, setAccessBlocked] = useState(false);
+  const logSequence = useRef(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; invalidateYouthActivity(attemptRef.current); }; }, []);
+  useEffect(() => { if (formError) errorRef.current?.focus(); }, [formError]);
+  const [sourceSchedules, setSourceSchedules] = useState(schedules);
+  if (schedules !== sourceSchedules) { setSourceSchedules(schedules); setScheduleItems(schedules); }
   const [pendingScheduleAction, startPendingScheduleAction] = useTransition();
   const [changeLogState, setChangeLogState] = useState({
     filters: changeLogFilters,
@@ -206,6 +224,7 @@ export function YouthCommonScheduleBoard({
   >(null);
   const [isChangeLogPending, startChangeLogTransition] = useTransition();
   const pendingBoardAction = pendingScheduleAction;
+  const controlsLocked = pendingScheduleAction || recovery !== "idle" || accessBlocked || !canManage;
 
   const scheduleMap = useMemo(() => {
     const nextMap = new Map<string, YouthCommonSchedule>();
@@ -253,6 +272,7 @@ export function YouthCommonScheduleBoard({
         createCommonScheduleKey(selectedCell.weekday, selectedCell.startMinute),
       )
     : undefined;
+  useYouthActivityLeaveGuard({ dirty: Boolean(selectedCell && (scheduleDraft !== (selectedSchedule?.content ?? "") || startMinuteDraft !== (selectedSchedule?.startMinute ?? selectedCell.startMinute) || endMinuteDraft !== (selectedSchedule?.endMinute ?? selectedCell.startMinute + 60) || recurrenceWeekdayDraft.length !== 1)) || recovery !== "idle", pending: pendingScheduleAction, discard: () => invalidateYouthActivity(attemptRef.current) });
   const selectedTimeLabel = selectedCell
     ? formatScheduleRangeLabel(startMinuteDraft, endMinuteDraft)
     : "";
@@ -281,10 +301,12 @@ export function YouthCommonScheduleBoard({
       };
       const updateHistory = options?.updateHistory ?? true;
 
+      const generation = ++logSequence.current;
       setPendingChangeLogPage(page);
       startChangeLogTransition(async () => {
         try {
           const result = await loadChangeLogs(nextFilters);
+          if (!aliveRef.current || generation !== logSequence.current) return;
 
           if (!result.ok) {
             setChangeLogError(result.error);
@@ -319,7 +341,7 @@ export function YouthCommonScheduleBoard({
             );
           }
         } finally {
-          setPendingChangeLogPage(null);
+          if (aliveRef.current && generation === logSequence.current) setPendingChangeLogPage(null);
         }
       });
     },
@@ -354,8 +376,9 @@ export function YouthCommonScheduleBoard({
     weekday: YouthLearningScheduleWeekday,
     startMinute: number,
   ) {
+    if (busyRef.current || recovery !== "idle" || accessBlocked || !canManage) return;
     const schedule = scheduleMap.get(createCommonScheduleKey(weekday, startMinute));
-
+    sourceSnapshot.current = structuredClone(scheduleItems); invalidateYouthActivity(attemptRef.current); attemptRef.current = null;
     setSelectedCell({ weekday, startMinute });
     setStartMinuteDraft(schedule?.startMinute ?? startMinute);
     setEndMinuteDraft(schedule?.endMinute ?? startMinute + 60);
@@ -364,7 +387,10 @@ export function YouthCommonScheduleBoard({
     setFormError("");
   }
 
-  function closeScheduleModal() {
+  function closeScheduleModal(force = false) {
+    if (!force && busyRef.current) return;
+    if (!force && (scheduleDraft !== (selectedSchedule?.content ?? "") || recovery !== "idle") && !window.confirm("저장하지 않은 입력 또는 결과를 확인하지 못한 요청이 남아 있습니다. 서버 처리를 취소하지 않고 화면의 입력을 버리시겠습니까?")) return;
+    invalidateYouthActivity(attemptRef.current); attemptRef.current = null; setRecovery("idle");
     setSelectedCell(null);
     setStartMinuteDraft(
       getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
@@ -377,66 +403,41 @@ export function YouthCommonScheduleBoard({
     setFormError("");
   }
 
-  function saveSelectedSchedule() {
-    if (!selectedCell || pendingScheduleAction) {
-      return;
-    }
-
-    const sourceStartMinute = selectedCell.startMinute;
-
-    startPendingScheduleAction(async () => {
-      const result = await saveSchedule(
-        selectedCell.weekday,
-        startMinuteDraft,
-        endMinuteDraft,
-        scheduleDraft,
-        recurrenceWeekdayDraft,
-        sourceStartMinute,
-      );
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setScheduleItems((current) =>
-        mergeCommonScheduleResultItems(
-          current,
-          result.data.targetWeekdays,
-          result.data.sourceStartMinute,
-          result.data.schedules,
-        ),
-      );
-      closeScheduleModal();
-    });
+  function baselinesFor(days: YouthLearningScheduleWeekday[], sourceStartMinute: number): CommonBaseline[] { return days.map(weekday => { const row = sourceSnapshot.current.find(item => item.weekday === weekday && item.startMinute === sourceStartMinute); return { weekday, startMinute: sourceStartMinute, scheduleId: row?.id ?? null, expectedUpdatedAt: row?.updatedAt ?? null }; }); }
+  async function performCommonAction(payload: { weekday: YouthLearningScheduleWeekday; startMinute: number; endMinute: number; content: string; targetWeekdays: YouthLearningScheduleWeekday[]; sourceStartMinute: number; baselines: CommonBaseline[]; delete: boolean }) {
+    if (busyRef.current || recovery === "conflict" || accessBlocked || !canManage) return null;
+    if (!attemptRef.current) attemptRef.current = newYouthActivityAttempt("common.batch", payload);
+    const attempt = attemptRef.current; busyRef.current = true;
+    try {
+      const outcome = await runYouthActivity<typeof attempt.payload, { schedules?: YouthCommonSchedule[]; sourceStartMinute?: number; targetWeekdays?: YouthLearningScheduleWeekday[]; weekday?: YouthLearningScheduleWeekday; startMinute?: number }>(attempt, (frozen, requestId) => frozen.delete ? deleteSchedule(frozen.weekday, frozen.sourceStartMinute, { requestId, expectedActorId: actorId, scheduleId: frozen.baselines[0].scheduleId, expectedUpdatedAt: frozen.baselines[0].expectedUpdatedAt }) : saveSchedule(frozen.weekday, frozen.startMinute, frozen.endMinute, frozen.content, frozen.targetWeekdays, frozen.sourceStartMinute, { requestId, expectedActorId: actorId, baselines: frozen.baselines }), requestId => getYouthActivityReceiptAction(requestId, actorId));
+      if (!aliveRef.current || attemptRef.current !== attempt || outcome.kind === "blocked") return null;
+      if (outcome.kind === "committed") { attemptRef.current = null; setRecovery("idle"); window.location.reload(); return null; }
+      if (!outcome.result.ok) { setFormError(outcome.result.error); setRecovery(attempt.conflict ? "conflict" : attempt.unknown ? "unknown" : "idle"); if ([401,403,404].includes(outcome.result.status ?? 0)) { setAccessBlocked(true); setSelectedCell(null); if (outcome.result.status === 401) setScheduleItems([]); } if (!attempt.unknown && !attempt.conflict) attemptRef.current = null; return null; }
+      attemptRef.current = null; setRecovery("idle"); return outcome.result.data;
+    } finally { busyRef.current = false; }
   }
-
+  function saveSelectedSchedule() {
+    if (!selectedCell || busyRef.current || recovery === "conflict") return;
+    if (attemptRef.current?.payload.delete) { removeSelectedSchedule(); return; }
+    const targetWeekdays = normalizeYouthCommonScheduleWeekdays([selectedCell.weekday, ...recurrenceWeekdayDraft]);
+    const payload = { weekday: selectedCell.weekday, startMinute: startMinuteDraft, endMinute: endMinuteDraft, content: scheduleDraft, targetWeekdays, sourceStartMinute: selectedCell.startMinute, baselines: baselinesFor(targetWeekdays, selectedCell.startMinute), delete: false };
+    startPendingScheduleAction(async () => { const result = await performCommonAction(payload); if (!result) return; const data = result as { schedules: YouthCommonSchedule[]; sourceStartMinute: number; targetWeekdays: YouthLearningScheduleWeekday[] }; setScheduleItems(current => mergeCommonScheduleResultItems(current, data.targetWeekdays, data.sourceStartMinute, data.schedules)); closeScheduleModal(true); });
+  }
   function removeSelectedSchedule() {
-    if (!selectedCell) {
-      return;
-    }
-
-    startPendingScheduleAction(async () => {
-      const result = await deleteSchedule(
-        selectedCell.weekday,
-        selectedCell.startMinute,
-      );
-
-      if (!result.ok) {
-        setFormError(result.error);
-        return;
-      }
-
-      setScheduleItems((current) =>
-        mergeCommonScheduleItems(
-          current,
-          result.data.weekday,
-          result.data.startMinute,
-          null,
-        ),
-      );
-      closeScheduleModal();
-    });
+    if (!selectedCell || busyRef.current || recovery === "conflict") return;
+    if (recovery !== "unknown" && !window.confirm("이 공통 일정을 삭제하시겠습니까? 삭제한 일정은 복구할 수 없습니다.")) return;
+    const targetWeekdays = [selectedCell.weekday], payload = { weekday: selectedCell.weekday, startMinute: startMinuteDraft, endMinute: endMinuteDraft, content: scheduleDraft, targetWeekdays, sourceStartMinute: selectedCell.startMinute, baselines: baselinesFor(targetWeekdays, selectedCell.startMinute), delete: true };
+    startPendingScheduleAction(async () => { const result = await performCommonAction(payload); if (!result) return; setScheduleItems(current => mergeCommonScheduleItems(current, payload.weekday, payload.sourceStartMinute, null)); closeScheduleModal(true); });
+  }
+  async function recoverCommonSchedule() {
+    if (busyRef.current) return; busyRef.current = true;
+    try {
+      const latest = await getYouthCommonBaselineAction(actorId); if (!aliveRef.current) return;
+      if (!latest.ok) { setFormError(latest.error); if ([401,403].includes(latest.status)) { setAccessBlocked(true); setSelectedCell(null); } return; }
+      const rows = latest.data.items as YouthCommonSchedule[]; setScheduleItems(rows);
+      if (!window.confirm("최신 공통 일정을 확인했습니다. 현재 입력을 최신 일정 기준으로 다시 변경할 준비를 하시겠습니까? 아직 저장하지 않습니다.")) return;
+      sourceSnapshot.current = structuredClone(rows); invalidateYouthActivity(attemptRef.current); attemptRef.current = null; setRecovery("idle"); setFormError("최신 기준을 확인했습니다. 입력을 검토한 뒤 저장하세요.");
+    } finally { busyRef.current = false; }
   }
 
   function saveSelectedScheduleWithKeyboard(
@@ -453,25 +454,23 @@ export function YouthCommonScheduleBoard({
   function startScheduleDrag(
     event: PointerEvent<HTMLButtonElement>,
     schedule: YouthCommonSchedule,
-    mode: ScheduleDragMode,
   ) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (pendingBoardAction) {
+    if (controlsLocked) {
       return;
     }
 
     event.currentTarget.setPointerCapture(event.pointerId);
 
-    const bounds = getScheduleDragBounds(schedule, scheduleItems, mode);
+    const bounds = getScheduleDragBounds(schedule, scheduleItems);
 
     setScheduleDragState({
       ...bounds,
       hasMoved: false,
       initialEndMinute: schedule.endMinute,
       initialStartMinute: schedule.startMinute,
-      mode,
       previewEndMinute: schedule.endMinute,
       previewStartMinute: schedule.startMinute,
       scheduleId: schedule.id,
@@ -495,33 +494,14 @@ export function YouthCommonScheduleBoard({
     const hasMoved =
       scheduleDragState.hasMoved ||
       Math.abs(event.clientY - scheduleDragState.startY) >= 4;
-    let previewStartMinute = scheduleDragState.initialStartMinute;
-    let previewEndMinute = scheduleDragState.initialEndMinute;
-
-    if (scheduleDragState.mode === "move") {
-      const duration =
-        scheduleDragState.initialEndMinute -
-        scheduleDragState.initialStartMinute;
-
-      previewStartMinute = clampNumber(
-        scheduleDragState.initialStartMinute + minuteDelta,
-        scheduleDragState.minStartMinute,
-        scheduleDragState.maxStartMinute,
-      );
-      previewEndMinute = previewStartMinute + duration;
-    } else if (scheduleDragState.mode === "resize-start") {
-      previewStartMinute = clampNumber(
-        scheduleDragState.initialStartMinute + minuteDelta,
-        scheduleDragState.minStartMinute,
-        scheduleDragState.maxStartMinute,
-      );
-    } else {
-      previewEndMinute = clampNumber(
-        scheduleDragState.initialEndMinute + minuteDelta,
-        scheduleDragState.minEndMinute,
-        scheduleDragState.maxEndMinute,
-      );
-    }
+    const duration =
+      scheduleDragState.initialEndMinute - scheduleDragState.initialStartMinute;
+    const previewStartMinute = clampNumber(
+      scheduleDragState.initialStartMinute + minuteDelta,
+      scheduleDragState.minStartMinute,
+      scheduleDragState.maxStartMinute,
+    );
+    const previewEndMinute = previewStartMinute + duration;
 
     if (
       hasMoved !== scheduleDragState.hasMoved ||
@@ -554,8 +534,7 @@ export function YouthCommonScheduleBoard({
 
     const nextStartMinute = scheduleDragState.previewStartMinute;
     const nextEndMinute = scheduleDragState.previewEndMinute;
-    const shouldOpenModal =
-      scheduleDragState.mode === "move" && !scheduleDragState.hasMoved;
+    const shouldOpenModal = !scheduleDragState.hasMoved;
     setScheduleDragState(null);
 
     if (shouldOpenModal) {
@@ -589,16 +568,12 @@ export function YouthCommonScheduleBoard({
     setFormError("");
 
     startPendingScheduleAction(async () => {
-      const result = await saveSchedule(
-        schedule.weekday,
-        nextStartMinute,
-        nextEndMinute,
-        schedule.content,
-        [schedule.weekday],
-        schedule.startMinute,
-      );
+      sourceSnapshot.current = [structuredClone(schedule)];
+      const resultData = await performCommonAction({ weekday: schedule.weekday, startMinute: nextStartMinute, endMinute: nextEndMinute, content: schedule.content, targetWeekdays: [schedule.weekday], sourceStartMinute: schedule.startMinute, baselines: [{ weekday: schedule.weekday, startMinute: schedule.startMinute, scheduleId: schedule.id, expectedUpdatedAt: schedule.updatedAt ?? null }], delete: false });
+      const result = resultData ? { ok: true as const, data: resultData as { schedules: YouthCommonSchedule[] } } : { ok: false as const, error: "변경 결과를 확인하세요." };
 
       if (!result.ok) {
+        setSelectedCell({ weekday: schedule.weekday, startMinute: schedule.startMinute }); setStartMinuteDraft(nextStartMinute); setEndMinuteDraft(nextEndMinute); setScheduleDraft(schedule.content); setRecurrenceWeekdayDraft([schedule.weekday]);
         setScheduleItems((current) =>
           mergeCommonScheduleItems(
             current,
@@ -680,7 +655,7 @@ export function YouthCommonScheduleBoard({
               href={`${resolvedLabels.basePath}/print`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
             >
               세로 인쇄
             </Link>
@@ -688,7 +663,7 @@ export function YouthCommonScheduleBoard({
               href={`${resolvedLabels.basePath}/print?orientation=landscape`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
             >
               가로 인쇄
             </Link>
@@ -823,28 +798,6 @@ export function YouthCommonScheduleBoard({
                         >
                           <button
                             type="button"
-                            aria-label={`${formatScheduleRangeLabel(
-                              previewStartMinute,
-                              previewEndMinute,
-                            )} 시작 시간 조절`}
-                            title="시작 시간 조절"
-                            onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "resize-start")
-                            }
-                            onPointerMove={moveScheduleDrag}
-                            onPointerUp={(event) =>
-                              finishScheduleDrag(event, schedule)
-                            }
-                            onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 top-0 z-20 flex h-3.5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-1 w-8 rounded-full bg-[#196b69]"
-                            />
-                          </button>
-                          <button
-                            type="button"
                             aria-label={`${formatScheduleRangeLabel(previewStartMinute, previewEndMinute)} ${schedule.content}`}
                             title={`${formatScheduleRangeLabel(previewStartMinute, previewEndMinute)}\n${schedule.content}`}
                             onKeyDown={(event) => {
@@ -857,7 +810,7 @@ export function YouthCommonScheduleBoard({
                               }
                             }}
                             onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "move")
+                              startScheduleDrag(event, schedule)
                             }
                             onPointerMove={moveScheduleDrag}
                             onPointerUp={(event) =>
@@ -875,28 +828,6 @@ export function YouthCommonScheduleBoard({
                             <span className="mt-0.5 line-clamp-2 whitespace-pre-line break-words text-sm font-semibold leading-4 text-[#26333f] [overflow-wrap:anywhere]">
                               {visibleContent}
                             </span>
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`${formatScheduleRangeLabel(
-                              previewStartMinute,
-                              previewEndMinute,
-                            )} 종료 시간 조절`}
-                            title="종료 시간 조절"
-                            onPointerDown={(event) =>
-                              startScheduleDrag(event, schedule, "resize-end")
-                            }
-                            onPointerMove={moveScheduleDrag}
-                            onPointerUp={(event) =>
-                              finishScheduleDrag(event, schedule)
-                            }
-                            onPointerCancel={cancelScheduleDrag}
-                            className="absolute inset-x-0 bottom-0 z-20 flex h-3.5 cursor-ns-resize touch-none items-center justify-center bg-[#d7eceb]/80 transition hover:bg-[#c7e2e0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#196b69]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="h-1 w-8 rounded-full bg-[#196b69]"
-                            />
                           </button>
                         </div>
                       );
@@ -1023,11 +954,12 @@ export function YouthCommonScheduleBoard({
         />
       </section>
 
+      {recovery === "conflict" ? <button type="button" className="h-11 rounded-md border border-[var(--border-strong)] px-3 text-sm focus:ring-2 focus:ring-[var(--focus-ring)]" onClick={recoverCommonSchedule}>최신 목록 확인</button> : null}
       {selectedCell && selectedWeekday && selectedSlot ? (
         <AppModal
           className="max-w-2xl"
           labelledBy="common-schedule-modal-title"
-          onClose={closeScheduleModal}
+          onClose={() => closeScheduleModal()}
         >
           <form
             className="flex max-h-[calc(100dvh-3rem)] flex-col"
@@ -1049,7 +981,7 @@ export function YouthCommonScheduleBoard({
                 </h2>
 
                 {formError ? (
-                  <p className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
+                  <p ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
                     {formError}
                   </p>
                 ) : null}
@@ -1062,11 +994,12 @@ export function YouthCommonScheduleBoard({
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                       <select
                         aria-label="시작 시간"
+                        disabled={controlsLocked}
                         value={startMinuteDraft}
                         onChange={(event) => {
                           updateStartMinuteDraft(Number(event.target.value));
                         }}
-                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                        className="h-11 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
                       >
                         {createCommonScheduleStartMinuteOptions().map(
                           (minute) => (
@@ -1084,12 +1017,13 @@ export function YouthCommonScheduleBoard({
                       </span>
                       <select
                         aria-label="종료 시간"
+                        disabled={controlsLocked}
                         value={endMinuteDraft}
                         onChange={(event) => {
                           setEndMinuteDraft(Number(event.target.value));
                           setFormError("");
                         }}
-                        className="h-9 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
+                        className="h-11 w-full rounded-md border border-transparent bg-white px-2 text-sm text-[#16181d] outline-none transition hover:border-[#d9dee7] hover:bg-[#f7f9fc] focus:border-[#196b69] focus:bg-white focus:ring-2 focus:ring-[#d7eceb]"
                       >
                         {createCommonScheduleEndMinuteOptions(
                           startMinuteDraft,
@@ -1107,7 +1041,7 @@ export function YouthCommonScheduleBoard({
                     <span className="text-sm font-medium text-[#697386]">
                       반복
                     </span>
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {youthCommonScheduleWeekdays.map((weekday) => {
                         const selected = recurrenceWeekdayDraft.includes(
                           weekday.value,
@@ -1118,11 +1052,12 @@ export function YouthCommonScheduleBoard({
                             key={weekday.value}
                             type="button"
                             aria-pressed={selected}
+                            disabled={controlsLocked}
                             onClick={() =>
                               toggleRecurrenceWeekday(weekday.value)
                             }
                             className={[
-                              "h-9 rounded-md border text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
+                              "h-11 min-w-11 rounded-md border px-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
                               selected
                                 ? "border-[#196b69] bg-[#196b69] text-white"
                                 : "border-transparent bg-white text-[#394150] hover:border-[#d9dee7] hover:bg-[#f7f9fc]",
@@ -1138,6 +1073,7 @@ export function YouthCommonScheduleBoard({
 
                 <textarea
                   aria-label="일정 내용"
+                  disabled={controlsLocked}
                   data-modal-plain-body="true"
                   value={scheduleDraft}
                   onChange={(event) => {
@@ -1157,26 +1093,26 @@ export function YouthCommonScheduleBoard({
               <button
                 type="button"
                 onClick={removeSelectedSchedule}
-                disabled={pendingBoardAction || !selectedSchedule}
-                className="h-10 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={controlsLocked || !selectedSchedule}
+                className="h-11 rounded-md border border-[#efb4b4] bg-white px-4 text-sm font-semibold text-[#a13a3a] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 삭제
               </button>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  onClick={closeScheduleModal}
-                  disabled={pendingBoardAction}
-                  className="h-10 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => closeScheduleModal()}
+                  disabled={pendingScheduleAction}
+                  className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  disabled={pendingBoardAction}
-                  className="h-10 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
+                  disabled={pendingScheduleAction || recovery === "conflict" || accessBlocked || !canManage}
+                  className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:bg-[#cfd6e3] disabled:text-[#697386]"
                 >
-                  {pendingScheduleAction ? "저장 중" : "저장"}
+                  {recovery === "unknown" ? "같은 요청 결과 확인" : pendingScheduleAction ? "저장 중" : "저장"}
                 </button>
               </div>
             </footer>
@@ -1286,7 +1222,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
           defaultValue={filters.actorId}
           disabled={isPending}
           onChange={submitFilter}
-          className="mt-2 block h-10 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+          className="mt-2 block h-11 w-40 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         >
           <option value="all">전체 직원</option>
           {actors.map((actor) => (
@@ -1304,7 +1240,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
           defaultValue={String(filters.weekday)}
           disabled={isPending}
           onChange={submitFilter}
-          className="mt-2 block h-10 w-36 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+          className="mt-2 block h-11 w-36 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
         >
           <option value="all">전체 요일</option>
           {youthCommonScheduleWeekdays.map((weekday) => (
@@ -1317,7 +1253,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
       <button
         type="submit"
         disabled={isPending}
-        className="h-10 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+        className="h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
       >
         {isPending ? "적용 중" : "적용"}
       </button>
@@ -1335,7 +1271,7 @@ export function CommonScheduleChangeLogFilterControlsContent({
               }),
             )
           }
-          className="inline-flex h-10 items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+          className="inline-flex h-11 items-center rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
         >
           초기화
         </button>
@@ -1422,7 +1358,7 @@ function CommonScheduleChangeLogPaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+      <span className="inline-flex h-11 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
         {pending ? "..." : children}
       </span>
     );
@@ -1432,7 +1368,7 @@ function CommonScheduleChangeLogPaginationLink({
     <a
       href={href}
       aria-busy={pending || undefined}
-      className="inline-flex h-10 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
+      className="inline-flex h-11 items-center justify-center rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc]"
       onClick={(event) => {
         if (!onPageChange || shouldUseNativeNavigation(event)) {
           return;
@@ -1759,19 +1695,7 @@ export function CommonTimetableSkeleton({
                   top: block.top,
                 }}
               >
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-x-0 top-0 flex h-3.5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
-                >
-                  <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 flex h-3.5 items-center justify-center bg-[#e4f0ef]/90 dark:bg-[#1f6feb]/15"
-                >
-                  <span className="block h-1 w-9 animate-pulse rounded-full bg-[#b7d3d0] dark:bg-[#58a6ff]/35" />
-                </div>
-                <div className="animate-pulse px-3 pb-6 pt-6">
+                <div className="animate-pulse px-3 py-3.5">
                   <span className="block h-2.5 w-20 rounded bg-[#cddfdd] dark:bg-[#30363d]" />
                   <span className="mt-3 block h-3 w-28 rounded bg-[#d7e6e4] dark:bg-[#21262d]" />
                 </div>
@@ -1804,8 +1728,8 @@ export function CommonScheduleBoardSkeleton({
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-24" />
-            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-24" />
+            <CommonScheduleSkeletonBlock className="h-11 w-full sm:w-24" />
+            <CommonScheduleSkeletonBlock className="h-11 w-full sm:w-24" />
           </div>
         </div>
 
@@ -1821,9 +1745,9 @@ export function CommonScheduleBoardSkeleton({
             <CommonScheduleSkeletonBlock className="mt-2 h-4 w-44 max-w-full" />
           </div>
           <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[9rem_9rem_auto]">
-            <CommonScheduleSkeletonBlock className="h-10 w-full" />
-            <CommonScheduleSkeletonBlock className="h-10 w-full" />
-            <CommonScheduleSkeletonBlock className="h-10 w-full sm:w-20" />
+            <CommonScheduleSkeletonBlock className="h-11 w-full" />
+            <CommonScheduleSkeletonBlock className="h-11 w-full" />
+            <CommonScheduleSkeletonBlock className="h-11 w-full sm:w-20" />
           </div>
         </div>
         <ol className="mt-3 divide-y divide-[#eef1f5] border-y border-[#d9dee7] bg-white">
@@ -1929,7 +1853,6 @@ function sortCommonScheduleItems(
 function getScheduleDragBounds(
   schedule: YouthCommonSchedule,
   schedules: YouthCommonSchedule[],
-  mode: ScheduleDragMode,
 ) {
   const { nextStartMinute, previousEndMinute } = getScheduleAdjacentBounds(
     schedule,
@@ -1937,17 +1860,10 @@ function getScheduleDragBounds(
   );
   const duration = schedule.endMinute - schedule.startMinute;
   const minStartMinute = previousEndMinute;
-  const maxStartMinute =
-    mode === "resize-start"
-      ? schedule.endMinute - youthLearningScheduleMinuteStep
-      : nextStartMinute - duration;
-  const minEndMinute = schedule.startMinute + youthLearningScheduleMinuteStep;
-  const maxEndMinute = nextStartMinute;
+  const maxStartMinute = nextStartMinute - duration;
 
   return {
-    maxEndMinute: Math.max(minEndMinute, maxEndMinute),
     maxStartMinute: Math.max(minStartMinute, maxStartMinute),
-    minEndMinute,
     minStartMinute,
   };
 }

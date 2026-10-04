@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { PageTitle } from "@/components/page-title";
 import { YouthSubjectProgressBoard } from "@/components/youth-subject-progress-board";
 import { requireYouthBasicAccess } from "@/lib/youth-permissions";
-import { getYouthDirectory } from "@/lib/youth-management";
+import { getYouthLearningParents } from "@/lib/youth-mobile-learning";
+import { getEffectiveYouthPermissions } from "@/lib/youth-permissions-core";
 import {
   getYouthStudyConceptChecks,
   getYouthStudyConcepts,
@@ -13,9 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default async function YouthLearningProgressPage() {
-  await requireYouthBasicAccess();
+  const user = await requireYouthBasicAccess();
   const [youthProfiles, concepts, checks] = await Promise.all([
-    getYouthDirectory(),
+    getYouthLearningParents({ actorId: user.id, client: "web" }),
     getYouthStudyConcepts(),
     getYouthStudyConceptChecks(),
   ]);
@@ -28,9 +29,12 @@ export default async function YouthLearningProgressPage() {
       />
 
       <YouthSubjectProgressBoard
+        actorId={user.id}
+        canManage={getEffectiveYouthPermissions(user).canManageYouth}
         youths={youthProfiles.map((youth) => ({
           id: youth.id,
           name: youth.name,
+          updatedAt: youth.updatedAt,
         }))}
         concepts={concepts}
         checks={checks}

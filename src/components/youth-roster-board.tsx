@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ChangeEvent,
@@ -57,19 +58,23 @@ import type {
   YouthRosterPermissions,
 } from "@/lib/youth-roster";
 type YouthRosterBoardProps = {
+  actorId?: string;
   dischargedRecordsRestricted?: boolean;
   changeLogFilters?: YouthRosterChangeLogFilters;
   changeLogs?: YouthRosterChangeLog[];
   createYouth: (
     values: YouthCreateInput,
     documents?: FormData,
-  ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
+  ) => Promise<YouthActionResult<{ youth: YouthProfile | null }>>;
+  mutationStatus?: (requestId: string) => Promise<YouthActionResult<{ youth: YouthProfile | null; operation: string; targetId: string; outcome: string }>>;
+  loadEditor?: (youthId: string) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
   data: YouthRosterData;
   deleteYouth: (
     youthId: string,
   ) => Promise<YouthActionResult<{ youthId: string }>>;
   deleteDecisionDocument: (
     documentId: string,
+    baseline?: { requestId: string; youthId: string; expectedYouthUpdatedAt: string; expectedDocumentUpdatedAt: string; expectedActorId?: string },
   ) => Promise<
     YouthActionResult<{
       documentId: string;
@@ -83,8 +88,8 @@ type YouthRosterBoardProps = {
   ) => Promise<
     YouthActionResult<{
       dischargeDate: string;
-      extension: YouthDischargeExtension;
-      initialDischargeDate: string;
+      extension: YouthDischargeExtension | null;
+      initialDischargeDate: string | null;
       updatedAt: string;
       youthId: string;
     }>
@@ -109,7 +114,7 @@ type YouthRosterBoardProps = {
     youthId: string,
     values: YouthUpdateInput,
     documents?: FormData,
-  ) => Promise<YouthActionResult<{ youth: YouthProfile }>>;
+  ) => Promise<YouthActionResult<{ youth: YouthProfile | null }>>;
 };
 
 type YouthRosterModalState =
@@ -167,6 +172,7 @@ const decisionDocumentDownloadReasonOptions = [
 ] as const;
 
 export function YouthRosterBoard({
+  actorId,
   dischargedRecordsRestricted = false,
   changeLogFilters,
   changeLogs = [],
@@ -176,6 +182,8 @@ export function YouthRosterBoard({
   deleteDecisionDocument,
   extendYouthDischarge,
   loadChangeLogs,
+  mutationStatus,
+  loadEditor,
   pageHeader = false,
   permissions,
   recordYouthContactView,
@@ -431,11 +439,14 @@ export function YouthRosterBoard({
         />
         {modal ? (
           <YouthRosterFormModal
+            actorId={actorId}
             createYouth={createYouth}
             deleteYouth={deleteYouth}
             deleteDecisionDocument={deleteDecisionDocument}
             extendYouthDischarge={extendYouthDischarge}
             modal={modal}
+            mutationStatus={mutationStatus}
+            loadEditor={loadEditor}
             permissions={permissions}
             onClose={() => setModal(null)}
             onDecisionDocumentDownload={(youthName, document, returnFocusTo) =>
@@ -1648,11 +1659,14 @@ function YouthDetailValue({ label, value }: { label: string; value: string }) {
 }
 
 export function YouthRosterFormModal({
+  actorId,
   createYouth,
   deleteYouth,
   deleteDecisionDocument,
   extendYouthDischarge,
   modal,
+  mutationStatus,
+  loadEditor,
   permissions,
   onClose,
   onDecisionDocumentDownload,
@@ -1662,11 +1676,14 @@ export function YouthRosterFormModal({
   recordYouthDetailView,
   updateYouth,
 }: {
+  actorId?: string;
   createYouth: YouthRosterBoardProps["createYouth"];
   deleteYouth: YouthRosterBoardProps["deleteYouth"];
   deleteDecisionDocument: YouthRosterBoardProps["deleteDecisionDocument"];
   extendYouthDischarge?: YouthRosterBoardProps["extendYouthDischarge"];
   modal: YouthRosterModalState;
+  mutationStatus?: YouthRosterBoardProps["mutationStatus"];
+  loadEditor?: YouthRosterBoardProps["loadEditor"];
   permissions: YouthRosterPermissions;
   onClose: () => void;
   onDecisionDocumentDownload: (
@@ -1686,6 +1703,16 @@ export function YouthRosterFormModal({
   const [draft, setDraft] = useState(() =>
     createYouthFormDraft(modal.mode === "edit" ? modal.youth : null),
   );
+  const mounted = useRef(true);
+  const submitting = useRef(false);
+  const attempt = useRef<{ requestId: string; values: YouthCreateInput | YouthUpdateInput; documents?: FormData; unknown: boolean } | null>(null);
+  const documentAttempt = useRef<{ documentId: string; baseline: { requestId: string; youthId: string; expectedYouthUpdatedAt: string; expectedDocumentUpdatedAt: string; expectedActorId?: string }; unknown: boolean } | null>(null);
+  const baseline = useRef(createYouthFormDraft(modal.mode === "edit" ? modal.youth : null));
+  const contactBaseline = useRef<YouthFormDraft | null>(modal.mode === "create" || !hasRegisteredYouthContact(modal.youth) ? createYouthFormDraft(modal.mode === "edit" ? modal.youth : null) : null);
+  const [unknownAttempt, setUnknownAttempt] = useState(false);
+  const [denied, setDenied] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; attempt.current = null; documentAttempt.current = null; contactBaseline.current = null; }; }, []);
   const [savedDocuments, setSavedDocuments] = useState<
     YouthDecisionDocumentItem[]
   >(() => (modal.mode === "edit" ? modal.youth.decisionDocuments : []));
@@ -1728,9 +1755,22 @@ export function YouthRosterFormModal({
     void recordYouthDetailView(viewedYouthId).catch(() => undefined);
   }, [permissions.canViewYouthDetails, viewedYouthId, recordYouthDetailView]);
 
+  const identity = useRef({ actorId, details: permissions.canViewYouthDetails, contacts: permissions.canViewYouthContacts, documents: permissions.canDownloadYouthDocuments });
+  useEffect(() => {
+    const previous = identity.current;
+    const lost = previous.actorId !== actorId || !permissions.canManageYouth || previous.details && !permissions.canViewYouthDetails || previous.contacts && !permissions.canViewYouthContacts || previous.documents && !permissions.canDownloadYouthDocuments;
+    identity.current = { actorId, details: permissions.canViewYouthDetails, contacts: permissions.canViewYouthContacts, documents: permissions.canDownloadYouthDocuments };
+    if (lost) {
+      const frozen = attempt.current; if (frozen) { for (const key of Object.keys(frozen.values)) delete (frozen.values as unknown as Record<string, unknown>)[key]; if (frozen.documents) for (const key of [...frozen.documents.keys()]) frozen.documents.delete(key); }
+      attempt.current = null; documentAttempt.current = null; contactBaseline.current = null; baseline.current = createYouthFormDraft(null);
+      setDraft(createYouthFormDraft(null)); setSavedDocuments([]); setContactVisible(false); setUnknownAttempt(false); setDenied(true); setDischargeState(null); setError("계정 또는 권한이 변경되었습니다. 창을 닫고 다시 시작해 주세요.");
+    }
+  }, [actorId, permissions.canManageYouth, permissions.canViewYouthContacts, permissions.canViewYouthDetails, permissions.canDownloadYouthDocuments]);
+
   function updateDraft(
     values: Partial<Omit<YouthFormDraft, "familyContacts">>,
   ) {
+    if (submitting.current || attempt.current?.unknown) return;
     setDraft((current) => ({
       ...current,
       ...values,
@@ -1739,6 +1779,7 @@ export function YouthRosterFormModal({
   }
 
   function addFamilyContact() {
+    if (submitting.current || attempt.current?.unknown) return;
     setDraft((current) => ({
       ...current,
       familyContacts: [
@@ -1750,6 +1791,7 @@ export function YouthRosterFormModal({
   }
 
   function removeFamilyContact(key: string) {
+    if (submitting.current || attempt.current?.unknown) return;
     setDraft((current) => ({
       ...current,
       familyContacts:
@@ -1764,6 +1806,7 @@ export function YouthRosterFormModal({
     key: string,
     values: Partial<Omit<FamilyContactDraft, "key">>,
   ) {
+    if (submitting.current || attempt.current?.unknown) return;
     setDraft((current) => ({
       ...current,
       familyContacts: current.familyContacts.map((contact) =>
@@ -1795,6 +1838,9 @@ export function YouthRosterFormModal({
           return;
         }
 
+        if (!mounted.current) return;
+        const revealed = { ...draft, phone: result.data.phone ?? "", familyContacts: result.data.familyContacts.length ? result.data.familyContacts.map((contact, index) => ({ key: contact.id || `family-contact-${index}`, phone: contact.phone ?? "", relationship: contact.relationship ?? "" })) : [createFamilyContactDraft(0)] };
+        contactBaseline.current = revealed;
         setDraft((current) => ({
           ...current,
           familyContacts:
@@ -1815,6 +1861,7 @@ export function YouthRosterFormModal({
   }
 
   function addDecisionFiles(event: ChangeEvent<HTMLInputElement>) {
+    if (submitting.current || attempt.current?.unknown) return;
     if (!permissions.canManageYouth) {
       return;
     }
@@ -1838,6 +1885,7 @@ export function YouthRosterFormModal({
   }
 
   function removeDecisionFile(file: File) {
+    if (submitting.current || attempt.current?.unknown) return;
     setDraft((current) => ({
       ...current,
       decisionFiles: current.decisionFiles.filter((item) => item !== file),
@@ -1846,105 +1894,93 @@ export function YouthRosterFormModal({
   }
 
   function deleteSavedDocument(document: YouthDecisionDocumentItem) {
-    if (modal.mode !== "edit" || !permissions.canManageYouth) {
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `"${document.originalName}" 결정문 파일을 삭제할까요?\n삭제한 파일은 복구할 수 없습니다.`,
-      )
-    ) {
-      return;
-    }
-
-    setError("");
-    setPendingIntent("deleteDocument");
-
+    if (modal.mode !== "edit" || !permissions.canManageYouth || submitting.current || attempt.current?.unknown || denied) return;
+    const previous = documentAttempt.current;
+    if (previous && previous.documentId !== document.id) { setError("이전 결정문 삭제 결과를 먼저 확인하세요."); return; }
+    if (!previous && !window.confirm(`"${document.originalName}" 결정문 파일을 삭제할까요?\n삭제한 파일은 복구할 수 없습니다.`)) return;
+    const frozen = previous ?? { documentId: document.id, baseline: { requestId: crypto.randomUUID(), youthId: modal.youth.id, expectedYouthUpdatedAt: expectedUpdatedAt!, expectedDocumentUpdatedAt: document.updatedAt ?? document.createdAt, expectedActorId: actorId }, unknown: false };
+    documentAttempt.current = frozen; submitting.current = true; setError(""); setPendingIntent("deleteDocument");
     startTransition(async () => {
       try {
-        const result = await deleteDecisionDocument(document.id);
-
-        if (!result.ok) {
-          setError(result.error);
-          return;
+        let result;
+        if (frozen.unknown) {
+          if (!mutationStatus) { setError("삭제 결과를 확인할 수 없습니다. 창을 유지하고 다시 확인하세요."); return; }
+          const status = await mutationStatus(frozen.baseline.requestId);
+          if (!mounted.current || documentAttempt.current !== frozen) return;
+          if (status.ok) {
+            if (status.data.operation !== "document.delete" || status.data.targetId !== document.id) { setError("삭제 요청의 대상이 변경되었습니다."); return; }
+            if (!status.data.youth) { clearPrivateState(); onClose(); return; }
+            result = { ok: true as const, data: { documentId: document.id, youthId: status.data.youth.id, updatedAt: status.data.youth.updatedAt } };
+          } else if (status.status !== 404) {
+            if (status.status === 401 || status.status === 403) clearPrivateState();
+            setError(status.error); return;
+          }
         }
-
-        const nextDocuments = savedDocuments.filter(
-          (item) => item.id !== result.data.documentId,
-        );
-
-        setSavedDocuments(nextDocuments);
-        setExpectedUpdatedAt(result.data.updatedAt);
-        onSaved({
-          ...modal.youth,
-          ...(dischargeState
-            ? {
-                dischargeDate: dischargeState.currentDischargeDate,
-                dischargeExtensions: dischargeState.extensions,
-                initialDischargeDate: dischargeState.initialDischargeDate,
-              }
-            : {}),
-          decisionDocuments: nextDocuments,
-          updatedAt: result.data.updatedAt,
-        });
-      } finally {
-        setPendingIntent(null);
-      }
+        result ??= await deleteDecisionDocument(document.id, frozen.baseline);
+        if (!mounted.current || documentAttempt.current !== frozen) return;
+        if (!result.ok) {
+          frozen.unknown = !result.status || result.status >= 500;
+          if (result.status === 401 || result.status === 403 || result.status === 404) clearPrivateState();
+          if (result.status === 409) { setConflict(true); documentAttempt.current = null; }
+          if (!frozen.unknown && result.status !== 409) documentAttempt.current = null;
+          setError(result.error); return;
+        }
+        documentAttempt.current = null;
+        const nextDocuments = savedDocuments.filter(item => item.id !== result.data.documentId);
+        setSavedDocuments(nextDocuments); setExpectedUpdatedAt(result.data.updatedAt);
+        onSaved({ ...modal.youth, ...(dischargeState ? { dischargeDate: dischargeState.currentDischargeDate, dischargeExtensions: dischargeState.extensions, initialDischargeDate: dischargeState.initialDischargeDate } : {}), decisionDocuments: nextDocuments, updatedAt: result.data.updatedAt });
+      } catch { if (mounted.current && documentAttempt.current === frozen) { frozen.unknown = true; setError("삭제 결과를 확인하지 못했습니다. 같은 결정문의 삭제 버튼으로 결과를 다시 확인하세요."); } }
+      finally { submitting.current = false; if (mounted.current) setPendingIntent(null); }
     });
   }
 
+  function clearPrivateState() { const frozen = attempt.current; if (frozen) { for (const key of Object.keys(frozen.values)) delete (frozen.values as unknown as Record<string, unknown>)[key]; if (frozen.documents) for (const key of [...frozen.documents.keys()]) frozen.documents.delete(key); } setDenied(true); attempt.current = null; documentAttempt.current = null; contactBaseline.current = null; baseline.current = createYouthFormDraft(null); setDraft(createYouthFormDraft(null)); setSavedDocuments([]); setContactVisible(false); setUnknownAttempt(false); }
+  function requestClose() { if (submitting.current || attempt.current?.unknown || documentAttempt.current?.unknown) { setError("저장 또는 삭제 결과를 먼저 확인해 주세요. 같은 요청으로 결과를 확인할 수 있습니다."); return; } onClose(); }
+  async function adoptFreshBaseline() {
+    if (modal.mode !== "edit" || !loadEditor || submitting.current) return;
+    submitting.current = true; setPendingIntent("save");
+    try { const result = await loadEditor(modal.youth.id); if (!mounted.current) return; if (!result.ok) { if (result.status === 401 || result.status === 403 || result.status === 404) clearPrivateState(); setError(result.error); return; }
+      if (result.data.youth.id !== modal.youth.id) { setError("수정할 대상이 변경되었습니다. 창을 닫고 다시 확인해 주세요."); return; }
+      if (!window.confirm(`최신 ${result.data.youth.name} 청소년 정보를 수정 기준으로 사용할까요? 입력한 변경 내용은 유지됩니다.`)) return;
+      baseline.current = createYouthFormDraft(mapYouthProfileToRosterItem(result.data.youth)); contactBaseline.current = null; setContactVisible(false); setExpectedUpdatedAt(result.data.youth.updatedAt); attempt.current = null; setConflict(false); setUnknownAttempt(false); setError("");
+    } catch { if (mounted.current) setError("최신 정보를 불러오지 못했습니다. 입력을 보관하고 다시 확인해 주세요."); }
+    finally { submitting.current = false; if (mounted.current) setPendingIntent(null); }
+  }
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current || denied) return;
+    if (documentAttempt.current?.unknown) { setError("결정문 삭제 결과를 먼저 확인하세요."); return; }
     setError("");
-
-    if (!permissions.canManageYouth) {
-      setError("청소년 정보 관리 권한이 없습니다.");
-      return;
+    if (!permissions.canManageYouth) { clearPrivateState(); setError("청소년 정보 관리 권한이 없습니다."); return; }
+    if (conflict) { setError("최신 정보를 확인하고 수정 기준을 직접 선택해 주세요."); return; }
+    if (!attempt.current) {
+      const values = getYouthInputFromDraft(draft), requestId = crypto.randomUUID();
+      const family = (value: YouthFormDraft) => JSON.stringify(value.familyContacts.map(contact => ({ phone: contact.phone.trim(), relationship: contact.relationship.trim() })).filter(contact => contact.phone || contact.relationship));
+      const updateValues: YouthUpdateInput = { requestId, expectedActorId: actorId, name: values.name, admissionDate: values.admissionDate, expectedUpdatedAt,
+        ...(permissions.canViewYouthDetails && draft.birthDate !== baseline.current.birthDate ? { birthDate: values.birthDate } : {}),
+        ...(permissions.canViewYouthContacts && contactVisible && contactBaseline.current && draft.phone !== contactBaseline.current.phone ? { phone: values.phone } : {}),
+        ...(permissions.canViewYouthContacts && contactVisible && contactBaseline.current && family(draft) !== family(contactBaseline.current) ? { familyContacts: values.familyContacts } : {}) };
+      if (modal.mode === "edit" && !window.confirm(youthUpdateConfirmMessage)) return;
+      attempt.current = { requestId, values: modal.mode === "create" ? { ...values, requestId, expectedActorId: actorId } : updateValues, documents: getDecisionDocumentsFormData([...draft.decisionFiles]), unknown: false };
     }
-
-    const values = getYouthInputFromDraft(draft);
-    const updateValues =
-      modal.mode === "edit"
-        ? {
-            ...values,
-            ...(!permissions.canViewYouthContacts
-              ? { familyContacts: undefined, phone: undefined }
-              : {}),
-          }
-        : values;
-    const documentsFormData = getDecisionDocumentsFormData(draft.decisionFiles);
-
-    if (modal.mode === "edit" && !window.confirm(youthUpdateConfirmMessage)) {
-      return;
-    }
-
-    setPendingIntent("save");
-
+    const frozen = attempt.current;
+    submitting.current = true; setPendingIntent("save");
     startTransition(async () => {
       try {
-        const result =
-          modal.mode === "create"
-            ? await createYouth(values, documentsFormData)
-            : await updateYouth(
-                modal.youth.id,
-                {
-                  ...updateValues,
-                  expectedUpdatedAt,
-                },
-                documentsFormData,
-              );
-
-        if (!result.ok) {
-          setError(result.error);
-          return;
+        if (frozen.unknown) {
+          if (!mutationStatus) { setError("저장 결과를 확인할 수 없습니다. 입력을 보관하고 다시 확인해 주세요."); return; }
+          const status = await mutationStatus(frozen.requestId); if (!mounted.current || attempt.current !== frozen) return;
+          if (status.ok) { const expectedOperation = modal.mode === "create" ? "profile.create" : "profile.patch"; if (status.data.operation !== expectedOperation || modal.mode === "edit" && status.data.targetId !== modal.youth.id) { setError("요청 결과의 대상이 일치하지 않습니다."); return; } if (status.data.youth) onSaved(mapYouthProfileToRosterItem(status.data.youth)); attempt.current = null; onClose(); return; }
+          if (status.status === 401 || status.status === 403 || status.status === 404 && status.code !== "NOT_FOUND") { clearPrivateState(); setError(status.error); return; }
+          if (status.code !== "NOT_FOUND") { setError(status.error); return; }
         }
-
-        onSaved(mapYouthProfileToRosterItem(result.data.youth));
-        onClose();
-      } finally {
-        setPendingIntent(null);
-      }
+        if (!mounted.current || attempt.current !== frozen) return;
+        const result = modal.mode === "create" ? await createYouth(frozen.values as YouthCreateInput, frozen.documents) : await updateYouth(modal.youth.id, frozen.values as YouthUpdateInput, frozen.documents);
+        if (!mounted.current || attempt.current !== frozen) return;
+        if (!result.ok) { if (result.status === 401 || result.status === 403 || result.status === 404) { clearPrivateState(); } else if (result.code === "YOUTH_CONFLICT") { setConflict(true); } else if (!result.status || result.status >= 500) { frozen.unknown = true; setUnknownAttempt(true); } else if (result.status < 409) { attempt.current = null; } setError(result.error); return; }
+        if (result.data.youth) onSaved(mapYouthProfileToRosterItem(result.data.youth)); attempt.current = null; onClose();
+      } catch { if (mounted.current && attempt.current === frozen) { frozen.unknown = true; setUnknownAttempt(true); setError("저장 결과를 확인하지 못했습니다. 입력과 파일을 보관하고 같은 요청의 결과를 확인해 주세요."); } }
+      finally { submitting.current = false; if (mounted.current) setPendingIntent(null); }
     });
   }
 
@@ -1986,7 +2022,7 @@ export function YouthRosterFormModal({
       <AppModal
       className="max-w-2xl"
       labelledBy={titleId}
-      onClose={onClose}
+      onClose={requestClose}
       returnFocusTo={modal.returnFocusTo}
     >
       <form onSubmit={submitForm}>
@@ -2009,7 +2045,7 @@ export function YouthRosterFormModal({
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="h-11 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#d7eceb]"
               >
                 닫기
@@ -2017,6 +2053,7 @@ export function YouthRosterFormModal({
             </div>
           </header>
 
+          <fieldset className="contents" disabled={pending || unknownAttempt || denied}>
           <div className="grid gap-4 px-6 py-5">
             <label>
               <span className="flex items-center gap-2 text-sm font-semibold text-[#394150]">
@@ -2065,13 +2102,13 @@ export function YouthRosterFormModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <RosterFormField label="생년월일">
+              {modal.mode === "create" || permissions.canViewYouthDetails ? <RosterFormField label="생년월일">
                 <SplitDateInput
                   ariaLabel="생년월일"
                   value={draft.birthDate}
                   onChange={(value) => updateDraft({ birthDate: value })}
                 />
-              </RosterFormField>
+              </RosterFormField> : <p className="text-sm text-[#697386]">생년월일 열람 권한이 없어 기존 값을 보존합니다.</p>}
               {!canAccessContactFields ? (
                 <div className="rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-3 py-3 text-sm text-[#697386]">
                   연락처 열람 권한이 없어 기존 값은 전송되거나 표시되지 않습니다.
@@ -2272,6 +2309,7 @@ export function YouthRosterFormModal({
             ) : null}
           </div>
 
+          </fieldset>
           <footer className="sticky bottom-0 flex flex-col gap-2 border-t border-[#eef1f5] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             {modal.mode === "edit" &&
             modal.canDelete &&
@@ -2289,9 +2327,10 @@ export function YouthRosterFormModal({
               <span aria-hidden="true" className="hidden sm:block" />
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              {conflict && loadEditor ? <button type="button" onClick={() => void adoptFreshBaseline()} disabled={pending} className="h-11 rounded-md border px-4 text-sm font-semibold">최신 수정 기준 확인</button> : null}
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 disabled={pending}
                 className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -2299,10 +2338,10 @@ export function YouthRosterFormModal({
               </button>
               <button
                 type="submit"
-                disabled={pending}
+                disabled={pending || denied || conflict}
                 className="h-11 rounded-md bg-[#196b69] px-4 text-sm font-semibold text-white transition hover:bg-[#12514f] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {pending && pendingIntent === "save" ? "저장 중" : "저장"}
+                {pending && pendingIntent === "save" ? "저장 중" : unknownAttempt ? "저장 결과 확인" : "저장"}
               </button>
             </div>
           </footer>
@@ -2320,6 +2359,7 @@ export function YouthRosterFormModal({
           initialDischargeDate={dischargeState.initialDischargeDate}
           onClose={() => setDischargeExtensionOpen(false)}
           onExtended={(result) => {
+            if (!result.extension || !result.initialDischargeDate) { setError("연장 등록 결과를 최신 정보에서 확인해 주세요."); setDischargeExtensionOpen(false); return; }
             const nextExtensions = [
               ...dischargeState.extensions,
               result.extension,
@@ -2341,6 +2381,9 @@ export function YouthRosterFormModal({
             });
             setDischargeExtensionOpen(false);
           }}
+          expectedUpdatedAt={expectedUpdatedAt}
+          actorId={actorId}
+          mutationStatus={mutationStatus}
           youthId={modal.youth.id}
           youthName={modal.youth.name}
         />
@@ -2437,26 +2480,32 @@ function DischargeDateSummary({
 }
 
 function YouthDischargeExtensionModal({
+  actorId,
+  mutationStatus,
   currentDischargeDate,
   extendYouthDischarge,
   extensions,
+  expectedUpdatedAt,
   initialDischargeDate,
   onClose,
   onExtended,
   youthId,
   youthName,
 }: {
+  actorId?: string;
+  mutationStatus?: YouthRosterBoardProps["mutationStatus"];
   currentDischargeDate: string | null;
   extendYouthDischarge: NonNullable<
     YouthRosterBoardProps["extendYouthDischarge"]
   >;
   extensions: YouthDischargeExtension[];
+  expectedUpdatedAt?: string;
   initialDischargeDate: string | null;
   onClose: () => void;
   onExtended: (result: {
     dischargeDate: string;
-    extension: YouthDischargeExtension;
-    initialDischargeDate: string;
+    extension: YouthDischargeExtension | null;
+    initialDischargeDate: string | null;
     updatedAt: string;
     youthId: string;
   }) => void;
@@ -2468,6 +2517,12 @@ function YouthDischargeExtensionModal({
   const [extendedDischargeDate, setExtendedDischargeDate] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const extensionAttempt = useRef<{ requestId: string; extendedDischargeDate: string; reason: string; expectedUpdatedAt?: string; expectedActorId?: string } | null>(null);
+  const extensionGate = useRef(false);
+  const [extensionUnknown, setExtensionUnknown] = useState(false);
+  const [extensionDenied, setExtensionDenied] = useState(false);
+  const extensionMounted = useRef(true);
+  useEffect(() => () => { extensionMounted.current = false; extensionAttempt.current = null; }, [actorId, youthId]);
   const [pending, startTransition] = useTransition();
   const canExtend = Boolean(currentDischargeDate && initialDischargeDate) && extensions.length < 2;
 
@@ -2475,18 +2530,30 @@ function YouthDischargeExtensionModal({
     event.preventDefault();
     setError("");
 
+    if (extensionGate.current || extensionDenied || !extensionMounted.current) return;
+    extensionGate.current = true;
+    extensionAttempt.current ??= { requestId: crypto.randomUUID(), extendedDischargeDate, reason, expectedUpdatedAt, expectedActorId: actorId };
+    const frozen = extensionAttempt.current;
     startTransition(async () => {
-      const result = await extendYouthDischarge(youthId, {
-        extendedDischargeDate,
-        reason,
-      });
-
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-
-      onExtended(result.data);
+      try {
+        if (extensionUnknown) {
+          if (!mutationStatus) { setError("원래 연장 결과를 먼저 확인할 수 없습니다. 상태를 새로고침해 주세요."); return; }
+          const proof = await mutationStatus(frozen.requestId);
+          if (!extensionMounted.current || extensionAttempt.current !== frozen) return;
+          if (!proof.ok && !(proof.status === 404 && proof.code === "NOT_FOUND")) { setError(proof.error); return; }
+          if (proof.ok && (proof.data.operation !== "profile.extend" || proof.data.targetId !== youthId || proof.data.outcome !== "present")) { setError("원래 연장 결과를 최신 정보에서 확인해 주세요."); return; }
+        }
+        const result = await extendYouthDischarge(youthId, frozen);
+        if (!extensionMounted.current || extensionAttempt.current !== frozen) return;
+        if (!result.ok) {
+          if (result.status === 400 || result.status === 422) { extensionAttempt.current = null; setExtensionUnknown(false); }
+          else if ([401,403,404].includes(result.status ?? 0)) { Object.assign(frozen, { reason: "", extendedDischargeDate: "" }); extensionAttempt.current = null; setExtensionUnknown(false); setExtensionDenied(true); setReason(""); setExtendedDischargeDate(""); }
+          else if (!result.status || result.status >= 500) setExtensionUnknown(true);
+          setError(result.error); return;
+        }
+        onExtended(result.data);
+      } catch { if (extensionMounted.current) { setExtensionUnknown(true); setError("연장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해 주세요."); } }
+      finally { extensionGate.current = false; }
     });
   }
 
@@ -2495,7 +2562,7 @@ function YouthDischargeExtensionModal({
       className="max-w-lg"
       describedBy={descriptionId}
       labelledBy={titleId}
-      onClose={onClose}
+      onClose={() => { if (!extensionGate.current && !extensionUnknown) onClose(); }}
     >
       <form onSubmit={submitExtension}>
         <div className="max-h-[calc(100vh-3rem)] overflow-y-auto">
@@ -2515,7 +2582,7 @@ function YouthDischargeExtensionModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={pending}
+              disabled={pending || extensionUnknown}
               className="h-11 shrink-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
             >
               닫기
@@ -2556,7 +2623,7 @@ function YouthDischargeExtensionModal({
             ) : null}
 
             {canExtend ? (
-              <>
+              <fieldset disabled={pending || extensionUnknown || extensionDenied} className="grid gap-4">
                 <RosterFormField label="연장 퇴소일">
                   <SplitDateInput
                     ariaLabel="연장 퇴소일"
@@ -2581,7 +2648,7 @@ function YouthDischargeExtensionModal({
                     className="mt-2 w-full resize-y rounded-md border border-[#cfd6e3] px-3 py-2 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
                   />
                 </label>
-              </>
+              </fieldset>
             ) : (
               <p className="rounded-md border border-[#f0c6c6] bg-[#fff5f2] px-3 py-3 text-sm text-[#7a271a]">
                 기본 퇴소 예정일이 없거나 연장 횟수 2회를 모두 사용했습니다.
@@ -2599,17 +2666,17 @@ function YouthDischargeExtensionModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={pending}
+              disabled={pending || extensionUnknown}
               className="h-11 rounded-md border border-[#cfd6e3] bg-white px-4 text-sm font-semibold text-[#394150] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-60"
             >
               취소
             </button>
             <button
               type="submit"
-              disabled={!canExtend || pending}
+              disabled={!canExtend || pending || extensionDenied}
               className="h-11 rounded-md bg-[#9d3328] px-4 text-sm font-semibold text-white transition hover:bg-[#7a271a] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {pending ? "연장 등록 중" : "퇴소 연장 등록"}
+              {pending ? "연장 등록 중" : extensionUnknown ? "같은 연장 요청 결과 확인" : "퇴소 연장 등록"}
             </button>
           </footer>
         </div>

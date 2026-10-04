@@ -162,6 +162,7 @@ export async function getAdmittedYouthDirectory(
 }
 
 export function mapYouthDecisionDocument(record: {
+  updatedAt?: Date;
   id: string;
   originalName: string;
   size: number;
@@ -170,6 +171,7 @@ export function mapYouthDecisionDocument(record: {
   return {
     id: record.id,
     originalName: record.originalName,
+    ...(record.updatedAt ? { updatedAt: record.updatedAt.toISOString() } : {}),
     size: record.size,
     createdAt: record.createdAt.toISOString(),
   };

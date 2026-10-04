@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { DailyReportBackButton } from "@/components/daily-report-back-button";
 import { TextAction } from "@/components/ui";
 import { ChatProvider } from "@/lib/chat-provider";
+import { YouthProvider } from "@/components/youth-provider";
 import { ResourceProvider } from "@/providers/ResourceProvider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
@@ -37,6 +38,20 @@ function Navigation() {
         <Stack.Screen name="resources/[id]/edit" options={{ title: "자료 수정", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
         <Stack.Screen name="resources/[id]/viewers" options={{ title: "자료 열람 현황", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
         <Stack.Screen name="resources/attachments/[id]" options={{ title: "자료 첨부파일", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="자료실 뒤로" /> : null }} />
+        <Stack.Screen name="youth/index" options={{ title: "청소년 관리", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/new" options={{ title: "청소년 등록", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]" options={{ title: "청소년 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/edit" options={{ title: "청소년 수정", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/extension" options={{ title: "퇴소 연장", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/personal-schedule" options={{ title: "개인 일정", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/learning" options={{ title: "학습 관리", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/history" options={{ title: "청소년 변경 이력", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/common-schedule" options={{ title: "공통 시간표", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/rules" options={{ title: "청소년 규칙", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/[id]/documents" options={{ title: "결정문", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/activity-history" options={{ title: "처리 이력", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/study-concepts" options={{ title: "공용 학습 개념", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="youth/decision-documents/[id]" options={{ title: "결정문 다운로드", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
         <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
@@ -57,5 +72,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><Navigation /></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><Navigation /></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
 }

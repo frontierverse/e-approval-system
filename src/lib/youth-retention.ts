@@ -113,6 +113,15 @@ export async function purgeYouthRecord(youthId: string, input: YouthPurgeInput) 
     if (state !== "due" && state !== "purging") throw new Error("실제 퇴소와 상담·사후관리 완료 후 보존기간이 끝나고, 보존 보류가 없는 기록만 파기할 수 있습니다.");
     if (record.purgeLeaseUntil && record.purgeLeaseUntil > new Date()) throw new Error("파기를 처리 중입니다. 잠시 후 상태를 확인하세요.");
     if (record._count.mathResults && (!record.mathSettlement || record.mathSettlement.reopenedAt)) throw new Error("수학 보상 정산을 먼저 확정하세요. 미정산 기록은 파기할 수 없습니다.");
+    // The legacy direct-delete path cannot certify the new purpose-owned file/request ledgers.
+    // This veto only narrows existing purge eligibility; it performs no cleanup or resumption.
+    const linkedLedgers = await Promise.all([
+      tx.youthMutationReceipt.count({ where: { youthId } }),
+      tx.youthViewRequest.count({ where: { youthId } }),
+      tx.youthDecisionUpload.count({ where: { OR: [{ targetYouthId: youthId }, { consumedYouthId: youthId }, { sourceDocumentId: { in: record.decisionDocuments.map(file => file.id) } }] } }),
+      tx.youthDecisionFileCleanup.count({ where: { youthId } }),
+    ]);
+    if (linkedLedgers.some(count => count > 0)) throw new Error("새 파일·요청 이력의 안전한 파기 확인이 필요합니다. 기존 직접 파기는 시작하지 않았습니다. 관리자가 처리 대기 상태를 확인해 주세요.");
     const changed = await tx.youth.updateMany({ where: { id: youthId, retentionVersion: input.version, purgedAt: null }, data: {
       purgeStartedAt: record.purgeStartedAt ?? new Date(), purgeLeaseUntil: new Date(Date.now() + 5 * 60 * 1000), retentionVersion: { increment: 1 },
     } });
