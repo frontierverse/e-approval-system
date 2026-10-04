@@ -62,7 +62,20 @@ test("small mobile dark theme and 200 percent zoom keep actions reachable", asyn
   await page.getByRole("button", { name: "검토청소년 개인정보 파기" }).click();
   await noOverflow(page); await page.screenshot({ path: `output/retention-small-dark-${info.project.name}.png` });
   await page.goto(`${fixture.url}/?zoom`); await noOverflow(page);
+  const refresh = page.getByRole("button", { name: "상태 새로고침", exact: true });
+  const discharge = page.getByLabel("조기 퇴소 대상 선택");
+  for (const control of [discharge, refresh]) {
+    await expect(control).toBeVisible();
+    const bounds = (await control.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as { fixtureCalls: { refresh: number } }).fixtureCalls.refresh)).toBe(1);
   await expect(page.getByRole("button", { name: "검토청소년 보존 관리" })).toBeVisible();
+  await page.screenshot({ path: `output/retention-small-zoom-${info.project.name}.png` });
 });
 
 test("pending purge ends processing without claiming completion and status refresh performs no purge", async ({ page }, info) => {
