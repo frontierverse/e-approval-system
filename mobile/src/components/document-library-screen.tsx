@@ -67,6 +67,7 @@ function LibraryContent({ filters }: { filters: DocumentLibraryFilters }) {
     <View style={styles.toolsRow}>
       <TextAction label="기간" icon={showPeriod ? "chevron-up" : "calendar-outline"} accessibilityState={{ expanded: showPeriod }} onPress={() => setShowPeriod(!showPeriod)} />
       <TextAction label={sort === "latest" ? "최신순" : "오래된순"} icon="swap-vertical" accessibilityLabel={`정렬: ${sort === "latest" ? "최신순, 오래된순으로 변경" : "오래된순, 최신순으로 변경"}`} onPress={() => update({ sort: sort === "latest" ? "oldest" : "latest" })} />
+      {folder === "drafts" ? <TextAction label="작성 복구" icon="refresh-outline" onPress={() => router.push("/drafts/recovery")} /> : null}
       <View style={{ flex: 1 }} />
       {filtered ? <TextAction label="초기화" onPress={reset} /> : null}
       {loading && data ? <ActivityIndicator size="small" color={theme.accent} accessibilityLabel="목록 새로고침 중" /> : null}

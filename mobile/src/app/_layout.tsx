@@ -7,6 +7,7 @@ import { ChatProvider } from "@/lib/chat-provider";
 import { YouthProvider } from "@/components/youth-provider";
 import { ResourceProvider } from "@/providers/ResourceProvider";
 import { LunchCafeProvider } from "@/providers/LunchCafeProvider";
+import { DraftRecoveryProvider } from "@/providers/DraftRecoveryProvider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -27,6 +28,7 @@ function Navigation() {
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="drafts/new" options={{ title: "새 기안" }} />
+        <Stack.Screen name="drafts/recovery" options={{ title: "작성 복구", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="작성 복구 뒤로" /> : null }} />
         <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정" }} />
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
@@ -82,5 +84,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><LunchCafeProvider><Navigation /></LunchCafeProvider></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><LunchCafeProvider><DraftRecoveryProvider><Navigation /></DraftRecoveryProvider></LunchCafeProvider></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
 }
