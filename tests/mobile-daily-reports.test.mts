@@ -362,3 +362,14 @@ test("declared body length must match actual UTF8 bytes before any mutation",asy
   assert.deepEqual(h.transactions,[]);assert.deepEqual(h.audits,[]);
   assert.equal((await listRoute.POST(request("","POST",body,{headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json","Content-Length":String(Buffer.byteLength(body))}}))).status,200);
 });
+
+
+test("confirmed mobile save/review keep success when postcommit cache refresh fails", async () => {
+  h.cacheFailure = true;
+  const saved = await save(); privateJson(saved); assert.equal(saved.status, 200);
+  const proof = await saved.json(); assert.equal(proof.ok, true); assert.equal(h.reports.length, 1); assert.equal(h.audits.length, 1);
+  signedIn(director);
+  const reviewed = await review(proof.entry.id, proof.entry.version); privateJson(reviewed); assert.equal(reviewed.status, 200);
+  const result = await reviewed.json(); assert.equal(result.ok, true); assert.ok(result.entry.reviewedAt); assert.equal(result.entry.version, 1);
+  assert.equal(h.audits.length, 2); assert.deepEqual(h.invalidated, []);
+});

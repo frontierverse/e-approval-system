@@ -117,7 +117,7 @@ const prisma = {
 };
 const effects = {
   prisma,
-  revalidatePath(path: string) { state.invalidated.push(path); },
+  revalidatePath(path: string) { if (state.cacheFailure) throw new Error("private-cache-error"); state.invalidated.push(path); },
   async requireUser() { state.webCalls++; if (!state.webUser) throw new Error("web cookie unavailable"); return state.webUser; },
   async getCurrentAuditLogRequestData() { return {}; },
   async getHomeDashboardData(userId: string, options: Row) { state.dashboardCalls.push({ userId, options }); if (state.failDashboard) throw new Error("private document dashboard secret"); return { counts: { activeSent: 2, recalled: 1, activeInbox: 3 }, sentDocuments: [], inboxDocuments: [] }; },
@@ -167,7 +167,7 @@ function auditTask(row: Row, extra: Row = {}) {
 describe("mobile own staff tasks", () => {
   beforeEach(() => {
     serial = Promise.resolve();
-    Object.assign(state, { session: activeSession(), tasks: [], audit: [], users: [user("staff"), user("other"), user("admin", { role: "ADMIN", name: "관리자" })], queries: [], writes: [], invalidated: [], counter: 0, auditCounter: 0, webCalls: 0, webUser: null, failAudit: false, failRead: false, failAuth: false, failDashboard: false, conflictUpdate: false, transactionErrors: [], onTransactionFailure: null, beforeList: null, dashboardCalls: [] });
+    Object.assign(state, { session: activeSession(), tasks: [], audit: [], users: [user("staff"), user("other"), user("admin", { role: "ADMIN", name: "관리자" })], queries: [], writes: [], invalidated: [], counter: 0, auditCounter: 0, webCalls: 0, webUser: null, failAudit: false, cacheFailure: false, failRead: false, failAuth: false, failDashboard: false, conflictUpdate: false, transactionErrors: [], onTransactionFailure: null, beforeList: null, dashboardCalls: [] });
   });
   after(() => { delete (globalThis as Row)[harnessKey]; });
 
@@ -415,6 +415,18 @@ describe("mobile own staff tasks", () => {
       assert.equal(JSON.stringify(await response.json()).includes("private"), false);
     }
     assert.deepEqual(state.writes, []); assert.deepEqual(state.audit, []);
+  });
+
+  test("confirmed mobile create/completion/delete keep success when postcommit cache refresh fails", async () => {
+    state.cacheFailure = true;
+    const created = await create(); privateResponse(created, 201); const saved = await created.json();
+    assert.equal(saved.ok, true); assert.equal(state.tasks.length, 1); assert.equal(state.audit.length, 1);
+    const id = saved.task.id;
+    const completed = await complete(id); privateResponse(completed); assert.equal((await completed.json()).task.version, 1);
+    assert.equal(state.audit.length, 2); assert.ok(state.tasks[0].completedAt);
+    const deleted = await remove(id, 1); privateResponse(deleted); assert.equal((await deleted.json()).task.version, 2);
+    assert.equal(state.audit.length, 3); assert.ok(state.tasks[0].deletedAt);
+    assert.deepEqual(state.invalidated, []);
   });
 
   test("web creation and mobile completion/deletion share the same task version and audit policy", async () => {

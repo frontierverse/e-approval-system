@@ -24,14 +24,14 @@ const cell=()=>{const i=active.index++;return active.slots[i]??(active.slots[i]=
 const effect=(fn:()=>unknown,deps:unknown[])=>{const c=cell();c.effect=true;if(!same(c.deps,deps)){c.deps=deps;c.fn=fn;active.effects.push({cell:c});}};
 const expireSession=async()=>state.expired++;
 const request=async(path:string,options:Row={})=>{state.requests.push({path,...options});return state.onRequest(path,options);};
-const provider:Row={foreground:true,isCurrentAccount:()=>state.account,authenticatedRequest:request};
+const provider:Row={foreground:true,foregroundRevision:0,foregroundGeneration:()=>0,isForeground:()=>provider.foreground&&state.account,isCurrentAccount:()=>state.account,authenticatedRequest:request};
 const listeners=new Map<string,Set<(value?:string)=>void>>();
 const harness:Row={...core,ApiError,resourceAbort:()=>Object.assign(new Error("stopped"),{name:"AbortError"}),resourceRequest:(path:string,token:string,options:Row)=>request(path,{...options,token}),createContext:()=>({Provider:"ResourceContextProvider"}),useContext:()=>null,AppState:{currentState:"active",addEventListener:(name:string,callback:(value?:string)=>void)=>{const callbacks=listeners.get(name)??new Set();callbacks.add(callback);listeners.set(name,callbacks);return{remove:()=>callbacks.delete(callback)};}},React:{createElement:(type:unknown,props:Row|null,...children:unknown[])=>({type,props:{...props,children}}),Fragment:"Fragment"},
  useRef:(v:unknown)=>{const c=cell();return c.ref??(c.ref={current:v});},useState:(v:unknown)=>{const c=cell();if(!c.state){c.state={value:typeof v==="function"?v():v};c.setter=(next:unknown)=>{c.state.value=typeof next==="function"?next(c.state.value):next;};}return[c.state.value,c.setter];},useCallback:(fn:unknown,deps:unknown[])=>{const c=cell();if(!same(c.deps,deps)){c.deps=deps;c.fn=fn;}return c.fn;},useEffect:effect,useLayoutEffect:effect,useFocusEffect:(fn:()=>unknown)=>{const i=active.index;effect(fn,[fn]);active.slots[i].focus=true;},
  usePreventRemove:(enabled:boolean,callback:unknown)=>{active.prevent={enabled,callback};},useNavigation:()=>({dispatch:(action:unknown)=>state.dispatched.push(action)}),useSafeAreaInsets:()=>({bottom:16}),useConfirmAction:()=>({dialog:null,ask:async(options:Row)=>{state.confirmations.push(options);return state.confirm;}}),
- useResources:()=>provider,useSession:()=>({token:"synthetic-a",user:{id:"actor"},expireSession}),useTheme:()=>({}),Platform:{OS:"android"},
+ useResources:()=>state.boundProvider??provider,useSession:()=>({token:"synthetic-a",user:{id:"actor"},expireSession}),useTheme:()=>({}),Platform:{OS:"android"},
  ActivityIndicator:"ActivityIndicator",ScrollView:"ScrollView",View:"View",Text:"Text",Image:"Image",KeyboardAvoidingView:"KeyboardAvoidingView",ResourceRow:"ResourceRow",ResourceField:"ResourceField",PrimaryButton:"PrimaryButton",TextAction:"TextAction",EmptyState:"EmptyState",AccountFeedback:"AccountFeedback",PdfPreview:"PdfPreview",
- router:{push:(path:unknown)=>state.routes.push(path),replace:(path:unknown)=>state.routes.push(path),setParams:(value:unknown)=>state.params.push(value)},resourceFileSize:(size:number)=>`${size}B`,isResourceFileCancellation:(cause:Error)=>cause.name==="AbortError",discardResourceFile:()=>state.discards++,pickResourceFile:async()=>state.selectedFile,createResourceUpload:()=>state.upload,
+ router:{push:(path:unknown)=>state.routes.push(path),replace:(path:unknown)=>state.routes.push(path),setParams:(value:unknown)=>state.params.push(value)},resourceFileSize:(size:number)=>`${size}B`,isResourceFileCancellation:(cause:Error)=>cause.name==="AbortError",discardResourceFile:()=>state.discards++,pickResourceFile:async()=>{state.picks++;return state.selectedFile;},createResourceUpload:()=>state.upload,
  createResourceFileTransfer:(options:Row)=>{state.transfers++;state.transferOptions=options;return state.transfer;},loadResourcePreview:async(options:Row)=>{state.previewRequests.push(options);return state.onPreview(options);},
 };
 (globalThis as Row)[key]=harness;
@@ -50,8 +50,8 @@ async function press(h:Hooks,label:string){const row=nodes(h.tree).find(row=>row
 function deferred(){let resolve!:(value:unknown)=>void,reject!:(cause:Error)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return{promise,resolve,reject};}
 function writes(){return state.requests.filter((r:Row)=>r.method&&r.method!=="GET");}
 beforeEach(()=>{
- for(const scope of scopes.splice(0))scope.unmount();listeners.clear();provider.foreground=true;
- Object.assign(state,{account:true,requests:[],routes:[],params:[],confirm:true,confirmations:[],dispatched:[],expired:0,discards:0,selectedFile:null,transfers:0,previewRequests:[],previewReleases:0,resource:resource()});
+ for(const scope of scopes.splice(0))scope.unmount();listeners.clear();provider.foreground=true;state.boundProvider=null;
+ Object.assign(state,{account:true,requests:[],routes:[],params:[],confirm:true,confirmations:[],dispatched:[],expired:0,discards:0,selectedFile:null,picks:0,transfers:0,previewRequests:[],previewReleases:0,resource:resource()});
  state.onPreview=async()=>({uri:"private-preview",kind:"pdf",mimeType:"application/pdf",release:()=>state.previewReleases++});
  state.onRequest=async(path:string,options:Row)=>path.includes("/views")?{ok:true,replayed:false,resourceId:"resource",uniqueViewerCount:1,viewer:{firstViewedAt:iso,lastViewedAt:iso,visitCount:12}}:path==="/resources/options"?{defaults:{category:"bajaul",educationLevel:null},attachmentPolicy:policy}:path.includes("/editor")?{resource:state.resource,attachmentPolicy:policy}:path.includes("?")?{items:[state.resource],category:"corporation",level:"all",q:"",page:1,pageSize:3,total:1,totalPages:1}:options.method?mutation(options.method==="DELETE"?"delete":options.method==="PUT"?"update":"create"):{resource:state.resource};
  state.transferReady=false;state.transfer={download:async()=>{state.transferReady=true;return true;},save:async()=>"저장 확인",share:async()=>"공유 창을 열었습니다",isReady:()=>state.transferReady,cancel:()=>{},release:()=>{}};
@@ -265,4 +265,96 @@ test("confirmed resource deletion keeps success without an old visit error sugge
   const h=await mount("detail",{id:"resource"});state.onRequest=async()=>mutation("delete");await press(h,"자료 삭제");
   assert.equal(find(h,"AccountFeedback").error,null);assert.equal(find(h,"AccountFeedback").message,"저장 확정");
   assert.doesNotMatch(renderedText(h),/자료 내용을 확인하지 못했습니다|PRIVATE_ORIGINAL_CONTENT/);assert.equal(spinnerCount(h),0);
+});
+
+function androidForegroundCycle() {
+  for (const callback of listeners.get("blur") ?? []) callback();
+  for (const callback of listeners.get("focus") ?? []) callback();
+}
+function bindActualProvider(h:Hooks) { update(h); state.boundProvider=resourceContext(h); }
+test("batched actual Android foreground cycle immediately fences captured list navigation and masks pre-resume rows", async()=>{
+  const account=await mount("provider",{token:"synthetic-a",expireSession}); bindActualProvider(account);
+  const list=await mount("list"),oldNavigate=find(list,"ResourceRow").onPress;
+  androidForegroundCycle(); oldNavigate();
+  assert.equal(state.routes.length,0,"old verified row cannot navigate before a fresh foreground GET");
+  const fresh=deferred(); state.onRequest=()=>fresh.promise; bindActualProvider(account);
+  list.render(); assert.equal(nodes(list.tree).some(row=>row.type==="ResourceRow"),false,"first resume paint masks old private rows");
+  list.flush(); fresh.reject(new ApiError("fresh failed",503)); await tick(); update(list);
+  assert.equal(nodes(list.tree).some(row=>row.type==="ResourceRow"),false);
+});
+test("batched actual foreground cycle rejects held GET and cannot start captured editor changes, upload or save",async()=>{
+  const account=await mount("provider",{token:"synthetic-a",expireSession}); bindActualProvider(account);
+  const editor=await mount("editor",{id:"resource"}); change(editor,"내용","KEEP_DIRTY_PRIVATE");
+  const oldChange=field(editor,"내용").onChange,oldPick=find(editor,"TextAction","첨부 선택").onPress,oldSave=find(editor,"PrimaryButton","자료 저장").onPress;
+  const held=deferred(); state.onRequest=()=>held.promise;
+  const oldGET=resourceContext(account).authenticatedRequest("/resources/resource/editor");
+  androidForegroundCycle(); oldChange("STALE_CHANGED"); oldPick(); oldSave();
+  held.resolve({resource:state.resource,attachmentPolicy:policy});
+  await assert.rejects(oldGET,{name:"AbortError"});
+  assert.equal(writes().length,0); assert.equal(state.picks,0); assert.equal(state.confirmations.length,0);
+  const fresh=deferred();state.onRequest=()=>fresh.promise;bindActualProvider(account);
+  editor.render();assert.equal(nodes(editor.tree).some(row=>row.type==="ResourceField"),false);editor.flush();
+  fresh.resolve({resource:state.resource,attachmentPolicy:policy});await tick();update(editor);
+  assert.equal(field(editor,"내용").value,"KEEP_DIRTY_PRIVATE");
+});
+test("batched actual foreground cycle masks private preview and captured download until fresh metadata succeeds",async()=>{
+  state.onRequest=async()=>({attachment:{id:"file",name:"PRIVATE_FOREGROUND_FILE.pdf",mimeType:"application/pdf",size:12,previewKind:"pdf"}});
+  const account=await mount("provider",{token:"synthetic-a",expireSession});bindActualProvider(account);
+  const file=await mount("file",{id:"file"});const download=find(file,"TextAction","내려받기").onPress;
+  androidForegroundCycle();download();await tick();assert.equal(state.transferReady,false);
+  const fresh=deferred();state.onRequest=()=>fresh.promise;bindActualProvider(account);
+  file.render();assert.equal(nodes(file.tree).some(row=>row.type==="PdfPreview"),false);assert.equal(JSON.stringify(file.tree).includes("PRIVATE_FOREGROUND_FILE"),false);file.flush();
+  fresh.reject(new ApiError("fresh denied",403));await tick();update(file);
+  assert.equal(nodes(file.tree).some(row=>row.type==="PdfPreview"),false);assert.equal(JSON.stringify(file.tree).includes("PRIVATE_FOREGROUND_FILE"),false);
+});
+test("batched actual foreground cycle preserves immutable unknown save and performs receipt lookup before retry",async()=>{
+  const account=await mount("provider",{token:"synthetic-a",expireSession});bindActualProvider(account);
+  const editor=await mount("editor");change(editor,"제목","원래 제목");change(editor,"내용","KEEP_ORIGINAL_UNKNOWN");
+  const held=deferred();state.onRequest=()=>held.promise;find(editor,"PrimaryButton","자료 저장").onPress();
+  const original=writes()[0].body;androidForegroundCycle();held.resolve(mutation());await tick();
+  const reads:string[]=[];state.onRequest=async(path:string)=>{reads.push(path);if(path.includes("/mutations/"))throw new ApiError("not found",404);return{defaults:{category:"bajaul",educationLevel:null},attachmentPolicy:policy};};
+  bindActualProvider(account);editor.render();assert.equal(nodes(editor.tree).some(row=>row.type==="ResourceField"),false);editor.flush();await tick();update(editor);
+  assert.match(reads[0],/\/resources\/mutations\//);assert.equal(field(editor,"내용").value,"KEEP_ORIGINAL_UNKNOWN");
+  assert.equal(nodes(editor.tree).some(row=>row.props.label==="저장한 자료 보기"),false);
+  state.onRequest=async()=>mutation();await press(editor,"같은 저장 요청 재시도");assert.deepEqual(writes()[1].body,original);
+});
+test("actual numeric foreground mask preserves OS share handoff but requires fresh metadata before redisclosure",async()=>{
+  state.onRequest=async()=>({attachment:{id:"file",name:"PRIVATE_SHARE_FILE.pdf",mimeType:"application/pdf",size:12,previewKind:"unsupported"}});
+  const account=await mount("provider",{token:"synthetic-a",expireSession});bindActualProvider(account);
+  const file=await mount("file",{id:"file"});await press(file,"내려받기");
+  const shared=deferred();state.transfer.share=()=>shared.promise;find(file,"TextAction","공유").onPress();
+  androidForegroundCycle();const fresh=deferred();state.onRequest=()=>fresh.promise;bindActualProvider(account);update(file);
+  assert.equal(JSON.stringify(file.tree).includes("PRIVATE_SHARE_FILE"),false);
+  shared.resolve("공유 창을 열었습니다");await tick();update(file);
+  assert.match(JSON.stringify(file.tree),/공유 창을 열었습니다/);assert.equal(JSON.stringify(file.tree).includes("PRIVATE_SHARE_FILE"),false);
+  fresh.resolve({attachment:{id:"file",name:"PRIVATE_SHARE_FILE.pdf",mimeType:"application/pdf",size:12,previewKind:"unsupported"}});await tick();update(file);
+  assert.equal(JSON.stringify(file.tree).includes("PRIVATE_SHARE_FILE"),true);assert.equal(state.transfers,1);
+});
+
+test("actual foreground cycle fences a pending destructive confirmation before DELETE dispatch",async()=>{
+  const account=await mount("provider",{token:"synthetic-a",expireSession});bindActualProvider(account);
+  const detail=await mount("detail",{id:"resource"});const consent=deferred();state.confirm=consent.promise;
+  find(detail,"TextAction","자료 삭제").onPress();assert.equal(state.confirmations.length,1);
+  androidForegroundCycle();consent.resolve(true);await tick();
+  assert.equal(writes().filter((row:Row)=>row.method==="DELETE").length,0);
+});
+
+test("cancelled old download cannot overwrite a resumed ready transfer or keep fresh controls busy",async()=>{
+  state.onRequest=async()=>({attachment:{id:"file",name:"qa.zip",mimeType:"application/zip",size:12,previewKind:"unsupported"}});
+  const account=await mount("provider",{token:"synthetic-a",expireSession});bindActualProvider(account);
+  const file=await mount("file",{id:"file"}),old=deferred();state.transfer.download=()=>old.promise;
+  find(file,"TextAction","\uB0B4\uB824\uBC1B\uAE30").onPress();let freshReady=false;
+  state.transfer={download:async()=>{freshReady=true;return true;},isReady:()=>freshReady,save:async()=>"saved",share:async()=>"shared",cancel:()=>{},release:()=>{}};
+  androidForegroundCycle();bindActualProvider(account);update(file);await tick();update(file);
+  const download=nodes(file.tree).find(row=>row.type==="TextAction"&&row.props.label.startsWith("\uB0B4\uB824\uBC1B"));assert.ok(download);
+  const freshBusy=download.props.disabled;
+  // Invoke the actual captured callback: the new operation has its own released metadata lock.
+  download.props.onPress();await tick();update(file);
+  assert.equal(freshReady,true);assert.equal(find(file,"TextAction","\uD30C\uC77C \uC800\uC7A5").disabled,false);
+  old.resolve(false);await tick();update(file);
+  assert.deepEqual({freshBusy,newSaveDisabled:find(file,"TextAction","\uD30C\uC77C \uC800\uC7A5").disabled},{freshBusy:false,newSaveDisabled:false},"old operation must neither retain the busy UI nor replace a new ready proof");
+  state.transfer.save=async()=>{throw new ApiError("permission revoked",403);};
+  state.onRequest=async()=>{throw new ApiError("fresh denied",403);};
+  await press(file,"\uD30C\uC77C \uC800\uC7A5");
+  assert.equal(find(file,"TextAction","\uCCA8\uBD80 \uB2E4\uC2DC \uD655\uC778").disabled,false,"revoking the current operation must still release its own busy lock");
 });

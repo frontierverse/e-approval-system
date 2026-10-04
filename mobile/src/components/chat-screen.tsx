@@ -23,10 +23,11 @@ function ChatScreenContent({ isCurrentAccount }: {
   isCurrentAccount: () => boolean;
 }) {
   const theme = useTheme();
-  const { refreshSummary, summary, error: providerError, isCurrentAccount: providerCurrent, foreground: appForeground } = useChat();
+  const { refreshSummary, summary, error: providerError, isCurrentAccount: providerCurrent, foreground: appForeground, foregroundEpoch, isForegroundCurrent } = useChat();
   const [privacy, setPrivacy] = useState(true);
-  const [lastForeground, setLastForeground] = useState(appForeground);
-  if (lastForeground !== appForeground) { setLastForeground(appForeground); setPrivacy(true); }
+  const [verifiedRenderEpoch, setVerifiedRenderEpoch] = useState(-1);
+  const [lastForegroundEpoch, setLastForegroundEpoch] = useState(foregroundEpoch);
+  if (lastForegroundEpoch !== foregroundEpoch) { setLastForegroundEpoch(foregroundEpoch); setPrivacy(true); }
   const [data, setData] = useState<ChatSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ function ChatScreenContent({ isCurrentAccount }: {
   const focused = useRef(false);
   const generation = useRef(0);
   const verified = useRef(false);
+  const verifiedForeground = useRef(-1);
   const busy = useRef(false);
   const invalidate = useCallback(() => { generation.current++; }, []);
   useEffect(() => {
@@ -46,8 +48,9 @@ function ChatScreenContent({ isCurrentAccount }: {
       invalidate();
     };
   }, [invalidate]);
+  const readyForAction = () => alive.current && focused.current && verified.current && verifiedForeground.current === foregroundEpoch && isCurrentAccount() && providerCurrent() && isForegroundCurrent(foregroundEpoch);
   const load = useCallback(async (fresh = false) => {
-    if (busy.current || !focused.current || !isCurrentAccount())
+    if (busy.current || !focused.current || !isCurrentAccount() || !isForegroundCurrent(foregroundEpoch))
       return;
     const epoch = generation.current;
     busy.current = true;
@@ -59,10 +62,12 @@ function ChatScreenContent({ isCurrentAccount }: {
     }
     try {
       const value = await refreshSummary();
-      if (!alive.current || !focused.current || epoch !== generation.current || !isCurrentAccount())
+      if (!alive.current || !focused.current || epoch !== generation.current || !isCurrentAccount() || !isForegroundCurrent(foregroundEpoch))
         return;
       if (value) {
         verified.current = true;
+        verifiedForeground.current = foregroundEpoch;
+        setVerifiedRenderEpoch(foregroundEpoch);
         setPrivacy(false);
         setData(value);
         setError(null);
@@ -72,13 +77,14 @@ function ChatScreenContent({ isCurrentAccount }: {
       }
     }
     finally {
-      if (epoch === generation.current) {
+      if (epoch === generation.current && isForegroundCurrent(foregroundEpoch)) {
         busy.current = false;
         if (alive.current && focused.current && isCurrentAccount())
           setLoading(false);
       }
     }
-  }, [refreshSummary, isCurrentAccount]);
+  }, [refreshSummary, isCurrentAccount, isForegroundCurrent, foregroundEpoch]);
+  useLayoutEffect(() => { verified.current = false; busy.current = false; }, [foregroundEpoch]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
     verified.current = false;
@@ -91,11 +97,11 @@ function ChatScreenContent({ isCurrentAccount }: {
       setData(null);
     };
   }, [load]));
-  useEffect(() => { if(appForeground && focused.current) void load(true); }, [appForeground,load]);
+  useEffect(() => { if(appForeground && focused.current) void load(true); }, [appForeground, foregroundEpoch, load]);
   useLayoutEffect(() => { if (!summary && providerError) verified.current = false; }, [summary, providerError]);
-  const displayData = privacy || !appForeground ? null : data && summary ? summary : data && providerError ? null : data;
+  const displayData = privacy || !appForeground || verifiedRenderEpoch !== foregroundEpoch ? null : data && summary ? summary : data && providerError ? null : data;
   const navigate = (peer: ChatEmployee) => {
-    if (alive.current && focused.current && verified.current && !busy.current && isCurrentAccount() && providerCurrent())
+    if (readyForAction() && !busy.current)
       router.push({ pathname: "/chat/[peerId]", params: { peerId: peer.id } });
   };
   const term = search.trim().toLocaleLowerCase("ko-KR");
@@ -104,20 +110,20 @@ function ChatScreenContent({ isCurrentAccount }: {
   return <View style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
   <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 4 }}>
    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}><Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>{displayData ? `대화 ${displayData.conversations.length}개 · 안 읽음 ${providerError ? "확인 필요" : `${displayData.unreadCount}개`}` : "채팅 확인 중"}</Text><TextAction label="새 대화" icon="create-outline" disabled={!data || loading} onPress={() => {
-    if (verified.current && focused.current && isCurrentAccount()) {
+    if (readyForAction()) {
       setDirectory(true);
       setSearch("");
     }
   }}/></View>
    {directory ? <ChatInput label="직원 검색" placeholder="이름·부서·직급 검색" value={search} onChange={value => {
-    if (focused.current && isCurrentAccount())
+    if (readyForAction())
       setSearch(value);
   }} disabled={!data}/> : null}
    <View style={{ flexDirection: "row", gap: 8 }}><TextAction label="대화 목록" disabled={!data} onPress={() => {
-    if (focused.current && isCurrentAccount())
+    if (readyForAction())
       setDirectory(false);
   }}/><TextAction label="직원 찾기" disabled={!data} onPress={() => {
-    if (focused.current && isCurrentAccount())
+    if (readyForAction())
       setDirectory(true);
   }}/><TextAction label="새로고침" icon="refresh" disabled={loading} onPress={() => void load(true)}/></View>
    <AccountFeedback error={error ?? providerError}/>
