@@ -6,6 +6,7 @@ import { AccountFeedback } from "@/components/account-feedback";
 import { useChat } from "@/lib/chat-provider";
 import { useYouth } from "@/components/youth-provider";
 import { useResources } from "@/providers/ResourceProvider";
+import { useLunchCafe } from "@/providers/LunchCafeProvider";
 import { useNotifications } from "@/lib/notifications";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -16,6 +17,7 @@ export default function Profile() {
   const chat = useChat();
   const resources = useResources();
   const youth = useYouth();
+  const lunchCafe = useLunchCafe();
   const { pushStatus, pushLoading, pushPending, pushError, pushMessage, pushNeedsSettings,
     enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings } = useNotifications();
   useFocusEffect(useCallback(() => { void refreshPushStatus(); }, [refreshPushStatus]));
@@ -42,6 +44,7 @@ export default function Profile() {
       <TextAction label={chat.unreadCount === null ? chat.error ? "직원 채팅 · 확인 필요" : "직원 채팅 · 확인 중" : chat.unreadCount > 0 ? `직원 채팅 · 안 읽음 ${chat.unreadCount > 99 ? "99+" : chat.unreadCount}개` : "직원 채팅"} icon="chatbubbles-outline" onPress={() => { if(chat.isCurrentAccount()) router.push("/chat"); }} />
       <TextAction label="청소년 관리" icon="people-outline" onPress={() => { if (youth.isCurrentAccount()) router.push("/youth"); }} />
       <TextAction label="자료실" icon="folder-open-outline" onPress={() => { if (resources.isCurrentAccount()) router.push("/resources"); }} />
+      <TextAction label="급식·카페" icon="restaurant-outline" onPress={() => { if (lunchCafe.isCurrentAccount()) router.push("/meal-menu"); }} />
       <TextAction label="업무일지" icon="journal-outline" onPress={() => router.push("/work-logs")} />
       <TextAction label="업무 일정" icon="calendar-outline" onPress={() => router.push("/work-schedules")} />
     </View>

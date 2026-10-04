@@ -10,6 +10,7 @@ import {
   isCafeItemCategory,
   isCafeItemChangeLogActionFilter,
   shiftCafeItemDate,
+  parseCafeItemDateValue,
   type CafeItem,
   type CafeItemChangeLog,
   type CafeItemChangeLogAction,
@@ -34,6 +35,7 @@ type CafeItemRecord = {
   expirationDate: Date | string | null;
   expirationHoldReason: string | null;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 type CafeItemInventoryRecord = CafeItemRecord & {
@@ -106,6 +108,7 @@ export async function getCafeItemPage({
         expirationDate: true,
         expirationHoldReason: true,
         createdAt: true,
+        updatedAt: true,
       },
     }),
     prisma.cafeItem.count({ where }),
@@ -129,6 +132,7 @@ export async function getCafeItemPage({
         expirationDate: true,
         expirationHoldReason: true,
         createdAt: true,
+        updatedAt: true,
       },
     }),
   ]);
@@ -191,6 +195,7 @@ export async function getCafeItemsExpiringWithin({
       expirationDate: true,
       expirationHoldReason: true,
       createdAt: true,
+      updatedAt: true,
     },
   });
 
@@ -219,7 +224,7 @@ export async function getCafeItemInventoryItems(): Promise<
   return items.map(mapCafeItemInventoryItem);
 }
 
-function createCafeItemOrderBy({
+export function createCafeItemOrderBy({
   deadline,
   sort,
 }: {
@@ -234,7 +239,7 @@ function createCafeItemOrderBy({
           sort: sort === "expirationAsc" ? "asc" : "desc",
         },
       },
-      { createdAt: "desc" },
+      { createdAt: "desc" }, { id: "desc" },
     ];
   }
 
@@ -246,11 +251,11 @@ function createCafeItemOrderBy({
           sort: "asc",
         },
       },
-      { createdAt: "desc" },
+      { createdAt: "desc" }, { id: "desc" },
     ];
   }
 
-  return [{ createdAt: "desc" }];
+  return [{ createdAt: "desc" }, { id: "desc" }];
 }
 
 function createExpiredFoodWhere(today: string): Prisma.CafeItemWhereInput {
@@ -351,7 +356,7 @@ async function getCafeItemChangeLogActors(): Promise<CafeItemChangeLogActor[]> {
     .sort((first, second) => first.name.localeCompare(second.name, "ko-KR"));
 }
 
-function createCafeItemWhere({
+export function createCafeItemWhere({
   category,
   deadline,
   query,
@@ -406,6 +411,7 @@ function createCafeItemWhere({
       },
     });
   } else if (deadline === "over100") {
+    if (parseCafeItemDateValue(today).getTime() - 100 * 86400000 < parseCafeItemDateValue("0001-01-01").getTime()) return { id: { in: [] } };
     conditions.push({
       NOT: {
         category: "food",
@@ -510,6 +516,7 @@ function mapCafeItem(item: CafeItemRecord): CafeItem {
       ? formatCafeItemDateValue(item.expirationDate)
       : null,
     createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
     purchasedAt: formatCafeItemDateValue(item.purchasedAt),
   };
 }

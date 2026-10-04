@@ -9,6 +9,7 @@ import type {
 const cafeComplianceNoteSelect = {
   content: true,
   createdAt: true,
+  updatedAt: true,
   createdBy: {
     select: {
       id: true,
@@ -48,6 +49,7 @@ export async function getCafeComplianceNotePage({
 function mapCafeComplianceNote(note: {
   content: string;
   createdAt: Date;
+  updatedAt: Date;
   createdBy: {
     id: string;
     name: string;
@@ -57,6 +59,7 @@ function mapCafeComplianceNote(note: {
   return {
     content: note.content,
     createdAt: note.createdAt.toISOString(),
+    updatedAt: note.updatedAt.toISOString(),
     createdBy: note.createdBy,
     id: note.id,
   };

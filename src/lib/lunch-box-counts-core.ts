@@ -1,3 +1,4 @@
+import { isGregorianDate, parseGregorianDate } from "@/lib/gregorian-date";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 
 export const lunchBoxSchoolTypes = [
@@ -1324,35 +1325,13 @@ export function mergeLunchBoxCountRealtimeGrid({
   };
 }
 
-export function isLunchBoxDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [yearText, monthText, dayText] = value.split("-");
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
+export function isLunchBoxDate(value: string) { return isGregorianDate(value); }
 
 export function getLunchBoxCountToday() {
   return getKoreanDateValue();
 }
 
-export function parseLunchBoxDateValue(value: string) {
-  const [yearText, monthText, dayText] = value.split("-");
-
-  return new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
-}
+export function parseLunchBoxDateValue(value: string) { return parseGregorianDate(value); }
 
 export function formatLunchBoxDateValue(date: Date | string): string {
   if (typeof date === "string") {
@@ -1372,7 +1351,7 @@ export function formatLunchBoxDateValue(date: Date | string): string {
   }
 
   return [
-    date.getUTCFullYear(),
+    String(date.getUTCFullYear()).padStart(4, "0"),
     String(date.getUTCMonth() + 1).padStart(2, "0"),
     String(date.getUTCDate()).padStart(2, "0"),
   ].join("-");

@@ -6,6 +6,7 @@ import { TextAction } from "@/components/ui";
 import { ChatProvider } from "@/lib/chat-provider";
 import { YouthProvider } from "@/components/youth-provider";
 import { ResourceProvider } from "@/providers/ResourceProvider";
+import { LunchCafeProvider } from "@/providers/LunchCafeProvider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -52,6 +53,15 @@ function Navigation() {
         <Stack.Screen name="youth/activity-history" options={{ title: "처리 이력", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
         <Stack.Screen name="youth/study-concepts" options={{ title: "공용 학습 개념", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
         <Stack.Screen name="youth/decision-documents/[id]" options={{ title: "결정문 다운로드", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="청소년 관리 뒤로" /> : null }} />
+        <Stack.Screen name="meal-menu/index" options={{ title: "급식 메뉴", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="급식 메뉴 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/index" options={{ title: "카페 물품", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/items/new" options={{ title: "물품 등록", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/items/[id]" options={{ title: "물품 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/items/[id]/edit" options={{ title: "물품 수정", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/items/[id]/hold" options={{ title: "유통기한 보류", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/history" options={{ title: "물품 변경 이력", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/notes" options={{ title: "카페 준수사항", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
+        <Stack.Screen name="cafe/notes/new" options={{ title: "준수사항 등록", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="카페 뒤로" /> : null }} />
         <Stack.Screen name="account" options={{ title: "계정·도장 설정" }} />
         <Stack.Screen name="tasks/index" options={{ title: "내 할 일" }} />
         <Stack.Screen name="tasks/new" options={{ title: "할 일 등록" }} />
@@ -72,5 +82,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><Navigation /></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
+  return <SessionProvider><NotificationsProvider><ChatProvider><ResourceProvider><YouthProvider><LunchCafeProvider><Navigation /></LunchCafeProvider></YouthProvider></ResourceProvider></ChatProvider></NotificationsProvider></SessionProvider>;
 }

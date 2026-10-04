@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import {
   createCafeComplianceNoteAction,
   deleteCafeComplianceNoteAction,
+  getCafeNoteEditorAction,
 } from "@/app/work-schedule/cafe/actions";
+import { useCafeMutation } from "@/components/use-cafe-mutation";
+import { CafeMutationFeedback, CafeMutationHidden } from "@/components/cafe-mutation-feedback";
+import type { MobileCafeNote } from "@/lib/mobile-cafe-core";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -16,17 +20,16 @@ import {
 } from "@/lib/cafe-compliance-notes-core";
 import { formatDateTime } from "@/lib/mock-data";
 
-const initialFormState: CafeComplianceNoteFormState = {};
 
-export function CafeComplianceNoteForm() {
-  const [state, formAction, pending] = useActionState(
-    createCafeComplianceNoteAction,
-    initialFormState,
-  );
+export function CafeComplianceNoteForm({ actorId = "" }: { actorId?: string }) {
+  const mutation = useCafeMutation(createCafeComplianceNoteAction, { actorId, operation: "note.create" });
+  const { state, formAction, pending } = mutation;
+  if (mutation.erased) return <CafeMutationFeedback state={{ error: mutation.state.error ?? "로그인 계정이 변경되었습니다. 카페 관리를 다시 열어 주세요." }} />;
 
   return (
     <section className="rounded-md border border-[#d9dee7] bg-white p-5 shadow-sm">
-      <form key={state.resetKey ?? "draft"} action={formAction}>
+      <form key={state.resetKey ?? "draft"} action={formAction} onSubmit={mutation.onSubmit}>
+        <CafeMutationHidden mutation={mutation} />
         <div className="border-b border-[#eef1f5] pb-4">
           <h2 className="text-base font-semibold text-[#16181d]">
             준수사항 입력
@@ -41,10 +44,11 @@ export function CafeComplianceNoteForm() {
             준수사항 내용
           </span>
           <textarea
+            disabled={pending || mutation.unknown}
             name="content"
             required
             maxLength={cafeComplianceNoteMaxLength}
-            defaultValue={state.values?.content ?? ""}
+            defaultValue={(state as CafeComplianceNoteFormState).values?.content ?? ""}
             placeholder="예: 마감 시 에스프레소 머신 청소 후 전원을 차단합니다."
             className="mt-2 min-h-28 w-full resize-y rounded-md border border-[#cfd6e3] bg-white px-3 py-2 text-sm leading-6 outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />
@@ -53,16 +57,17 @@ export function CafeComplianceNoteForm() {
         <div className="mt-4 flex justify-end">
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || mutation.unknown}
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.save,
-              "h-10 px-4 text-sm",
+              "h-11 px-4 text-sm",
             )}
           >
             {pending ? "등록 중" : "등록"}
           </button>
         </div>
+        {mutation.unknown ? <button type="submit" disabled={pending} className="min-h-11 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">같은 요청 결과 확인</button> : null}
       </form>
 
       <CafeComplianceNoteFormMessage state={state} />
@@ -70,34 +75,13 @@ export function CafeComplianceNoteForm() {
   );
 }
 
-function CafeComplianceNoteFormMessage({
-  state,
-}: {
-  state: CafeComplianceNoteFormState;
-}) {
-  if (state.error) {
-    return (
-      <p className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-        {state.error}
-      </p>
-    );
-  }
-
-  if (state.success) {
-    return (
-      <p className="mt-3 rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-3 py-2 text-sm text-[#22633a]">
-        {state.success}
-      </p>
-    );
-  }
-
-  return null;
-}
+function CafeComplianceNoteFormMessage({ state }: { state: CafeComplianceNoteFormState }) { return <CafeMutationFeedback state={state} />; }
 
 export function CafeComplianceNoteList({
-  notePage,
+  notePage, actorId = "",
 }: {
   notePage: CafeComplianceNotePage;
+  actorId?: string;
 }) {
   const firstItem =
     notePage.total === 0 ? 0 : (notePage.page - 1) * notePage.pageSize + 1;
@@ -137,21 +121,7 @@ export function CafeComplianceNoteList({
                       {formatDateTime(note.createdAt)}
                     </time>
                   </p>
-                  <form
-                    action={deleteCafeComplianceNoteAction.bind(null, note.id)}
-                  >
-                    <ConfirmSubmitButton
-                      message="이 준수사항을 삭제하시겠습니까?"
-                      type="submit"
-                      className={buttonClass(
-                        buttonStyles.base,
-                        buttonStyles.dangerOutline,
-                        "h-8 px-3 text-xs",
-                      )}
-                    >
-                      삭제
-                    </ConfirmSubmitButton>
-                  </form>
+                  <CafeNoteDeleteForm note={note} actorId={actorId} />
                 </div>
               </div>
             </li>
@@ -215,7 +185,7 @@ function CafeCompliancePaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+      <span className="inline-flex h-11 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
         {children}
       </span>
     );
@@ -227,10 +197,21 @@ function CafeCompliancePaginationLink({
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
-        "h-10 px-4 text-sm",
+        "h-11 px-4 text-sm",
       )}
     >
       {children}
     </Link>
   );
+}
+
+function CafeNoteDeleteForm({ note, actorId }: { note: MobileCafeNote; actorId: string }) {
+  const mutation = useCafeMutation(deleteCafeComplianceNoteAction.bind(null, note.id), { actorId, operation: "note.delete", targetId: note.id, expectedUpdatedAt: note.updatedAt });
+  const [fresh, setFresh] = useState<MobileCafeNote | null>(null), [error, setError] = useState("");
+  const mounted = useRef(true); const currentActor = useRef(actorId); useLayoutEffect(() => { currentActor.current = actorId; }, [actorId]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The deletion component's lifetime is guarded by its mutation hook; no parent dispatch after unmount.
+  async function loadFresh() { const actor = actorId; if (!mutation.claim()) return; try { const response = await getCafeNoteEditorAction(note.id, actor); if (!mounted.current || currentActor.current !== actor) return; if (response.ok) { if (response.data.id !== note.id || !Number.isFinite(new Date(response.data.updatedAt).getTime()) || new Date(response.data.updatedAt).toISOString() !== response.data.updatedAt) throw new Error("INVALID_EDITOR"); setFresh(response.data); setError(""); } else if ([401,403].includes(response.status)) mutation.clearPrivate(response.error); else setError(response.error); } catch { if (mounted.current) setError("최신 준수사항을 확인하지 못했습니다."); } finally { mutation.release(); } }
+  if (mutation.erased) return <CafeMutationFeedback state={{ error: mutation.state.error ?? "로그인 계정이 변경되었습니다. 카페 관리를 다시 열어 주세요." }} />;
+  return <div className="min-w-0"><form action={mutation.formAction} onSubmit={mutation.onSubmit}><CafeMutationHidden mutation={mutation} /><ConfirmSubmitButton message="이 준수사항을 삭제하시겠습니까? 삭제하면 복구할 수 없습니다." type="submit" disabled={mutation.pending || mutation.conflict} className={buttonClass(buttonStyles.base, buttonStyles.dangerOutline, "min-h-11 px-3 text-xs")}>{mutation.pending ? "확인 중" : mutation.unknown ? "같은 삭제 요청 확인" : "삭제"}</ConfirmSubmitButton></form><CafeMutationFeedback state={mutation.state} />{mutation.conflict ? <><button type="button" onClick={loadFresh} disabled={mutation.pending} className="min-h-11 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">최신 준수사항 확인</button>{fresh ? <div><p className="whitespace-pre-wrap break-words text-sm">{fresh.content}</p><button type="button" onClick={() => { if (mutation.adoptBaseline(fresh.updatedAt)) setFresh(null); }} className="min-h-11 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">최신 기준 사용</button></div> : null}<p role="alert">{error}</p></> : null}</div>;
 }

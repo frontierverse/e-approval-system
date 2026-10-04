@@ -1115,6 +1115,21 @@ model CafeItem {
   @@index([createdAt])
 }
 
+model CafeMutationReceipt {
+  id                 String   @id @default(uuid())
+  actorId            String
+  requestId          String
+  operation          String
+  targetType         String
+  targetId           String
+  payloadHash        String
+  committedUpdatedAt DateTime?
+  committedAt        DateTime @default(now())
+
+  @@unique([actorId, requestId])
+  @@index([targetType, targetId])
+}
+
 model CafeComplianceNote {
   id        String   @id @default(cuid())
   content   String

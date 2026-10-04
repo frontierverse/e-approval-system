@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime.js";
 import { CafeComplianceNoteList } from "../src/components/cafe-compliance-board.tsx";
 import {
   cafeComplianceNoteMaxLength,
@@ -12,12 +13,16 @@ import {
   type CafeComplianceNotePage,
 } from "../src/lib/cafe-compliance-notes-core.ts";
 
+const fixtureRouter = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch: async () => {} };
+const renderCafe = (element: React.ReactNode) => renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: fixtureRouter }, element));
+
 const notePage: CafeComplianceNotePage = {
   notes: [
     {
       id: "note-001",
       content: "마감 시 에스프레소 머신을 청소하고 전원을 차단합니다.",
       createdAt: "2026-07-03T09:00:00.000Z",
+      updatedAt: "2026-07-03T09:00:00.000Z",
       createdBy: {
         id: "user-001",
         name: "김민준",
@@ -27,6 +32,7 @@ const notePage: CafeComplianceNotePage = {
       id: "note-002",
       content: "우유는 개봉 후 냉장 보관하고 개봉일을 표기합니다.",
       createdAt: "2026-07-02T09:00:00.000Z",
+      updatedAt: "2026-07-02T09:00:00.000Z",
       createdBy: null,
     },
   ],
@@ -86,8 +92,8 @@ describe("cafe compliance note core", () => {
 
 describe("CafeComplianceNoteList", () => {
   test("renders note content, author, and count summary", () => {
-    const markup = renderToStaticMarkup(
-      React.createElement(CafeComplianceNoteList, { notePage }),
+    const markup = renderCafe(
+      React.createElement(CafeComplianceNoteList, { notePage, actorId: "user-001" }),
     );
 
     assert.match(markup, /준수사항 목록/);
@@ -97,7 +103,7 @@ describe("CafeComplianceNoteList", () => {
   });
 
   test("renders an empty state without notes", () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderCafe(
       React.createElement(CafeComplianceNoteList, {
         notePage: {
           notes: [],
@@ -113,7 +119,7 @@ describe("CafeComplianceNoteList", () => {
   });
 
   test("renders pagination links when there are multiple pages", () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderCafe(
       React.createElement(CafeComplianceNoteList, {
         notePage: {
           ...notePage,
