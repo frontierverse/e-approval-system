@@ -6,7 +6,7 @@ export type DraftOptions = { templates: DraftTemplate[]; approvers: { id: string
 export type DraftAttachment = { id: string; name: string; size: number; mimeType: string };
 export type DraftData = { id: string; title: string; templateId: string; status: string; fieldValues: Record<string, string>; approverIds: string[]; updatedAt: string; attachments: DraftAttachment[] };
 export type PendingAttachment = DocumentPickerAsset & { key: string; uploadId?: string; uploadUrl?: string; uploaded?: boolean; completed?: boolean };
-export type SaveDraftResult = { documentId: string; status: string; updatedAt: string };
+export type SaveDraftResult = { documentId: string; status: string; updatedAt: string; proof?: import("./draft-recovery-core").DraftCommitProof };
 export type DraftList = { total: number; documents: { id: string; title: string; category: string; status: string; updatedAt: string; attachmentCount: number }[] };
 
 export function requestKey() { return "mobile_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }

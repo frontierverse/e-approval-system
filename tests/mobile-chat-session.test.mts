@@ -34,6 +34,20 @@ function harness({ stored = null, heldCleanup = false, heldResourceCleanup = fal
     "./chat-file-transfer": { clearChatFileResources() { events.push("chat:invalidate"); return heldCleanup ? new Promise<void>(resolve => pendingCleanup.push(resolve)) : Promise.resolve(); } },
     "./youth-privacy": { clearYouthResources(options?: Row) { events.push("youth:invalidate"); youthInvalidations.push({ kind: "memory", ...options }); return heldYouthCleanup ? new Promise<void>(resolve => pendingYouthCleanup.push(resolve)) : Promise.resolve(); } },
     "./youth-file-transfer": { clearYouthFileResources(options?: Row) { events.push("youth-file:invalidate"); youthInvalidations.push({ kind: "file", ...options }); return heldYouthFileCleanup ? new Promise<void>(resolve => pendingYouthFileCleanup.push(resolve)) : Promise.resolve(); } },
+    // This suite keeps its existing transfer-cleanup trace; recovery has its
+    // own actual-provider suite. Validate the new boundary without native I/O.
+    "./draft-recovery-privacy": {
+      async bindDraftRecoverySession(options: Row) {
+        assert.equal(typeof options.actorId, "string"); assert.equal(typeof options.token, "string");
+        assert(["verified-startup", "sign-in"].includes(options.mode));
+        assert.equal(typeof options.isCurrent, "function"); assert.equal(options.isCurrent(), true);
+      },
+      clearDraftRecoveryResources(options: Row) {
+        assert(options.expectedToken === null || typeof options.expectedToken === "string");
+        assert(["no-session", "unauthorized", "logout"].includes(options.reason));
+        return Promise.resolve();
+      },
+    },
   };
   const code = ts.transpileModule(source, { fileName: "session.tsx", compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const providerModule = { exports: {} as Row };
