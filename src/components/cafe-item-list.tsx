@@ -33,6 +33,7 @@ import {
 } from "@/lib/cafe-items-core";
 
 type CafeItemListProps = {
+  actorId?: string;
   itemPage: CafeItemPage;
   loadItemPage?: (
     filters: CafeItemPageFilters,
@@ -41,7 +42,7 @@ type CafeItemListProps = {
 };
 
 export function CafeItemList({
-  itemPage,
+  itemPage, actorId = "",
   loadItemPage,
   today,
 }: CafeItemListProps) {
@@ -217,6 +218,7 @@ export function CafeItemList({
                     <CafeItemRow
                       key={item.id}
                       item={item}
+                      actorId={actorId}
                       rowNumber={firstItem + index}
                       today={currentToday}
                     />

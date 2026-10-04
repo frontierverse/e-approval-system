@@ -11,11 +11,12 @@ import {
 } from "@/lib/cafe-items-core";
 
 export function CafeItemRow({
-  item,
+  item, actorId = "",
   rowNumber,
   today,
 }: {
   item: CafeItem;
+  actorId?: string;
   rowNumber: number;
   today: string;
 }) {
@@ -86,14 +87,14 @@ export function CafeItemRow({
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={[
-              "inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold",
+              "inline-flex h-11 items-center rounded-md border px-2.5 text-xs font-semibold",
               getUsageDdayClassName(usageDday.status),
             ].join(" ")}
           >
             {usageDday.label}
           </span>
           {isExpirationHeld ? (
-            <span className="inline-flex h-8 items-center rounded-md border border-[#e6cf91] bg-[#fff4d8] px-2.5 text-xs font-semibold text-[#7a5200]">
+            <span className="inline-flex h-11 items-center rounded-md border border-[#e6cf91] bg-[#fff4d8] px-2.5 text-xs font-semibold text-[#7a5200]">
               보류
             </span>
           ) : null}
@@ -132,7 +133,7 @@ export function CafeItemRow({
           className={buttonClass(
             buttonStyles.base,
             buttonStyles.neutral,
-            "h-9 px-3 text-xs",
+            "h-11 px-3 text-xs",
           )}
         >
           편집
@@ -142,6 +143,7 @@ export function CafeItemRow({
           <CafeItemEditModal
             key={modalKey}
             item={item}
+            actorId={actorId}
             onClose={closeEditModal}
             today={today}
           />

@@ -4,6 +4,7 @@ import { PDFDocument, PageSizes } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime.js";
 import { CafeItemChangeLogTable } from "../src/components/cafe-item-change-log-table.tsx";
 import { CafeItemInventoryPrintLink } from "../src/components/cafe-item-inventory-print-link.tsx";
 import {
@@ -27,6 +28,9 @@ import {
   type CafeItemPage,
 } from "../src/lib/cafe-items-core.ts";
 
+const fixtureRouter = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch: async () => {} };
+const renderCafe = (element: React.ReactNode) => renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: fixtureRouter }, element));
+
 const cafeItems: CafeItem[] = [
   {
     id: "cafe-item-001",
@@ -38,6 +42,7 @@ const cafeItems: CafeItem[] = [
     expirationDate: "2026-07-24",
     expirationHoldReason: null,
     createdAt: "2026-06-24T00:00:00.000Z",
+    updatedAt: "2026-06-24T00:00:00.000Z",
   },
   {
     id: "cafe-item-002",
@@ -49,6 +54,7 @@ const cafeItems: CafeItem[] = [
     expirationDate: null,
     expirationHoldReason: null,
     createdAt: "2026-06-23T00:00:00.000Z",
+    updatedAt: "2026-06-23T00:00:00.000Z",
   },
 ];
 
@@ -233,7 +239,7 @@ describe("cafe items", () => {
       "/work-schedule/cafe/items/print",
     );
 
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemInventoryPrintLink),
     );
 
@@ -254,9 +260,10 @@ describe("cafe items", () => {
   });
 
   test("renders cafe item filters, inventory rows, and pagination", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemList, {
         itemPage,
+        actorId: "user-001",
         today: "2026-06-24",
       }),
     );
@@ -319,7 +326,7 @@ describe("cafe items", () => {
   });
 
   test("renders held cafe items in a dedicated modal", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemHeldItemsModal, {
         heldItems: [heldCafeItem],
         onClose() {},
@@ -338,7 +345,7 @@ describe("cafe items", () => {
   });
 
   test("disables the held item summary when there are no held items", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemList, {
         itemPage: {
           ...itemPage,
@@ -353,7 +360,7 @@ describe("cafe items", () => {
   });
 
   test("renders active cafe item expiration sort links", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemList, {
         itemPage: {
           ...itemPage,
@@ -383,7 +390,7 @@ describe("cafe items", () => {
   });
 
   test("keeps cafe item row numbers continuous across pages", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemList, {
         itemPage: {
           ...itemPage,
@@ -398,7 +405,7 @@ describe("cafe items", () => {
   });
 
   test("renders the hold status and reason for an expired food item", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemList, {
         itemPage: {
           ...itemPage,
@@ -422,7 +429,7 @@ describe("cafe items", () => {
   });
 
   test("renders cafe item change log filters and pagination", () => {
-    const html = renderToStaticMarkup(
+    const html = renderCafe(
       React.createElement(CafeItemChangeLogTable, {
         itemFilters: itemPage.filters,
         logPage: changeLogPage,
@@ -439,7 +446,7 @@ describe("cafe items", () => {
     assert.match(html, /최윤서/);
     assert.match(html, /href="\/work-schedule\/cafe\?logQ=%EC%9A%B0%EC%9C%A0&amp;logAction=update&amp;logStaff=user-001"/);
 
-    const sortedHtml = renderToStaticMarkup(
+    const sortedHtml = renderCafe(
       React.createElement(CafeItemChangeLogTable, {
         itemFilters: {
           ...itemPage.filters,

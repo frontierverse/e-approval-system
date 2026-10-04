@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { createCafeItemAction } from "@/app/work-schedule/cafe/actions";
+import { useCafeMutation } from "@/components/use-cafe-mutation";
+import { CafeMutationFeedback, CafeMutationHidden } from "@/components/cafe-mutation-feedback";
 import { CafeItemDateInput } from "@/components/cafe-item-date-input";
 import { buttonClass, buttonStyles } from "@/lib/button-styles";
 import {
@@ -12,23 +14,22 @@ import {
 
 type CafeItemRegistrationFormProps = {
   today: string;
+  actorId?: string;
 };
 
-const initialState: CafeItemFormState = {};
 const inputBaseClassName =
-  "h-10 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
+  "h-11 w-full min-w-0 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]";
 const inputClassName =
   `mt-2 ${inputBaseClassName}`;
 const fieldLabelClassName =
   "block text-xs font-semibold leading-4 text-[#697386]";
 
 export function CafeItemRegistrationForm({
-  today,
+  today, actorId = "",
 }: CafeItemRegistrationFormProps) {
-  const [state, formAction, pending] = useActionState(
-    createCafeItemAction,
-    initialState,
-  );
+  const mutation = useCafeMutation(createCafeItemAction, { actorId, operation: "item.create" });
+  const { state, formAction, pending } = mutation;
+  if (mutation.erased) return <CafeMutationFeedback state={{ error: "로그인 계정이 변경되었습니다. 카페 관리를 다시 열어 주세요." }} />;
 
   return (
     <CafeItemRegistrationFormFields
@@ -37,6 +38,8 @@ export function CafeItemRegistrationForm({
       pending={pending}
       state={state}
       today={today}
+      actorId={actorId}
+      mutation={mutation}
     />
   );
 }
@@ -45,8 +48,9 @@ function CafeItemRegistrationFormFields({
   formAction,
   pending,
   state,
-  today,
+  today, mutation,
 }: CafeItemRegistrationFormProps & {
+  mutation: ReturnType<typeof useCafeMutation>;
   formAction: (formData: FormData) => void;
   pending: boolean;
   state: CafeItemFormState;
@@ -60,7 +64,8 @@ function CafeItemRegistrationFormFields({
 
   return (
     <section className="rounded-md border border-[#d9dee7] bg-white p-5 shadow-sm">
-      <form action={formAction}>
+      <form action={formAction} onSubmit={mutation.onSubmit}>
+        <CafeMutationHidden mutation={mutation} />
         <div className="border-b border-[#eef1f5] pb-4">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[#16181d]">
@@ -72,7 +77,7 @@ function CafeItemRegistrationFormFields({
           </div>
         </div>
 
-        <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-4">
+        <fieldset disabled={pending || mutation.unknown || mutation.erased} className="mt-5 grid min-w-0 gap-4 lg:grid-cols-4">
           <label className="block min-w-0 lg:col-span-2">
             <span className={fieldLabelClassName}>물품명</span>
             <input
@@ -166,12 +171,13 @@ function CafeItemRegistrationFormFields({
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.save,
-              "h-10 w-full self-end px-4 text-sm lg:w-auto",
+              "h-11 w-full self-end px-4 text-sm lg:w-auto",
             )}
           >
             {pending ? "등록 중" : "등록"}
           </button>
-        </div>
+        </fieldset>
+        {mutation.unknown ? <button type="submit" disabled={pending} className="mt-3 min-h-11 rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">같은 요청 결과 확인</button> : null}
       </form>
 
       <CafeItemFormMessage state={state} />
@@ -179,22 +185,4 @@ function CafeItemRegistrationFormFields({
   );
 }
 
-function CafeItemFormMessage({ state }: { state: CafeItemFormState }) {
-  if (state.error) {
-    return (
-      <p className="mt-3 rounded-md border border-[#f0c6c6] bg-[#fff1f1] px-3 py-2 text-sm text-[#8a1f1f]">
-        {state.error}
-      </p>
-    );
-  }
-
-  if (state.success) {
-    return (
-      <p className="mt-3 rounded-md border border-[#bddfc9] bg-[#e8f5ed] px-3 py-2 text-sm text-[#22633a]">
-        {state.success}
-      </p>
-    );
-  }
-
-  return null;
-}
+function CafeItemFormMessage({ state }: { state: CafeItemFormState }) { return <CafeMutationFeedback state={state} />; }

@@ -1,3 +1,5 @@
+import type { CafeWebState } from "@/lib/cafe-mutations-core";
+import { isGregorianDate, parseGregorianDate } from "@/lib/gregorian-date";
 import { getKoreanDateValue } from "@/lib/document-archive-policy";
 
 export const cafeItemCategories = [
@@ -49,6 +51,7 @@ export type CafeItem = {
   expirationDate: string | null;
   expirationHoldReason: string | null;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type CafeItemInventoryItem = CafeItem & {
@@ -116,14 +119,14 @@ export type CafeItemFormValues = {
   purchasedAt: string;
 };
 
-export type CafeItemFormState = {
+export type CafeItemFormState = CafeWebState & {
   error?: string;
   resetKey?: string;
   success?: string;
   values?: CafeItemFormValues;
 };
 
-export type CafeItemExpirationHoldFormState = {
+export type CafeItemExpirationHoldFormState = CafeWebState & {
   error?: string;
   success?: string;
   values?: {
@@ -240,26 +243,7 @@ export function getCafeItemChangeLogActionLabel(
   );
 }
 
-export function isCafeItemDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [yearText, monthText, dayText] = value.split("-");
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    Number.isInteger(year) &&
-    Number.isInteger(month) &&
-    Number.isInteger(day) &&
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
+export function isCafeItemDate(value: string) { return isGregorianDate(value); }
 
 export function normalizeCafeItemFormValues(
   formData: FormData,
@@ -408,12 +392,10 @@ export function createCafeItemInventoryPrintHref() {
 }
 
 export function shiftCafeItemDate(value: string, days: number) {
-  const [yearText, monthText, dayText] = value.split("-");
-  const date = new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
+  const date = parseCafeItemDateValue(value);
   date.setUTCDate(date.getUTCDate() + days);
-
+  if (date.getUTCFullYear() < 1) return "0001-01-01";
+  if (date.getUTCFullYear() > 9999) return "9999-12-31";
   return formatCafeItemDateValue(date);
 }
 
@@ -439,13 +421,7 @@ function getDateDiffInDays(from: string, to: string) {
   );
 }
 
-export function parseCafeItemDateValue(value: string) {
-  const [yearText, monthText, dayText] = value.split("-");
-
-  return new Date(
-    Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
-  );
-}
+export function parseCafeItemDateValue(value: string) { return parseGregorianDate(value); }
 
 export function formatCafeItemDateValue(date: Date | string): string {
   if (typeof date === "string") {
@@ -465,7 +441,7 @@ export function formatCafeItemDateValue(date: Date | string): string {
   }
 
   return [
-    date.getUTCFullYear(),
+    String(date.getUTCFullYear()).padStart(4, "0"),
     String(date.getUTCMonth() + 1).padStart(2, "0"),
     String(date.getUTCDate()).padStart(2, "0"),
   ].join("-");

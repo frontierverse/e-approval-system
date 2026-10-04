@@ -55,7 +55,7 @@ export default async function WorkScheduleCafePage({
 }: {
   searchParams: Promise<CafeManagementSearchParams>;
 }) {
-  await requireUser();
+  const user = await requireUser();
 
   const params = await searchParams;
   const activeTab = getSelectedCafeTab(params.tab);
@@ -76,9 +76,9 @@ export default async function WorkScheduleCafePage({
 
       <div className="mt-6">
         {activeTab === "compliance" ? (
-          <CafeCompliancePanel params={params} />
+          <CafeCompliancePanel params={params} actorId={user.id} />
         ) : (
-          <CafeItemPanel params={params} />
+          <CafeItemPanel params={params} actorId={user.id} />
         )}
       </div>
     </>
@@ -86,9 +86,10 @@ export default async function WorkScheduleCafePage({
 }
 
 async function CafeItemPanel({
-  params,
+  params, actorId,
 }: {
   params: CafeManagementSearchParams;
+  actorId: string;
 }) {
   const today = getCafeItemToday();
   const filters = {
@@ -118,10 +119,11 @@ async function CafeItemPanel({
 
   return (
     <div className="space-y-5">
-      <CafeItemRegistrationForm today={today} />
+      <CafeItemRegistrationForm today={today} actorId={actorId} />
       <CafeItemList
         key={cafeItemListKey}
         itemPage={itemPage}
+        actorId={actorId}
         loadItemPage={getCafeItemPageAction}
         today={today}
       />
@@ -135,9 +137,10 @@ async function CafeItemPanel({
 }
 
 async function CafeCompliancePanel({
-  params,
+  params, actorId,
 }: {
   params: CafeManagementSearchParams;
+  actorId: string;
 }) {
   const notePage = await getCafeComplianceNotePage({
     page: normalizeCafeComplianceNotePage(params.notePage),
@@ -146,8 +149,8 @@ async function CafeCompliancePanel({
 
   return (
     <div className="space-y-5">
-      <CafeComplianceNoteForm />
-      <CafeComplianceNoteList notePage={notePage} />
+      <CafeComplianceNoteForm actorId={actorId} />
+      <CafeComplianceNoteList notePage={notePage} actorId={actorId} />
     </div>
   );
 }

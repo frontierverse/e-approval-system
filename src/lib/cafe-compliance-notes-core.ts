@@ -1,8 +1,10 @@
+import type { CafeWebState } from "@/lib/cafe-mutations-core";
 export const cafeComplianceNoteMaxLength = 2000;
 
 export type CafeComplianceNote = {
   content: string;
   createdAt: string;
+  updatedAt: string;
   createdBy: {
     id: string;
     name: string;
@@ -18,7 +20,7 @@ export type CafeComplianceNotePage = {
   totalPages: number;
 };
 
-export type CafeComplianceNoteFormState = {
+export type CafeComplianceNoteFormState = CafeWebState & {
   error?: string;
   resetKey?: string;
   success?: string;
