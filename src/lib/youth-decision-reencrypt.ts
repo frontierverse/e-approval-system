@@ -55,7 +55,7 @@ async function reencryptOne(context: YouthDecisionContext, id: string) {
       if (!unknown && !current.hadUnknownWrite) {
         // Proven no-write failures keep this immutable attempt available for an
         // explicit retry, which still rechecks the source and current administrator.
-        await tx.youthDecisionUpload.update({ where: { id: current.id }, data: { state: "uploading", terminalReason: null, finalizeWriteEvidence: "none", finalizeClaimId: null, finalizeLeaseUntil: null } });
+        await tx.youthDecisionUpload.update({ where: { id: current.id }, data: { state: "uploading", terminalReason: null, finalizeWriteEvidence: null, finalizeClaimId: null, finalizeLeaseUntil: null } });
         return true;
       }
       await tx.youthDecisionUpload.update({ where: { id: current.id }, data: { state: "deleting", terminalReason: "reencrypt-failed", originalName: null, mimeType: null, size: null, expectedSha256: null, plaintextSha256: null, storedSha256: null, storedSize: null, finalizeWriteEvidence: "unknown", finalizeClaimId: null, finalizeLeaseUntil: null } });

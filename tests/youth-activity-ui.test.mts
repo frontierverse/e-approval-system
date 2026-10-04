@@ -52,3 +52,16 @@ test('common whole-block drag retains duration and source ID/token when moved',a
  assert.deepEqual(r.args[6].baselines,[{weekday:1,startMinute:540,scheduleId:'common-old',expectedUpdatedAt:stamp}]);
  h.resolve(ok({schedules:[],sourceStartMinute:540,targetWeekdays:[1]}),'commonSave');await settle();h.destroy();
 });
+
+test('common dialog returns to the explicit origin for keyboard, empty slot and pointer entry',async()=>{
+ for(const entry of ['keyboard','empty','pointer']){
+  const h=common(),origin={setPointerCapture(){},hasPointerCapture(){return true;},releasePointerCapture(){}};
+  if(entry==='keyboard')commonScheduleButton(h).props.onKeyDown({key:'Enter',currentTarget:origin,preventDefault(){}});
+  else if(entry==='empty')h.all('button').find(n=>n.props['aria-label']?.endsWith('일정 입력')).props.onClick({currentTarget:origin});
+  else{commonScheduleButton(h).props.onPointerDown({...pointerEvent(100),currentTarget:origin});await settle();commonScheduleButton(h).props.onPointerUp({...pointerEvent(100),currentTarget:origin});}
+  await settle();assert.equal(h.find('AppModal').props.returnFocusTo,origin);
+  assert.equal(h.find('textarea','일정 내용').props.autoFocus,undefined);
+  assert.equal(h.find('textarea','일정 내용').props['data-modal-initial-focus'],true);
+  assert.equal(h.requests.length,0);h.destroy();
+ }
+});

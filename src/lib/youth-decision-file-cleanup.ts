@@ -60,37 +60,47 @@ async function minimizeTerminalYouthUpload(tx: Prisma.TransactionClient, id: str
   await tx.youthDecisionUpload.updateMany({ where: { id, state: "deleting" }, data: { state: upload.terminalReason === "expired" ? "expired" : "deleted", originalName: null, mimeType: null, size: null, expectedSha256: null, plaintextSha256: null, storedSha256: null, storedSize: null, stagingKey: null, finalKey: null, finalizeClaimId: null, finalizeLeaseUntil: null, finalizeIv: null, finalizeWriteEvidence: null, updatedAt: now } });
 }
 /** Internal trusted maintenance entry point; a public trigger must supply actorId. */
-export async function reconcileYouthDecisionFileQueue(context: YouthDecisionCleanupContext, options: { limit?: number; budgetMs?: number; cleanupIds?: string[] } = {}) {
-  const storage = context.storage ?? await import("@/lib/resource-file-storage"), signal = AbortSignal.timeout(Math.min(10000, Math.max(1, options.budgetMs ?? 2000)));
+export async function reconcileYouthDecisionFileQueue(context: YouthDecisionCleanupContext, options: { limit?: number; budgetMs?: number; cleanupIds?: string[]; signal?: AbortSignal } = {}) {
+  const deadline = Date.now() + Math.min(10000, Math.max(1, options.budgetMs ?? 2000));
+  const deadlineSignal = AbortSignal.timeout(Math.min(10000, Math.max(1, options.budgetMs ?? 2000)));
+  const signal = options.signal ? AbortSignal.any([options.signal, deadlineSignal]) : deadlineSignal;
+  const cancelled = () => signal.aborted || Date.now() >= deadline;
+  if (cancelled()) return { checked: 0, completed: 0 };
+  const storage = context.storage ?? await import("@/lib/resource-file-storage");
+  if (cancelled()) return { checked: 0, completed: 0 };
   const limit = Math.min(10, Math.max(1, options.limit ?? 3)), now = nowOf(context);
   const candidates = await cleanupTransaction(context, tx => tx.youthDecisionFileCleanup.findMany({ where: { ...(options.cleanupIds ? { id: { in: options.cleanupIds } } : {}), notBefore: { lte: now }, nextAttemptAt: { lte: now }, OR: [{ state: "pending" }, { state: "running", leaseUntil: { lte: now } }] }, orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }], take: limit }));
   let completed = 0;
   for (const candidate of candidates) {
-    if (signal.aborted) break;
+    if (cancelled()) break;
     const claimed = await cleanupTransaction(context, async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "YouthDecisionFileCleanup" WHERE "id" = ${candidate.id} FOR UPDATE`);
+      if (cancelled()) return null;
       const row = await tx.youthDecisionFileCleanup.findUnique({ where: { id: candidate.id } }), at = nowOf(context);
       if (!row || row.state === "done" || row.notBefore > at || row.nextAttemptAt > at || (row.state === "running" && row.leaseUntil && row.leaseUntil > at)) return null;
       const reason = await pendingReason(tx, row, at);
       const upload = row.sourceUploadId ? await tx.youthDecisionUpload.findUnique({ where: { id: row.sourceUploadId } }) : null;
+      if (cancelled()) return null;
       // Unknown writers do not prevent repeatedly removing late objects. They only
       // prevent claiming durable absence while the external write remains uncertain.
       if (reason && !(reason === "LEGACY_WRITER_UNTRACKED" || (reason === "WRITE_PENDING" && ["deleting", "consumed"].includes(upload?.state ?? "")))) { await tx.youthDecisionFileCleanup.update({ where: { id: row.id }, data: { state: "pending", claimId: null, leaseUntil: null, lastErrorCode: reason, nextAttemptAt: new Date(at.getTime() + 60000) } }); return null; }
+      if (cancelled()) return null;
       return tx.youthDecisionFileCleanup.update({ where: { id: row.id }, data: { state: "running", claimId: randomUUID(), leaseUntil: new Date(at.getTime() + 15000), attemptCount: { increment: 1 }, lastErrorCode: null } });
     });
     if (!claimed) continue;
     let failure: "STORAGE_DELETE_FAILED" | "NOT_ABSENT" | null = null;
-    try { await storage.deleteResourceStoredFile(claimed, { signal }); if (await storage.resourceStoredFileExists(claimed, { signal })) failure = "NOT_ABSENT"; }
+    try { if (cancelled()) throw new Error("CLEANUP_CANCELLED"); await storage.deleteResourceStoredFile(claimed, { signal }); if (cancelled() || await storage.resourceStoredFileExists(claimed, { signal })) failure = "NOT_ABSENT"; }
     catch { failure = "STORAGE_DELETE_FAILED"; }
-    await cleanupTransaction(context, async tx => {
+    const committed = await cleanupTransaction(context, async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "YouthDecisionFileCleanup" WHERE "id" = ${claimed.id} FOR UPDATE`);
       const row = await tx.youthDecisionFileCleanup.findUnique({ where: { id: claimed.id } }), at = nowOf(context);
       if (!row || row.state !== "running" || row.claimId !== claimed.claimId) return;
-      const reason = failure ?? await pendingReason(tx, row, at);
-      if (reason) { await tx.youthDecisionFileCleanup.updateMany({ where: { id: row.id, state: "running", claimId: claimed.claimId }, data: { state: "pending", claimId: null, leaseUntil: null, lastErrorCode: reason, nextAttemptAt: new Date(at.getTime() + Math.min(3600000, 1000 * 2 ** Math.min(row.attemptCount, 12))) } }); return; }
+      const reason = failure ?? (cancelled() ? "STORAGE_DELETE_FAILED" : await pendingReason(tx, row, at));
+      if (reason || cancelled()) { await tx.youthDecisionFileCleanup.updateMany({ where: { id: row.id, state: "running", claimId: claimed.claimId }, data: { state: "pending", claimId: null, leaseUntil: null, lastErrorCode: reason ?? "STORAGE_DELETE_FAILED", nextAttemptAt: new Date(at.getTime() + Math.min(3600000, 1000 * 2 ** Math.min(row.attemptCount, 12))) } }); return; }
       const changed = await tx.youthDecisionFileCleanup.updateMany({ where: { id: row.id, state: "running", claimId: claimed.claimId }, data: { state: "done", claimId: null, leaseUntil: null, completedAt: at, lastErrorCode: null } });
-      if (changed.count) { completed++; if (row.sourceUploadId) await minimizeTerminalYouthUpload(tx, row.sourceUploadId, at); }
+      if (changed.count) { if (cancelled()) throw new Error("CLEANUP_CANCELLED"); if (row.sourceUploadId) await minimizeTerminalYouthUpload(tx, row.sourceUploadId, at); if (cancelled()) throw new Error("CLEANUP_CANCELLED"); return true; }
     });
+    if (committed) completed++;
   }
   return { checked: candidates.length, completed };
 }
@@ -114,24 +124,32 @@ export async function reconcileYouthDecisionFiles(context: YouthDecisionContext,
 }
 export async function safelyReconcileYouthDecisionFiles(context: YouthDecisionContext, cleanupIds?: string[]) { try { await reconcileYouthDecisionFiles(context, { cleanupIds }); } catch { console.error("Youth decision file cleanup remains pending"); } }
 
-/** Scheduled internal pump: current/retired/deleted actors' expired unused files too. */
-export async function reconcileYouthDecisionMaintenance(context: Omit<YouthDecisionCleanupContext, "actorId">, options: { limit?: number; budgetMs?: number } = {}) {
+/** Scheduled expiration lane; unused files from retired/deleted actors are included. */
+export async function reconcileYouthDecisionUploadExpiry(context: Omit<YouthDecisionCleanupContext, "actorId"> = {}, options: { limit?: number; budgetMs?: number; signal?: AbortSignal } = {}) {
   const limit = Math.min(10, Math.max(1, options.limit ?? 3)), now = nowOf(context), deadline = Date.now() + Math.min(10000, Math.max(1, options.budgetMs ?? 2000));
+  if (options.signal?.aborted) return { checked: 0, completed: 0, expired: 0 };
   const candidates = await cleanupTransaction(context, tx => tx.youthDecisionUpload.findMany({ where: { state: { in: ["uploading", "finalizing", "ready"] }, expiresAt: { lte: now } }, orderBy: [{ expiresAt: "asc" }, { id: "asc" }], take: limit }));
-  let expired = 0;
+  let checked = 0, expired = 0;
   for (const candidate of candidates) {
-    if (Date.now() >= deadline) break;
+    if (Date.now() >= deadline || options.signal?.aborted) break;
     const transitioned = await cleanupTransaction(context, async tx => {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "YouthDecisionUpload" WHERE "id" = ${candidate.id} FOR UPDATE`);
-    const row = await tx.youthDecisionUpload.findUnique({ where: { id: candidate.id } });
-    if (!row || row.expiresAt > now || !["uploading", "finalizing", "ready"].includes(row.state)) return false;
-    await tx.youthDecisionUpload.update({ where: { id: row.id }, data: { state: "deleting", terminalReason: "expired", originalName: null, mimeType: null, size: null, expectedSha256: null, plaintextSha256: null, storedSha256: null, storedSize: null } });
-    await queueYouthDecisionUploadFiles(tx, row, now, undefined, row.consumedYouthId ?? row.targetYouthId ?? undefined);
-    return true;
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "YouthDecisionUpload" WHERE "id" = ${candidate.id} FOR UPDATE`);
+      if (Date.now() >= deadline || options.signal?.aborted) return false;
+      const row = await tx.youthDecisionUpload.findUnique({ where: { id: candidate.id } });
+      if (Date.now() >= deadline || options.signal?.aborted || !row || row.expiresAt > now || !["uploading", "finalizing", "ready"].includes(row.state)) return false;
+      await tx.youthDecisionUpload.update({ where: { id: row.id }, data: { state: "deleting", terminalReason: "expired", originalName: null, mimeType: null, size: null, expectedSha256: null, plaintextSha256: null, storedSha256: null, storedSize: null } });
+      await queueYouthDecisionUploadFiles(tx, row, now, undefined, row.consumedYouthId ?? row.targetYouthId ?? undefined);
+      return true;
     });
+    checked++;
     if (transitioned) expired++;
   }
-  if (Date.now() >= deadline) return { checked: 0, completed: 0, expired };
-  const result = await reconcileYouthDecisionFileQueue(context, { ...options, budgetMs: Math.max(1, deadline - Date.now()) });
-  return { ...result, expired };
+  return { checked, completed: 0, expired };
+}
+/** Compatibility pump reserves a queue budget even if expiration uses its full slot. */
+export async function reconcileYouthDecisionMaintenance(context: Omit<YouthDecisionCleanupContext, "actorId"> = {}, options: { limit?: number; budgetMs?: number; signal?: AbortSignal } = {}) {
+  const budget = Math.min(10000, Math.max(2, options.budgetMs ?? 2000)), expiryBudget = Math.max(1, Math.floor(budget / 3));
+  const expiry = await reconcileYouthDecisionUploadExpiry(context, { ...options, budgetMs: expiryBudget });
+  const result = await reconcileYouthDecisionFileQueue(context, { ...options, budgetMs: budget - expiryBudget });
+  return { ...result, expired: expiry.expired };
 }

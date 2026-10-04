@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import * as generated from "../src/generated/prisma/client.ts";
 import { beforeEach, test } from "node:test";
 import ts from "typescript";
+import { youthPurgeHarness } from "./helpers/youth-purge.mjs";
 import { getYouthRetentionState, getYouthRetentionUntil, isRestrictedYouth, validateRetentionInput } from "../src/lib/youth-retention-core.ts";
 
 // Execute the real service, DTO mapper, access guards and download route in an isolated store.
@@ -68,6 +69,7 @@ const modules = new Map<string, Row>(), nodeRequire = createRequire(import.meta.
 const ports: Row = {
   "server-only": {}, "@/generated/prisma/client": generated, "@/lib/prisma": { prisma: db },
   "@/lib/auth": { requireAdmin: async () => { if (!h.admin) throw Error("Forbidden"); return { id: "admin", role: "ADMIN" }; }, getCurrentUser: async () => ({ id: "reader", role: h.admin ? "ADMIN" : "USER", status: "ACTIVE", canDownloadYouthDocuments: true }) },
+  "@/lib/session": { getSessionUserId: async () => "admin" },
   "@/lib/audit-log-request": { getCurrentAuditLogRequestData: async () => ({}) },
   "@/lib/attachment-storage": { removeStoredAttachmentFiles: async (files: Row[]) => { if (h.failStorage) throw Error("Storage unavailable"); h.removed.push(...files); } },
   "@/lib/resource-file-storage": { readResourceStoredFile: async (_ref: Row, options: Row) => { await options.beforeExpose(); return { body: new Uint8Array([1,2,3]), size: 3, mimeType: "application/pdf", verifiedSha256: "a".repeat(64) }; } },
@@ -172,57 +174,44 @@ test("retained read is audited, restricted to the target, and excludes private d
   h.failAudit = true; await assert.rejects(service.readRetainedYouth("youth-1", "AFTERCARE"), /Audit/);
 });
 
-test("failed file deletion keeps references, locks normal writes, and retries safely", async () => {
-  const errorLog = console.error; console.error = () => {};
-  try {
-    h.failStorage = true; await assert.rejects(service.purgeYouthRecord("youth-1", input()), /다시 실행/);
-    assert.equal(h.youths[0].name, "청소년가"); assert.equal(h.youths[0].purgedAt, null);
-    assert.ok(h.youths[0].purgeStartedAt); assert.equal(h.youths[0].purgeLeaseUntil, null);
-    assert.equal(h.links.youthDecisionDocument.length, 2);
-    await assert.rejects(access.requireOperationalYouth("youth-1"), /파기/);
-    await assert.rejects(access.requireYouthNotPurging("youth-1"), /파기/);
-    await assert.rejects(service.readRetainedYouth("youth-1", "AFTERCARE"));
-    h.failStorage = false; await service.purgeYouthRecord("youth-1", input());
-    assert.ok(h.youths[0].purgedAt); assert.equal(h.removed.length, 1);
-    await assert.rejects(service.purgeYouthRecord("youth-1", input()));
-  } finally { console.error = errorLog; }
+test("failed tracked file deletion preserves references and blocks normal access until a proven retry", async () => {
+  const s = youthPurgeHarness(), row = s.parent(); s.h.failStorage = true;
+  const first = await s.request(row); assert.equal(first.status, "pending");
+  assert.equal(s.h.tables.youth[0].purgedAt, null); assert.ok(s.h.tables.youth[0].purgeStartedAt);
+  assert.equal(s.h.tables.youthDecisionDocument.length, 1);
+  await assert.rejects(s.load("lib/youth-mobile-context.ts").lockOperationalYouth(s.db, row.id, "2026-10-04"), { code: "NOT_FOUND" });
+  s.h.failStorage = false; s.h.now = new Date(s.h.now.getTime() + 3600001);
+  assert.equal((await s.request(s.h.tables.youth[0])).status, "complete");
 });
 
-test("new purpose-ledger links veto legacy purge before any start, deletion or scrub", async () => {
-  for (const [model, row] of [
-    ["youthMutationReceipt", { youthId: "youth-1" }],
-    ["youthViewRequest", { youthId: "youth-1" }],
-    ["youthDecisionUpload", { targetYouthId: "youth-1" }],
-    ["youthDecisionUpload", { consumedYouthId: "youth-1" }],
-    ["youthDecisionUpload", { sourceDocumentId: "doc-youth-1" }],
-    ["youthDecisionFileCleanup", { youthId: "youth-1" }],
-  ] as Array<[string, Row]>) {
-    h.youths[0] = record(); h.ledgers = { [model]: [row] }; h.removed = [];
-    const beforeAudits = h.audits.length;
-    await assert.rejects(service.purgeYouthRecord("youth-1", input()), /기존 직접 파기는 시작하지 않았습니다/);
-    assert.equal(h.youths[0].purgeStartedAt, null); assert.equal(h.youths[0].purgedAt, null);
-    assert.equal(h.youths[0].retentionVersion, 0); assert.equal(h.removed.length, 0); assert.equal(h.audits.length, beforeAudits);
-    assert.equal(h.links.youthDecisionDocument.length, 2);
-  }
+test("new purpose ledgers join an approved tracked purge instead of being silently omitted", async () => {
+  const s = youthPurgeHarness(), row = s.parent();
+  s.h.tables.youthViewRequest.push({ id: "view", actorId: "admin", requestId: "retention-view", youthId: row.id, state: "recorded", sourceUpdatedAt: s.h.now, requestHash: "b".repeat(64), sourceFileUpdatedAt: s.h.now, auditLogId: "old-audit", auditedAt: s.h.now, disclosureUntil: s.h.now });
+  assert.equal((await s.request(row)).status, "complete");
+  assert.equal(s.h.tables.youthMutationReceipt[0].state, "purged"); assert.equal(s.h.tables.youthViewRequest[0].state, "purged");
+  assert.equal(s.h.tables.youthDecisionUpload[0].state, "purged"); assert.ok(s.h.tables.youthDecisionFileCleanup.every(item => item.state === "done"));
 });
 
-test("unrelated purpose ledgers do not broaden or change the existing legacy purge", async () => {
-  h.ledgers = Object.fromEntries(["youthMutationReceipt", "youthViewRequest", "youthDecisionUpload", "youthDecisionFileCleanup"].map(model => [model, [{ youthId: "youth-2", targetYouthId: "youth-2", consumedYouthId: "youth-2", sourceDocumentId: "doc-youth-2" }]]));
-  await service.purgeYouthRecord("youth-1", input()); assert.ok(h.youths[0].purgedAt); assert.equal(h.removed.length, 1);
-  assert.equal(h.youths[1].name, "청소년나");
+test("unrelated purpose ledgers and files remain unchanged during the approved parent purge", async () => {
+  const s = youthPurgeHarness(), row = s.parent(); s.parent("youth-2");
+  assert.equal((await s.request(row)).status, "complete");
+  assert.equal(s.h.tables.youthMutationReceipt[1].state, "committed"); assert.equal(s.h.tables.youthDecisionUpload[1].state, "consumed");
+  assert.equal(s.h.tables.youth[1].name, "합성 youth-2"); assert.ok(s.h.objects.has("final-youth-2"));
 });
 
-test("successful purge scrubs connected records and reports, keeps unrelated records and amounts", async () => {
-  await service.purgeYouthRecord("youth-1", input());
-  for (const key of ["phone", "birthDate", "age", "familyPhone", "familyContact", "admissionDate", "dischargeDate", "caseClosedDate", "retentionHoldReason"]) assert.equal(h.youths[0][key], null);
-  assert.equal(h.youths[0].name, "파기된 기록 youth-1"); assert.equal(h.youths[1].name, "청소년나");
-  for (const table of childTables) assert.equal(h.links[table].length, 1, table);
-  assert.deepEqual(h.reports[0].youthReports, [{ youthId: "youth-2", youthName: "청소년나", content: "다른 기록" }]);
-  assert.equal(h.reports[0].version, 2); assert.deepEqual(h.reports[1].youthReports, []);
-  assert.equal(h.reports[0].mainContent, "별도 검토 본문");
-  for (const table of ["mathResult", "mathVaultLog"]) { assert.equal(h.links[table][0].amount, 3000); assert.equal(h.links[table][0].memo, null); assert.equal(h.links[table][1].memo, "다른 청소년"); }
-  assert.equal(h.audits[0].metadata.personalDataPurged, true);
-  assert.equal(h.audits.at(-1).metadata.changeType, "youth.retention.purged");
+test("successful tracked purge scrubs connected records and reports, keeps unrelated records and amounts", async () => {
+  const s = youthPurgeHarness(), row = s.parent(); s.parent("youth-2");
+  s.h.tables.dailyWorkReport = structuredClone(h.reports); s.h.tables.mathResult = structuredClone(h.links.mathResult); s.h.tables.mathVaultLog = structuredClone(h.links.mathVaultLog); s.h.tables.auditLog = structuredClone(h.audits);
+  assert.equal((await s.request(row)).status, "complete");
+  const after = s.h.tables.youth[0];
+  for (const key of ["phone", "birthDate", "age", "familyPhone", "familyContact", "admissionDate", "dischargeDate", "caseClosedDate", "retentionHoldReason"]) assert.equal(after[key], null);
+  assert.equal(after.name, "파기된 기록 youth-1"); assert.equal(s.h.tables.youth[1].name, "합성 youth-2");
+  for (const table of childTables) assert.equal(s.h.tables[table].length, 1, table);
+  assert.deepEqual(s.h.tables.dailyWorkReport[0].youthReports, [{ youthId: "youth-2", youthName: "청소년나", content: "다른 기록" }]);
+  assert.equal(s.h.tables.dailyWorkReport[0].version, 2); assert.deepEqual(s.h.tables.dailyWorkReport[1].youthReports, []);
+  assert.equal(s.h.tables.dailyWorkReport[0].mainContent, "별도 검토 본문");
+  for (const table of ["mathResult", "mathVaultLog"]) { assert.equal(s.h.tables[table][0].amount, 3000); assert.equal(s.h.tables[table][0].memo, null); assert.equal(s.h.tables[table][1].memo, "다른 청소년"); }
+  assert.equal(s.h.tables.auditLog[0].metadata.personalDataPurged, true); assert.equal(s.h.tables.auditLog.at(-1).metadata.changeType, "youth.retention.purged");
 });
 
 test("decision download denies discharged staff access and fails closed when auditing fails", async () => {

@@ -58,7 +58,7 @@ test('reencrypt already encrypted actual readproof writes0 and nonadmin/inactive
 test('reencrypt proven no-write failure retries the same immutable attempt after fresh source checks',async()=>{
  h.state.user[0].role='ADMIN';youth();document({storageKey:'legacy/one.pdf'});
  h.beforeReencrypt=()=>{h.storageError=Object.assign(Error('synthetic unavailable before write'),{writeEvidence:'none'});};
- const first=await reencrypt.reencryptYouthDecisionDocuments(ctx());assert.equal(first.summary.failed,1);assert.equal(h.state.youthDecisionUpload[0].state,'uploading');assert.equal(h.state.youthDecisionUpload[0].finalizeWriteEvidence,'none');assert.equal(h.state.youthDecisionFileCleanup.length,0);assert.equal(h.state.youthDecisionDocument[0].storageKey,'legacy/one.pdf');
+ const first=await reencrypt.reencryptYouthDecisionDocuments(ctx());assert.equal(first.summary.failed,1);assert.equal(h.state.youthDecisionUpload[0].state,'uploading');assert.equal(h.state.youthDecisionUpload[0].finalizeWriteEvidence,null);assert.equal(h.state.youthDecisionFileCleanup.length,0);assert.equal(h.state.youthDecisionDocument[0].storageKey,'legacy/one.pdf');
  const finalKey=h.state.youthDecisionUpload[0].finalKey;h.storageError=null;h.beforeReencrypt=null;
  const second=await reencrypt.reencryptYouthDecisionDocuments(ctx());assert.equal(second.summary.encrypted,1);assert.equal(h.state.youthDecisionUpload.length,1);assert.equal(h.state.youthDecisionDocument[0].storageKey,finalKey);assert.equal(h.state.youthMutationReceipt.length,1);
 });

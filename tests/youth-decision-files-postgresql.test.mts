@@ -58,3 +58,33 @@ test("CI PG youth ledger RLS zero policies, closed states and exact opaque exten
     await assert.rejects(s.db.youthViewRequest.create({ data: { actorId: s.actor.id, requestId: "pg-invalid-view", youthId: s.youth.id, kind: "decision-download" } }));
   } finally { await s.dispose(); }
 });
+
+test("CI PG actual reencrypt proven no-write resets to valid null evidence and retries one immutable attempt", { skip: process.env.GITHUB_ACTIONS !== "true", timeout: 60000 }, async () => {
+  const s = await setup(); const previousKey = process.env.ATTACHMENT_ENCRYPTION_KEY;
+  try {
+    process.env.ATTACHMENT_ENCRYPTION_KEY = "a".repeat(64);
+    await s.db.user.update({ where:{id:s.actor.id}, data:{role:"ADMIN"} });
+    const doc = await s.db.youthDecisionDocument.create({data:{youthId:s.youth.id,originalName:"합성 결정문.pdf",mimeType:"application/pdf",size:3,storageProvider:"local",storageKey:s.prefix+"-legacy.pdf"}});
+    const {reencryptYouthDecisionDocuments} = await import("../src/lib/youth-decision-reencrypt.ts");
+    let failBeforeWrite = true, writes = 0;
+    const storage = { ...s.storage,
+      async readResourceStoredFile(_ref:unknown,input:{beforeExpose:()=>Promise<unknown>}) {await input.beforeExpose();return{encrypted:false,verifiedSha256:"a".repeat(64),size:3,body:new ReadableStream<Uint8Array>({start(controller){controller.enqueue(new Uint8Array(3));controller.close();}})};},
+      async reencryptResourceStoredFile(input:{size:number;wholeSha256:string;ivBase64:string}) {writes++;if(failBeforeWrite)throw Object.assign(Error("synthetic failure before write"),{writeEvidence:"none"});return{alreadyEncrypted:false,writeEvidence:"confirmed",size:input.size,wholeSha256:input.wholeSha256,storedSha256:"b".repeat(64),storedSize:input.size+32,encryptionIvBase64:input.ivBase64};},
+    };
+    const ctx = {actorId:s.actor.id,db:s.db,storage,now:()=>new Date("2026-10-04T03:00:00Z")} as unknown as Parameters<typeof reencryptYouthDecisionDocuments>[0];
+    const first = await reencryptYouthDecisionDocuments(ctx);
+    assert.equal(first.summary.failed,1);
+    const attempt = await s.db.youthDecisionUpload.findFirstOrThrow({where:{actorId:s.actor.id}});
+    assert.equal(attempt.state,"uploading");assert.equal(attempt.finalizeWriteEvidence,null);assert.equal(attempt.hadUnknownWrite,false);assert.equal(attempt.finalizeLeaseUntil,null);
+    assert.equal(await s.db.youthDecisionFileCleanup.count({where:{youthId:s.youth.id}}),0);
+    assert.equal((await s.db.youthDecisionDocument.findUniqueOrThrow({where:{id:doc.id}})).storageKey,doc.storageKey);
+    await assert.rejects(s.db.youthDecisionUpload.update({where:{id:attempt.id},data:{finalizeWriteEvidence:"none"}}));
+    failBeforeWrite=false;
+    const second = await reencryptYouthDecisionDocuments(ctx);
+    assert.equal(second.summary.encrypted,1);assert.equal(second.physicalCleanupComplete,false);assert.equal(writes,2);
+    assert.equal(await s.db.youthDecisionUpload.count({where:{actorId:s.actor.id}}),1);
+    const consumed = await s.db.youthDecisionUpload.findUniqueOrThrow({where:{id:attempt.id}});
+    assert.equal(consumed.state,"consumed");assert.equal(consumed.finalKey,attempt.finalKey);assert.equal(consumed.finalizeIv,attempt.finalizeIv);
+    assert.equal((await s.db.youthDecisionDocument.findUniqueOrThrow({where:{id:doc.id}})).storageKey,attempt.finalKey);
+  } finally { if(previousKey===undefined)delete process.env.ATTACHMENT_ENCRYPTION_KEY;else process.env.ATTACHMENT_ENCRYPTION_KEY=previousKey;await s.dispose(); }
+});

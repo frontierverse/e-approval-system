@@ -94,7 +94,7 @@ function YouthSubjectProgressBoardContent({
               aria-controls={`subject-${subject.value}-panel`}
               onClick={() => setSelectedSubject(subject.value)}
               className={[
-                "inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
+                "inline-flex h-11 shrink-0 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#d7eceb]",
                 active
                   ? "border-[#196b69] bg-[#196b69] text-white"
                   : "border-[#cfd6e3] bg-white text-[#394150] hover:bg-[#f7f9fc]",
@@ -279,7 +279,7 @@ function YouthStudySubunitCard({
             defaultValue={formState.values?.content ?? ""}
             disabled={formPending || createUnknown || createBlocked}
             placeholder="예: 소수는 무엇인가?"
-            className="h-9 w-full min-w-0 flex-1 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+            className="h-11 w-full min-w-0 flex-1 rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none transition placeholder:text-[#9aa4b2] focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
           />
           <button
             type="submit"
@@ -287,7 +287,7 @@ function YouthStudySubunitCard({
             className={buttonClass(
               buttonStyles.base,
               buttonStyles.save,
-              "h-9 shrink-0 px-4 text-sm",
+              "h-11 shrink-0 px-4 text-sm",
             )}
           >
             {createUnknown ? "같은 요청 결과 확인" : formPending ? "추가 중" : "개념 추가"}
@@ -330,7 +330,9 @@ function YouthStudyConceptCheckBox({ conceptId, conceptUpdatedAt, actorId, canMa
     try { const result = await getYouthConceptCheckBaselineAction(youth.id, conceptId, actorId); if (!alive.current) return; if (!result.ok) { onToggleError(result.error); if ([401,403,404].includes(result.status)) { setBlocked(true); onYouthUnavailable(youth.id); } return; } setCurrentChecked(result.data.checked); onYouthToken(youth.id, result.data.youthUpdatedAt); if (!window.confirm("최신 숙지 상태를 확인했습니다. 이 기준으로 다시 변경할 준비를 하시겠습니까? 아직 변경하지 않습니다.")) return; fence.current = { youth: result.data.youthUpdatedAt, concept: result.data.conceptUpdatedAt }; invalidateYouthActivity(attemptRef.current); attemptRef.current = null; setRecovery("idle"); onToggleError(""); } finally { busy.current = false; }
   }
   return <div className="flex min-h-11 min-w-11 flex-col items-center justify-center">
-    <input type="checkbox" aria-label={`${youth.name} - ${conceptContent}`} checked={currentChecked} disabled={togglePending || recovery !== "idle" || blocked || !canManage || !youth.updatedAt || !conceptUpdatedAt} onChange={event => toggle(event.target.checked)} className="size-4 accent-[var(--brand)]" />
+    <label className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
+      <input type="checkbox" aria-label={`${youth.name} - ${conceptContent}`} checked={currentChecked} disabled={togglePending || recovery !== "idle" || blocked || !canManage || !youth.updatedAt || !conceptUpdatedAt} onChange={event => toggle(event.target.checked)} className="size-4 accent-[var(--brand)]" />
+    </label>
     {recovery === "unknown" ? <button type="button" className="min-h-11 px-2 text-xs" disabled={togglePending} onClick={() => toggle(currentChecked)}>같은 체크 요청 확인</button> : null}
     {recovery === "conflict" ? <button type="button" className="min-h-11 px-2 text-xs" disabled={togglePending} onClick={recover}>최신 상태 확인</button> : null}
   </div>;

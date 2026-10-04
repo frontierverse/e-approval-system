@@ -188,6 +188,7 @@ function YouthCommonScheduleBoardContent({
   const resolvedLabels = resolveCommonScheduleBoardLabels(labels);
   const [scheduleItems, setScheduleItems] = useState(schedules);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [modalOrigin, setModalOrigin] = useState<HTMLButtonElement | null>(null);
   const [startMinuteDraft, setStartMinuteDraft] = useState(
     getYouthLearningScheduleStartMinute(youthLearningScheduleStartHour),
   );
@@ -375,8 +376,10 @@ function YouthCommonScheduleBoardContent({
   function openScheduleModal(
     weekday: YouthLearningScheduleWeekday,
     startMinute: number,
+    origin?: HTMLButtonElement,
   ) {
     if (busyRef.current || recovery !== "idle" || accessBlocked || !canManage) return;
+    setModalOrigin(origin ?? null);
     const schedule = scheduleMap.get(createCommonScheduleKey(weekday, startMinute));
     sourceSnapshot.current = structuredClone(scheduleItems); invalidateYouthActivity(attemptRef.current); attemptRef.current = null;
     setSelectedCell({ weekday, startMinute });
@@ -462,6 +465,7 @@ function YouthCommonScheduleBoardContent({
       return;
     }
 
+    setModalOrigin(event.currentTarget);
     event.currentTarget.setPointerCapture(event.pointerId);
 
     const bounds = getScheduleDragBounds(schedule, scheduleItems);
@@ -538,7 +542,7 @@ function YouthCommonScheduleBoardContent({
     setScheduleDragState(null);
 
     if (shouldOpenModal) {
-      openScheduleModal(schedule.weekday, schedule.startMinute);
+      openScheduleModal(schedule.weekday, schedule.startMinute, event.currentTarget);
       return;
     }
 
@@ -736,8 +740,8 @@ function YouthCommonScheduleBoardContent({
                           key={slot.startHour}
                           type="button"
                           aria-label={`${weekday.label} ${slot.label} 일정 입력`}
-                          onClick={() =>
-                            openScheduleModal(weekday.value, slot.startMinute)
+                          onClick={(event) =>
+                            openScheduleModal(weekday.value, slot.startMinute, event.currentTarget)
                           }
                           className="block h-[88px] w-full border-b border-[#eef1f5] px-3 py-3 text-left text-xs text-[#9aa4b2] transition hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#d7eceb]"
                         >
@@ -806,6 +810,7 @@ function YouthCommonScheduleBoardContent({
                                 openScheduleModal(
                                   schedule.weekday,
                                   schedule.startMinute,
+                                  event.currentTarget,
                                 );
                               }
                             }}
@@ -960,6 +965,7 @@ function YouthCommonScheduleBoardContent({
           className="max-w-2xl"
           labelledBy="common-schedule-modal-title"
           onClose={() => closeScheduleModal()}
+          returnFocusTo={modalOrigin}
         >
           <form
             className="flex max-h-[calc(100dvh-3rem)] flex-col"
@@ -1081,7 +1087,7 @@ function YouthCommonScheduleBoardContent({
                     setFormError("");
                   }}
                   onKeyDown={saveSelectedScheduleWithKeyboard}
-                  autoFocus
+                  data-modal-initial-focus
                   placeholder="일정 내용을 입력하세요."
                   rows={10}
                   className="mt-6 block min-h-[16rem] w-full resize-y border-0 bg-transparent px-0 py-0 text-base leading-7 text-[#16181d] outline-none placeholder:text-[#a5afbd]"

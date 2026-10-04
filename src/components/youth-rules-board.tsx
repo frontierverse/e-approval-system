@@ -208,7 +208,7 @@ function YouthRulesBoardContent({
   return (
     <section
       aria-label="청소년 규칙 관리"
-      className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]"
+      className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)] [&_select]:min-h-11 [&_button]:min-h-11"
     >
       {canManage ? <form
         ref={formRef}
@@ -228,7 +228,7 @@ function YouthRulesBoardContent({
             <select
               name="category"
               defaultValue={youthRuleCategories[0]}
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               {youthRuleCategories.map((category) => (
                 <option key={category} value={category}>
@@ -245,7 +245,7 @@ function YouthRulesBoardContent({
             <select
               name="targetYouthId"
               defaultValue=""
-              className="mt-2 h-10 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
+              className="mt-2 h-11 w-full rounded-md border border-[#cfd6e3] bg-white px-3 text-sm outline-none focus:border-[#196b69] focus:ring-2 focus:ring-[#d7eceb]"
             >
               <option value="">공통</option>
               {targets.map((target) => (
@@ -471,7 +471,7 @@ function YouthRulesPaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="inline-flex h-10 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
+      <span className="inline-flex h-11 items-center justify-center rounded-md border border-[#d9dee7] bg-[#f7f9fc] px-4 text-sm font-semibold text-[#9aa4b2]">
         {pending ? "..." : children}
       </span>
     );
@@ -484,7 +484,7 @@ function YouthRulesPaginationLink({
       className={buttonClass(
         buttonStyles.base,
         buttonStyles.neutral,
-        "h-10 px-4 text-sm",
+        "h-11 px-4 text-sm",
       )}
       onClick={(event) => {
         if (!onPageChange || shouldUseNativeNavigation(event)) {
@@ -682,7 +682,7 @@ export function YouthRuleChangeLogList({
   return (
     <section
       aria-label="규칙 변경 내역"
-      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white xl:col-span-2"
+      className="overflow-hidden rounded-md border border-[#d9dee7] bg-white xl:col-span-2 [&_select]:min-h-11 [&_button]:min-h-11"
     >
       <header className="border-b border-[#eef1f5] px-5 py-4">
         <h2 className="text-base font-semibold text-[#16181d]">

@@ -27,12 +27,13 @@ export async function startYouthRetentionFixture() {
             {...base,id:"long",name:"매우긴한글이름을가진청소년기록의가로넘침검증",retentionUntil:"2029-07-01"},
             {...base,id:"active",name:"입소청소년",actualDischargeDate:null,caseClosedDate:null,retentionUntil:null,dischargeDate:null},
           ];
-          window.fixtureCalls={save:0,purge:0,read:0};
+          window.fixtureCalls={save:0,purge:0,read:0,refresh:0};
           const wait=()=>new Promise(r=>setTimeout(r,300));
           const save=async(id,input)=>{window.fixtureCalls.save++;await wait();if(params.has("error"))return{ok:false,error:"저장 실패: 입력을 유지하고 다시 확인하세요."};records=records.map(r=>r.id===id?{...r,...input,retentionVersion:r.retentionVersion+1,retentionHoldReason:input.holdReason||null,retentionUntil:input.caseClosedDate?"2031-10-01":null}:r);return{ok:true,data:records};};
-          const purge=async(id,input)=>{window.fixtureCalls.purge++;await wait();records=records.map(r=>r.id===id?{...r,name:"파기된 기록",purgedAt:new Date().toISOString(),actualDischargeDate:null,caseClosedDate:null,retentionUntil:null}:r);return{ok:true,data:records};};
+          const purge=async(id,input)=>{window.fixtureCalls.purge++;await wait();if(params.has("pending-purge")){records=records.map(r=>r.id===id?{...r,purgeStartedAt:"2026-10-01T00:00:00.000Z",retentionVersion:r.retentionVersion+1,purgeProgress:{phase:"waiting-provider",blockedReason:"WRITE_PENDING",lastCheckedAt:"2026-10-01T00:00:00.000Z",nextCheckAt:"2026-10-02T00:00:00.000Z",leaseUntil:null,canRetry:false}}:r);return{ok:true,data:records,purgeOutcome:{status:"pending",youthId:id,retentionVersion:1,progress:records.find(r=>r.id===id).purgeProgress}};}records=records.map(r=>r.id===id?{...r,name:"파기된 기록",purgedAt:new Date().toISOString(),actualDischargeDate:null,caseClosedDate:null,retentionUntil:null}:r);return{ok:true,data:records};};
+          const refresh=async()=>{window.fixtureCalls.refresh++;await wait();return{ok:true,data:records};};
           const read=async(id,reason)=>{window.fixtureCalls.read++;await wait();return{ok:true,data:{birthDate:"2005-02-03",phone:"010-0000-0000",familyContacts:[{id:"family",relationship:"부",phone:"010-1111-1111"}],decisionDocuments:[{id:"doc",originalName:"확인결정문.pdf"}],notes:[{id:"note",title:"관리 기록",detail:"관리자에게만 열람되는 기록"}],retainedReports:[{workDate:"2020-06-01",authorName:"담당 직원",content:"보존된 업무보고"}]}};};
-          createRoot(document.getElementById("root")).render(<main className="mx-auto max-w-7xl p-4">{params.has("loading")?<Loading/>:<YouthRetentionBoard data={records} today="2026-10-01" save={save} purge={purge} read={read}/>}</main>);`,
+          createRoot(document.getElementById("root")).render(<main className="mx-auto max-w-7xl p-4">{params.has("loading")?<Loading/>:<YouthRetentionBoard data={records} today="2026-10-01" save={save} purge={purge} read={read} refresh={refresh}/>}</main>);`,
         resolveDir: root, loader: "tsx",
       },
       bundle: true, write: false, format: "iife", platform: "browser", logLevel: "silent",

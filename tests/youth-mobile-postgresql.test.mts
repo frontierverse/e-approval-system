@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
-import ts from "typescript";
 const ciUrl = "postgresql://postgres:postgres@127.0.0.1:5432/e_approval_test";
 function disposable() { if (process.env.GITHUB_ACTIONS !== "true" || process.env.DATABASE_URL !== ciUrl || process.env.DIRECT_URL !== ciUrl) throw Error("Youth PostgreSQL tests require the exact disposable CI database."); }
 async function setup() {
@@ -39,27 +37,22 @@ test("CI PostgreSQL concurrent same-key create and logical view serialize with o
   } finally { await s.dispose(); }
 });
 
-test("CI PostgreSQL purpose ledger veto rolls back legacy purge before storage or PII changes", { skip: process.env.GITHUB_ACTIONS !== "true", timeout: 60000 }, async () => {
+test("CI PostgreSQL approved tracked no-file purge atomically scrubs new ledgers and preserves no-recreate tombstones", { skip: process.env.GITHUB_ACTIONS !== "true", timeout: 60000 }, async () => {
   const s = await setup(); try {
-    const generated = await import("../src/generated/prisma/client.ts"), retentionCore = await import("../src/lib/youth-retention-core.ts"), managementCore = await import("../src/lib/youth-management-core.ts"), reports = await import("../src/lib/daily-report-core.ts");
-    const created = await s.mutations.createMobileYouth({ actorId: s.actor.id, db: s.db }, value(s.prefix + "-purge-veto", "pg-purge-veto-create"));
+    const purge = await import("../src/lib/youth-purge.ts");
+    await s.db.user.update({ where: { id: s.actor.id }, data: { role: "ADMIN" } });
+    const context = { actorId: s.actor.id, db: s.db }, input = value(s.prefix + "-purge", "pg-purge-create-request");
+    const created = await s.mutations.createMobileYouth(context, input);
+    await s.queries.viewMobileYouth(context, created.targetId, "contacts", "pg-purge-view-request");
     await s.db.youth.update({ where: { id: created.targetId }, data: { actualDischargeDate: "2020-06-01", caseClosedDate: "2020-07-01", retentionUntil: "2025-07-01" } });
-    const before = await s.db.youth.findUniqueOrThrow({ where: { id: created.targetId } }); let deletes = 0;
-    const ports: Record<string, unknown> = {
-      "server-only": {}, "@/generated/prisma/client": generated, "@/lib/prisma": { prisma: s.db },
-      "@/lib/auth": { requireAdmin: async () => ({ id: s.actor.id, role: "ADMIN" }) },
-      "@/lib/audit-log-request": { getCurrentAuditLogRequestData: async () => ({}) },
-      "@/lib/attachment-storage": { removeStoredAttachmentFiles: async () => { deletes++; throw Error("Storage must not be called"); } },
-      "@/lib/youth-management": {}, "@/lib/youth-management-core": managementCore,
-      "@/lib/youth-retention-core": retentionCore, "@/lib/daily-report-core": reports,
-    };
-    const compiled = ts.transpileModule(readFileSync(new URL("../src/lib/youth-retention.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-    const evaluated = { exports: {} as { purgeYouthRecord: (id: string, input: object) => Promise<unknown> } };
-    new Function("require", "module", "exports", compiled)((name: string) => { if (name in ports) return ports[name]; throw Error("Unexpected purge test import: " + name); }, evaluated, evaluated.exports);
-    await assert.rejects(evaluated.exports.purgeYouthRecord(before.id, { version: before.retentionVersion, confirmationName: before.name, reviewedCopies: true }), /기존 직접 파기는 시작하지 않았습니다/);
-    const after = await s.db.youth.findUniqueOrThrow({ where: { id: before.id } });
-    assert.equal(deletes, 0); assert.equal(after.purgeStartedAt, null); assert.equal(after.purgedAt, null); assert.equal(after.retentionVersion, before.retentionVersion); assert.equal(after.name, before.name); assert.equal(after.birthDate, before.birthDate); assert.equal(after.phone, before.phone);
-    assert.equal(await s.db.auditLog.count({ where: { actorId: s.actor.id, targetType: "YouthRetention" } }), 0);
-    assert.equal(await s.db.youthMutationReceipt.count({ where: { actorId: s.actor.id, requestId: "pg-purge-veto-create" } }), 1);
+    const before = await s.db.youth.findUniqueOrThrow({ where: { id: created.targetId } });
+    const result = await purge.requestYouthPurge(context, before.id, { version: before.retentionVersion, confirmationName: before.name, reviewedCopies: true });
+    assert.equal(result.status, "complete"); const after = await s.db.youth.findUniqueOrThrow({ where: { id: before.id } });
+    assert.ok(after.purgedAt); assert.equal(after.birthDate, null); assert.equal(after.phone, null); assert.equal(await s.db.youthFamilyContact.count({ where: { youthId: before.id } }), 0);
+    const receipt = await s.db.youthMutationReceipt.findUniqueOrThrow({ where: { actorId_requestId: { actorId: s.actor.id, requestId: input.requestId } } });
+    assert.equal(receipt.state, "purged"); assert.equal(receipt.payloadHash, null); assert.equal(receipt.committedUpdatedAt, null); assert.equal(receipt.committedTargetsJson, null); assert.ok(receipt.scrubbedAt);
+    const views = await s.db.youthViewRequest.findMany({ where: { actorId: s.actor.id, youthId: before.id } }); assert.equal(views.length, 1); assert.equal(views[0].state, "purged"); assert.equal(views[0].sourceUpdatedAt, null); assert.equal(views[0].auditLogId, null); assert.equal(views[0].disclosureUntil, null);
+    await assert.rejects(s.mutations.createMobileYouth(context, input), { code: "REQUEST_CONFLICT" }); assert.equal(await s.db.youth.count({ where: { id: before.id } }), 1);
+    await assert.rejects(s.queries.getMobileYouthDetail(context, before.id), { code: "NOT_FOUND" });
   } finally { await s.dispose(); }
 });
