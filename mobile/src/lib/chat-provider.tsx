@@ -14,10 +14,17 @@ type ChatContextValue = {
   loading: boolean;
   error: string | null;
   foreground: boolean;
+  foregroundEpoch: number;
+  isForegroundCurrent: (expectedEpoch: number) => boolean;
   refreshSummary: () => Promise<ChatSummary | null>;
   authenticatedRequest: <T>(path: string, options?: RequestOptions) => Promise<T>;
   isCurrentAccount: () => boolean;
 };
+function interrupted() {
+  const cause = new Error("앱으로 돌아온 뒤 채팅을 다시 확인하세요.");
+  cause.name = "AbortError";
+  return cause;
+}
 const ChatContext = createContext<ChatContextValue | null>(null);
 export function useChat() {
   const context = useContext(ChatContext);
@@ -49,26 +56,34 @@ function AccountChatProvider({ children, token, userId, isAccount, expireSession
   const [error, setError] = useState<string | null>(null);
   const [foreground, setForeground] = useState(AppState.currentState === "active");
   const visible = useRef(AppState.currentState === "active");
+  const foregroundGeneration = useRef(0);
+  const [foregroundEpoch, setForegroundEpoch] = useState(0);
+  const [summaryEpoch, setSummaryEpoch] = useState(-1);
   const inFlight = useRef<Promise<ChatSummary | null> | null>(null);
   const isCurrentAccount = useCallback(() => alive.current && account.current() && !!token, [token]);
+  const isForegroundCurrent = useCallback((expectedEpoch: number) => isCurrentAccount() && visible.current && foregroundGeneration.current === expectedEpoch, [isCurrentAccount]);
   const authenticatedRequest = useCallback(async <T,>(path: string, options: RequestOptions = {}): Promise<T> => {
     const epoch = generation.current;
+    const foregroundAtStart = foregroundGeneration.current;
+    if (!isForegroundCurrent(foregroundAtStart))
+      throw interrupted();
     if (!isCurrentAccount() || !token)
       throw new ApiError("현재 계정을 다시 확인하세요.", 401);
     try {
       const result = await apiRequest<T>(path, { ...options, token });
-      if (!isCurrentAccount() || epoch !== generation.current)
-        throw new ApiError("현재 계정을 다시 확인하세요.", 401);
+      if (!isCurrentAccount() || epoch !== generation.current || !isForegroundCurrent(foregroundAtStart))
+        throw interrupted();
       return result;
     }
     catch (cause) {
-      if (isCurrentAccount() && epoch === generation.current && cause instanceof ApiError && cause.status === 401)
+      if (isForegroundCurrent(foregroundAtStart) && epoch === generation.current && cause instanceof ApiError && cause.status === 401)
         await expireSession(token);
       throw cause;
     }
-  }, [expireSession, isCurrentAccount, token]);
+  }, [expireSession, isCurrentAccount, isForegroundCurrent, token]);
   const refreshSummary = useCallback((): Promise<ChatSummary | null> => {
-    if (!isCurrentAccount())
+    const foregroundAtStart = foregroundGeneration.current;
+    if (!isForegroundCurrent(foregroundAtStart))
       return Promise.resolve(null);
     if (inFlight.current)
       return inFlight.current;
@@ -80,14 +95,15 @@ function AccountChatProvider({ children, token, userId, isAccount, expireSession
         const value = await authenticatedRequest<unknown>("/chat");
         if (!isChatSummary(value, userId))
           throw new ApiError("채팅 목록 응답을 확인할 수 없습니다.", 200);
-        if (!isCurrentAccount() || epoch !== generation.current)
+        if (!isForegroundCurrent(foregroundAtStart) || epoch !== generation.current)
           return null;
+        setSummaryEpoch(foregroundAtStart);
         setSummary(value);
         setError(null);
         return value;
       }
       catch (cause) {
-        if (isCurrentAccount() && epoch === generation.current) {
+        if (isForegroundCurrent(foregroundAtStart) && epoch === generation.current) {
           setError(chatError(cause));
           if (cause instanceof ApiError && [401, 403, 404].includes(cause.status))
             setSummary(null);
@@ -97,13 +113,13 @@ function AccountChatProvider({ children, token, userId, isAccount, expireSession
       finally {
         if (inFlight.current === promise)
           inFlight.current = null;
-        if (isCurrentAccount() && epoch === generation.current)
+        if (isForegroundCurrent(foregroundAtStart) && epoch === generation.current)
           setLoading(false);
       }
     })();
     inFlight.current = promise;
     return promise;
-  }, [authenticatedRequest, isCurrentAccount, userId]);
+  }, [authenticatedRequest, isForegroundCurrent, userId]);
   const invalidate = useCallback(() => { generation.current++; }, []);
   useEffect(() => {
     alive.current = true;
@@ -118,8 +134,16 @@ function AccountChatProvider({ children, token, userId, isAccount, expireSession
   }, [invalidate, refreshSummary, token]);
   useEffect(() => {
     const update = (value: boolean) => {
+      if (visible.current === value) return;
       visible.current = value;
+      foregroundGeneration.current++;
+      setSummaryEpoch(-1);
+      inFlight.current = null;
+      setForegroundEpoch(foregroundGeneration.current);
       setForeground(value);
+      setSummary(null);
+      setError(null);
+      setLoading(value);
       if (value)
         void refreshSummary();
     };
@@ -137,5 +161,6 @@ function AccountChatProvider({ children, token, userId, isAccount, expireSession
       clearInterval(interval);
     };
   }, [isCurrentAccount, refreshSummary]);
-  return <ChatContext.Provider value={{ summary, unreadCount: error ? null : summary?.unreadCount ?? null, loading, error, foreground, refreshSummary, authenticatedRequest, isCurrentAccount }}>{children}</ChatContext.Provider>;
+  const visibleSummary = foreground && summaryEpoch === foregroundEpoch ? summary : null;
+  return <ChatContext.Provider value={{ summary: visibleSummary, unreadCount: error ? null : visibleSummary?.unreadCount ?? null, loading, error, foreground, foregroundEpoch, isForegroundCurrent, refreshSummary, authenticatedRequest, isCurrentAccount }}>{children}</ChatContext.Provider>;
 }

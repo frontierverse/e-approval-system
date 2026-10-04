@@ -11,6 +11,10 @@ import { prisma } from "@/lib/prisma";
 import { MobileStaffTaskRequestError, parseMobileStaffTaskCompletion, parseMobileStaffTaskCreate, parseMobileStaffTaskDelete, parseMobileStaffTaskFilters, parseMobileStaffTaskId, parseMobileStaffTaskPage } from "@/lib/mobile-staff-tasks-core";
 
 const maxJsonBytes = 16 * 1024;
+function refreshCommittedTaskCache(taskId?: string) {
+  try { revalidateStaffTasks(taskId); }
+  catch { /* The task and its audit have committed; cache failure cannot change that outcome. */ }
+}
 const unauthenticated = () => mobileJson({ error: "로그인이 필요합니다.", code: "UNAUTHORIZED" }, 401);
 export function mobileStaffTaskFailure(cause: unknown) {
   if (cause instanceof MobileStaffTaskRequestError) return mobileJson({ error: cause.message, code: cause.code, ...(cause.fields ? { fields: cause.fields } : {}) }, cause.status);
@@ -31,8 +35,14 @@ async function boundedJson(request: Request): Promise<unknown> {
   const deadline = Date.now() + 10_000;
   const chunks: Uint8Array[] = [];
   let size = 0;
+  const checkDeadline = () => {
+    if (Date.now() < deadline) return;
+    void reader.cancel().catch(() => undefined);
+    throw new MobileStaffTaskRequestError("요청 시간이 초과되었습니다. 연결을 확인하고 다시 시도하세요.", 408, "REQUEST_TIMEOUT");
+  };
   try {
     while (true) {
+      checkDeadline();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
@@ -41,6 +51,7 @@ async function boundedJson(request: Request): Promise<unknown> {
         }, Math.max(1, deadline - Date.now()));
       });
       const next = await Promise.race([reader.read(), timeout]).finally(() => clearTimeout(timer));
+      checkDeadline();
       if (next.done) break;
       size += next.value.byteLength;
       if (size > maxJsonBytes) { void reader.cancel().catch(() => undefined); throw new MobileStaffTaskRequestError("할 일 요청이 너무 큽니다.", 413, "PAYLOAD_TOO_LARGE"); }
@@ -71,7 +82,7 @@ export async function createMobileStaffTaskResponse(request: Request) {
     if (!session) return unauthenticated();
     const values = parseMobileStaffTaskCreate(await boundedJson(request), session.userId);
     const result = await createStaffTask(mutationContext(request, session.userId), values, true);
-    revalidateStaffTasks();
+    refreshCommittedTaskCache();
     return mobileJson({ ok: true, message: "할 일을 등록했습니다.", task: result.task }, result.replayed ? 200 : 201);
   } catch (cause) { return mobileStaffTaskFailure(cause); }
 }
@@ -82,7 +93,7 @@ export async function completeMobileStaffTaskResponse(request: Request, id: unkn
     const taskId = parseMobileStaffTaskId(id);
     const input = parseMobileStaffTaskCompletion(await boundedJson(request));
     const result = await setOwnStaffTaskCompleted(mutationContext(request, session.userId), { id: taskId, ...input });
-    revalidateStaffTasks();
+    refreshCommittedTaskCache();
     return mobileJson({ ok: true, message: input.completed ? "완료했습니다." : "완료를 취소했습니다.", task: result.task });
   } catch (cause) { return mobileStaffTaskFailure(cause); }
 }
@@ -93,7 +104,7 @@ export async function deleteMobileStaffTaskResponse(request: Request, id: unknow
     const taskId = parseMobileStaffTaskId(id);
     const input = parseMobileStaffTaskDelete(await boundedJson(request));
     const result = await deleteOwnStaffTask(mutationContext(request, session.userId), { id: taskId, ...input });
-    revalidateStaffTasks(taskId);
+    refreshCommittedTaskCache(taskId);
     return mobileJson({ ok: true, message: "삭제했습니다. 삭제된 업무와 이력은 ‘삭제됨’에서 확인할 수 있습니다.", task: result.task });
   } catch (cause) { return mobileStaffTaskFailure(cause); }
 }

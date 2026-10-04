@@ -5,6 +5,9 @@ import { resourceAbort, resourceRequest, type ResourceRequestOptions } from "@/l
 import { useSession } from "@/lib/session";
 type ResourceContextValue = {
     foreground: boolean;
+    foregroundRevision: number;
+    isForeground(): boolean;
+    foregroundGeneration(): number;
     isCurrentAccount(): boolean;
     authenticatedRequest<T>(path: string, options?: ResourceRequestOptions): Promise<T>;
 };
@@ -32,12 +35,15 @@ function AccountResources({ token, isAccount, expireSession, children }: PropsWi
     const generation = useRef(0);
     const requests = useRef(new Set<AbortController>());
     const [ready, setReady] = useState(false);
-    const [foreground, setForeground] = useState(AppState.currentState === "active");
+    const foregroundRef = useRef(AppState.currentState === "active"), foregroundEpoch = useRef(0);
+    const [foreground, setForeground] = useState(AppState.currentState === "active"), [foregroundRevision, setForegroundRevision] = useState(0);
     useLayoutEffect(() => { account.current = isAccount; }, [isAccount]);
     const isCurrentAccount = useCallback(() => alive.current && account.current() && !!token, [token]);
+    const isForeground = useCallback(() => isCurrentAccount() && foregroundRef.current, [isCurrentAccount]);
+    const foregroundGeneration = useCallback(() => foregroundEpoch.current, []);
     const authenticatedRequest = useCallback(async <T,>(path: string, options: ResourceRequestOptions = {}): Promise<T> => {
-        const epoch = generation.current;
-        if (!isCurrentAccount() || !token)
+        const epoch = generation.current, foregroundAtStart = foregroundEpoch.current;
+        if (!isForeground() || !token)
             throw resourceAbort();
         const controller = new AbortController();
         requests.current.add(controller);
@@ -47,12 +53,12 @@ function AccountResources({ token, isAccount, expireSession, children }: PropsWi
             abort();
         try {
             const result = await resourceRequest<T>(path, token, { ...options, signal: controller.signal });
-            if (!isCurrentAccount() || epoch !== generation.current || controller.signal.aborted)
+            if (!isCurrentAccount() || epoch !== generation.current || foregroundAtStart !== foregroundEpoch.current || controller.signal.aborted)
                 throw resourceAbort();
             return result;
         }
         catch (cause) {
-            if (!isCurrentAccount() || epoch !== generation.current)
+            if (!isCurrentAccount() || epoch !== generation.current || foregroundAtStart !== foregroundEpoch.current)
                 throw resourceAbort();
             if (cause instanceof ApiError && cause.status === 401)
                 await expireSession(token);
@@ -62,7 +68,7 @@ function AccountResources({ token, isAccount, expireSession, children }: PropsWi
             requests.current.delete(controller);
             options.signal?.removeEventListener("abort", abort);
         }
-    }, [expireSession, isCurrentAccount, token]);
+    }, [expireSession, isCurrentAccount, isForeground, token]);
     const invalidate = useCallback(() => { generation.current++; }, []);
     useEffect(() => {
         alive.current = true;
@@ -80,10 +86,15 @@ function AccountResources({ token, isAccount, expireSession, children }: PropsWi
         };
     }, [invalidate]);
     useEffect(() => {
-        const change = AppState.addEventListener("change", state => setForeground(state === "active"));
-        const blur = Platform.OS === "android" ? AppState.addEventListener("blur", () => setForeground(false)) : null;
-        const focus = Platform.OS === "android" ? AppState.addEventListener("focus", () => setForeground(AppState.currentState === "active")) : null;
+        const transition = (active: boolean) => {
+            if (foregroundRef.current !== active) { foregroundEpoch.current++; setForegroundRevision(foregroundEpoch.current); }
+            foregroundRef.current = active;
+            setForeground(active);
+        };
+        const change = AppState.addEventListener("change", state => transition(state === "active"));
+        const blur = Platform.OS === "android" ? AppState.addEventListener("blur", () => transition(false)) : null;
+        const focus = Platform.OS === "android" ? AppState.addEventListener("focus", () => transition(AppState.currentState === "active")) : null;
         return () => { change.remove(); blur?.remove(); focus?.remove(); };
     }, []);
-    return <ResourceContext.Provider value={{ foreground: foreground && ready, isCurrentAccount, authenticatedRequest }}>{children}</ResourceContext.Provider>;
+    return <ResourceContext.Provider value={{ foreground: foreground && ready, foregroundRevision, foregroundGeneration, isForeground, isCurrentAccount, authenticatedRequest }}>{children}</ResourceContext.Provider>;
 }

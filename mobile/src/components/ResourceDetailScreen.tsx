@@ -25,19 +25,21 @@ function ResourceDetailContent({ id, isAccount }: {
     isAccount(): boolean;
 }) {
     const [permission, setPermission] = useState(false);
+    const acceptedForeground = useRef<number | null>(null);
+    const [acceptedRevision, setAcceptedRevision] = useState<number | null>(null);
     const theme = useTheme(), confirmation = useConfirmAction();
-    const { authenticatedRequest, foreground, isCurrentAccount } = useResources();
+    const { authenticatedRequest, foreground, foregroundRevision, foregroundGeneration, isForeground, isCurrentAccount } = useResources();
     const [resource, setResource] = useState<MobileResource | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null), [visitError, setVisitError] = useState<string | null>(null), [notice, setNotice] = useState<string | null>(null), [pending, setPending] = useState(false);
     const alive = useRef(true), focused = useRef(false), generation = useRef(0), locked = useRef(false), verified = useRef(false), data = useRef(resource);
     const uncertainDelete = useRef(false);
     const attempt = useRef<ResourceDeleteInput | null>(null), visit = useRef({ requestId: newResourceRequestId(), started: false, completed: false, inFlight: false }), controller = useRef<AbortController | null>(null);
     const active = useRef<() => boolean>(() => false);
-    useLayoutEffect(() => { active.current = () => alive.current && focused.current && foreground && isAccount() && isCurrentAccount(); }, [foreground, isAccount, isCurrentAccount]);
+    useLayoutEffect(() => { active.current = () => alive.current && focused.current && isForeground() && isAccount() && isCurrentAccount(); }, [isForeground, isAccount, isCurrentAccount]);
     function update(value: MobileResource | null) { data.current = value; setResource(value); }
     const invalidate = useCallback(() => { generation.current++; }, []);
     const recordVisit = useCallback(async () => {
-        if (!active.current() || !verified.current || visit.current.completed || visit.current.inFlight)
+        if (!active.current() || !verified.current || acceptedForeground.current !== foregroundGeneration() || visit.current.completed || visit.current.inFlight)
             return;
         const epoch = generation.current;
         visit.current.started = true;
@@ -70,7 +72,7 @@ function ResourceDetailContent({ id, isAccount }: {
         finally {
             visit.current.inFlight = false;
         }
-    }, [authenticatedRequest, id]);
+    }, [authenticatedRequest, id, foregroundGeneration]);
     const load = useCallback(async () => {
         if (!active.current() || locked.current)
             return;
@@ -79,26 +81,28 @@ function ResourceDetailContent({ id, isAccount }: {
             setError("자료 주소를 확인하세요.");
             return;
         }
-        const epoch = ++generation.current, abort = new AbortController();
+        const epoch = ++generation.current, foregroundAtStart = foregroundGeneration(), abort = new AbortController();
         controller.current = abort;
         locked.current = true;
         setLoading(true);
         setError(null);
         try {
             const value = await authenticatedRequest<unknown>(`/resources/${id}`, { signal: abort.signal });
-            if (!active.current() || generation.current !== epoch)
+            if (!active.current() || generation.current !== epoch || foregroundAtStart !== foregroundGeneration())
                 return;
             if (!isResourceDetail(value, id))
                 throw new ApiError("자료 응답이 일치하지 않습니다. 다시 불러오세요.", 200);
             data.current = value.resource;
             setResource(value.resource);
             verified.current = true;
+            acceptedForeground.current = foregroundAtStart;
+            setAcceptedRevision(foregroundAtStart);
             setPermission(true);
             if (!visit.current.started)
                 void recordVisit();
         }
         catch (cause) {
-            if (!active.current() || generation.current !== epoch)
+            if (!active.current() || generation.current !== epoch || foregroundAtStart !== foregroundGeneration())
                 return;
             if (resourcePrivateFailure(cause)) {
                 data.current = null;
@@ -116,9 +120,10 @@ function ResourceDetailContent({ id, isAccount }: {
                     setLoading(false);
             }
         }
-    }, [authenticatedRequest, id, recordVisit]);
+    }, [authenticatedRequest, id, recordVisit, foregroundGeneration]);
     useEffect(() => { alive.current = true; return () => { alive.current = false; invalidate(); controller.current?.abort(); }; }, [invalidate]);
     useFocusEffect(useCallback(() => {
+        void foregroundRevision;
         focused.current = true;
         if (visit.current.started && !visit.current.completed)
             setVisitError("이전 열람 기록 결과를 같은 방문으로 다시 확인하세요.");
@@ -128,19 +133,19 @@ function ResourceDetailContent({ id, isAccount }: {
             void load();
         return () => { focused.current = false; verified.current = false; setPermission(false); invalidate(); locked.current = false; controller.current?.abort(); setLoading(true); setBusy(false); if (attempt.current)
             setPending(true); };
-    }, [foreground, invalidate, load]));
+    }, [foreground, foregroundRevision, invalidate, load]));
     const valid = () => active.current() && !locked.current;
     async function deleteResource(retry = false) {
-        if (!valid() || !verified.current || !data.current?.canManage)
+        if (!valid() || !verified.current || acceptedForeground.current !== foregroundGeneration() || !data.current?.canManage)
             return;
         if (pending && !retry)
             return;
-        const epoch = generation.current, priorUncertain = uncertainDelete.current;
+        const epoch = generation.current, foregroundAtStart = foregroundGeneration(), priorUncertain = uncertainDelete.current;
         locked.current = true;
         try {
             if (!retry && !await confirmation.ask({ title: "자료 삭제", message: `‘${data.current.title}’ 자료와 첨부·열람 기록을 삭제합니다. 앱에서 복구할 수 없습니다. 삭제하시겠습니까?`, confirm: "자료 삭제", danger: true }))
                 return;
-            if (!active.current() || generation.current !== epoch || !data.current?.canManage)
+            if (!active.current() || generation.current !== epoch || foregroundAtStart !== foregroundGeneration() || !data.current?.canManage)
                 return;
             const input = attempt.current ?? { requestId: newResourceRequestId(), expectedUpdatedAt: data.current.updatedAt };
             attempt.current = input;
@@ -232,9 +237,9 @@ function ResourceDetailContent({ id, isAccount }: {
             }
         }
     }
-    function navigate(path: string) { if (valid() && verified.current && !pending)
+    function navigate(path: string) { if (valid() && verified.current && acceptedForeground.current === foregroundGeneration() && !pending)
         router.push(path as never); }
-    const visible = foreground && permission && isAccount() && isCurrentAccount();
+    const visible = foreground && isForeground() && permission && acceptedRevision === foregroundRevision && isAccount() && isCurrentAccount();
     return <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ padding: 16, maxWidth: 960, width: "100%", alignSelf: "center", gap: 8, paddingBottom: 24 }}>
     <AccountFeedback error={error ?? (!visible && !notice ? visitError : null)} message={notice}/>
     {pending ? <View style={{ gap: 4 }}><Text style={{ color: theme.secondary }}>삭제 결과 확인이 필요합니다. 원래 요청만 다시 확인합니다.</Text><TextAction label="삭제 결과 확인" disabled={busy || loading} onPress={() => void checkDelete()}/>{visible && resource?.canManage ? <TextAction label="같은 삭제 요청 재시도" disabled={busy || loading} onPress={() => void deleteResource(true)}/> : null}</View> : null}

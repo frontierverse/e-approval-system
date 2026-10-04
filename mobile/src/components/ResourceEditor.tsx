@@ -46,8 +46,10 @@ function Editor({ id, isAccount }: {
     isAccount(): boolean;
 }) {
     const [permission, setPermission] = useState(false);
+    const acceptedForeground = useRef<number | null>(null);
+    const [acceptedRevision, setAcceptedRevision] = useState<number | null>(null);
     const { token, user, expireSession } = useSession();
-    const { foreground, authenticatedRequest, isCurrentAccount } = useResources();
+    const { foreground, foregroundRevision, foregroundGeneration, isForeground, authenticatedRequest, isCurrentAccount } = useResources();
     const theme = useTheme(), insets = useSafeAreaInsets(), confirmation = useConfirmAction(), navigation = useNavigation();
     const [values, setValues] = useState<Values>(initial), [baseline, setBaseline] = useState<MobileResource | null>(null), [policy, setPolicy] = useState<AttachmentPolicy | null>(null);
     const [removed, setRemoved] = useState<string[]>([]), [files, setFiles] = useState<FileEntry[]>([]), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [fileBusy, setFileBusy] = useState(false);
@@ -57,14 +59,16 @@ function Editor({ id, isAccount }: {
     const fileAccess = useRef(false);
     const finished = useRef(false), receiptOnly = useRef<string | null>(null);
     const valuesRef = useRef(values), baselineRef = useRef(baseline), filesRef = useRef(files), removedRef = useRef(removed), recoveryRef = useRef(recovery), attempt = useRef<Attempt | null>(null), controller = useRef<AbortController | null>(null);
+    const queryCurrent = useRef<() => boolean>(() => false);
     const active = useRef<() => boolean>(() => false), account = useRef<() => boolean>(() => false), fileCurrent = useRef<() => boolean>(() => false);
     useLayoutEffect(() => {
         account.current = () => alive.current && isAccount() && isCurrentAccount();
-        active.current = () => account.current() && focused.current && foreground;
+        queryCurrent.current = () => account.current() && focused.current && isForeground();
+        active.current = () => queryCurrent.current() && acceptedForeground.current === foregroundGeneration();
         // A system picker/share sheet may temporarily change AppState. Only account
         // and Stack scope govern those operations; private form rendering still masks.
         fileCurrent.current = () => account.current() && focused.current && fileAccess.current;
-    }, [foreground, isAccount, isCurrentAccount]);
+    }, [isForeground, isAccount, isCurrentAccount, foregroundGeneration]);
     const invalidate = useCallback(() => { generation.current++; }, []);
     const updateValues = (next: Values) => { valuesRef.current = next; setValues(next); };
     const updateFiles = (next: FileEntry[]) => { filesRef.current = next; setFiles(next); };
@@ -114,14 +118,14 @@ function Editor({ id, isAccount }: {
         discardLocalFiles();
     }
     const load = useCallback(async () => {
-        if (!active.current() || locked.current)
+        if (!queryCurrent.current() || locked.current)
             return;
         if (id !== undefined && !isResourceId(id)) {
             setLoading(false);
             setLoadError("자료 주소를 확인하세요. 다른 자료로 자동 변경하지 않습니다.");
             return;
         }
-        const epoch = ++generation.current, abort = new AbortController();
+        const epoch = ++generation.current, foregroundAtStart = foregroundGeneration(), abort = new AbortController();
         controller.current = abort;
         locked.current = true;
         setLoading(true);
@@ -132,7 +136,7 @@ function Editor({ id, isAccount }: {
             if (originalKey && recoveryRef.current === "check") {
                 try {
                     const receipt = await authenticatedRequest<unknown>(`/resources/mutations/${originalKey}`, { signal: abort.signal });
-                    if (!active.current() || epoch !== generation.current)
+                    if (!queryCurrent.current() || epoch !== generation.current || foregroundAtStart !== foregroundGeneration())
                         return;
                     if (!isResourceMutation(receipt, { operation: id ? "update" : "create", resourceId: id }))
                         throw new ApiError("원래 저장 요청의 결과를 확인하지 못했습니다.", 200);
@@ -148,11 +152,13 @@ function Editor({ id, isAccount }: {
                     setNotice(receipt.outcome === "deleted" ? "원래 저장은 처리됐으며 해당 자료는 이후 삭제되었습니다." : receipt.message);
                     fileAccess.current = true;
                     verified.current = true;
+                    acceptedForeground.current = foregroundAtStart;
+            setAcceptedRevision(foregroundAtStart);
                     setPermission(true);
                     return;
                 }
                 catch (cause) {
-                    if (!active.current() || epoch !== generation.current)
+                    if (!queryCurrent.current() || epoch !== generation.current || foregroundAtStart !== foregroundGeneration())
                         return;
                     if (resourcePrivateFailure(cause) && !(cause instanceof ApiError && cause.status === 404))
                         throw cause;
@@ -160,7 +166,7 @@ function Editor({ id, isAccount }: {
                 }
             }
             const value = await authenticatedRequest<unknown>(id ? `/resources/${id}/editor` : "/resources/options", { signal: abort.signal });
-            if (!active.current() || epoch !== generation.current)
+            if (!queryCurrent.current() || epoch !== generation.current || foregroundAtStart !== foregroundGeneration())
                 return;
             if (id) {
                 if (!isResourceEditor(value, id))
@@ -189,10 +195,12 @@ function Editor({ id, isAccount }: {
             }
             fileAccess.current = true;
             verified.current = true;
-            setPermission(true);
+            acceptedForeground.current = foregroundAtStart;
+            setAcceptedRevision(foregroundAtStart);
+                    setPermission(true);
         }
         catch (cause) {
-            if (!active.current() || epoch !== generation.current)
+            if (!queryCurrent.current() || epoch !== generation.current || foregroundAtStart !== foregroundGeneration())
                 return;
             if (resourcePrivateFailure(cause)) {
                 fileAccess.current = false;
@@ -222,16 +230,17 @@ function Editor({ id, isAccount }: {
             if (epoch === generation.current) {
                 locked.current = false;
                 controller.current = null;
-                if (active.current())
+                if (queryCurrent.current())
                     setLoading(false);
             }
         }
-    }, [authenticatedRequest, discardLocalFiles, id]);
+    }, [authenticatedRequest, discardLocalFiles, id, foregroundGeneration]);
     useEffect(() => { alive.current = true; return () => { alive.current = false; invalidate(); controller.current?.abort(); for (const entry of filesRef.current) {
         entry.operation.cancel();
         entry.file.release();
     } }; }, [invalidate]);
     useFocusEffect(useCallback(() => {
+        void foregroundRevision;
         focused.current = true;
         verified.current = false;
         setPermission(false);
@@ -242,7 +251,7 @@ function Editor({ id, isAccount }: {
             recoveryRef.current = "check";
             setRecoveryState("check");
         } };
-    }, [foreground, invalidate, load]));
+    }, [foreground, foregroundRevision, invalidate, load]));
     const dirty = !completed && (JSON.stringify(values) !== JSON.stringify(baseline ? valuesOf(baseline) : initial) || !!files.length || !!removed.length || !!recovery);
     usePreventRemove(!!user && (dirty || busy || fileBusy), ({ data }) => {
         if (!active.current() || locked.current || fileLocked.current)
@@ -440,7 +449,7 @@ function Editor({ id, isAccount }: {
         setError(null);
         setNotice(keepInput ? "입력을 유지하고 최신 자료를 수정 기준으로 선택했습니다. 내용을 확인한 뒤 명시적으로 저장하세요." : "최신 자료 내용으로 바꿨습니다.");
     }
-    const visible = foreground && permission && isAccount() && isCurrentAccount();
+    const visible = foreground && isForeground() && permission && acceptedRevision === foregroundRevision && isAccount() && isCurrentAccount();
     const disabled = loading || busy || fileBusy || !!recovery || !!completed;
     void revision;
     return <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={64} style={{ flex: 1, backgroundColor: theme.background }}>

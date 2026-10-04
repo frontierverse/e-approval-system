@@ -22,23 +22,25 @@ export const youthStyles=StyleSheet.create({screen:{flex:1},content:{padding:12,
 const styles=StyleSheet.create({row:{minHeight:64,padding:8,borderBottomWidth:1,borderWidth:1,borderRadius:8,gap:4},label:{fontSize:15,fontWeight:'700',lineHeight:22,flexShrink:1},small:{fontSize:13,lineHeight:20,fontVariant:['tabular-nums']},field:{gap:4},input:{minHeight:44,borderWidth:1.5,borderRadius:8,padding:10,fontSize:16}});
 /** Fresh focus is a permission boundary; cached body never flashes before GET. */
 export function useYouthSnapshot<T>(path:string|null,validator:(value:unknown)=>value is T) {
-  const {request,foreground,isCurrentAccount,isForeground}=useYouth(),{token}=useSession();
+  const {request,foreground,foregroundEpoch,isCurrentAccount,isForegroundCurrent}=useYouth(),{token}=useSession();
   const [data,setData]=useState<T|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState<string|null>(null),[verified,setVerified]=useState(false);
   const [revoked,setRevoked]=useState(0);
-  const alive=useRef(false),focused=useRef(false),generation=useRef(0),controller=useRef<AbortController|null>(null),check=useRef(validator),dataRef=useRef<T|null>(null),verifiedRef=useRef(false);
+  const alive=useRef(false),focused=useRef(false),generation=useRef(0),controller=useRef<AbortController|null>(null),check=useRef(validator),dataRef=useRef<T|null>(null),verifiedRef=useRef(false),verifiedForeground=useRef<number|null>(null);
   check.current=validator;
+  if(verifiedForeground.current!==foregroundEpoch)verifiedRef.current=false;
   const accountCurrent=useCallback(()=>alive.current&&focused.current&&isCurrentAccount(),[isCurrentAccount]);
-  const current=useCallback(()=>alive.current&&focused.current&&isCurrentAccount()&&isForeground(),[isCurrentAccount,isForeground]);
-  const purge=useCallback(()=>{generation.current++;controller.current?.abort();dataRef.current=null;verifiedRef.current=false;setData(null);setVerified(false);setLoading(false);},[]);
+  const current=useCallback(()=>alive.current&&focused.current&&isCurrentAccount()&&isForegroundCurrent(foregroundEpoch),[isCurrentAccount,isForegroundCurrent,foregroundEpoch]);
+  const purge=useCallback(()=>{generation.current++;controller.current?.abort();dataRef.current=null;verifiedRef.current=false;verifiedForeground.current=null;setData(null);setVerified(false);setLoading(false);},[]);
   useEffect(()=>{alive.current=true;generation.current++;const off=token?registerYouthResource(token,purge):()=>{};return()=>{alive.current=false;generation.current++;controller.current?.abort();off();};},[token,purge]);
   const load=useCallback(async()=>{
     if(!path||!current())return;
     const epoch=++generation.current;controller.current?.abort();const abort=new AbortController();controller.current=abort;
     verifiedRef.current=false;setVerified(false);setLoading(true);setError(null);
-    try { const value=await request<unknown>(path,{signal:abort.signal});if(epoch!==generation.current||!current())return;if(!check.current(value))throw youthResponseError();dataRef.current=value;setData(value);verifiedRef.current=true;setVerified(true); }
+    try { const value=await request<unknown>(path,{signal:abort.signal});if(epoch!==generation.current||!current())return;if(!check.current(value))throw youthResponseError();dataRef.current=value;setData(value);verifiedForeground.current=foregroundEpoch;verifiedRef.current=true;setVerified(true); }
     catch(cause){if(epoch!==generation.current||!current())return;if(youthPrivateFailure(cause)){dataRef.current=null;setData(null);setRevoked(value=>value+1);}setError(cause instanceof Error?cause.message:'청소년 정보를 확인하지 못했습니다.');}
     finally{if(epoch===generation.current&&current())setLoading(false);}
-  },[path,current,request]);
-  useFocusEffect(useCallback(()=>{focused.current=true;verifiedRef.current=false;setVerified(false);if(foreground)void load();return()=>{focused.current=false;verifiedRef.current=false;generation.current++;controller.current?.abort();setVerified(false);};},[foreground,load]));
-  return {data:verified&&foreground?data:null,cached:dataRef,loading,error,revoked,verified:verified&&foreground,current,accountCurrent,verifiedRef,load,purge,request};
+  },[path,current,request,foregroundEpoch]);
+  useFocusEffect(useCallback(()=>{focused.current=true;verifiedRef.current=false;setVerified(false);if(foreground)void load();return()=>{focused.current=false;verifiedRef.current=false;generation.current++;controller.current?.abort();setVerified(false);};},[foreground,foregroundEpoch,load]));
+  const visible=verified&&foreground&&verifiedForeground.current===foregroundEpoch;
+  return {data:visible?data:null,cached:dataRef,loading,error,revoked,verified:visible,current,accountCurrent,verifiedRef,load,purge,request};
 }

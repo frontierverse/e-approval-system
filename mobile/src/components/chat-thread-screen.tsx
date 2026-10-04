@@ -37,7 +37,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   isCurrentAccount: () => boolean;
 }) {
   const { token, user, expireSession } = useSession();
-  const { authenticatedRequest, refreshSummary, isCurrentAccount: providerCurrent, foreground: appForeground } = useChat();
+  const { authenticatedRequest, refreshSummary, isCurrentAccount: providerCurrent, foreground: appForeground, foregroundEpoch, isForegroundCurrent } = useChat();
   const ownId = user?.id;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -50,20 +50,36 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [privacy, setPrivacy] = useState(true);
-  const [lastForeground, setLastForeground] = useState(appForeground);
-  if (lastForeground !== appForeground) { setLastForeground(appForeground); setPrivacy(true); }
+  const [lastForegroundEpoch, setLastForegroundEpoch] = useState(foregroundEpoch);
   const [body, setBody] = useState("");
   const [file, setFile] = useState<SelectedChatFile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [verifiedRenderEpoch, setVerifiedRenderEpoch] = useState(-1);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  if (lastForegroundEpoch !== foregroundEpoch) {
+    setLastForegroundEpoch(foregroundEpoch);
+    setPrivacy(true);
+    setBusy(selecting);
+    if (sending) {
+      setSending(false);
+      setUncertain(true);
+      setError("전송 결과를 확인하지 못했습니다. 같은 내용으로 다시 확인하세요.");
+    }
+  }
   const alive = useRef(false);
   const focused = useRef(false);
   const generation = useRef(0);
   const verified = useRef(false);
+  const verifiedForeground = useRef(-1);
+  const selectedAfterHandoff = useRef<SelectedChatFile | null>(null);
+  const pickerPending = useRef(false);
+  const pickerAllowed = useRef(false);
   const fetching = useRef(false);
   const mutation = useRef(false);
   const pending = useRef<SendAttempt | null>(null);
@@ -84,6 +100,8 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     foreground.current = appForeground;
   }, [appForeground]);
   const current = useCallback((epoch = generation.current) => alive.current && focused.current && generation.current === epoch && isCurrentAccount() && providerCurrent(), [providerCurrent, isCurrentAccount]);
+  const currentForeground = useCallback((epoch = generation.current) => current(epoch) && isForegroundCurrent(foregroundEpoch), [current, foregroundEpoch, isForegroundCurrent]);
+  const readyForAction = useCallback(() => currentForeground() && verified.current && verifiedForeground.current === foregroundEpoch, [currentForeground, foregroundEpoch]);
   const updateMessages = useCallback((value: ChatMessage[]) => {
     currentMessages.current = value;
     setMessages(value);
@@ -105,6 +123,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     alive.current = true;
     invalidate();
     return () => {
+      selectedAfterHandoff.current?.release();
       const selected = currentFile.current;
       if (selected && abandonOnUnmount.current && token && isCurrentAccount()) {
         try { discardChatFile(selected, { token, isCurrent: isCurrentAccount }); }
@@ -117,7 +136,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     };
   }, [invalidate, isCurrentAccount, token]);
   const load = useCallback(async (fresh = false, older = false) => {
-    if (fetching.current || !current() || !foreground.current)
+    if (fetching.current || !currentForeground() || !foreground.current)
       return;
     if (!isChatId(peerId)) {
       clearPrivate();
@@ -137,7 +156,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     try {
       const first = older ? currentMessages.current[0]?.id : undefined;
       const [page, summary] = await Promise.all([authenticatedRequest<unknown>(`/chat/messages?peerId=${encodeURIComponent(peerId)}${first ? `&before=${encodeURIComponent(first)}` : ""}`), fresh ? refreshSummary() : Promise.resolve(null)]);
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       if (!isChatMessagePage(page, ownId, peerId))
         throw new ApiError("대화 응답을 확인하지 못했습니다. 다시 불러오세요.", 200);
@@ -164,14 +183,24 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
           setNotice("새 메시지 사이에 이전 기록이 있습니다. 이전 메시지를 불러오세요.");
       }
       verified.current = true;
+      verifiedForeground.current = foregroundEpoch;
+      setVerifiedRenderEpoch(foregroundEpoch);
+      if (selectedAfterHandoff.current) {
+        currentFile.current?.release();
+        updateFile(selectedAfterHandoff.current);
+        selectedAfterHandoff.current = null;
+      }
       setPrivacy(false);
       setError(null);
     }
     catch (cause) {
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       if (cause instanceof ApiError && [401, 403, 404].includes(cause.status)) {
         clearPrivate();
+        pickerAllowed.current = false;
+        selectedAfterHandoff.current?.release();
+        selectedAfterHandoff.current = null;
         setAttachmentTarget(null); setFilePending(false);
         void clearChatFileResources().catch(() => {});
         currentFile.current?.release();
@@ -184,17 +213,26 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       setError(chatError(cause));
     }
     finally {
-      if (generation.current === epoch) {
+      if (generation.current === epoch && isForegroundCurrent(foregroundEpoch)) {
         fetching.current = false;
-        if (current(epoch))
+        if (currentForeground(epoch))
           setLoading(false);
       }
     }
-  }, [authenticatedRequest, refreshSummary, clearPrivate, current, peerId, updateFile, updateMessages, ownId]);
+  }, [authenticatedRequest, refreshSummary, clearPrivate, currentForeground, foregroundEpoch, isForegroundCurrent, peerId, updateFile, updateMessages, ownId]);
   const latestLoad = useRef(load);
   useLayoutEffect(() => {
     latestLoad.current = load;
   }, [load]);
+  useLayoutEffect(() => {
+    verified.current = false;
+    verifiedForeground.current = -1;
+    visibleIds.current = [];
+    fetching.current = false;
+    readBusy.current = false;
+    abort.current?.abort();
+    mutation.current = false;
+  }, [foregroundEpoch]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
     verified.current = false;
@@ -220,20 +258,16 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     };
   }, []));
   useEffect(() => {
-    if (!appForeground) {
-      verified.current = false;
-      visibleIds.current = [];
-    }
-    else if (focused.current)
+    if (appForeground && focused.current)
       void latestLoad.current(true);
     const timer = setInterval(() => {
-      if (foreground.current && focused.current)
+      if (isForegroundCurrent(foregroundEpoch) && focused.current)
         void latestLoad.current(!verified.current);
     }, 5000);
     return () => clearInterval(timer);
-  }, [appForeground]);
+  }, [appForeground, foregroundEpoch, isForegroundCurrent]);
   const markVisibleRead = useCallback(async () => {
-    if (!current() || !foreground.current || !verified.current || readBusy.current || !atBottom.current || !user)
+    if (!readyForAction() || readBusy.current || !atBottom.current || !user)
       return;
     const candidates = currentMessages.current.filter(m => visibleIds.current.includes(m.id) && m.recipientId === user.id && m.senderId === peerId && m.readAt === null);
     const target = candidates.at(-1);
@@ -245,7 +279,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       const result = await authenticatedRequest<{
         ok: boolean;
       }>("/chat/read", { method: "POST", body: { peerId, messageId: target.id } });
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       if (result.ok !== true)
         throw new ApiError("읽음 상태를 확인하지 못했습니다.", 200);
@@ -254,14 +288,14 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       void refreshSummary();
     }
     catch (cause) {
-      if (current(epoch))
+      if (currentForeground(epoch))
         setReadError(chatError(cause));
     }
     finally {
-      if (generation.current === epoch)
+      if (generation.current === epoch && isForegroundCurrent(foregroundEpoch))
         readBusy.current = false;
     }
-  }, [authenticatedRequest, refreshSummary, current, peerId, user]);
+  }, [authenticatedRequest, refreshSummary, currentForeground, foregroundEpoch, isForegroundCurrent, readyForAction, peerId, user]);
   const latestRead = useRef(markVisibleRead);
   useLayoutEffect(() => {
     latestRead.current = markVisibleRead;
@@ -270,23 +304,24 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const onViewable = useCallback(({ viewableItems }: {
     viewableItems: ViewToken<ChatMessage>[];
   }) => {
+    if (!readyForAction()) return;
     visibleIds.current = viewableItems.filter(v => v.isViewable).map(v => v.item.id);
     void latestRead.current();
-  }, []);
-  const dirty = !!body.trim() || !!file || uncertain || busy || filePending;
+  }, [readyForAction]);
+  const dirty = !!body.trim() || !!file || uncertain || busy || selecting || filePending;
   const updateFilePending = useCallback((value: boolean) => setFilePending(value), []);
   const openAttachment = (message: ChatMessage) => {
-    if (current() && verified.current && foreground.current && !mutation.current) {
+    if (readyForAction() && !mutation.current) {
       setAttachmentTarget({ ...message, scopeGeneration: generation.current });
     }
   };
   usePreventRemove(!!user && dirty, ({ data }) => {
-    if (!current() || mutation.current)
+    if (!readyForAction() || mutation.current || pickerPending.current)
       return;
     if (filePending) { setError("먼저 파일 작업을 닫거나 원래 수신 완료 상태를 확인하세요."); return; }
     const epoch = generation.current;
     void confirmation.ask({ title: "대화 화면 나가기", message: "작성한 내용과 선택한 파일이 사라집니다. 전송 결과가 불명확하면 같은 전송으로 먼저 확인하세요. 나가시겠습니까?", confirm: "나가기", danger: true }).then(ok => {
-      if (ok && current(epoch) && !mutation.current) {
+      if (ok && currentForeground(epoch) && !mutation.current) {
         abandonOnUnmount.current = true;
         navigation.dispatch(data.action);
       }
@@ -303,49 +338,60 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty]);
   const change = (value: string) => {
-    if (!current() || !verified.current || mutation.current || pending.current)
+    if (!readyForAction() || mutation.current || pickerPending.current || pending.current)
       return;
     currentBody.current = value;
     setBody(value);
     setError(null);
   };
   const chooseFile = async () => {
-    if (!current() || !verified.current || mutation.current || pending.current || !token || !currentPeer.current?.active)
+    if (!readyForAction() || mutation.current || pickerPending.current || pending.current || !token || !currentPeer.current?.active)
       return;
     const epoch = generation.current;
     mutation.current = true;
+    pickerPending.current = true;
+    pickerAllowed.current = true;
+    setSelecting(true);
     setBusy(true);
     try {
       const policy = await authenticatedRequest<unknown>("/chat/files");
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       if (!isChatFilePolicy(policy))
         throw new ApiError("파일 정책을 확인하지 못했습니다.", 200);
-      const selected = await pickChatFile({ policy, token, isCurrent: () => current(epoch) });
-      if (!current(epoch)) {
+      const selected = await pickChatFile({ policy, token, isCurrent: () => current(epoch) && pickerAllowed.current });
+      if (!current(epoch) || !pickerAllowed.current) {
         selected?.release();
         return;
       }
       if (selected) {
-        currentFile.current?.release();
-        updateFile(selected);
+        if (verified.current && isForegroundCurrent(verifiedForeground.current)) {
+          currentFile.current?.release();
+          updateFile(selected);
+        } else {
+          selectedAfterHandoff.current?.release();
+          selectedAfterHandoff.current = selected;
+        }
       }
       setError(null);
     }
     catch (cause) {
-      if (current(epoch))
+      if (currentForeground(epoch))
         setError(chatError(cause));
     }
     finally {
       if (generation.current === epoch) {
+        pickerPending.current = false;
         mutation.current = false;
-        if (current(epoch))
+        if (current(epoch)) {
+          setSelecting(false);
           setBusy(false);
+        }
       }
     }
   };
   const send = async () => {
-    if (!current() || !verified.current || mutation.current || !token || !user || (!currentPeer.current?.active && !pending.current) || !foreground.current)
+    if (!readyForAction() || mutation.current || pickerPending.current || !token || !user || (!currentPeer.current?.active && !pending.current) || !foreground.current)
       return;
     const previous = pending.current;
     const input = previous ?? { requestId: newChatRequestId(), body: currentBody.current.trim(), file: currentFile.current };
@@ -356,19 +402,20 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     const epoch = generation.current;
     mutation.current = true;
     pending.current = input;
+    setSending(true);
     setBusy(true);
     setError(null);
     setNotice(null);
     setProgress(null);
     abort.current = new AbortController();
     try {
-      const response = input.file ? await uploadChatFile({ peerId, actorId: user.id, body: input.body, requestId: input.requestId, file: input.file, token, signal: abort.current.signal, isCurrent: () => current(epoch), onProgress: (value: number | null) => {
-          if (current(epoch))
+      const response = input.file ? await uploadChatFile({ peerId, actorId: user.id, body: input.body, requestId: input.requestId, file: input.file, token, signal: abort.current.signal, isCurrent: () => currentForeground(epoch), onProgress: (value: number | null) => {
+          if (currentForeground(epoch))
             setProgress(value);
         } }) : await authenticatedRequest<{
         message: unknown;
       }>("/chat/messages", { method: "POST", body: { peerId, body: input.body, requestId: input.requestId } });
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       const expectedBody = input.file && !input.body ? `파일: ${input.file.name}` : input.body;
       if (!isChatMessage(response.message, user.id, peerId) || response.message.senderId !== user.id || response.message.body !== expectedBody)
@@ -387,7 +434,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       list.current?.scrollToEnd({ animated: false });
     }
     catch (cause) {
-      if (!current(epoch))
+      if (!currentForeground(epoch))
         return;
       if (cause instanceof ApiError && cause.status === 401) {
         await expireSession(token);
@@ -404,10 +451,11 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       }
     }
     finally {
-      if (generation.current === epoch) {
+      if (generation.current === epoch && isForegroundCurrent(foregroundEpoch)) {
         mutation.current = false;
         abort.current = null;
-        if (current(epoch)) {
+        if (currentForeground(epoch)) {
+          setSending(false);
           setBusy(false);
           setProgress(null);
         }
@@ -415,11 +463,11 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     }
   };
   const discard = async () => {
-    if (!current() || mutation.current)
+    if (!readyForAction() || mutation.current || pickerPending.current)
       return;
     const epoch = generation.current;
     const ok = await confirmation.ask({ title: "작성 내용 버리기", message: uncertain ? "이미 전송되었을 수 있습니다. 원래 전송 확인 없이 입력을 버리면 같은 내용을 새로 보내지 않도록 주의하세요. 버리시겠습니까?" : "작성한 메시지와 선택한 파일을 버리시겠습니까?", confirm: "버리기", danger: true });
-    if (ok && current(epoch)) {
+    if (ok && currentForeground(epoch)) {
       try { if (currentFile.current && token) discardChatFile(currentFile.current, { token, isCurrent: () => current(epoch) }); }
       catch (cause) { if (current(epoch)) setError(chatError(cause)); return; }
       updateFile(null);
@@ -431,15 +479,15 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     }
   };
   const stopFollowing = () => {
-    if (!current() || !verified.current) return;
+    if (!readyForAction()) return;
     bottomPositionPending.current = false;
     atBottom.current = false;
   };
-  const masked = privacy || !appForeground;
+  const masked = privacy || !appForeground || !isForegroundCurrent(foregroundEpoch) || verifiedRenderEpoch !== foregroundEpoch;
   return <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={64} style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
   <View style={{ paddingHorizontal: 16, paddingTop: 8 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>{masked ? "대화 확인 중" : peer?.name ?? "대화"}</Text><TextAction label="새로고침" disabled={busy || loading} icon="refresh" onPress={() => void load(true)}/></View><AccountFeedback error={error} message={notice}/>{readError ? <><AccountFeedback error={`읽음 상태: ${readError}`}/><TextAction label="읽음 상태 다시 확인" onPress={() => void markVisibleRead()}/></> : null}</View>
-  {masked ? <View style={{ flex: 1, padding: 16 }}>{loading ? <ActivityIndicator color={theme.accent}/> : <EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요."/>}</View> : <FlatList ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" contentContainerStyle={{ padding: 16, gap: 8 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
-    if (!current() || !verified.current) return;
+  {masked ? <View style={{ flex: 1, padding: 16 }}>{loading ? <ActivityIndicator color={theme.accent}/> : <EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요."/>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" contentContainerStyle={{ padding: 16, gap: 8 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
+    if (!readyForAction()) return;
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     atBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 24;
     if (atBottom.current) {
@@ -448,17 +496,17 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     }
   }} scrollEventThrottle={100} onContentSizeChange={(_width, height) => {
     // Use the measured content height; virtualized scrollToEnd can estimate a shorter final row.
-    if (current() && verified.current && (bottomPositionPending.current || atBottom.current) && Number.isFinite(height) && height > 0)
+    if (readyForAction() && (bottomPositionPending.current || atBottom.current) && Number.isFinite(height) && height > 0)
       list.current?.scrollToOffset({ offset: height, animated: false });
   }} ListHeaderComponent={hasMore ? <TextAction label={loading ? "이전 메시지 확인 중" : "이전 메시지 50개 불러오기"} disabled={loading} onPress={() => void load(false, true)}/> : null} ListEmptyComponent={<EmptyState title="아직 메시지가 없습니다" detail="아래에서 첫 메시지를 보내세요."/>} renderItem={({ item }) => <View role="listitem" style={{ alignSelf: item.senderId === user?.id ? "flex-end" : "flex-start", maxWidth: "92%", borderWidth: 1, borderColor: theme.border, borderRadius: 10, backgroundColor: item.senderId === user?.id ? theme.accentSoft : theme.surface, padding: 10, gap: 4 }}>{item.body ? <Text selectable style={{ color: theme.text, fontSize: 14, lineHeight: 21 }}>{item.body}</Text> : null}{item.attachment ? <TextAction label={item.attachment.originalName} icon="document-attach-outline" accessibilityLabel={`${item.attachment.originalName} 파일 작업 열기`} onPress={() => openAttachment(item)}/> : null}<Text style={{ color: theme.muted, fontSize: 11 }}>{formatChatTimestamp(item.createdAt)}{item.senderId === user?.id ? item.readAt ? " · 읽음" : " · 안 읽음" : ""}</Text></View>}/>}
-  {!masked && peer ? <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.surface, gap: 4 }}>{!peer.active && !uncertain ? <Text style={{ color: theme.secondary, fontSize: 13 }}>현재 메시지를 보낼 수 없는 직원입니다. 이전 대화만 확인할 수 있습니다.</Text> : <><ChatInput label="메시지 입력" value={body} onChange={change} multiline placeholder="메시지 입력 (2,000자까지)" disabled={busy || uncertain || !peer.active}/><Text style={{ color: body.length > 2000 ? theme.danger : theme.muted, fontSize: 12, textAlign: "right" }}>{body.length}/2,000</Text>{file ? <Text style={{ color: theme.secondary, fontSize: 13 }} numberOfLines={2}>{file.name} · {(file.size / 1024 / 1024).toFixed(1)}MB</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><TextAction label="파일 선택" icon="attach" disabled={busy || uncertain || !!file || !peer.active} onPress={() => void chooseFile()}/><View style={{ flex: 1 }}><PrimaryButton title={busy ? progress === null ? "전송 중" : `전송 ${Math.floor(progress * 100)}%` : uncertain ? "같은 전송 다시 확인" : "보내기"} disabled={busy || (!body.trim() && !file)} onPress={() => void send()}/></View></View>{busy && file ? <TextAction label="파일 전송 취소" onPress={() => { if (current() && mutation.current) abort.current?.abort(); }} /> : null}{dirty && !busy ? <TextAction label="작성 내용 버리기" onPress={() => void discard()}/> : null}</>}</View> : null}
+  {!masked && peer ? <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.surface, gap: 4 }}>{!peer.active && !uncertain ? <Text style={{ color: theme.secondary, fontSize: 13 }}>현재 메시지를 보낼 수 없는 직원입니다. 이전 대화만 확인할 수 있습니다.</Text> : <><ChatInput label="메시지 입력" value={body} onChange={change} multiline placeholder="메시지 입력 (2,000자까지)" disabled={busy || uncertain || !peer.active}/><Text style={{ color: body.length > 2000 ? theme.danger : theme.muted, fontSize: 12, textAlign: "right" }}>{body.length}/2,000</Text>{file ? <Text style={{ color: theme.secondary, fontSize: 13 }} numberOfLines={2}>{file.name} · {(file.size / 1024 / 1024).toFixed(1)}MB</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><TextAction label="파일 선택" icon="attach" disabled={busy || uncertain || !!file || !peer.active} onPress={() => void chooseFile()}/><View style={{ flex: 1 }}><PrimaryButton title={busy ? selecting ? "파일 선택 중" : progress === null ? "전송 중" : `전송 ${Math.floor(progress * 100)}%` : uncertain ? "같은 전송 다시 확인" : "보내기"} disabled={busy || (!body.trim() && !file)} onPress={() => void send()}/></View></View>{busy && file ? <TextAction label="파일 전송 취소" onPress={() => { if (readyForAction() && mutation.current) abort.current?.abort(); }} /> : null}{dirty && !busy ? <TextAction label="작성 내용 버리기" onPress={() => void discard()}/> : null}</>}</View> : null}
   {attachmentTarget?.attachment ? <ChatAttachmentActions key={attachmentTarget.attachment.id} attachment={attachmentTarget.attachment} peerId={peerId} messageId={attachmentTarget.id} isSender={attachmentTarget.senderId === user?.id} enabled={!masked} isCurrent={() => current(attachmentTarget.scopeGeneration)} onClose={() => {
-    if (current()) {
+    if (readyForAction()) {
       setAttachmentTarget(null);
       setFilePending(false);
     }
   }} onPending={updateFilePending} onChanged={() => {
-    if (current()) {
+    if (readyForAction()) {
       void load();
       void refreshSummary();
     }

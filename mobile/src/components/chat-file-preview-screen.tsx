@@ -30,15 +30,15 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
   isCurrentAccount: () => boolean;
 }) {
   const { token, expireSession } = useSession();
-  const { foreground: appForeground, isCurrentAccount: providerCurrent } = useChat();
+  const { foreground: appForeground, isCurrentAccount: providerCurrent, foregroundEpoch, isForegroundCurrent } = useChat();
   const theme = useTheme();
   const [file, setFile] = useState<ChatAttachment | null>(null);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof loadChatPreview>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastForeground, setLastForeground] = useState(appForeground);
-  if (lastForeground !== appForeground) {
-    setLastForeground(appForeground);
+  const [lastForegroundEpoch, setLastForegroundEpoch] = useState(foregroundEpoch);
+  if (lastForegroundEpoch !== foregroundEpoch) {
+    setLastForegroundEpoch(foregroundEpoch);
     setPreview(null);
     setFile(null);
     setError(null);
@@ -64,12 +64,10 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
   const invalidate = useCallback(() => { epoch.current++; }, []);
   useLayoutEffect(() => {
     foreground.current = appForeground;
-    if (!appForeground) {
-      invalidate();
-      busy.current = false;
-      releaseResource();
-    }
-  }, [appForeground, invalidate, releaseResource]);
+    invalidate();
+    busy.current = false;
+    releaseResource();
+  }, [appForeground, foregroundEpoch, invalidate, releaseResource]);
   useEffect(() => {
     alive.current = true;
     invalidate();
@@ -81,14 +79,14 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
     };
   }, [invalidate]);
   const load = useCallback(async () => {
-    if (!focused.current || !foreground.current || busy.current || !token || !isCurrentAccount() || !providerCurrent())
+    if (!focused.current || !foreground.current || busy.current || !token || !isCurrentAccount() || !providerCurrent() || !isForegroundCurrent(foregroundEpoch))
       return;
     const generation = epoch.current;
     busy.current = true;
     setLoading(true);
     setError(null);
     release();
-    const current = () => alive.current && focused.current && foreground.current && generation === epoch.current && isCurrentAccount() && providerCurrent();
+    const current = () => alive.current && focused.current && foreground.current && generation === epoch.current && isCurrentAccount() && providerCurrent() && isForegroundCurrent(foregroundEpoch);
     try {
       if (!isChatId(attachmentId) || !isChatId(peerId))
         throw new ApiError("파일 주소가 올바르지 않습니다.", 400);
@@ -115,13 +113,13 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
       }
     }
     finally {
-      if (generation === epoch.current) {
+      if (generation === epoch.current && isForegroundCurrent(foregroundEpoch)) {
         busy.current = false;
         if (current())
           setLoading(false);
       }
     }
-  }, [attachmentId, expireSession, isCurrentAccount, peerId, providerCurrent, release, token]);
+  }, [attachmentId, expireSession, isCurrentAccount, peerId, providerCurrent, foregroundEpoch, isForegroundCurrent, release, token]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
     if (appForeground)
@@ -133,10 +131,10 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
       release();
     };
   }, [appForeground, load, release]));
-  if (lastForeground !== appForeground || !appForeground || !providerCurrent() || !isCurrentAccount())
+  if (lastForegroundEpoch !== foregroundEpoch || !isForegroundCurrent(foregroundEpoch) || !appForeground || !providerCurrent() || !isCurrentAccount())
     return <View style={{ flex: 1, backgroundColor: theme.background }}><ActivityIndicator color={theme.accent} style={{ padding: 24 }}/></View>;
   return <View style={{ flex: 1, backgroundColor: theme.background }}><View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>{file ? <Text style={{ color: theme.text, fontSize: 14, fontWeight: "700" }} numberOfLines={2}>{file.originalName}</Text> : null}<Text style={{ color: theme.secondary, fontSize: 12 }}>미리보기만으로 수신 완료하거나 원본을 삭제하지 않습니다.</Text><AccountFeedback error={error}/>{error ? <TextAction label="미리보기 다시 확인" icon="refresh" disabled={loading} onPress={() => void load()}/> : null}</View>{loading ? <ActivityIndicator color={theme.accent} style={{ padding: 24 }}/> : preview ? preview.kind === "pdf" ? <PdfPreview uri={preview.uri} token=""/> : <Image source={{ uri: preview.uri }} accessibilityLabel={file?.originalName ?? "채팅 파일 미리보기"} style={{ flex: 1 }} resizeMode="contain" onError={() => {
-    if (!alive.current || !focused.current || !foreground.current || !isCurrentAccount() || !providerCurrent() || resource.current !== preview)
+    if (!alive.current || !focused.current || !foreground.current || !isCurrentAccount() || !providerCurrent() || !isForegroundCurrent(foregroundEpoch) || resource.current !== preview)
       return;
     release();
     setError("이미지를 표시하지 못했습니다. 다시 확인하세요.");

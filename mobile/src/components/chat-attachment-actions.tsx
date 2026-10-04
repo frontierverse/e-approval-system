@@ -7,6 +7,7 @@ import { useConfirmAction } from "@/components/use-confirm-action";
 import { ApiError } from "@/lib/api";
 import { chatError, chatPreviewKind, newChatRequestId } from "@/lib/chat";
 import { chatFileSize, createChatFileTransfer, registerChatPreviewAttachment } from "@/lib/chat-file-transfer";
+import { useChat } from "@/lib/chat-provider";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 import type { ChatAttachment } from "@/lib/types";
@@ -23,6 +24,7 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
 }) {
   const { token, user, expireSession } = useSession();
   const theme = useTheme();
+  const { foregroundEpoch, isForegroundCurrent } = useChat();
   const confirmation = useConfirmAction();
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -45,7 +47,7 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
     available.current = enabled;
   }, [isCurrent, enabled]);
   const scopeCurrent = useCallback(() => alive.current && guard.current(), []);
-  const current = useCallback(() => scopeCurrent() && available.current, [scopeCurrent]);
+  const current = useCallback(() => scopeCurrent() && available.current && isForegroundCurrent(foregroundEpoch), [scopeCurrent, foregroundEpoch, isForegroundCurrent]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -113,7 +115,7 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
       return;
     if (!op.isReady()) {
       const downloaded = await op.download();
-      if (!scopeCurrent() || !downloaded)
+      if (!current() || !downloaded)
         return;
       setReady(true);
     }
@@ -197,7 +199,7 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
     onClose();
     router.push({ pathname: "/chat/file-preview", params: { attachmentId: attachment.id, peerId } });
   };
-  if (!enabled)
+  if (!enabled || !isForegroundCurrent(foregroundEpoch))
     return null;
   return <Modal visible transparent animationType="none" accessibilityLabel="채팅 파일" onRequestClose={() => void close()} onShow={() => cancelButton.current?.focus()}><View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 }}><View style={{ width: "100%", maxWidth: 520, maxHeight: "95%", borderRadius: 12, backgroundColor: theme.surface, padding: 16, gap: 8 }}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>채팅 파일</Text><ScrollView><Text selectable style={{ color: theme.text, fontSize: 14, lineHeight: 21 }}>{attachment.originalName}</Text><Text style={{ color: theme.secondary, fontSize: 13, marginTop: 4 }}>{chatFileSize(attachment.size)} · {isSender ? "보낸 파일" : "받은 파일"}</Text>{!isSender ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20, marginTop: 8 }}>파일을 저장한 뒤 수신 완료하면 서버 원본이 삭제됩니다. 공유 화면에서 취소했다면 수신 완료하지 마세요.</Text> : null}<AccountFeedback error={error} message={notice}/></ScrollView>
   {(completed || ["deleted", "deleting"].includes(attachment.status)) && !unknown ? <Text style={{ color: theme.secondary, fontSize: 13 }}>원본 파일이 삭제되어 다운로드할 수 없습니다.</Text> : <>

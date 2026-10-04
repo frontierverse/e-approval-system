@@ -11,6 +11,10 @@ import { DailyReportInputError, dailyReportWriteForbidden, dailyReportReviewForb
 import { getDailyReportActor, getDailyReportHomeSummaryForActor, getDailyReportListForActor, getDailyReportEditorForActor, getDailyReportDetailForActor, type DailyReportActor, type DailyReportDb } from "@/lib/daily-report-queries";
 import { MobileDailyReportRequestError, parseMobileDailyReportListQuery, parseMobileDailyReportEditorQuery, parseMobileDailyReportId, parseMobileDailyReportSave, parseMobileDailyReportReview } from "@/lib/mobile-daily-reports-core";
 
+function refreshCommittedDailyReportCache() {
+  try { revalidateDailyReports(); }
+  catch { /* The report and its audit have committed; cache failure cannot change that outcome. */ }
+}
 const unauthorized = () => new MobileDailyReportRequestError("로그인이 필요합니다.", 401, "UNAUTHORIZED");
 function failure(error: unknown) {
   if (error instanceof MobileDailyReportRequestError) return mobileJson({ error: error.message, code: error.code, ...(error.fields ? { fields: error.fields } : {}) }, error.status);
@@ -48,13 +52,20 @@ async function boundedJson(request: Request, maxBytes: number): Promise<unknown>
   if (!request.body) throw new MobileDailyReportRequestError("보고서 입력 정보를 확인해 주세요.");
   const reader = request.body.getReader(), chunks: Uint8Array[] = [], deadline = Date.now() + 10000;
   let size = 0;
+  const checkDeadline = () => {
+    if (Date.now() < deadline) return;
+    void reader.cancel().catch(() => undefined);
+    throw new MobileDailyReportRequestError("요청 시간이 초과되었습니다. 입력을 보관하고 다시 시도해 주세요.", 408, "REQUEST_TIMEOUT");
+  };
   try {
     while (true) {
+      checkDeadline();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => { reject(new MobileDailyReportRequestError("요청 시간이 초과되었습니다. 입력을 보관하고 다시 시도해 주세요.", 408, "REQUEST_TIMEOUT")); void reader.cancel().catch(() => undefined); }, Math.max(1, deadline - Date.now()));
       });
       const next = await Promise.race([reader.read(), timeout]).finally(() => clearTimeout(timer));
+      checkDeadline();
       if (next.done) break;
       size += next.value.byteLength;
       if (size > maxBytes) { void reader.cancel().catch(() => undefined); throw tooLarge(); }
@@ -89,7 +100,7 @@ export async function saveMobileDailyReportResponse(request: Request) {
     if (!canWriteDailyReport(actor)) throw new DailyReportInputError(dailyReportWriteForbidden, "NOT_ELIGIBLE");
     const input = parseMobileDailyReportSave(await boundedJson(request, 8 * 1024 * 1024));
     const entry = await saveDailyReport({ actor, requestData: getAuditLogRequestData(getLoginRequestInfo(request.headers)), client: "mobile" }, input);
-    revalidateDailyReports();
+    refreshCommittedDailyReportCache();
     return mobileJson({ ok: true, message: input.intent === "submit" ? "시설장에게 업무보고를 제출했습니다." : "임시저장했습니다. 제출 전에는 나에게만 보입니다.", entry });
   } catch (error) { return failure(error); }
 }
@@ -99,7 +110,7 @@ export async function reviewMobileDailyReportResponse(request: Request, inputId:
     if (!isDailyReportDirector(actor)) throw new DailyReportInputError(dailyReportReviewForbidden, "FORBIDDEN");
     const id = parseMobileDailyReportId(inputId), input = parseMobileDailyReportReview(await boundedJson(request, 8 * 1024));
     const entry = await reviewDailyReport({ actor, requestData: getAuditLogRequestData(getLoginRequestInfo(request.headers)), client: "mobile" }, { id, ...input });
-    revalidateDailyReports();
+    refreshCommittedDailyReportCache();
     return mobileJson({ ok: true, message: "확인 완료로 표시했습니다.", entry });
   } catch (error) { return failure(error); }
 }
