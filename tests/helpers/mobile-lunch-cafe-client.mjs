@@ -29,6 +29,8 @@ export function createLunchCafeHarness() {
   const modules = new Map();
   const requestOverride = (path, token, options) => provider.request(path, { ...options, token });
   const mocks = {
+    '@/components/keyboard-screen': { KeyboardScreen: 'KeyboardScreen' },
+    '@/components/keyboard-scroll-view': { KeyboardScrollView: 'ScrollView', KeyboardFlatList: 'FlatList' },
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { ...native, Platform: { OS: 'android' }, AppState: { currentState: 'active', addEventListener(name, fn) { const set = state.listeners.get(name) ?? new Set(); set.add(fn); state.listeners.set(name, set); return { remove: () => set.delete(fn) }; } } },
     'expo-router': { router, useLocalSearchParams: () => state.params ?? {}, useFocusEffect(fn) { const c = cell('focus'); if (c.fn !== fn) { c.fn = fn; active.effects.push(c); } }, useNavigation: () => ({ dispatch: action => state.routes.push({ method: 'dispatch', value: action }) }) },

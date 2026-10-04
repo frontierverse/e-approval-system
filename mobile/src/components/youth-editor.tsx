@@ -1,3 +1,5 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 /* Scope cleanup effects intentionally depend on the permission snapshot or token; render-created action callbacks would retrigger them and discard dirty input. */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* Privacy guards and immutable mutation baselines deliberately use synchronous refs; permission changes must clear local state before user actions can resume. */
@@ -5,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -88,8 +90,8 @@ function YouthEditorContent({id}:{id?:string}) {
   const dirty=JSON.stringify(draft)!==initial.current;
   usePreventRemove(dirty||uploads.files.length>0||mutation.busy||mutation.state!=='idle',({data:action})=>{if(!snapshot.current())return;void confirmation.ask({title:'작성 화면 나가기',message:'저장하지 않은 입력이 사라집니다. 결과가 불명확한 저장은 먼저 원래 요청의 결과를 확인하세요. 나가시겠습니까?',confirm:'입력 버리고 나가기',danger:true}).then(yes=>{if(yes&&snapshot.current()&&!mutation.busyRef.current&&!uploads.busyRef.current)navigation.dispatch(action.action);});});
   const errors={...mutation.fields,...fields};
-  return <KeyboardAvoidingView style={[s.screen,{backgroundColor:theme.background}]} behavior={Platform.OS==='ios'?'padding':undefined}>
-    <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"><AccountFeedback error={!valid?'청소년 식별자를 확인하세요.':snapshot.error||privateError||mutation.error||Object.values(fields)[0]} message={notice}/>{snapshot.loading?<ActivityIndicator color={theme.accent}/>:null}
+  return <KeyboardScreen style={[s.screen,{backgroundColor:theme.background}]}>
+    <KeyboardScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"><AccountFeedback error={!valid?'청소년 식별자를 확인하세요.':snapshot.error||privateError||mutation.error||Object.values(fields)[0]} message={notice}/>{snapshot.loading?<ActivityIndicator color={theme.accent}/>:null}
       {data&&permissions?.canManageYouth?<><Text accessibilityRole="header" aria-level={2} style={[s.heading,{color:theme.text}]}>{create?'청소년 등록':'청소년 정보 수정'}</Text>
         <YouthField label="이름" value={draft.name} onChange={v=>change('name',v)} error={errors.name} disabled={mutation.locked}/><YouthField label="입소일" value={draft.admissionDate} onChange={v=>change('admissionDate',v)} error={errors.admissionDate} placeholder="YYYY-MM-DD" disabled={mutation.locked}/>
         {create?<YouthField label="예정퇴소일" value={draft.dischargeDate} onChange={v=>change('dischargeDate',v)} error={errors.dischargeDate} placeholder="YYYY-MM-DD" disabled={mutation.locked}/>:<Text style={[s.small,{color:theme.secondary}]}>예정퇴소일 {formatYouthDate(base?.dischargeDate??null)} · 변경은 퇴소연장에서 처리합니다.</Text>}
@@ -101,7 +103,7 @@ function YouthEditorContent({id}:{id?:string}) {
         {mutation.state==='conflict'?<><Text style={[s.body,{color:theme.secondary}]}>내 입력을 보존했습니다. 최신 정보와 비교한 뒤 수정 기준을 선택하세요.</Text><TextAction label="최신 청소년 정보 확인" onPress={()=>void latest()}/>{snapshot.cached.current&&'youth'in snapshot.cached.current?<Text style={[s.small,{color:theme.secondary}]}>최신 이름 {snapshot.cached.current.youth.name} · 입소 {formatYouthDate(snapshot.cached.current.youth.admissionDate)}</Text>:null}<TextAction label="내 입력 유지하고 최신 기준 선택" onPress={()=>void adopt()}/></>:null}
         {mutation.state==='uncertain'?<><Text style={[s.body,{color:theme.secondary}]}>원래 입력과 요청 키를 보존했습니다. 새로운 등록을 만들지 않고 원래 결과를 먼저 확인하세요.</Text><TextAction label="원래 저장 결과 확인" disabled={mutation.busy} onPress={()=>void mutation.check()}/>{mutation.pending.current?.body?<TextAction label="같은 저장 요청 재시도" disabled={mutation.busy} onPress={()=>void mutation.retry()}/>:null}</>:null}
       </>:!snapshot.loading?<Text style={[s.body,{color:theme.secondary}]}>현재 관리 권한과 정보를 확인할 수 없습니다.</Text>:null}
-    </ScrollView>
+    </KeyboardScrollView>
     {data&&permissions?.canManageYouth?<View style={[s.bar,{paddingBottom:Math.max(8,insets.bottom),borderColor:theme.border,backgroundColor:theme.surface}]}><PrimaryButton title={mutation.busy?'저장 처리 중':'청소년 정보 저장'} disabled={mutation.locked||privateBusy||uploads.busy} onPress={()=>void save()}/></View>:null}{confirmation.dialog}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }

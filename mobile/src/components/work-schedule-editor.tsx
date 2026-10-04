@@ -1,7 +1,9 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { PrimaryButton, TextAction } from "@/components/ui";
@@ -147,8 +149,8 @@ function WorkScheduleEditorContent({ id, date, isCurrentAccount }: { id?: string
   };
   const correctDate = () => { if (!loading && !locked.current && focused.current && isCurrentAccount() && isScheduleDate(valuesRef.current.scheduleDate)) router.setParams({ date: valuesRef.current.scheduleDate }); };
   const disabled = privacyPending || loading || busy || !!recovery || !!loadError; const visible = privacyPending ? null : data;
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top + 44}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
       <View style={styles.actions}><TextAction label={loading ? "불러오는 중..." : "최신 일정 확인"} icon="refresh" disabled={loading || busy} onPress={() => void load(!!attempt.current || !!recoveryRef.current)} /><TextAction label="일정 목록" disabled={loading || busy} onPress={() => void navigateList()} /></View>
       <AccountFeedback message={notice} /><AccountFeedback error={error ?? loadError} />
       {loading ? <View style={styles.actions} accessibilityRole="progressbar" accessibilityLabel="일정 불러오는 중"><ActivityIndicator color={theme.accent} /><Text style={[styles.small, { color: theme.secondary }]}>일정 불러오는 중...</Text></View> : null}
@@ -163,9 +165,9 @@ function WorkScheduleEditorContent({ id, date, isCurrentAccount }: { id?: string
         <ScheduleField name="content" label="일정 내용" value={values.content} error={errors.content} disabled={disabled} multiline onChange={change} />
         <Text style={[styles.small, { color: theme.secondary }]}>입력은 저장을 눌러야 반영됩니다. 다른 직원도 이 공용 일정을 변경할 수 있습니다.</Text>
       </> : null}
-    </ScrollView>
+    </KeyboardScrollView>
     {visible ? <View accessibilityLabel="업무 일정 저장" style={[styles.bar, { backgroundColor: theme.surface, borderColor: theme.border, paddingBottom: Math.max(insets.bottom, 8) }]}><PrimaryButton title={busy ? "저장 중..." : visible.item ? "일정 수정 저장" : "일정 등록"} disabled={disabled} onPress={() => void save()} /></View> : null}
     {confirmation.dialog}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }
 const styles = StyleSheet.create({ container: { padding: 12, paddingBottom: 24, gap: 8, width: "100%", maxWidth: 960, alignSelf: "center" }, actions: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" }, times: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, label: { fontSize: 15, fontWeight: "700" }, small: { fontSize: 13, lineHeight: 20, fontVariant: ["tabular-nums"] }, compare: { padding: 12, borderWidth: 1, borderRadius: 8, gap: 8 }, bar: { paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1 } });

@@ -1,7 +1,9 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { PrimaryButton, TextAction } from "@/components/ui";
@@ -96,8 +98,8 @@ function TaskEditorContent({ isCurrentAccount }: { isCurrentAccount: () => boole
     }
   };
   const disabled = busy || uncertain || requestConflict;
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top + 48}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
       <Text style={[styles.hint, { color: theme.secondary, marginBottom: 12 }]}>본인의 할 일로 등록됩니다.</Text>
       <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <TaskField label="할 일" name="title" value={values.title} onChange={changeValue} disabled={disabled} error={errors.title} maxLength={160} required placeholder="예: 다음 회의 전 활동 계획안 정리" />
@@ -113,9 +115,9 @@ function TaskEditorContent({ isCurrentAccount }: { isCurrentAccount: () => boole
         {!requestConflict ? <PrimaryButton title={busy ? "등록 확인 중..." : uncertain ? "등록 결과 다시 확인" : "할 일 등록"} disabled={busy} onPress={() => void submit()} /> : null}
         {uncertain || requestConflict ? <TextAction label="내 할 일에서 확인" disabled={busy} onPress={() => router.push("/tasks")} /> : null}
       </View>
-    </ScrollView>
+    </KeyboardScrollView>
     {confirmation.dialog}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }
 function TaskField({ label, name, value, onChange, disabled, error, maxLength, placeholder, multiline, required }: {
   label: string; name: keyof TaskFormValues; value: string; onChange: (name: keyof TaskFormValues, value: string) => void;

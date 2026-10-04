@@ -1,7 +1,9 @@
+import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
+import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { PrimaryButton, TextAction } from "@/components/ui";
@@ -142,8 +144,8 @@ function WorkLogEditorContent({ date, isCurrentAccount }: { date?: string; isCur
     const result = mergeWorkLogSchedules(valuesRef.current.content, dataRef.current.linkedScheduleState.schedules); updateValues({ ...valuesRef.current, content: result.content }); setError(null); setNotice(`${result.added}건을 입력에 추가했습니다.${result.skipped ? ` 5,000자 제한으로 ${result.skipped}건은 추가하지 못했습니다.` : ""} 저장 전까지 화면 입력에만 반영됩니다.`);
   };
   const disabled = privacyPending || loading || busy || !!recovery || !!loadError; const visible = privacyPending ? null : data;
-  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top + 44}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
       <WorkLogField name="workDate" label="기록일" value={dateInput} placeholder="YYYY-MM-DD" maxLength={10} disabled={loading || busy} error={errors.workDate} onChange={(_, value) => setDateInput(value)} />
       <View style={styles.actions}><TextAction label="날짜 조회" disabled={loading || busy} onPress={() => void changeDate()} />{data ? <TextAction label="오늘" disabled={loading || busy} onPress={() => void changeDate(data.today)} /> : null}<TextAction label={loading ? "불러오는 중..." : "최신 기록 확인"} icon="refresh" disabled={loading || busy} onPress={() => void load(!!attempt.current || !!recoveryRef.current)} /></View>
       <AccountFeedback message={notice} /><AccountFeedback error={error ?? loadError} />
@@ -163,9 +165,9 @@ function WorkLogEditorContent({ date, isCurrentAccount }: { date?: string; isCur
           {visible.linkedScheduleState.status === "error" ? <><Text style={[styles.small, { color: theme.secondary }]}>참고 일정을 불러오지 못했습니다. 입력은 보관되어 있습니다.</Text><TextAction label="참고 일정 다시 불러오기" disabled={loading || busy} onPress={() => void load(!!attempt.current || !!recoveryRef.current)} /></> : <><View role="list" accessibilityLabel="참고 청소년 일정">{visible.linkedScheduleState.schedules.map(item => <View role="listitem" key={item.id} style={[styles.schedule, { borderColor: theme.border }]}><Text style={[styles.body, { color: theme.text }]}>{formatWorkLogMinute(item.startMinute)}-{formatWorkLogMinute(item.endMinute)} {item.youthName} · {item.content}</Text></View>)}</View>{!visible.linkedScheduleState.schedules.length ? <Text style={[styles.small, { color: theme.secondary }]}>허용된 참고 일정이 없습니다.</Text> : <TextAction label="참고 일정 내용에 추가" disabled={disabled} onPress={addSchedules} />}</>}
         </> : null}
       </> : null}
-    </ScrollView>
+    </KeyboardScrollView>
     {visible ? <View accessibilityLabel="업무일지 저장" style={[styles.bar, { backgroundColor: theme.surface, borderColor: theme.border, paddingBottom: Math.max(insets.bottom, 8) }]}><PrimaryButton title={busy ? "저장 중..." : "직접 작성 기록 저장"} disabled={disabled} onPress={() => void save()} /></View> : null}
     {confirmation.dialog}
-  </KeyboardAvoidingView>;
+  </KeyboardScreen>;
 }
 const styles = StyleSheet.create({ container: { padding: 12, paddingBottom: 24, gap: 8, width: "100%", maxWidth: 960, alignSelf: "center" }, actions: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" }, label: { fontSize: 15, fontWeight: "700" }, small: { fontSize: 13, lineHeight: 20, fontVariant: ["tabular-nums"] }, body: { fontSize: 15, lineHeight: 23 }, compare: { padding: 12, borderWidth: 1, borderRadius: 8, gap: 8 }, schedule: { paddingVertical: 8, borderBottomWidth: 1 }, bar: { paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1 } });

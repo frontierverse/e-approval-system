@@ -75,6 +75,8 @@ export function createDraftRecoveryHarness({ protectedPort = createProtectedPort
   const listeners = (name, fn) => { const bucket = state.listeners.get(name) ?? new Set(); bucket.add(fn); state.listeners.set(name, bucket); return { remove: () => bucket.delete(fn) }; };
   const noPlainStorage = new Proxy({}, { get() { throw Error('Recovery must not use plaintext fallback storage'); } });
   const mocks = {
+    '@/components/keyboard-screen': { KeyboardScreen: 'KeyboardScreen' },
+    '@/components/keyboard-scroll-view': { KeyboardScrollView: 'ScrollView', KeyboardFlatList: 'FlatList' },
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: v => v }, AppState: { get currentState() { return state.appState; }, addEventListener: listeners } },
     'expo-router': { router, useLocalSearchParams: () => state.params, useFocusEffect(fn) { const c = cell('focus'); if (c.fn !== fn) { c.fn = fn; active.effects.push(c); } } },

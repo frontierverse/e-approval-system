@@ -2,8 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ErrorState, PrimaryButton, TextAction } from "@/components/ui";
+import { KeyboardScreen } from "@/components/keyboard-screen";
+import { KeyboardScrollView as ScrollView } from "@/components/keyboard-scroll-view";
 import { DocumentProgress, RejectionReason } from "@/components/document-progress";
 import { DocumentDraftActions } from "@/components/document-draft-actions";
 import { attachmentFileSize } from "@/lib/attachment-file";
@@ -60,8 +62,8 @@ function DocumentDetailScreen({ id }: { id: string }) {
   if (loading && !data) return <DocumentLoading />;
   if (error && !data) return <View style={[styles.center, { backgroundColor: theme.background }]}><ErrorState message={error} retry={reload} /></View>;
   if (!document) return null;
-  return <View style={{ flex: 1, backgroundColor: theme.background }}>
-    <ScrollView contentContainerStyle={styles.content}>
+  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.titleBlock}>
         <Text style={{ color: document.status === "rejected" ? theme.danger : theme.secondary, fontSize: 12 }}>{document.documentNo} · {detailStatusLabels[document.status] ?? document.status}</Text>
         <Text accessibilityRole="header" {...titleLevel} style={{ color: theme.text, fontSize: 21, fontWeight: "800", lineHeight: 29, marginTop: 5 }}>{document.title}</Text>
@@ -115,7 +117,7 @@ function DocumentDetailScreen({ id }: { id: string }) {
         <View style={{ flex: 2 }}><PrimaryButton title="승인" onPress={() => { setComment(""); setDecision("approve"); }} /></View>
       </View>}
     </View> : null}
-  </View>;
+  </KeyboardScreen>;
 }
 
 function Meta({ label, value }: { label: string; value: string }) {
