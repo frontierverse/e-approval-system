@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { currentRejectedStep, detailDate, latestDocumentHistories, stepActorName, stepStatusLabel } from "../mobile/src/lib/document-detail.ts";
+import { currentRejectedStep, decisionCommentError, documentActions, detailDate, latestDocumentHistories, stepActorName, stepStatusLabel } from "../mobile/src/lib/document-detail.ts";
 
 const step = {id:"step", order:1, name:"원 결재자", status:"approved", actedAt:"2026-10-01T15:30:00Z", comment:null};
 
@@ -39,4 +39,25 @@ test("history uses timestamps across offsets, preserves the source, and dates di
   assert.deepEqual(latestDocumentHistories(), []);
   assert.match(detailDate("2025-12-31T15:30:00Z"), /^2026\.\s*1\.\s*1\..*00:30/);
   for (const date of [null, undefined, "invalid"]) assert.equal(detailDate(date), "시간 기록 없음");
+});
+
+
+test("decision comments validate trimmed bounds while keeping the original input intact", () => {
+  assert.equal(decisionCommentError("approve", "  "), null);
+  assert.ok(decisionCommentError("reject", " 보 "));
+  assert.equal(decisionCommentError("reject", " 보완 "), null);
+  assert.equal(decisionCommentError("reject", "가".repeat(2000)), null);
+  assert.ok(decisionCommentError("approve", "가".repeat(2001)));
+});
+
+test("document actions require both employee capability and server grants in the matching lifecycle", () => {
+  const document = {status:"submitted",canDecide:true,canRecall:true,canEdit:true,updatedAt:"2026-10-05T00:12:00Z",decisionBlockedReason:null};
+  assert.deepEqual(documentActions(document, true), {canDecide:true,canRecall:true,canEdit:false});
+  assert.equal(documentActions(document, false).canDecide, false);
+  assert.equal(documentActions({...document, canDecide:false}, true).canDecide, false);
+  assert.equal(documentActions({...document, decisionBlockedReason:"미지원 첨부"}, true).canDecide, false);
+  assert.equal(documentActions({...document, updatedAt:undefined}, true).canRecall, false);
+  for (const status of ["approved","rejected","discarded"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:false});
+  for (const status of ["draft","recalled"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:true});
+  assert.deepEqual(documentActions(null, true), {canDecide:false,canRecall:false,canEdit:false});
 });

@@ -142,7 +142,7 @@ APNs/FCM 자격 증명, 운영 도메인과 스케줄러가 준비되기 전에�
 
 `npx tsc --noEmit`, `npx expo lint`, `EXPO_PUBLIC_API_URL=https://www.bajaul.com npx expo export --platform all`을 실행한다. 실제 기기에서 로그인, 승인·반려, PDF와 이미지 첨부를 최종 확인한다.
 
-회수·수정·재상신은 확인 취소, 기존 입력·결재자·첨부파일 유지, 임시저장, 재상신 응답 유실 후 동일 요청 재시도, 승인·수정과의 버전 충돌을 확인한다. 웹 확인 창은 취소 버튼으로 포커스가 진입하고 내부 탭 이동과 Escape 취소를 지원하며, 닫히면 실행한 버튼으로 복귀한다. 저장 실패 시 입력을 보존하고 오류 요약으로 포커스를 이동한다. 실제 Android·iOS에서도 기본 확인 알림의 취소·닫기와 전체 흐름을 최종 점검한다.
+회수·수정·재상신은 확인 취소, 기존 입력·결재자·첨부파일 유지, 임시저장, 재상신 응답 유실 후 동일 요청 재시도, 승인·수정과의 버전 충돌을 확인한다. 웹 확인 창은 취소 버튼으로 포커스가 진입하고 내부 탭 이동과 Escape 취소를 지원하며, 닫히면 실행한 버튼으로 복귀한다. 저장 실패 시 입력을 보존하고 오류 요약으로 포커스를 이동한다. 실제 Android·iOS에서도 확인 시트의 취소·닫기와 전체 흐름을 최종 점검한다.
 
 ## 업데이트
 
@@ -179,3 +179,12 @@ npm run update:production -- --input message="변경 내용"
 2026-10-02 운영 업데이트 검증: [배포 워크플로](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/workflows/01a0fa86-3eed-7bca-a572-e7ccdf46ad5c)가 성공했다. Android 업데이트 ID는 `01a0fa87-f240-7c59-9b1c-79dd2dbea06e`, runtime은 `3fbb2aedbf34795a7701a252f72d36d780405b5b`이며 직원용 Android 빌드의 runtime과 일치한다. 앱과 같은 프로토콜로 `production` 채널의 manifest와 실행 번들을 받아 HTTP `200`, 번들의 SHA-256 일치, 운영 API 주소 포함을 확인했다. 실제 휴대폰에서 새 설치본 설치와 업데이트 적용 여부는 별도 확인이 필요하다.
 
 참고: [Expo 내부 배포](https://docs.expo.dev/build/internal-distribution/), [Apple Custom Apps](https://developer.apple.com/support/volume-purchase-and-custom-apps/), [Google Play 비공개 앱](https://support.google.com/work/android/answer/9563481), [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).
+
+
+## Claude 문서 상세 v1 구현 후보 (2026-10-05)
+
+홈 v2·문서함 v1의 공용 토큰과 Feather 아이콘을 이어, 문서 상세에 52px 헤더·본문/첨부·결재 진행/이력과 하단 처리 버튼을 적용했다. 의견 입력 후 문서번호·기안자·제목·처리 결과·의견을 확인하는 시트를 제공한다. 승인 의견은 선택이고 반려 사유는 앞뒤 공백 제외 2~2000자다. 큰 글자에서는 확인 버튼을 세로 배치하고 확인 단계의 문서 정보부터 스크롤을 시작한다.
+
+처리 직전 최신 문서 상태·권한·버전을 다시 조회한다. 중복 탭과 처리 중 뒤로/취소를 막고, 실패·응답 유실·버전 충돌 때 의견을 유지하며 수동 최신 상태 확인 후에만 다시 처리할 수 있다. 접근 거절은 기존 문서·입력 내용을 제거한다. 회수의 `expectedUpdatedAt`, 원래 진입한 목록으로 복귀 및 검색/페이지 보존, 기존 첨부 열람·편집 화면 연결을 유지한다. 관리자 역할만으로 결재 권한을 만들지 않는다.
+
+설계/브라우저 검수는 루트 `design-qa.md`와 `docs/mobile-document-detail-design-brief.md`에 기록했다. 로컬 구현 후보이며 운영 EAS Update는 별도 단계다. 새 네이티브 모듈이나 서버 변경은 없다. 실제 기기의 동적 글자 크기·키보드·스크린리더와 업무 처리 후 최종 동작은 후속 확인한다.
