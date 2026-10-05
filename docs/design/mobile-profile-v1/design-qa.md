@@ -2,8 +2,6 @@
 
 final result: passed
 
-이전 화면 검수: [알림 v1](docs/design/mobile-notifications-v1/design-qa.md). 현재 증거: [내 정보 v1](docs/design/mobile-profile-v1/).
-
 ## 원본과 실제 구현
 
 Claude **바자울 전자결재 앱 디자인 / 내 정보 v1**의 완료 메인 캡처와 `bajaul-profile-v1-source.zip`의 `project/Profile.dc.html`을 기준으로 실제 Expo Router `/profile`을 구현했다. 편집용 HTML, 상태 제어, 모의 인증 및 검수 스크립트는 앱에 이식하지 않았다. 소스 ZIP과 원본 이미지 SHA256은 `source.json`에 기록했다.

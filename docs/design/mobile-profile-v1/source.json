@@ -1,0 +1,11 @@
+{
+  "sourceTask": "바자울 전자결재 앱 디자인",
+  "page": "내 정보 v1",
+  "taskURL": "https://claude.ai/cowork/cse_019QmmgaB7zLPe4E3LvQLRnB",
+  "sourceZIP": "bajaul-profile-v1-source.zip",
+  "zipSHA256": "287141f654a3ff65288d832e09a4ad6047e946ef433bac7b78282d37dcca3196",
+  "referenceSHA256": "5fec20746baa7e3603713cc1b4640e03f381ab3d26949b22fd702e19bc234cab",
+  "implementation": "mobile/src/components/profile-screen.tsx",
+  "nativeOSVerified": false,
+  "productionDeployed": false
+}

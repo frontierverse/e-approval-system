@@ -187,9 +187,9 @@ test("automatic registration failure is visible and an OFF status query retry ke
 });
 test("failed disable preserves OFF intent on foreground and retries DELETE, without automatically re-registering",async()=>{
   const scope=await mount();const initialPosts=posts().length;const initialTokens=state.tokenCalls.length;state.failPushDelete=true;
-  await scope.value.disablePush();scope.render();assert.equal(scope.value.pushError,"설정 해제 실패");
+  await scope.value.disablePush();scope.render();assert.equal(scope.value.pushError,"설정 해제 실패");assert.equal(scope.value.pushFailedMode,"disable");
   await scope.value.refreshPushStatus();scope.render();assert.equal(scope.value.pushError,"설정 해제 실패");assert.equal(posts().length,initialPosts);assert.equal(state.tokenCalls.length,initialTokens);
-  await scope.value.retryPushRegistration();scope.render();assert.equal(scope.value.pushStatus.enabled,false);assert.equal(state.enabled,false);assert.equal(scope.value.pushError,null);
+  await scope.value.retryPushRegistration();scope.render();assert.equal(scope.value.pushStatus.enabled,false);assert.equal(state.enabled,false);assert.equal(scope.value.pushError,null);assert.equal(scope.value.pushFailedMode,null);
 });
 test("permission denial preserves enabled intent and opens settings only after a user action",async()=>{
   state.permission=permission("denied",false);const scope=await mount();

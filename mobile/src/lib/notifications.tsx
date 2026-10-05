@@ -21,6 +21,7 @@ type NotificationsContextValue = {
   pushError: string | null;
   pushMessage: string | null;
   pushNeedsSettings: boolean;
+  pushFailedMode: "auto" | "enable" | "disable" | null;
   enablePush: () => Promise<void>;
   disablePush: () => Promise<void>;
   retryPushRegistration: () => Promise<void>;
@@ -264,13 +265,14 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
       try { NativeNotifications.clearLastNotificationResponse(); } catch { /* Unavailable on some runtimes. */ }
     };
   }, [current, handlePushDocument, invalidate, refreshPushStatus, refreshUnreadCount, syncPush, token]);
+  const pushFailedMode = failedPushMode.current;
   const value = useMemo<NotificationsContextValue>(() => ({
     unreadCount, notificationRevision, setUnreadCount, refreshUnreadCount, openNotificationDocument,
     notificationOpenError, retryNotificationOpen, dismissNotificationOpenError,
-    pushStatus, pushLoading: Platform.OS !== "web" && !!token && !pushStatus && pushPending, pushPending, pushError, pushMessage, pushNeedsSettings,
+    pushStatus, pushLoading: Platform.OS !== "web" && !!token && !pushStatus && pushPending, pushPending, pushError, pushMessage, pushNeedsSettings, pushFailedMode,
     enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings,
   }), [unreadCount, notificationRevision, setUnreadCount, refreshUnreadCount, openNotificationDocument, notificationOpenError, retryNotificationOpen, dismissNotificationOpenError,
-    pushStatus, pushPending, pushError, pushMessage, pushNeedsSettings, enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings, token]);
+    pushStatus, pushPending, pushError, pushMessage, pushNeedsSettings, pushFailedMode, enablePush, disablePush, retryPushRegistration, refreshPushStatus, openPushSettings, token]);
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 export function useNotifications() {
