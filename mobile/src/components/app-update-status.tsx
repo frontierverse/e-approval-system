@@ -18,7 +18,7 @@ export function formatAppUpdateTime(value: string | null): string {
   if (!value) return "확인 기록 없음";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "확인 기록 없음";
-  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Seoul" }).format(date);
+  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Asia/Seoul" }).format(date);
 }
 export function AppUpdateProgress({ progress }: { progress: number | null }) {
   const theme = useTheme();
