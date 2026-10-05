@@ -22,7 +22,7 @@ export default function TabsLayout() {
   }}>
     <Tabs.Screen name="index" options={{ title: "홈", tabBarAccessibilityLabel: "홈", tabBarIcon: ({ color, focused }) => <TabIcon name="home" color={color} focused={focused} /> }} />
     <Tabs.Protected guard={user?.canApproveDocuments === true}>
-      <Tabs.Screen name="inbox" options={{ title: "받은결재", tabBarAccessibilityLabel: "받은결재", tabBarIcon: ({ color, focused }) => <TabIcon name="inbox" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="inbox" options={{ title: "받은결재", tabBarHideOnKeyboard: true, tabBarAccessibilityLabel: "받은결재", tabBarIcon: ({ color, focused }) => <TabIcon name="inbox" color={color} focused={focused} /> }} />
     </Tabs.Protected>
     <Tabs.Screen name="drafts" options={{ title: "문서함", tabBarAccessibilityLabel: "문서함", tabBarIcon: ({ color, focused }) => <TabIcon name="folder" color={color} focused={focused} /> }} />
     <Tabs.Screen name="notifications" options={{ title: "알림", tabBarBadge: notificationBadge(unreadCount), tabBarBadgeStyle: { backgroundColor: theme.dangerFill, color: "#FFFFFF", fontSize: 10 }, tabBarAccessibilityLabel: unreadCount ? "알림, 읽지 않은 알림 " + unreadCount.toLocaleString("ko-KR") + "건" : "알림", tabBarIcon: ({ color, focused }) => <TabIcon name="bell" color={color} focused={focused} /> }} />
