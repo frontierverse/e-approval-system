@@ -61,7 +61,8 @@ function harness(kind = 'tasks', exportName, initial = {}, account = 'a') {
     'expo-router': { Stack: { Screen: 'Stack.Screen' }, router: { setParams(params) { props = { ...props, ...params, page: Number(params.page ?? props.page) }; render(); }, push(path) { navigation.push(path); } }, useFocusEffect: focusHook, useLocalSearchParams: () => props },
     'react-native': { ...components, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }) }, '@expo/vector-icons': { Ionicons: 'Ionicons' },
     '@/components/account-feedback': { AccountFeedback: 'AccountFeedback', focusAccountNotice() {} }, '@/components/ui': components, '@/components/inbox-list': components,
-    '@/lib/api': api, '@/lib/tasks': core, '@/lib/session': { useSession: () => ({ ...session, request }) }, '@/lib/theme': { useTheme: () => ({}) },
+    '@/lib/api': api, '@/lib/tasks': core, '@/lib/session': { useSession: () => ({ ...session, request }) }, '@/lib/theme': { useTheme: () => ({}) }, '@/lib/home-theme': { useHomeTheme: () => ({}) },
+    '@/components/home-dashboard': { HomeDashboard: 'HomeDashboard' },
   };
   const exposed = kind === 'tasks' ? '\nexport const TestContent = TasksContent;\n' : '\nexport const TestHomeEntry = TaskHomeEntry; export const TestHomeData = useHomeData; export const TestHomeContent = HomeContent;\n';
   const evaluated = evaluate(sources[kind] + exposed, imports);
