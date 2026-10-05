@@ -35,3 +35,19 @@ export function currentRejectedStep(document: Pick<MobileDocument, "status" | "a
 export function latestDocumentHistories(histories: readonly MobileDocumentHistory[] = []) {
   return [...histories].sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
 }
+
+export function decisionCommentError(decision: "approve" | "reject", comment: string) {
+  const length = comment.trim().length;
+  if (length > 2000) return "의견은 2000자 이하로 입력하세요.";
+  if (decision === "reject" && length < 2) return "반려 사유를 2자 이상 입력하세요. (앞뒤 공백 제외)";
+  return null;
+}
+
+export function documentActions(document: MobileDocument | null, canApproveDocuments: boolean) {
+  const active = document?.status === "submitted" || document?.status === "in_progress";
+  return {
+    canDecide: active && canApproveDocuments && document?.canDecide === true && !document.decisionBlockedReason,
+    canRecall: active && document?.canRecall === true && !!document.updatedAt,
+    canEdit: (document?.status === "draft" || document?.status === "recalled") && document.canEdit === true,
+  };
+}
