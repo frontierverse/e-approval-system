@@ -41,13 +41,14 @@ async function pickerFixture(os = 'android') {
     const row = nodes(editor.tree).find(v => [v.props?.label, v.props?.title, v.props?.accessibilityLabel].includes(label) && typeof v.props?.onPress === 'function');
     assert.ok(row, 'control ' + label); return row.props;
   };
-  const radios = () => nodes(editor.tree).filter(v => v.props?.accessibilityRole === 'radio');
+  const radios = () => nodes(editor.tree).filter(v => v.props?.accessibilityRole === 'radio' && !v.props?.accessibilityLabel?.startsWith('결재자 '));
+  const approver = (name: string) => control('결재자 ' + name + ' · 시설장');
   const option = (text: string) => {
     const row = radios().find(v => nodes(v).some(child => child.type === 'Text' && child.props.children === text));
     assert.ok(row, 'option ' + text); return row.props;
   };
   const visibleModals = () => nodes(editor.tree).filter(v => v.type === 'Modal' && v.props.visible);
-  return { h, provider, editor, options, requests, settle, value, field, control, radios, option, visibleModals, setResponse: (next: typeof response) => { response = next; }, invalidateAccount: () => { accountCurrent = false; } };
+  return { h, provider, editor, options, requests, settle, value, field, control, radios, option, approver, visibleModals, setResponse: (next: typeof response) => { response = next; }, invalidateAccount: () => { accountCurrent = false; } };
 }
 
 test('real recovery provider callbacks stay stable through Android editor typing and picker rerenders', async () => {
@@ -62,6 +63,7 @@ test('real recovery provider callbacks stay stable through Android editor typing
     assert.equal(f.visibleModals().length, 0, 'Android picker creates no separate native Modal window');
     assert.equal(f.radios().length, 2);
     assert.equal(f.control('임시저장').disabled, true); assert.equal(f.control('파일 추가').disabled, true);
+    assert.equal(f.approver('Director B').disabled, true);
   } finally { f.h.dispose(); }
 });
 
@@ -72,9 +74,8 @@ test('Android in-tree template, select and approver picks stay usable without a 
     f.control('Normal option').onPress(); await f.settle();
     assert.equal(f.visibleModals().length, 0); f.option('Other option').onPress(); await f.settle();
     assert.ok(f.control('Other option')); assert.equal(f.radios().length, 0);
-    f.control('시설장 선택').onPress(); await f.settle();
-    f.option('Director B · 시설장').onPress(); await f.settle();
-    assert.ok(f.control('Director B · 시설장')); assert.equal(f.radios().length, 0);
+    f.approver('Director B').onPress(); await f.settle();
+    assert.equal(f.approver('Director B').accessibilityState.checked, true); assert.equal(f.radios().length, 0);
     f.control('Synthetic template A').onPress(); await f.settle();
     f.option('Synthetic template B').onPress(); await f.settle();
     f.control('변경').onPress(); await f.settle();
@@ -93,7 +94,7 @@ test('Android picker close and hardware Back dismiss only the list, retain typed
     f.control('Synthetic template A').onPress(); await f.settle();
     f.control('닫기').onPress(); await f.settle();
     assert.equal(f.radios().length, 0); assert.equal(f.field('Note').value, 'Keep body');
-    f.control('시설장 선택').onPress(); await f.settle();
+    f.control('Normal option').onPress(); await f.settle();
     const handlers = [...f.h.state.listeners.get('hardwareBackPress') ?? []];
     assert.equal(handlers.length, 1); assert.equal(handlers[0](), true); await f.settle();
     assert.equal(f.radios().length, 0); assert.equal(f.h.state.listeners.get('hardwareBackPress')?.size ?? 0, 0);
@@ -106,8 +107,7 @@ test('real Android external blur still closes picker, masks inputs and rejects o
   const f = await pickerFixture(), held = deferred();
   try {
     f.field('제목 필수').onChangeText('Keep title'); f.field('Note').onChangeText('Keep body'); await f.settle();
-    f.control('시설장 선택').onPress(); await f.settle();
-    const oldChoice = f.option('Director B · 시설장').onPress, before = f.requests.length;
+    const oldChoice = f.approver('Director B').onPress, before = f.requests.length;
     f.h.event('blur'); f.provider.update(); f.editor.render();
     assert.equal(nodes(f.editor.tree).filter(v => v.type === 'TextInput').length, 0);
     oldChoice(); f.editor.flush(); await f.settle(); assert.equal(f.radios().length, 0);
@@ -116,21 +116,21 @@ test('real Android external blur still closes picker, masks inputs and rejects o
     assert.equal(nodes(f.editor.tree).filter(v => v.type === 'TextInput').length, 0);
     held.resolve(Response.json(f.options)); await f.settle();
     assert.equal(f.field('제목 필수').value, 'Keep title'); assert.equal(f.field('Note').value, 'Keep body');
-    assert.ok(f.control('시설장 선택')); assert.equal(f.h.state.routes.length + f.h.state.expired.length, 0);
+    assert.equal(f.approver('Director B').accessibilityState.checked, false); assert.equal(f.h.state.routes.length + f.h.state.expired.length, 0);
   } finally { held.resolve(Response.json(f.options)); f.h.dispose(); }
 });
 
 test('batched Android blur/focus never reuses held options or a captured picker choice', async () => {
   const f = await pickerFixture(), first = deferred(), second = deferred();
   try {
-    f.control('시설장 선택').onPress(); await f.settle(); const oldChoice = f.option('Director B · 시설장').onPress;
+    const oldChoice = f.approver('Director B').onPress;
     f.setResponse(() => first.promise); f.editor.blur(); f.editor.focus(); await tick();
     f.h.event('blur'); f.h.event('focus'); f.provider.update();
     f.setResponse(() => second.promise); f.editor.update(); await tick();
     first.resolve(Response.json(f.options)); await tick(); f.editor.update();
     oldChoice(); assert.equal(nodes(f.editor.tree).filter(v => v.type === 'TextInput').length, 0);
     second.resolve(Response.json(f.options)); await f.settle();
-    assert.ok(f.control('시설장 선택')); assert.equal(f.radios().length, 0);
+    assert.equal(f.approver('Director B').accessibilityState.checked, false); assert.equal(f.radios().length, 0);
     assert.equal(f.h.state.expired.length, 0);
   } finally { first.resolve(Response.json(f.options)); second.resolve(Response.json(f.options)); f.h.dispose(); }
 });
@@ -139,7 +139,7 @@ test('captured Android picker choices cannot affect a replacement account or a r
   for (const mode of ['account', 'unmount']) {
     const f = await pickerFixture();
     try {
-      f.control('시설장 선택').onPress(); await f.settle(); const choose = f.option('Director B · 시설장').onPress;
+      const choose = f.approver('Director B').onPress;
       if (mode === 'account') f.invalidateAccount(); else f.editor.unmount();
       choose(); await tick(); assert.equal(f.h.state.routes.length + f.h.state.uploads.length, 0);
       assert.equal(f.requests.filter(v => v.method !== 'GET').length, 0);
@@ -147,12 +147,15 @@ test('captured Android picker choices cannot affect a replacement account or a r
   }
 });
 
-test('iOS keeps its existing picker Modal and closes after a valid selection', async () => {
+test('iOS retains its Modal for template/select choices while approvers stay inline', async () => {
   const f = await pickerFixture('ios');
   try {
-    f.control('시설장 선택').onPress(); await f.settle(); assert.equal(f.visibleModals().length, 1);
-    f.option('Director B · 시설장').onPress(); await f.settle();
-    assert.equal(f.visibleModals().length, 0); assert.ok(f.control('Director B · 시설장'));
+    f.control('Normal option').onPress(); await f.settle(); assert.equal(f.visibleModals().length, 1);
+    f.option('Other option').onPress(); await f.settle();
+    assert.equal(f.visibleModals().length, 0); assert.ok(f.control('Other option'));
+    f.approver('Director B').onPress(); await f.settle();
+    assert.equal(f.visibleModals().length, 0); assert.equal(f.approver('Director B').accessibilityState.checked, true);
+    assert.equal(f.approver('Director A').accessibilityState.checked, false);
   } finally { f.h.dispose(); }
 });
 
@@ -209,10 +212,10 @@ test('actual Choice supplies its ref focus callback and Android close, choose, B
       let restored = 0;
       const prompt = action === 'cancel' || action === 'confirm';
       if (prompt) { f.field('Note').onChangeText('Retained dirty body'); await f.settle(); }
-      const label = prompt ? 'Synthetic template A' : '시설장 선택';
+      const label = prompt ? 'Synthetic template A' : 'Normal option';
       f.control(label).onPress(() => { restored++; }); await f.settle(); assert.equal(restored, 0);
       if (action === 'close') f.control('닫기').onPress();
-      if (action === 'choose') f.option('Director B · 시설장').onPress();
+      if (action === 'choose') f.option('Other option').onPress();
       if (action === 'back') assert.equal([...f.h.state.listeners.get('hardwareBackPress')][0](), true);
       if (action === 'toggle') f.control(label).onPress();
       if (prompt) { f.option('Synthetic template B').onPress(); await f.settle(); assert.equal(restored, 0); f.control(action === 'cancel' ? '취소' : '변경').onPress(); }

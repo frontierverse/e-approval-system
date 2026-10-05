@@ -12,10 +12,10 @@ export function ScreenHeading({ title, subtitle, action }: { title: string; subt
   </View>;
 }
 
-export function PrimaryButton({ title, disabled, onPress, danger = false, ref }: {
-  title: string; disabled?: boolean; onPress: () => void; danger?: boolean; ref?: React.Ref<View>;
+export function PrimaryButton({ title, disabled, onPress, danger = false, ref, colors }: {
+  title: string; disabled?: boolean; onPress: () => void; danger?: boolean; ref?: React.Ref<View>; colors?: ReturnType<typeof useTheme>;
 }) {
-  const theme = useTheme();
+  const base = useTheme(), theme = colors ?? base;
   const [focused, setFocused] = useState(false);
   return <Pressable ref={ref} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled}
     onPress={onPress} style={({ pressed }) => [styles.button, { backgroundColor: danger ? theme.dangerFill : theme.actionFill, borderWidth: 2, borderColor: focused ? theme.accent : "transparent", opacity: disabled ? 0.55 : pressed ? 0.84 : 1 }]}>
@@ -23,13 +23,13 @@ export function PrimaryButton({ title, disabled, onPress, danger = false, ref }:
   </Pressable>;
 }
 
-export function TextAction({ label, onPress, icon, danger, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap; danger?: boolean; ref?: React.Ref<View> }) {
-  const theme = useTheme();
+export function TextAction({ label, onPress, icon, danger, colors, outlined, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap; danger?: boolean; ref?: React.Ref<View>; colors?: ReturnType<typeof useTheme>; outlined?: boolean }) {
+  const base = useTheme(), theme = colors ?? base;
   const [focused, setFocused] = useState(false);
   return <Pressable {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} accessibilityRole="button" accessibilityLabel={props.accessibilityLabel ?? label}
-    style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : "transparent", paddingHorizontal: 6, opacity: props.disabled ? 0.45 : 1 }]}>
+    style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : outlined ? theme.surface : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : outlined ? theme.muted : "transparent", paddingHorizontal: 6, opacity: props.disabled ? 0.45 : 1 }]}>
     {icon ? <Ionicons name={icon} size={18} color={danger ? theme.danger : theme.accent} /> : null}
-    <Text style={{ color: danger ? theme.danger : theme.accent, fontSize: 14, fontWeight: "700" }}>{label}</Text>
+    <Text style={{ color: danger ? theme.danger : outlined ? theme.text : theme.accent, fontSize: 14, fontWeight: "700", flexShrink: 1 }}>{label}</Text>
   </Pressable>;
 }
 

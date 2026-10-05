@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>기안 작성 v1</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.de{word-break:keep-all;line-height:1.45}
+.de *{box-sizing:border-box}
+.de button,.de input,.de textarea{font-family:inherit}
+.de button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.de button:disabled{cursor:not-allowed;opacity:.5}
+.de :focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
+.de [tabindex="-1"]:focus{outline:none}
+.de input[type=text]:focus,.de textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent)}
+.de input::placeholder,.de textarea::placeholder{color:var(--muted);opacity:1}
+.de fieldset:disabled input,.de fieldset:disabled textarea{opacity:.6}
+.de-scroll{scrollbar-width:none;overscroll-behavior:contain}
+.de-scroll::-webkit-scrollbar{display:none}
+.de-dlg-body>*{flex-shrink:0}
+.de [data-kbfocus]{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent)}
+.de-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@keyframes despin{to{transform:rotate(360deg)}}
+.de-spin{animation:despin .9s linear infinite}
+@keyframes depulse{0%,100%{opacity:1}50%{opacity:.5}}
+.de-sk{animation:depulse 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.de-spin,.de-sk{animation:none}}
+</style>
+</helmet>
+<div class="de" ref="{{setRoot}}" data-submits="{{submits}}" data-deletes="{{deletes}}" style="position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; display: flex; flex-direction: column; font-family: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', system-ui, sans-serif; font-variant-numeric: tabular-nums; {{vars}}; background: var(--background); color: var(--text)">
+
+<div aria-hidden="true" style="height: {{safeTop}}px; flex-shrink: 0; background: var(--surface)"></div>
+
+<header aria-hidden="{{bgHidden}}" style="flex-shrink: 0; min-height: 52px; padding: 4px 12px 4px 4px; display: flex; align-items: center; gap: 4px; background: var(--surface); border-bottom: 1px solid var(--border)">
+<button class="de-back" onClick="{{goBack}}" disabled="{{busyFlag}}" aria-label="뒤로" style="width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text); display: flex; align-items: center; justify-content: center">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
+</button>
+<h1 style="flex-grow: 1; min-width: 0; margin: 0; font-size: var(--f17); line-height: 1.35; font-weight: 700">{{screenTitle}}</h1>
+</header>
+
+<div class="de-scroll" ref="{{setScroll}}" aria-hidden="{{bgHidden}}" style="flex-grow: 1; min-height: 0; overflow-y: auto; overflow-x: hidden">
+
+<sc-if value="{{showForm}}" hint-placeholder-val="{{ true }}">
+<div style="padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px; row-gap: 4px">
+<div style="min-width: 0; flex-grow: 1; flex-basis: 230px; display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--f13); line-height: 1.4; color: var(--secondary)">
+<span style="padding: 1px 7px; border-radius: 6px; font-size: var(--f12); font-weight: 700; background: {{chipBg}}; color: {{chipFg}}; border: 1px solid {{chipBd}}">{{statusChip}}</span>
+<span>{{serverLine}}</span>
+</div>
+<sc-if value="{{hasDeviceLine}}" hint-placeholder-val="{{ false }}"><div style="font-size: var(--f12); line-height: 1.45; color: {{deviceColor}}; font-weight: {{deviceWeight}}">{{deviceLine}}</div></sc-if>
+</div>
+<div style="display: flex; gap: 4px; flex-shrink: 0; margin-left: -8px">
+<button class="de-recovery" onClick="{{openRecovery}}" disabled="{{lockActions}}" style="min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--accent); font-size: var(--f14); font-weight: 700; display: flex; align-items: center; gap: 4px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>작성 복구</button>
+<sc-if value="{{canDelete}}" hint-placeholder-val="{{ false }}">
+<button class="de-delete" onClick="{{openDelete}}" disabled="{{lockActions}}" aria-label="임시저장 기안 삭제" style="min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--danger); font-size: var(--f14); font-weight: 700; display: flex; align-items: center; gap: 4px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>삭제</button>
+</sc-if>
+</div>
+</div>
+
+<sc-if value="{{hasBanner}}" hint-placeholder-val="{{ false }}">
+<div class="de-banner" role="alert" tabIndex="-1" style="padding: 12px; border-radius: 12px; background: {{bannerBg}}; border: 1px solid {{bannerBd}}; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; gap: 8px; align-items: flex-start">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px; color: {{bannerIcon}}"><circle cx="12" cy="12" r="10"></circle><path d="{{bannerIconPath}}"></path></svg>
+<div style="min-width: 0; font-size: var(--f14); line-height: 1.5"><strong style="color: {{bannerTitleColor}}">{{bannerTitle}}</strong> <span>{{bannerText}}</span></div>
+</div>
+<sc-if value="{{bannerHasItems}}" hint-placeholder-val="{{ false }}">
+<ul style="margin: 0; padding: 0 0 0 26px; list-style: none; display: flex; flex-direction: column">
+<sc-for list="{{bannerItems}}" as="bi" hint-placeholder-count="2">
+<li><button class="de-err-link" onClick="{{bi.go}}" style="min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--danger); font-size: var(--f14); font-weight: 700; text-align: left; text-decoration: underline">{{bi.label}}</button></li>
+</sc-for>
+</ul>
+</sc-if>
+<sc-if value="{{bannerHasActions}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; padding-left: 26px">
+<sc-for list="{{bannerActions}}" as="ba" hint-placeholder-count="1">
+<button class="{{ba.cls}}" onClick="{{ba.run}}" disabled="{{ba.disabled}}" style="min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--controlBorder); background: var(--surface); color: var(--text); font-size: var(--f14); font-weight: 700">{{ba.label}}</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{isRecalled}}" hint-placeholder-val="{{ false }}">
+<div role="note" style="display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--accentSoft); font-size: var(--f14); line-height: 1.5">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px; color: var(--accent)"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+<div><strong>회수된 문서예요.</strong> <span style="color: var(--secondary)">고친 뒤 재상신하면 결재가 처음부터 다시 진행돼요. 회수 문서는 삭제할 수 없어요.</span></div>
+</div>
+</sc-if>
+
+<fieldset disabled="{{busyFlag}}" style="margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<legend class="de-sr">기안 입력</legend>
+
+<section aria-labelledby="de-s-basic" style="display: flex; flex-direction: column; gap: 14px">
+<h2 id="de-s-basic" class="de-sr">기본 정보</h2>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div id="de-tpl-label" style="font-size: var(--f14); font-weight: 700">문서 양식 <span aria-hidden="true" style="color: var(--danger)">*</span><span class="de-sr">(필수)</span></div>
+<sc-if value="{{hasTemplates}}" hint-placeholder-val="{{ true }}">
+<button id="fe-template" class="de-picker" onClick="{{openTemplate}}" aria-haspopup="dialog" aria-labelledby="de-tpl-label fe-template" style="min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--controlBorder); background: var(--surface); color: var(--text); font-size: var(--f16); text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<span>{{templateName}}</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; color: var(--muted)"><path d="m6 9 6 6 6-6"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{noTemplates}}" hint-placeholder-val="{{ false }}">
+<div id="fe-template" role="status" style="padding: 12px; border-radius: 12px; border: 1px dashed var(--controlBorder); background: var(--surface); font-size: var(--f14); line-height: 1.5; color: var(--secondary)"><strong style="color: var(--text)">사용할 수 있는 양식이 없어요.</strong> 관리자에게 양식 활성화를 요청하세요. 지금은 저장하거나 상신할 수 없어요.</div>
+</sc-if>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="fe-title" style="font-size: var(--f14); font-weight: 700">제목 <span aria-hidden="true" style="color: var(--danger)">*</span><span class="de-sr">(상신 시 필수)</span></label>
+<textarea id="fe-title" class="de-grow" rows="1" maxLength="120" value="{{title}}" onChange="{{onTitle}}" onKeyDown="{{titleKey}}" onFocus="{{reveal}}" placeholder="제목을 입력하세요" aria-invalid="{{titleInvalid}}" aria-describedby="fe-title-meta" style="width: 100%; min-height: 48px; resize: none; overflow: hidden; padding: 12px; border-radius: 12px; border: {{titleBorder}}; background: var(--surface); color: var(--text); font-size: var(--f16); line-height: 1.45"></textarea>
+<div id="fe-title-meta" style="display: flex; justify-content: space-between; gap: 8px; font-size: var(--f13); line-height: 1.45">
+<span style="color: {{titleMetaColor}}; font-weight: {{titleMetaWeight}}">{{titleMeta}}</span><span style="color: var(--secondary); white-space: nowrap">{{titleCount}} / 120</span>
+</div>
+</div>
+</section>
+
+<sc-if value="{{hasTemplateFields}}" hint-placeholder-val="{{ true }}">
+<section aria-labelledby="de-s-content" style="display: flex; flex-direction: column; gap: 14px">
+<h2 id="de-s-content" style="margin: 0; font-size: var(--f15); line-height: 1.4; font-weight: 700; color: var(--secondary)">{{templateName}} 작성 내용</h2>
+<sc-for list="{{fields}}" as="f" hint-placeholder-count="1">
+<div style="display: flex; flex-direction: column; gap: 6px">
+
+<sc-if value="{{f.isLabeled}}" hint-placeholder-val="{{ true }}">
+<label for="{{f.inputId}}" id="{{f.labelId}}" style="font-size: var(--f14); font-weight: 700">{{f.label}} <sc-if value="{{f.required}}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="color: var(--danger)">*</span><span class="de-sr">(상신 시 필수)</span></sc-if></label>
+</sc-if>
+
+<sc-if value="{{f.isText}}" hint-placeholder-val="{{ false }}">
+<input id="{{f.inputId}}" type="text" maxLength="5000" value="{{f.value}}" onChange="{{f.change}}" onFocus="{{reveal}}" placeholder="{{f.placeholder}}" aria-invalid="{{f.invalid}}" aria-describedby="{{f.metaId}}" style="min-height: 48px; padding: 0 12px; border-radius: 12px; border: {{f.border}}; background: var(--surface); color: var(--text); font-size: var(--f16)">
+</sc-if>
+<sc-if value="{{f.isNumber}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px">
+<input id="{{f.inputId}}" type="text" inputMode="decimal" value="{{f.value}}" onChange="{{f.change}}" onFocus="{{reveal}}" placeholder="0" aria-invalid="{{f.invalid}}" aria-describedby="{{f.metaId}}" style="flex-grow: 1; min-width: 0; min-height: 48px; padding: 0 12px; border-radius: 12px; border: {{f.border}}; background: var(--surface); color: var(--text); font-size: var(--f16); text-align: right">
+<span style="font-size: var(--f15); color: var(--secondary)">원</span>
+</div>
+</sc-if>
+<sc-if value="{{f.isDate}}" hint-placeholder-val="{{ false }}">
+<input id="{{f.inputId}}" type="text" inputMode="numeric" maxLength="10" value="{{f.value}}" onChange="{{f.change}}" onFocus="{{reveal}}" placeholder="YYYY-MM-DD" aria-invalid="{{f.invalid}}" aria-describedby="{{f.metaId}}" style="min-height: 48px; padding: 0 12px; border-radius: 12px; border: {{f.border}}; background: var(--surface); color: var(--text); font-size: var(--f16)">
+</sc-if>
+<sc-if value="{{f.isTextarea}}" hint-placeholder-val="{{ false }}">
+<textarea id="{{f.inputId}}" class="de-grow" rows="5" maxLength="5000" value="{{f.value}}" onChange="{{f.change}}" onFocus="{{reveal}}" placeholder="{{f.placeholder}}" aria-invalid="{{f.invalid}}" aria-describedby="{{f.metaId}}" style="width: 100%; min-height: 128px; resize: none; padding: 12px; border-radius: 12px; border: {{f.border}}; background: var(--surface); color: var(--text); font-size: var(--f16); line-height: 1.55"></textarea>
+</sc-if>
+<sc-if value="{{f.isSelect}}" hint-placeholder-val="{{ false }}">
+<button id="{{f.inputId}}" class="de-picker" onClick="{{f.open}}" aria-haspopup="dialog" aria-labelledby="{{f.labelId}} {{f.inputId}}" aria-invalid="{{f.invalid}}" style="min-height: 48px; padding: 8px 12px; border-radius: 12px; border: {{f.border}}; background: var(--surface); color: {{f.selectColor}}; font-size: var(--f16); text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<span>{{f.display}}</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; color: var(--muted)"><path d="m6 9 6 6 6-6"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{f.isCheckbox}}" hint-placeholder-val="{{ false }}">
+<label style="min-height: 44px; display: flex; align-items: center; gap: 10px; font-size: var(--f15); cursor: pointer">
+<input id="{{f.inputId}}" type="checkbox" checked="{{f.checked}}" onChange="{{f.toggle}}" style="width: 22px; height: 22px; margin: 0; accent-color: var(--actionFill); flex-shrink: 0">
+<span>{{f.label}}</span>
+</label>
+</sc-if>
+
+<sc-if value="{{f.isAgenda}}" hint-placeholder-val="{{ false }}">
+<div role="group" aria-labelledby="{{f.labelId}}" style="display: flex; flex-direction: column; gap: 10px">
+<div id="{{f.labelId}}" style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px">
+<span style="font-size: var(--f14); font-weight: 700">안건 <span aria-hidden="true" style="color: var(--danger)">*</span><span class="de-sr">(1~20개)</span></span>
+<span style="font-size: var(--f13); color: var(--secondary)">{{f.agendaCount}} / 20개</span>
+</div>
+<sc-for list="{{f.agenda}}" as="ag" hint-placeholder-count="2">
+<div role="group" aria-label="{{ag.name}}" style="padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<span style="font-size: var(--f14); font-weight: 700">{{ag.name}}</span>
+<sc-if value="{{ag.canRemove}}" hint-placeholder-val="{{ false }}">
+<button class="de-ag-remove" onClick="{{ag.remove}}" aria-label="{{ag.removeAria}}" style="min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--danger); font-size: var(--f14); font-weight: 700">제거</button>
+</sc-if>
+</div>
+<label for="{{ag.titleId}}" style="font-size: var(--f13); color: var(--secondary); font-weight: 500">안건 제목</label>
+<input id="{{ag.titleId}}" type="text" maxLength="300" value="{{ag.title}}" onChange="{{ag.changeTitle}}" onFocus="{{reveal}}" aria-invalid="{{ag.invalid}}" style="min-height: 48px; padding: 0 12px; border-radius: 12px; border: {{ag.border}}; background: var(--surface); color: var(--text); font-size: var(--f16)">
+<sc-if value="{{ag.hasError}}" hint-placeholder-val="{{ false }}"><div style="font-size: var(--f13); color: var(--danger); font-weight: 500">{{ag.error}}</div></sc-if>
+<label for="{{ag.discId}}" style="font-size: var(--f13); color: var(--secondary); font-weight: 500">논의 내용</label>
+<textarea id="{{ag.discId}}" class="de-grow" rows="3" maxLength="5000" value="{{ag.discussion}}" onChange="{{ag.changeDisc}}" onFocus="{{reveal}}" style="width: 100%; min-height: 88px; resize: none; padding: 12px; border-radius: 12px; border: 1px solid var(--controlBorder); background: var(--surface); color: var(--text); font-size: var(--f16); line-height: 1.55"></textarea>
+</div>
+</sc-for>
+<button class="de-ag-add" onClick="{{f.addAgenda}}" disabled="{{f.agendaFull}}" style="min-height: 44px; border-radius: 12px; border: 1px dashed var(--controlBorder); background: var(--surface); color: var(--accent); font-size: var(--f14); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>{{f.addLabel}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{f.hasMeta}}" hint-placeholder-val="{{ false }}">
+<div id="{{f.metaId}}" style="display: flex; justify-content: space-between; gap: 8px; font-size: var(--f13); line-height: 1.45">
+<span style="color: {{f.metaColor}}; font-weight: {{f.metaWeight}}">{{f.meta}}</span>
+<sc-if value="{{f.hasCount}}" hint-placeholder-val="{{ false }}"><span style="color: var(--secondary); white-space: nowrap">{{f.count}} / 5000</span></sc-if>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<section aria-labelledby="de-s-appr" style="display: flex; flex-direction: column; gap: 6px">
+<h2 id="de-s-appr" style="margin: 0; font-size: var(--f14); line-height: 1.4; font-weight: 700">결재자 <span aria-hidden="true" style="color: var(--danger)">*</span><span class="de-sr">(상신 시 필수, 시설장 1명)</span></h2>
+<sc-if value="{{hasApprovers}}" hint-placeholder-val="{{ true }}">
+<div role="radiogroup" aria-labelledby="de-s-appr" aria-invalid="{{approverInvalid}}" style="border-radius: 12px; border: {{approverBorder}}; background: var(--surface); overflow: hidden">
+<sc-for list="{{approvers}}" as="a" hint-placeholder-count="2">
+<button id="{{a.id}}" role="radio" aria-checked="{{a.checked}}" onClick="{{a.pick}}" style="width: 100%; min-height: 52px; padding: 8px 12px; border: 0; border-top: {{a.sep}}; background: {{a.bg}}; color: var(--text); text-align: left; display: flex; align-items: center; gap: 10px; font-size: var(--f16)">
+<span aria-hidden="true" style="width: 22px; height: 22px; flex-shrink: 0; border-radius: 11px; border: 2px solid {{a.ring}}; display: flex; align-items: center; justify-content: center"><span style="width: 10px; height: 10px; border-radius: 5px; background: {{a.dot}}"></span></span>
+<span style="font-weight: 500">{{a.name}}</span><span style="color: var(--secondary); font-size: var(--f14)">{{a.position}}</span>
+</button>
+</sc-for>
+</div>
+<div style="font-size: var(--f13); line-height: 1.45; color: {{approverMetaColor}}; font-weight: {{approverMetaWeight}}">{{approverMeta}}</div>
+</sc-if>
+<sc-if value="{{noApprovers}}" hint-placeholder-val="{{ false }}">
+<div id="fe-approver" role="note" tabIndex="-1" style="padding: 12px; border-radius: 12px; border: 1px solid var(--danger); background: var(--surface); font-size: var(--f14); line-height: 1.5"><strong style="color: var(--danger)">선택할 수 있는 시설장이 없어요.</strong> <span style="color: var(--secondary)">지금은 상신할 수 없지만 임시저장은 할 수 있어요.</span></div>
+</sc-if>
+</section>
+
+<section aria-labelledby="de-s-att" style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<h2 id="de-s-att" style="margin: 0; font-size: var(--f14); line-height: 1.4; font-weight: 700">첨부파일 <span style="font-weight: 500; color: var(--secondary)">{{fileCount}}/{{maxFiles}}</span></h2>
+<button class="de-add-file" onClick="{{openPicker}}" disabled="{{addFileDisabled}}" aria-label="{{addFileAria}}" style="min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--accent); font-size: var(--f14); font-weight: 700; display: flex; align-items: center; gap: 4px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>파일 추가</button>
+</div>
+<div style="font-size: var(--f13); line-height: 1.45; color: var(--secondary)">{{policyText}}</div>
+<sc-if value="{{hasAttachError}}" hint-placeholder-val="{{ false }}">
+<div class="de-att-error" role="alert" style="display: flex; gap: 6px; align-items: flex-start; font-size: var(--f14); line-height: 1.45; color: var(--danger); font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 3px"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>{{attachError}}</span></div>
+</sc-if>
+<sc-if value="{{hasFiles}}" hint-placeholder-val="{{ true }}">
+<ul style="list-style: none; margin: 0; padding: 0; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); overflow: hidden">
+<sc-for list="{{files}}" as="fl" hint-placeholder-count="1">
+<li style="padding: 10px 6px 10px 12px; border-top: {{fl.sep}}; display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--surfaceMuted); color: var(--secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M13 2v7h7"></path></svg></span>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: var(--f15); line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; word-break: normal">{{fl.stem}}<span style="white-space: nowrap">{{fl.ext}}</span></span>
+<span style="display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; font-size: var(--f13); line-height: 1.45; color: var(--secondary)">
+<span style="white-space: nowrap">{{fl.size}}</span><span aria-hidden="true">·</span><span style="color: {{fl.statusColor}}; font-weight: {{fl.statusWeight}}">{{fl.status}}</span>
+</span>
+<sc-if value="{{fl.hasProgress}}" hint-placeholder-val="{{ false }}"><div role="progressbar" aria-label="{{fl.progressLabel}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{fl.progress}}" style="height: 4px; border-radius: 2px; background: var(--surfaceMuted); overflow: hidden"><div style="height: 4px; width: {{fl.progress}}%; background: var(--actionFill)"></div></div></sc-if>
+</div>
+<button class="{{fl.cls}}" onClick="{{fl.action}}" disabled="{{fl.actionDisabled}}" aria-label="{{fl.actionAria}}" style="min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: {{fl.actionColor}}; font-size: var(--f14); font-weight: 700; flex-shrink: 0">{{fl.actionLabel}}</button>
+</li>
+</sc-for>
+</ul>
+</sc-if>
+</section>
+
+</fieldset>
+</div>
+</sc-if>
+
+<sc-if value="{{showLoading}}" hint-placeholder-val="{{ false }}">
+<span class="de-sr" role="status">작성 화면을 불러오는 중</span>
+<div aria-hidden="true" style="padding: 16px; display: flex; flex-direction: column; gap: 18px">
+<div class="de-sk" style="width: 200px; height: 14px; border-radius: 7px; background: var(--surfaceMuted)"></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div class="de-sk" style="width: 80px; height: 14px; border-radius: 7px; background: var(--surfaceMuted)"></div><div class="de-sk" style="height: 48px; border-radius: 12px; background: var(--surfaceMuted)"></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div class="de-sk" style="width: 60px; height: 14px; border-radius: 7px; background: var(--surfaceMuted)"></div><div class="de-sk" style="height: 48px; border-radius: 12px; background: var(--surfaceMuted)"></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div class="de-sk" style="width: 90px; height: 14px; border-radius: 7px; background: var(--surfaceMuted)"></div><div class="de-sk" style="height: 128px; border-radius: 12px; background: var(--surfaceMuted)"></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div class="de-sk" style="width: 70px; height: 14px; border-radius: 7px; background: var(--surfaceMuted)"></div><div class="de-sk" style="height: 104px; border-radius: 12px; background: var(--surfaceMuted)"></div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{showPanel}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 16px">
+<div class="de-panel" role="alert" style="padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; gap: 10px; align-items: flex-start">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; color: {{panelIconColor}}"><path d="{{panelIcon1}}"></path><path d="{{panelIcon2}}"></path></svg>
+<div><div style="font-size: var(--f16); font-weight: 700; line-height: 1.4">{{panelTitle}}</div><div style="font-size: var(--f14); line-height: 1.5; color: var(--secondary)">{{panelText}}</div></div>
+</div>
+<button class="de-panel-action" onClick="{{panelAction}}" style="min-height: 44px; border-radius: 12px; border: 1px solid var(--controlBorder); background: var(--surfaceMuted); color: var(--text); font-size: var(--f15); font-weight: 700">{{panelActionLabel}}</button>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{showBar}}" hint-placeholder-val="{{ true }}">
+<div class="de-bar" role="group" aria-label="저장과 상신" aria-hidden="{{bgHidden}}" style="flex-shrink: 0; padding: 8px 16px {{barPadB}}px; background: var(--surface); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px">
+<sc-if value="{{busyFlag}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="display: flex; align-items: center; gap: 8px; font-size: var(--f13); font-weight: 700; color: var(--accent)"><svg class="de-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"></path></svg>{{progressText}}</div>
+</sc-if>
+<sc-if value="{{hasBarNote}}" hint-placeholder-val="{{ false }}"><div id="de-bar-note" style="font-size: var(--f13); line-height: 1.45; color: var(--secondary)">{{barNote}}</div></sc-if>
+<div style="display: flex; gap: 8px">
+<button class="de-save" onClick="{{saveDraft}}" disabled="{{saveDisabled}}" style="flex-grow: 1; flex-basis: 0; min-height: 48px; border-radius: 12px; border: 1px solid var(--controlBorder); background: var(--surface); color: var(--text); font-size: var(--f16); font-weight: 700">임시저장</button>
+<button class="de-submit" onClick="{{submitDoc}}" disabled="{{submitDisabled}}" aria-describedby="de-bar-note" style="flex-grow: 2; flex-basis: 0; min-height: 48px; border-radius: 12px; border: 0; background: var(--actionFill); color: #FFFFFF; font-size: var(--f16); font-weight: 700">{{submitLabel}}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showKb}}" hint-placeholder-val="{{ false }}">
+<div class="de-kb" aria-hidden="true" style="height: {{kbH}}px; flex-shrink: 0; background: {{kbBg}}; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--secondary); font-size: 12px">모의 키보드 영역 ({{kbH}}px)</div>
+</sc-if>
+
+<div class="de-sr" role="status" aria-live="polite">{{liveMsg}}</div>
+
+<sc-if value="{{dlgOpen}}" hint-placeholder-val="{{ false }}">
+<div onClick="{{scrimClick}}" aria-hidden="true" style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; background: rgba(17,21,27,0.5)"></div>
+<div class="de-dlg" role="{{dlgRole}}" aria-modal="true" aria-labelledby="de-dlg-title" aria-describedby="de-dlg-body" aria-busy="{{dlgBusyAttr}}" onKeyDown="{{dlgKey}}" style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 11; max-height: {{dlgMaxH}}px; display: flex; flex-direction: column; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 30px rgba(17,21,27,0.18); padding-bottom: {{safeBottom}}px">
+<div style="flex-shrink: 0; padding: 14px 16px 6px">
+<h2 id="de-dlg-title" tabIndex="-1" style="margin: 0; font-size: var(--f18); line-height: 1.4; font-weight: 700">{{dlgTitle}}</h2>
+</div>
+<div id="de-dlg-body" class="de-dlg-body" style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 12px; display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{dlgHasQuote}}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 12px; border-radius: 10px; background: var(--background); border: 1px solid var(--border); font-size: var(--f15); line-height: 1.5; font-weight: 700; overflow-wrap: anywhere">{{dlgQuote}}</div></sc-if>
+<sc-for list="{{dlgLines}}" as="ln" hint-placeholder-count="1"><p style="margin: 0; font-size: var(--f15); line-height: 1.55">{{ln}}</p></sc-for>
+<sc-if value="{{dlgHasSummary}}" hint-placeholder-val="{{ false }}">
+<dl style="margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--background); border: 1px solid var(--border); display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; row-gap: 6px; font-size: var(--f14); line-height: 1.5">
+<sc-for list="{{dlgSummary}}" as="sm" hint-placeholder-count="3"><dt style="color: var(--secondary)">{{sm.k}}</dt><dd style="margin: 0; overflow-wrap: anywhere">{{sm.v}}</dd></sc-for>
+</dl>
+</sc-if>
+<sc-if value="{{dlgHasItems}}" hint-placeholder-val="{{ false }}">
+<div role="radiogroup" aria-labelledby="de-dlg-title" style="border-radius: 12px; border: 1px solid var(--border); overflow: hidden">
+<sc-for list="{{dlgItems}}" as="it" hint-placeholder-count="3">
+<button class="de-dlg-item" role="radio" aria-checked="{{it.checked}}" onClick="{{it.pick}}" style="width: 100%; min-height: 52px; padding: 8px 12px; border: 0; border-top: {{it.sep}}; background: {{it.bg}}; color: var(--text); text-align: left; display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 22px; height: 22px; flex-shrink: 0; border-radius: 11px; border: 2px solid {{it.ring}}; display: flex; align-items: center; justify-content: center"><span style="width: 10px; height: 10px; border-radius: 5px; background: {{it.dot}}"></span></span>
+<span style="min-width: 0; display: flex; flex-direction: column"><span style="font-size: var(--f16); line-height: 1.4; overflow-wrap: anywhere">{{it.label}}</span><sc-if value="{{it.hasSub}}" hint-placeholder-val="{{ false }}"><span style="font-size: var(--f13); color: {{it.subColor}}">{{it.sub}}</span></sc-if></span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{dlgHasNote}}" hint-placeholder-val="{{ false }}"><div style="font-size: var(--f13); line-height: 1.5; color: var(--secondary)">{{dlgNote}}</div></sc-if>
+<sc-if value="{{dlgHasError}}" hint-placeholder-val="{{ false }}">
+<div class="de-dlg-error" role="alert" tabIndex="-1" style="padding: 10px 12px; border-radius: 10px; background: var(--dangerSoft); border: 1px solid var(--danger); font-size: var(--f14); line-height: 1.5"><strong style="color: var(--danger)">{{dlgErrTitle}}</strong> <span>{{dlgErrText}}</span></div>
+</sc-if>
+</div>
+<div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--border)">
+<sc-for list="{{dlgActions}}" as="ac" hint-placeholder-count="2">
+<button class="{{ac.cls}}" onClick="{{ac.run}}" disabled="{{ac.disabled}}" style="min-height: 48px; border-radius: 12px; border: 1px solid {{ac.bd}}; background: {{ac.bg}}; color: {{ac.fg}}; font-size: var(--f15); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px">
+<sc-if value="{{ac.busy}}" hint-placeholder-val="{{ false }}"><svg class="de-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"></path></svg></sc-if>{{ac.label}}</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position: absolute; left: 12px; right: 12px; bottom: {{toastBottom}}px; z-index: 20; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--text); color: var(--background); box-shadow: 0 6px 20px rgba(17,21,27,0.18)">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 2px"><div style="font-size: var(--f14); line-height: 1.4; font-weight: 700">{{toastTitle}}</div><div style="font-size: var(--f13); line-height: 1.45; opacity: 0.86">{{toastText}}</div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{returned}}" hint-placeholder-val="{{ false }}">
+<div class="de-returned" style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; background: var(--background); display: flex; flex-direction: column; padding: {{safeTopPad}}px 16px {{barPadB}}px">
+<div style="margin-top: 24px; padding: 16px; border-radius: 16px; border: 1px dashed var(--controlBorder); background: var(--surface); display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: var(--f12); font-weight: 700; color: var(--secondary)">모의 이동 · 기존 화면</div>
+<h2 tabIndex="-1" class="de-returned-title" style="margin: 0; font-size: var(--f18); line-height: 1.4; font-weight: 700">{{returnTitle}}</h2>
+<p style="margin: 0; font-size: var(--f14); line-height: 1.55; color: var(--secondary)">{{returnText}}</p>
+<button onClick="{{reopen}}" style="align-self: flex-start; margin-top: 4px; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--controlBorder); background: var(--surface); color: var(--text); font-size: var(--f14); font-weight: 700">처음 상태로 다시 열기 (검토용)</button>
+</div>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scenario":{"editor":"enum","options":["newFilled","newEmpty","expense","meeting","templateChange","agendaRemove","noApprovers","oneApprover","noTemplates","picker","attachPolicy","uploading","uploadFail","removeSaved","validation","submitConfirm","processing","saveFail","saveUnknown","conflict","draftEdit","deleteConfirm","deleteProcessing","deleteUnknown","recalled","resubmitConfirm","recovery","restored","preserveFail","leaveConfirm","authLost","notEditable","loading","loadError","long"],"default":"newFilled","section":"검토"},"saveResult":{"editor":"enum","options":["success","fail","unknown","conflict"],"default":"success","section":"검토"},"uploadResult":{"editor":"enum","options":["success","fail"],"default":"success","section":"검토"},"deleteResult":{"editor":"enum","options":["success","fail","unknown","conflict"],"default":"success","section":"검토"},"checkResult":{"editor":"enum","options":["done","pending"],"default":"done","section":"검토"},"platform":{"editor":"enum","options":["native","web"],"default":"native","section":"검토"},"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"검토"},"viewport":{"editor":"enum","options":["390","360"],"default":"390","section":"검토"},"textScale":{"editor":"enum","options":["1","1.3","2"],"default":"1","section":"검토"},"keyboard":{"editor":"enum","options":["off","on"],"default":"off","section":"검토"},"$preview":{"width":390,"height":844}}'>
+var TOKENS = {
+  light: { background: '#F7F8FA', surface: '#FFFFFF', surfaceMuted: '#F0F2F5', text: '#191F28', secondary: '#5C6675', muted: '#647084', border: '#E8ECF1', controlBorder: '#86909E', accent: '#2563EB', actionFill: '#2563EB', accentSoft: '#EDF4FF', danger: '#A52C39', dangerFill: '#A52C39', dangerSoft: '#FBECEF', success: '#176345' },
+  dark: { background: '#11151B', surface: '#1C222B', surfaceMuted: '#262E39', text: '#F4F6FA', secondary: '#AFB8C7', muted: '#A4AEC0', border: '#303947', controlBorder: '#647084', accent: '#8DB7FF', actionFill: '#2563EB', accentSoft: '#202F49', danger: '#FF98A4', dangerFill: '#A52C39', dangerSoft: '#492831', success: '#8BE2B8' }
+};
+/* ---- synthetic review data only (no real staff, documents or files) ---- */
+var POLICY = { maxFileCount: 5, maxFileSizeMb: 20, allowedExtensions: ['pdf', 'png', 'jpg'] };
+var APPROVERS = [{ id: 'u-lee', name: '이예시', position: '시설장' }, { id: 'u-park', name: '박예시', position: '시설장' }];
+function opt(label, value) { return { label: label, value: value }; }
+var TEMPLATES = [
+  { id: 't-general', name: '일반 기안서', fields: [{ name: 'content', label: '기안 내용', type: 'textarea', required: true, placeholder: '기안 내용을 입력하세요' }], initialValues: { content: '' } },
+  { id: 't-expense', name: '지출결의서', fields: [
+    { name: 'expenseType', label: '지출구분', type: 'select', required: true, options: [opt('일반 구매', 'purchase'), opt('용역·서비스', 'service'), opt('출장·교통', 'travel')] },
+    { name: 'expenseDate', label: '지출일자', type: 'date', required: true },
+    { name: 'travelRoute', label: '출장 경로', type: 'text', required: true, placeholder: '예: 기관 → 모의 연수원', visibleWhen: { field: 'expenseType', values: ['travel'] } },
+    { name: 'budgetItem', label: '예산항목/사업명', type: 'text', required: true },
+    { name: 'vendor', label: '거래처', type: 'text' },
+    { name: 'payMethod', label: '결제수단', type: 'select', required: true, options: [opt('법인카드', 'card'), opt('계좌이체', 'transfer'), opt('현금', 'cash')] },
+    { name: 'transferDate', label: '이체 예정일', type: 'date', required: true, visibleWhen: { field: 'payMethod', values: ['transfer'] } },
+    { name: 'amount', label: '지출금액', type: 'number', required: true, helpText: '숫자만 입력하세요' },
+    { name: 'vatIncluded', label: '부가세 포함 금액이에요', type: 'checkbox' },
+    { name: 'purpose', label: '지출목적', type: 'textarea', required: true },
+    { name: 'details', label: '세부내역', type: 'textarea' }
+  ], initialValues: { expenseType: 'purchase', payMethod: 'card', vatIncluded: 'false' } },
+  { id: 't-leave', name: '휴가신청서', fields: [
+    { name: 'leaveType', label: '휴가 구분', type: 'select', required: true, options: [opt('연차', 'annual'), opt('반차', 'half'), opt('공가', 'official')] },
+    { name: 'halfPart', label: '반차 시간', type: 'select', required: true, options: [opt('오전', 'am'), opt('오후', 'pm')], visibleWhen: { field: 'leaveType', values: ['half'] } },
+    { name: 'startDate', label: '시작일', type: 'date', required: true },
+    { name: 'endDate', label: '종료일', type: 'date', required: true },
+    { name: 'reason', label: '사유', type: 'textarea' }
+  ], initialValues: { leaveType: 'annual' } },
+  { id: 't-purchase', name: '구매요청서', fields: [
+    { name: 'items', label: '구매 품목', type: 'textarea', required: true },
+    { name: 'quantity', label: '수량', type: 'number', required: true },
+    { name: 'neededDate', label: '필요일', type: 'date' },
+    { name: 'reason', label: '요청 사유', type: 'textarea' }
+  ], initialValues: {} },
+  { id: 't-meeting', name: '회의록', fields: [
+    { name: 'meetingDate', label: '회의 일자', type: 'date', required: true },
+    { name: 'attendees', label: '참석자', type: 'text', required: true },
+    { name: 'agenda', label: '안건', type: 'agenda', required: true },
+    { name: 'decisions', label: '결정 사항', type: 'textarea' }
+  ], initialValues: {} }
+];
+var MAIN_TITLE = '10월 공용물품 구매 요청';
+var MAIN_CONTENT = '10월 공동 활동에 사용할 공용 소모품을 구매하고자 합니다.\n운영 일정에 맞춰 수량을 확인하고 첨부된 모의 계획서를 참고해 검토해 주세요.';
+var LONG_TITLE = '2026년 4분기 자립 준비 프로그램 공용물품 구매·보관·정산 절차 개선과 11월 보관 장소 정리 주간 운영 일정 조정에 관한 일반 기안서 (검수용 긴 제목)';
+var LONG_CONTENT = '4분기 자립 준비 프로그램에서 사용할 공용물품의 구매·보관·정산 절차를 정리하고자 합니다.\n\n1. 구매: 실습 회차별 필요 수량을 담당자가 확인한 뒤 한 번에 요청합니다.\n2. 보관: 11월 정리 주간에 보관 장소를 한 곳으로 모으고, 공용물품 대장에 수량·위치·담당자를 함께 적습니다.\n3. 정산: 월말에 대장과 구매 내역을 대조하고 차이가 있으면 다음 실습 전까지 사유를 기록합니다.\n\n세부 일정과 대장 양식은 첨부한 모의 계획서를 참고해 주세요. 이 문서는 화면 검수를 위한 합성 자료입니다.';
+var LONG_FILE = '2026년_4분기_자립준비_프로그램_공용물품_구매계획서_및_보관위치_정리본_최종_수정_검수용_모의.pdf';
+var SERVER_TITLE = '10월 공용물품 구매 요청 (수량 수정)';
+var SERVER_CONTENT = '10월 공동 활동에 사용할 공용 소모품을 구매하고자 합니다.\n다른 기기에서 수량 확인 결과를 반영했습니다. (검수용 서버 최신본)';
+var DEVICE_FILES = [
+  { name: '공용물품_계획서_모의.pdf', size: 418 * 1024 },
+  { name: '현장_참고사진_모의.jpg', size: 2.4 * 1048576 },
+  { name: '운영계획_원본_모의.hwp', size: 52 * 1024 },
+  { name: '스캔본_전체_모의.pdf', size: 24.6 * 1048576 },
+  { name: LONG_FILE, size: 1.2 * 1048576 }
+];
+function fmtSize(b) { return b >= 1048576 ? (Math.round(b / 104857.6) / 10) + 'MB' : Math.round(b / 1024) + 'KB'; }
+function extOf(n) { var i = n.lastIndexOf('.'); return i > 0 ? n.slice(i + 1).toLowerCase() : ''; }
+function invalidDate(date) { if (!date) return false; var v = new Date(date + 'T00:00:00Z'); return !/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(v.getTime()) || v.toISOString().slice(0, 10) !== date; }
+function autoDate(v) { var d = String(v).replace(/[^0-9]/g, '').slice(0, 8); if (d.length > 6) return d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6); if (d.length > 4) return d.slice(0, 4) + '-' + d.slice(4); return d; }
+function tplById(list, id) { return list.filter(function (t) { return t.id === id; })[0] || null; }
+function visible(f, values) { if (!f.visibleWhen) return true; return f.visibleWhen.values.indexOf(values[f.visibleWhen.field]) >= 0; }
+function fmtTime(t) { return '2026. 10. 5. ' + t; }
+var nextId = 100;
+function fileOf(name, size, kind, status) { nextId++; return { id: 'f' + nextId, name: name, size: size, kind: kind, status: status, progress: 0 }; }
+
+function buildState(sc) {
+  var s = { mode: 'new', phase: 'ready', templates: TEMPLATES, approvers: APPROVERS, templateId: 't-general', title: '', values: { content: '' }, agenda: [], approverId: null, files: [], attachError: null, errors: {}, banner: null, dlg: null, busy: false, progress: '', serverSavedAt: null, updatedAt: null, dirty: false, preservedAt: null, preserveFail: false, pendingReq: null, deletePending: false, recoveryEntry: null, toast: null, returned: null, submits: 0, deletes: 0, hang: false, live: '' };
+  function filled() { s.title = MAIN_TITLE; s.values = { content: MAIN_CONTENT }; s.approverId = 'u-lee'; s.files = [fileOf('공용물품_계획서_모의.pdf', 418 * 1024, 'new', 'pending')]; s.dirty = true; s.preservedAt = '10:02'; }
+  function draft() { s.mode = 'draft'; s.title = MAIN_TITLE; s.values = { content: MAIN_CONTENT }; s.approverId = 'u-lee'; s.files = [fileOf('공용물품_계획서_모의.pdf', 418 * 1024, 'saved', 'saved')]; s.serverSavedAt = '09:40'; s.updatedAt = '09:40'; }
+  function meeting() { s.templateId = 't-meeting'; s.title = '10월 1주 주간 업무회의 회의록'; s.values = { meetingDate: '2026-10-05', attendees: '김예시, 이예시, 박예시', decisions: '공용물품 구매 요청을 이번 주에 상신한다.' }; s.agenda = [{ id: 'a1', title: '공용물품 구매 일정', discussion: '10월 둘째 주까지 수량을 확정하기로 했다.' }, { id: 'a2', title: '보관 장소 정리', discussion: '11월 정리 주간 전에 담당을 정한다.' }]; s.approverId = 'u-lee'; s.dirty = true; s.preservedAt = '10:02'; }
+  switch (sc) {
+    case 'newEmpty': break;
+    case 'expense': s.templateId = 't-expense'; s.title = '10월 공동 활동 이동·소모품 지출결의'; s.values = { expenseType: 'travel', expenseDate: '2026-10-07', travelRoute: '기관 → 모의 연수원 (왕복)', budgetItem: '자립 준비 프로그램 운영비', vendor: '모의 문구상사', payMethod: 'transfer', transferDate: '2026-10-08', amount: '184000', vatIncluded: 'true', purpose: '10월 공동 활동 이동과 소모품 구매', details: '모의 품목 3종 · 수량은 첨부 계획서 기준' }; s.approverId = 'u-lee'; s.dirty = true; s.preservedAt = '10:02'; break;
+    case 'meeting': meeting(); break;
+    case 'agendaRemove': meeting(); s.dlg = { kind: 'agendaRemove', id: 'a2' }; break;
+    case 'templateChange': filled(); s.dlg = { kind: 'templateChange', to: 't-expense' }; break;
+    case 'noApprovers': filled(); s.approvers = []; s.approverId = null; break;
+    case 'oneApprover': filled(); s.approvers = [APPROVERS[0]]; s.approverId = 'u-lee'; break;
+    case 'noTemplates': s.templates = []; s.templateId = null; s.values = {}; break;
+    case 'picker': filled(); s.dlg = { kind: 'picker' }; break;
+    case 'attachPolicy': filled(); s.attachError = '‘운영계획_원본_모의.hwp’는 첨부할 수 없는 형식이에요. pdf, png, jpg만 첨부할 수 있어요.'; break;
+    case 'uploading': filled(); s.files.push(fileOf('현장_참고사진_모의.jpg', 2.4 * 1048576, 'new', 'pending')); s.files[0].status = 'uploading'; s.files[0].progress = 60; s.busy = true; s.hang = true; s.progress = '첨부 업로드 1/2 · 60% · 업로드 후 임시저장해요'; break;
+    case 'uploadFail': filled(); s.files[0].status = 'failed'; s.banner = { kind: 'uploadFail', intent: 'draft', name: '공용물품_계획서_모의.pdf' }; break;
+    case 'removeSaved': draft(); s.dlg = { kind: 'removeSaved', fileId: s.files[0].id }; break;
+    case 'validation': s.title = '보'; s.values = { content: '짧은 내용' }; s.dirty = true; s.preservedAt = '10:02'; s.validateOnMount = true; break;
+    case 'submitConfirm': filled(); s.dlg = { kind: 'submitConfirm' }; break;
+    case 'processing': filled(); s.files[0].status = 'done'; s.busy = true; s.hang = true; s.progress = '첨부 업로드 1/1 완료 · 상신 중…'; break;
+    case 'saveFail': draft(); s.title = MAIN_TITLE + ' (수량 확인)'; s.dirty = true; s.preservedAt = '10:02'; s.banner = { kind: 'fail', intent: 'draft', reproducible: true }; break;
+    case 'saveUnknown': filled(); s.files[0].status = 'done'; s.pendingReq = { intent: 'submit', changedAfter: false }; s.banner = { kind: 'unknown', intent: 'submit' }; break;
+    case 'conflict': draft(); s.title = MAIN_TITLE + ' (내 수정)'; s.dirty = true; s.preservedAt = '10:02'; s.banner = { kind: 'conflict' }; s.dlg = { kind: 'conflict' }; break;
+    case 'draftEdit': draft(); break;
+    case 'deleteConfirm': draft(); s.dlg = { kind: 'deleteConfirm' }; break;
+    case 'deleteProcessing': draft(); s.dlg = { kind: 'deleteConfirm', busy: true }; s.hang = true; break;
+    case 'deleteUnknown': draft(); s.deletePending = true; s.banner = { kind: 'deleteUnknown' }; break;
+    case 'recalled': draft(); s.mode = 'recalled'; break;
+    case 'resubmitConfirm': draft(); s.mode = 'recalled'; s.dlg = { kind: 'submitConfirm' }; break;
+    case 'recovery': s.recoveryEntry = { at: '09:52', title: MAIN_TITLE, templateId: 't-general', content: MAIN_CONTENT, approverId: 'u-lee', fileNames: [{ name: '공용물품_계획서_모의.pdf', size: 418 * 1024 }] }; s.dlg = { kind: 'recovery' }; break;
+    case 'restored': filled(); s.files = [fileOf('공용물품_계획서_모의.pdf', 418 * 1024, 'reselect', 'reselect')]; s.banner = { kind: 'restored' }; break;
+    case 'preserveFail': filled(); s.preservedAt = null; s.preserveFail = true; s.banner = { kind: 'preserveFail' }; break;
+    case 'leaveConfirm': filled(); s.dlg = { kind: 'leave' }; break;
+    case 'authLost': s.phase = 'auth'; break;
+    case 'notEditable': s.phase = 'notEditable'; s.mode = 'draft'; break;
+    case 'loading': s.phase = 'loading'; break;
+    case 'loadError': s.phase = 'error'; break;
+    case 'long': filled(); s.title = LONG_TITLE; s.values = { content: LONG_CONTENT }; s.files = [fileOf(LONG_FILE, 1.2 * 1048576, 'new', 'pending'), fileOf('공용물품_계획서_모의.pdf', 418 * 1024, 'saved', 'saved')]; break;
+    default: filled();
+  }
+  return s;
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.timers = []; this.busyLock = false; this.failCount = 0; this.delFailCount = 0; this.clockN = 3;
+    this.state = this.fresh(props);
+  }
+  fresh(p) {
+    var s = buildState(p.scenario || 'newFilled');
+    this.busyLock = s.busy || !!(s.dlg && s.dlg.busy); this.failCount = 0; this.delFailCount = 0;
+    if (s.validateOnMount) { var v = this.validateSubmit(s); s.errors = v.errors; s.banner = { kind: 'validation', list: v.list }; }
+    return s;
+  }
+  componentDidMount() { var self = this; this.grow(); this.placeForScenario(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { self.grow(); self.placeForScenario(); }); this.later(function () { this.grow(); }, 400); }
+  componentDidUpdate(prev) {
+    this.grow();
+    if (prev.scenario !== this.props.scenario) { this.clearTimers(); if (this.scrollEl) this.scrollEl.scrollTop = 0; this.setState(this.fresh(this.props)); var self = this; setTimeout(function () { self.placeForScenario(); }, 60); }
+    else if (prev.keyboard !== this.props.keyboard || prev.textScale !== this.props.textScale || prev.viewport !== this.props.viewport) { var me = this; setTimeout(function () { me.placeForScenario(); }, 60); }
+  }
+  /* auto-grow: titles, long text and agenda notes stay fully readable instead of scrolling inside a box */
+  grow() { if (!this.rootEl) return; this.rootEl.querySelectorAll('textarea.de-grow').forEach(function (t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }); }
+  /* review-only positioning for static artboards: show the part of the form the scenario is about */
+  placeForScenario() {
+    var self = this, root = this.rootEl, sc = this.scrollEl; if (!root || !sc) return;
+    root.querySelectorAll('[data-kbfocus]').forEach(function (e) { e.removeAttribute('data-kbfocus'); });
+    var top = function (el) { return el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop; };
+    var sec = { attachPolicy: '#de-s-att', uploading: '#de-s-att', removeSaved: '#de-s-att', restored: null };
+    var k = this.props.scenario;
+    if (this.props.keyboard === 'on' && !this.state.dlg) {
+      var el = root.querySelector('#fe-content') || root.querySelector('#fe-purpose') || root.querySelector('#fe-title');
+      if (el) { var lb = root.querySelector('label[for="' + el.id + '"]') || el; sc.scrollTop = Math.max(0, top(lb) - 12); el.setAttribute('data-kbfocus', ''); el.addEventListener('blur', function () { el.removeAttribute('data-kbfocus'); }, { once: true }); }
+      return;
+    }
+    if (sec[k]) { var h = root.querySelector(sec[k]); if (h) sc.scrollTop = Math.max(0, top(h) - 160); }
+  }
+  componentWillUnmount() { this.clearTimers(); }
+  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; }
+  later(fn, ms) { var self = this; this.timers.push(setTimeout(function () { fn.call(self); }, ms)); }
+  now() { this.clockN++; return '10:' + (this.clockN < 10 ? '0' : '') + this.clockN; }
+  focusSel(sel) { var self = this; setTimeout(function () { var el = self.rootEl && self.rootEl.querySelector(sel); if (el) { el.focus(); self.revealEl(el); } }, 40); }
+  revealEl(el) { var sc = this.scrollEl; if (!sc || !el || !sc.contains(el)) return; var a = el.getBoundingClientRect(), v = sc.getBoundingClientRect(); if (a.top < v.top + 8 || a.bottom > v.bottom - 8) sc.scrollTop += a.top - v.top - 24; }
+  say(title, text) { if (this.toastTimer) clearTimeout(this.toastTimer); this.setState({ toast: { title: title, text: text } }); var self = this; this.toastTimer = setTimeout(function () { self.setState({ toast: null }); }, 3200); this.timers.push(this.toastTimer); }
+  tpl(s) { s = s || this.state; return tplById(s.templates, s.templateId); }
+  /* ---- input ---- */
+  touch(patch) {
+    var s = this.state;
+    var up = Object.assign({ dirty: true }, patch);
+    if (!s.preserveFail) up.preservedAt = this.now();
+    if (s.pendingReq) up.pendingReq = Object.assign({}, s.pendingReq, { changedAfter: true });
+    this.setState(up);
+  }
+  setValue(name, v) { var vals = Object.assign({}, this.state.values); vals[name] = v; var err = Object.assign({}, this.state.errors); delete err[name]; this.touch({ values: vals, errors: err }); }
+  hasEnteredFields() {
+    var t = this.tpl(); if (!t) return 0;
+    var n = 0, s = this.state;
+    t.fields.forEach(function (f) { if (f.type === 'agenda') { if (s.agenda.some(function (a) { return a.title || a.discussion; })) n++; return; } var v = s.values[f.name]; if (v && v !== (t.initialValues[f.name] || '')) n++; });
+    return n;
+  }
+  applyTemplate(id) {
+    var t = tplById(this.state.templates, id);
+    var vals = Object.assign({}, t.initialValues);
+    this.touch({ templateId: id, values: vals, agenda: t.fields.some(function (f) { return f.type === 'agenda'; }) ? [{ id: 'a' + (++nextId), title: '', discussion: '' }] : [], errors: {}, dlg: null });
+    this.focusSel('#fe-template');
+  }
+  /* ---- validation (client mirror of server rules) ---- */
+  validateSubmit(s) {
+    var errors = {}, list = [];
+    function add(id, msg) { errors[id] = msg; list.push({ id: id, msg: msg }); }
+    var t = tplById(s.templates, s.templateId);
+    if (!t) add('template', '사용할 수 있는 양식이 없어 상신할 수 없어요.');
+    if ((s.title || '').trim().length < 2) add('title', '제목을 2자 이상 입력하세요.');
+    var total = 0, firstArea = null;
+    if (t) t.fields.forEach(function (f) {
+      if (!visible(f, s.values)) return;
+      if (f.type === 'agenda') {
+        if (!s.agenda.length) add('agenda', '안건을 1개 이상 추가하세요.');
+        s.agenda.forEach(function (a, i) { total += (a.title || '').length + (a.discussion || '').length; if (!(a.title || '').trim()) add('ag-' + a.id, '안건 ' + (i + 1) + ' 제목을 입력하세요.'); });
+        return;
+      }
+      var v = (s.values[f.name] || '').trim();
+      if (f.type !== 'checkbox') total += v.length;
+      if (f.type === 'textarea' && !firstArea) firstArea = f.name;
+      if (f.required && f.type !== 'checkbox' && !v) { add(f.name, f.label + ' 항목을 ' + (f.type === 'select' ? '선택하세요.' : '입력하세요.')); return; }
+      if (f.type === 'date' && v && invalidDate(v)) add(f.name, f.label + ': 실제 날짜를 YYYY-MM-DD 형식으로 입력하세요.');
+      if (f.type === 'number' && v && !/^\d+(\.\d+)?$/.test(v)) add(f.name, f.label + ': 숫자만 입력하세요.');
+    });
+    if (t && (total < 10 || total > 5000) && !(firstArea && errors[firstArea])) add(firstArea || 'title', '작성 내용은 10~5000자여야 해요. 지금 ' + total + '자예요.');
+    if (!s.approvers.length) add('approver', '선택할 수 있는 시설장이 없어 상신할 수 없어요.');
+    else if (!s.approverId) add('approver', '결재자를 선택하세요.');
+    return { errors: errors, list: list };
+  }
+  /* ---- save / submit with request id, upload progress and result handling ---- */
+  begin(intent, confirmed) {
+    if (this.busyLock) return;                        /* duplicate-execution guard */
+    var s = this.state;
+    if (intent === 'submit') {
+      var v = this.validateSubmit(s);
+      if (v.list.length) { this.setState({ errors: v.errors, banner: { kind: 'validation', list: v.list } }); this.focusSel('.de-banner'); return; }
+      if (!confirmed) { this.opener = '.de-submit'; this.setState({ dlg: { kind: 'submitConfirm' }, errors: {} }); this.focusSel('#de-dlg-title'); return; }
+    }
+    this.busyLock = true;
+    var req = { intent: intent, hadUploads: s.files.some(function (f) { return f.kind === 'new' && f.status !== 'done'; }) };
+    this.req = req;
+    this.setState({ busy: true, dlg: null, banner: null, errors: {}, submits: s.submits + 1, live: intent === 'submit' ? '상신 처리 중이에요.' : '임시저장 중이에요.' });
+    this.uploadStep(intent);
+  }
+  uploadStep(intent) {
+    var files = this.state.files.map(function (f) { return Object.assign({}, f); });
+    var pending = files.filter(function (f) { return f.kind === 'new' && f.status !== 'done'; });
+    var total = files.filter(function (f) { return f.kind === 'new'; }).length;
+    if (!pending.length) { this.serverStep(intent); return; }
+    var f = pending[0], idx = total - pending.length + 1;
+    if (this.props.uploadResult === 'fail' && f.status !== 'failed') {
+      f.status = 'uploading'; f.progress = 40;
+      this.setState({ files: files, progress: '첨부 업로드 ' + idx + '/' + total + ' · 40%' });
+      this.later(function () {
+        var fs = this.state.files.map(function (x) { return x.id === f.id ? Object.assign({}, x, { status: 'failed', progress: 0 }) : x; });
+        this.busyLock = false;
+        this.setState({ files: fs, busy: false, banner: { kind: 'uploadFail', intent: intent, name: f.name }, live: '첨부 업로드에 실패했어요.' });
+        this.focusSel('.de-banner');
+      }, 500);
+      return;
+    }
+    var steps = [35, 70, 100], i = 0, self = this;
+    function tick() {
+      f.progress = steps[i]; f.status = steps[i] === 100 ? 'done' : 'uploading';
+      var fs = self.state.files.map(function (x) { return x.id === f.id ? Object.assign({}, x, { status: f.status, progress: f.progress }) : x; });
+      self.setState({ files: fs, progress: '첨부 업로드 ' + idx + '/' + total + ' · ' + f.progress + '%' });
+      i++;
+      if (i < steps.length) self.later(tick, 220); else self.later(function () { self.uploadStep(intent); }, 200);
+    }
+    tick();
+  }
+  serverStep(intent) {
+    var s = this.state;
+    this.setState({ progress: intent === 'submit' ? (s.mode === 'recalled' ? '재상신 중…' : '상신 중…') : '임시저장 중…' });
+    if (s.hang) return;
+    var r = this.props.saveResult || 'success';
+    if (r === 'fail') { this.failCount++; if (this.failCount > 1) r = 'success'; }
+    if (r === 'conflict' && s.mode === 'new') r = 'fail';
+    this.later(function () {
+      this.busyLock = false;
+      if (r === 'success') return this.succeed(intent);
+      if (r === 'fail') this.setState({ busy: false, banner: { kind: 'fail', intent: intent, reproducible: !this.req.hadUploads }, live: '처리하지 못했어요. 입력은 그대로예요.' });
+      if (r === 'unknown') this.setState({ busy: false, pendingReq: { intent: intent, changedAfter: false }, banner: { kind: 'unknown', intent: intent }, live: '결과를 확인하지 못했어요.' });
+      if (r === 'conflict') this.setState({ busy: false, banner: { kind: 'conflict' }, live: '다른 기기에서 바뀐 내용이 있어요.' });
+      this.focusSel('.de-banner');
+    }, 700);
+  }
+  succeed(intent) {
+    var s = this.state;
+    var t = this.now();
+    if (intent === 'submit') {
+      var ap = s.approvers.filter(function (a) { return a.id === s.approverId; })[0] || { name: '' };
+      this.setState({ busy: false, returned: { title: s.mode === 'recalled' ? '재상신했어요' : '상신했어요', text: '결과 문서 상세 화면(기존)으로 이동해요. 결재자 ' + ap.name + ' · 결재 대기' + (s.mode === 'recalled' ? ' · 결재가 처음부터 진행돼요.' : '.') }, live: '상신했어요.' });
+      this.focusSel('.de-returned-title'); return;
+    }
+    var files = s.files.map(function (f) { return f.kind === 'new' ? Object.assign({}, f, { kind: 'saved', status: 'saved', progress: 0 }) : f; });
+    this.setState({ busy: false, mode: s.mode === 'new' ? 'draft' : s.mode, serverSavedAt: t, updatedAt: t, dirty: false, preservedAt: null, files: files, live: '임시저장했어요.' });
+    this.say('임시저장했어요', '서버 저장 ' + fmtTime(t) + ' · 이 기안의 기기 보관본은 정리했어요.');
+  }
+  checkRequest() {
+    if (this.busyLock) return;
+    this.busyLock = true;
+    var s = this.state, req = s.pendingReq || { intent: 'draft' };
+    this.setState({ busy: true, dlg: null, progress: '원 요청 결과를 확인하는 중…' });
+    this.later(function () {
+      this.busyLock = false;
+      if (this.props.checkResult === 'pending') { this.setState({ busy: false, banner: { kind: 'checkPending', intent: req.intent } }); this.focusSel('.de-banner'); return; }
+      if (req.intent === 'submit') { this.setState({ busy: false, pendingReq: null, returned: { title: '원 요청이 상신되어 있었어요', text: '새로 상신하지 않았어요. 결과 문서 상세 화면(기존)으로 이동해요.' } }); this.focusSel('.de-returned-title'); return; }
+      var t = this.now();
+      var files = this.state.files.map(function (f) { return f.kind === 'new' && f.status === 'done' ? Object.assign({}, f, { kind: 'saved', status: 'saved' }) : f; });
+      if (req.changedAfter) { this.setState({ busy: false, pendingReq: null, mode: this.state.mode === 'new' ? 'draft' : this.state.mode, serverSavedAt: t, updatedAt: t, files: files, banner: { kind: 'savedButChanged' } }); this.focusSel('.de-banner'); }
+      else { this.setState({ busy: false, pendingReq: null, mode: this.state.mode === 'new' ? 'draft' : this.state.mode, serverSavedAt: t, updatedAt: t, dirty: false, files: files, banner: null }); this.say('원 요청이 저장되어 있었어요', '새로 저장하지 않았어요. 서버 저장 ' + fmtTime(t)); }
+    }, 900);
+  }
+  /* ---- delete (own DRAFT only) ---- */
+  confirmDelete() {
+    if (this.busyLock) return;
+    this.busyLock = true;
+    var s = this.state;
+    this.setState({ dlg: { kind: 'deleteConfirm', busy: true }, deletes: s.deletes + 1, live: '삭제하는 중이에요.' });
+    if (s.hang) return;
+    var r = this.props.deleteResult || 'success';
+    if (r === 'fail') { this.delFailCount++; if (this.delFailCount > 1) r = 'success'; }
+    this.later(function () {
+      this.busyLock = false;
+      if (r === 'success') { this.setState({ dlg: null, returned: { title: '기안함으로 돌아왔어요', text: '‘' + (this.state.title || '제목 없는 기안') + '’ 임시저장 기안을 삭제했어요. 기안함 목록과 건수를 다시 조회해요.' }, live: '삭제했어요.' }); this.focusSel('.de-returned-title'); return; }
+      if (r === 'fail') { this.setState({ dlg: { kind: 'deleteConfirm', error: 'fail' } }); this.focusSel('.de-dlg-error'); return; }
+      if (r === 'conflict') { this.setState({ dlg: { kind: 'deleteConfirm', error: 'conflict' } }); this.focusSel('.de-dlg-error'); return; }
+      this.setState({ dlg: null, deletePending: true, banner: { kind: 'deleteUnknown' }, live: '삭제 결과를 확인하지 못했어요.' }); this.focusSel('.de-banner');
+    }, 900);
+  }
+  checkDelete() {
+    if (this.busyLock) return;
+    this.busyLock = true;
+    this.setState({ busy: true, progress: '삭제 결과를 확인하는 중…' });
+    this.later(function () {
+      this.busyLock = false;
+      if (this.props.checkResult === 'pending') { this.setState({ busy: false, banner: { kind: 'deleteCheckPending' } }); this.focusSel('.de-banner'); return; }
+      this.setState({ busy: false, deletePending: false, returned: { title: '기안함으로 돌아왔어요', text: '확인 결과 이미 삭제되어 있었어요. 다시 삭제하지 않았어요. 기안함 목록과 건수를 다시 조회해요.' } });
+      this.focusSel('.de-returned-title');
+    }, 900);
+  }
+  /* ---- dialogs ---- */
+  openDlg(dlg, opener, focus) { if (this.busyLock) return; this.opener = opener; this.setState({ dlg: dlg }); this.focusSel(focus || '#de-dlg-title'); }
+  closeDlg() { if (this.state.dlg && this.state.dlg.busy) return; this.setState({ dlg: null }); if (this.opener) this.focusSel(this.opener); }
+  pickFile(df) {
+    var s = this.state;
+    var count = s.files.filter(function (f) { return f.kind !== 'reselect'; }).length;
+    var reselect = s.dlg && s.dlg.reselectId;
+    var err = null;
+    if (!reselect && count >= POLICY.maxFileCount) err = '첨부는 최대 ' + POLICY.maxFileCount + '개까지예요.';
+    else if (POLICY.allowedExtensions.indexOf(extOf(df.name)) < 0) err = '‘' + df.name + '’는 첨부할 수 없는 형식이에요. ' + POLICY.allowedExtensions.join(', ') + '만 첨부할 수 있어요.';
+    else if (df.size > POLICY.maxFileSizeMb * 1048576) err = '‘' + df.name + '’는 ' + fmtSize(df.size) + '라 파일당 ' + POLICY.maxFileSizeMb + 'MB를 넘어요.';
+    if (err) { this.setState({ dlg: null, attachError: err }); this.focusSel('.de-add-file'); return; }
+    var files = s.files.filter(function (f) { return f.id !== reselect; }).concat([fileOf(df.name, df.size, 'new', 'pending')]);
+    this.touch({ files: files, dlg: null, attachError: null });
+    this.focusSel('.de-add-file');
+  }
+  renderVals() {
+    var self = this, p = this.props, s = this.state;
+    var theme = p.theme === 'dark' ? 'dark' : 'light', small = String(p.viewport) === '360', ts = Number(p.textScale || 1) || 1;
+    var tk = TOKENS[theme];
+    var vars = Object.keys(tk).map(function (k) { return '--' + k + ': ' + tk[k]; });
+    [12, 13, 14, 15, 16, 17, 18].forEach(function (n) { vars.push('--f' + n + ': ' + (Math.round(n * ts * 10) / 10) + 'px'); });
+    var W = small ? 360 : 390, H = small ? 800 : 844, safeTop = small ? 24 : 47, safeBottom = small ? 16 : 34, kbH = small ? 300 : 336;
+    var t = this.tpl(), ready = s.phase === 'ready';
+    var dlg = s.dlg;
+    var lock = s.busy || s.deletePending || !!s.pendingReq;
+    var out = {
+      vars: vars.join('; '), W: W, H: H, safeTop: safeTop, safeBottom: safeBottom, safeTopPad: safeTop + 8, barPadB: 8 + safeBottom,
+      setRoot: function (el) { self.rootEl = el; }, setScroll: function (el) { self.scrollEl = el; },
+      submits: s.submits, deletes: s.deletes, liveMsg: s.live,
+      bgHidden: dlg || s.returned ? 'true' : 'false', busyFlag: !!s.busy, lockActions: !!s.busy,
+      screenTitle: s.mode === 'new' ? '새 기안' : '기안 수정',
+      showForm: ready, showLoading: s.phase === 'loading', showPanel: ['auth', 'notEditable', 'error'].indexOf(s.phase) >= 0,
+      reveal: function (e) { var el = e.target; setTimeout(function () { self.revealEl(el); }, 30); },
+      goBack: function () {
+        if (self.busyLock) return;
+        if (s.dirty && ready) { self.openDlg({ kind: 'leave' }, '.de-back'); return; }
+        self.setState({ returned: { title: s.mode === 'new' ? '이전 화면으로 돌아왔어요' : '기안함으로 돌아왔어요', text: '변경한 입력이 없어 확인 없이 나갔어요.' } }); self.focusSel('.de-returned-title');
+      },
+      returned: !!s.returned, returnTitle: s.returned ? s.returned.title : '', returnText: s.returned ? s.returned.text : '',
+      reopen: function () { self.clearTimers(); self.setState(self.fresh(self.props)); },
+      hasToast: !!s.toast, toastTitle: s.toast ? s.toast.title : '', toastText: s.toast ? s.toast.text : '', toastBottom: 96 + safeBottom,
+      showKb: p.keyboard === 'on' && !dlg && ready && !s.returned, kbH: kbH, kbBg: theme === 'dark' ? '#2A3038' : '#D3D7DE'
+    };
+    /* panels: account/permission failure never renders previous input */
+    var panel = { auth: ['계정을 다시 확인해야 해요', '보안을 위해 작성 중이던 내용을 화면에서 지웠어요. 같은 계정으로 다시 로그인하면 작성 복구에서 이어서 쓸 수 있어요.', '다시 로그인 (기존 화면)', ['M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z', 'M12 8v4M12 16h.01'], 'var(--danger)'],
+      notEditable: ['이 기안은 수정할 수 없어요', '본인의 임시저장·회수 문서만 수정할 수 있어요. 문서 내용은 표시하지 않아요.', '돌아가기', ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'], 'var(--secondary)'],
+      error: ['작성 화면을 불러오지 못했어요', '양식과 결재자 정보를 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.', '다시 시도', ['M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z', 'M12 8v4M12 16h.01'], 'var(--danger)'] }[s.phase];
+    if (panel) Object.assign(out, { panelTitle: panel[0], panelText: panel[1], panelActionLabel: panel[2], panelIcon1: panel[3][0], panelIcon2: panel[3][1], panelIconColor: panel[4],
+      panelAction: function () { if (s.phase === 'error') { self.setState({ phase: 'loading' }); self.later(function () { self.setState({ phase: 'ready' }); }, 900); } else self.setState({ returned: { title: s.phase === 'auth' ? '로그인 화면 (기존)' : '기안함으로 돌아왔어요', text: s.phase === 'auth' ? '로그인 후 활성 계정·권한을 다시 확인한 뒤에만 입력과 첨부를 보여줘요.' : '편집할 수 없는 문서라 내용을 열지 않았어요.' } }); } });
+    /* status line */
+    var chip = s.mode === 'new' ? ['새 기안', 'var(--surfaceMuted)', 'var(--secondary)', 'transparent'] : s.mode === 'draft' ? ['임시저장', 'var(--surfaceMuted)', 'var(--secondary)', 'transparent'] : ['회수', 'transparent', 'var(--secondary)', 'var(--controlBorder)'];
+    var deviceLine = '', deviceColor = 'var(--secondary)';
+    if (s.preserveFail) { deviceLine = '기기 보관 실패 · 화면의 입력은 그대로예요'; deviceColor = 'var(--danger)'; }
+    else if (s.dirty && p.platform === 'web') deviceLine = '브라우저 미리보기: 현재 화면에만 보관 · 새로고침하면 사라져요';
+    else if (s.dirty && s.preservedAt) deviceLine = '기기 보관 ' + s.preservedAt + ' · 첨부는 보관하지 않아요';
+    Object.assign(out, { statusChip: chip[0], chipBg: chip[1], chipFg: chip[2], chipBd: chip[3],
+      serverLine: s.serverSavedAt ? '서버 저장 ' + fmtTime(s.serverSavedAt) : '서버에 아직 저장하지 않았어요',
+      hasDeviceLine: !!deviceLine, deviceLine: deviceLine, deviceColor: deviceColor, deviceWeight: s.preserveFail ? 700 : 400,
+      canDelete: s.mode === 'draft', isRecalled: s.mode === 'recalled',
+      openRecovery: function () { self.openDlg({ kind: 'recovery' }, '.de-recovery'); },
+      openDelete: function () { if (s.deletePending || s.pendingReq) return; self.openDlg({ kind: 'deleteConfirm' }, '.de-delete'); } });
+    /* banner */
+    var b = s.banner, bn = null;
+    var verb = b && b.intent === 'submit' ? (s.mode === 'recalled' ? '재상신' : '상신') : '임시저장';
+    if (b) {
+      if (b.kind === 'validation') bn = { tone: 'danger', title: '상신 전에 확인할 항목이 ' + b.list.length + '개 있어요.', text: '입력한 내용은 그대로예요.', items: b.list.map(function (e) { return { label: e.msg, go: function () { self.focusSel(e.id === 'approver' ? (s.approvers.length ? '#ap-' + s.approvers[0].id : '#fe-approver') : e.id.indexOf('ag-') === 0 ? '#fe-' + e.id + '-title' : '#fe-' + e.id); } }; }), actions: [] };
+      if (b.kind === 'fail') bn = { tone: 'danger', title: verb + '하지 못했어요.', text: '서버 오류로 처리되지 않았어요. 입력과 첨부는 그대로예요.', actions: b.reproducible ? [{ label: '같은 요청 재시도', cls: 'de-retry-same', run: function () { self.begin(b.intent, true); } }] : [{ label: '원 요청 결과 확인', cls: 'de-check-req', run: function () { self.setState({ pendingReq: { intent: b.intent, changedAfter: false } }); self.later(function () { self.checkRequest(); }, 0); } }] };
+      if (b.kind === 'unknown') bn = { tone: 'warn', title: verb + ' 결과를 확인하지 못했어요.', text: '처리됐는지 알 수 없어 새로 보내지 않았어요. 입력은 그대로예요. 원 요청 결과를 먼저 확인하세요.', actions: [{ label: '원 요청 결과 확인', cls: 'de-check-req', run: function () { self.checkRequest(); } }] };
+      if (b.kind === 'checkPending') bn = { tone: 'warn', title: '아직 결과를 확인할 수 없어요.', text: '확인 결과가 없다고 저장되지 않은 것은 아니에요. 새로 보내지 않았어요. 잠시 후 다시 확인하세요.', actions: [{ label: '원 요청 결과 다시 확인', cls: 'de-check-req', run: function () { self.checkRequest(); } }] };
+      if (b.kind === 'savedButChanged') bn = { tone: 'info', title: '원 요청은 저장되어 있었어요.', text: '그 뒤에 바꾼 입력은 아직 서버에 저장되지 않았어요. 이어서 작성하거나 다시 임시저장하세요.', actions: [{ label: '계속 작성', cls: 'de-dismiss', run: function () { self.setState({ banner: null }); } }] };
+      if (b.kind === 'conflict') bn = { tone: 'danger', title: '다른 기기에서 이 기안이 바뀌었어요.', text: '저장하지 않았어요. 현재 입력은 그대로예요. 최신 내용을 확인한 뒤 기준을 직접 고르세요.', actions: [{ label: '최신 내용 확인', cls: 'de-open-conflict', run: function () { self.openDlg({ kind: 'conflict' }, '.de-open-conflict'); } }] };
+      if (b.kind === 'keptMine') bn = { tone: 'info', title: '최신 기준을 적용했어요.', text: '현재 입력은 그대로예요. 다시 임시저장하거나 상신하면 이 입력으로 저장돼요.', actions: [{ label: '확인', cls: 'de-dismiss', run: function () { self.setState({ banner: null }); } }] };
+      if (b.kind === 'uploadFail') bn = { tone: 'danger', title: '첨부 업로드에 실패해 ' + verb + '하지 않았어요.', text: '‘' + b.name + '’ 업로드가 끝나지 않았어요. 다른 입력과 첨부는 그대로예요.', actions: [{ label: '업로드 다시 시도', cls: 'de-retry-upload', run: function () { self.begin(b.intent, true); } }] };
+      if (b.kind === 'deleteUnknown') bn = { tone: 'warn', title: '삭제 결과를 확인하지 못했어요.', text: '이미 삭제됐을 수 있어요. 입력은 그대로 두었고, 결과를 확인하기 전에는 저장·상신·삭제를 막아 두었어요.', actions: [{ label: '삭제 결과 확인', cls: 'de-check-delete', run: function () { self.checkDelete(); } }] };
+      if (b.kind === 'deleteCheckPending') bn = { tone: 'warn', title: '아직 삭제 결과를 확인할 수 없어요.', text: '삭제되지 않았다고 단정하지 않았어요. 잠시 후 다시 확인하세요.', actions: [{ label: '삭제 결과 다시 확인', cls: 'de-check-delete', run: function () { self.checkDelete(); } }] };
+      if (b.kind === 'restored') bn = { tone: 'info', title: '보관 입력을 복원했어요.', text: '첨부파일은 기기에 보관하지 않아 다시 선택해야 해요.', actions: [] };
+      if (b.kind === 'preserveFail') bn = { tone: 'warn', title: '기기에 보관하지 못했어요.', text: '보관 공간이 부족해요. 화면의 입력은 그대로이고 다른 보관본은 지우지 않았어요. 서버에 남기려면 임시저장하세요.', actions: [] };
+    }
+    var tone = bn ? bn.tone : 'info';
+    Object.assign(out, { hasBanner: !!bn, bannerTitle: bn ? bn.title : '', bannerText: bn ? bn.text : '',
+      bannerBg: tone === 'danger' ? 'var(--dangerSoft)' : tone === 'warn' ? 'var(--surface)' : 'var(--accentSoft)',
+      bannerBd: tone === 'info' ? 'transparent' : (tone === 'danger' ? 'var(--danger)' : 'var(--controlBorder)'),
+      bannerIcon: tone === 'info' ? 'var(--accent)' : 'var(--danger)', bannerTitleColor: tone === 'info' ? 'var(--text)' : 'var(--danger)',
+      bannerIconPath: tone === 'info' ? 'M12 16v-4M12 8h.01' : 'M12 8v4M12 16h.01',
+      bannerHasItems: !!(bn && bn.items && bn.items.length), bannerItems: bn && bn.items ? bn.items : [],
+      bannerHasActions: !!(bn && bn.actions.length), bannerActions: bn ? bn.actions.map(function (a) { return { label: a.label, cls: a.cls, run: a.run, disabled: !!s.busy }; }) : [] });
+    /* template + title */
+    var e = s.errors;
+    var errBorder = '1.5px solid var(--danger)', okBorder = '1px solid var(--controlBorder)';
+    Object.assign(out, { hasTemplates: s.templates.length > 0, noTemplates: !s.templates.length, templateName: t ? t.name : '',
+      openTemplate: function () { self.openDlg({ kind: 'template' }, '#fe-template', '.de-dlg-item[aria-checked="true"]'); },
+      title: s.title, titleCount: s.title.length, onTitle: function (ev) { var er = Object.assign({}, self.state.errors); delete er.title; self.touch({ title: ev.target.value.replace(/[\r\n]+/g, ' ').slice(0, 120), errors: er }); }, titleKey: function (ev) { if (ev.key === 'Enter') ev.preventDefault(); },
+      titleInvalid: e.title ? 'true' : 'false', titleBorder: e.title ? errBorder : okBorder,
+      titleMeta: e.title || '임시저장은 비워 둬도 돼요 (‘제목 없는 기안’으로 저장)', titleMetaColor: e.title ? 'var(--danger)' : 'var(--secondary)', titleMetaWeight: e.title ? 500 : 400 });
+    /* dynamic fields from the server schema */
+    var fields = [];
+    if (t) t.fields.forEach(function (f) {
+      if (!visible(f, s.values)) return;
+      var v = s.values[f.name] || '';
+      var er = e[f.name];
+      var base = { name: f.name, label: f.label, required: !!f.required, inputId: 'fe-' + f.name, labelId: 'fl-' + f.name, metaId: 'fm-' + f.name, value: v, placeholder: f.placeholder || '',
+        isText: f.type === 'text', isNumber: f.type === 'number', isDate: f.type === 'date', isTextarea: f.type === 'textarea', isSelect: f.type === 'select', isCheckbox: f.type === 'checkbox', isAgenda: f.type === 'agenda',
+        isLabeled: ['text', 'number', 'date', 'textarea', 'select'].indexOf(f.type) >= 0,
+        invalid: er ? 'true' : 'false', border: er ? errBorder : okBorder,
+        meta: er || f.helpText || (f.type === 'date' ? 'YYYY-MM-DD' : (f.visibleWhen ? '선택한 ' + (tplById(s.templates, s.templateId).fields.filter(function (x) { return x.name === f.visibleWhen.field; })[0] || {}).label + '에 따라 표시돼요' : '')),
+        metaColor: er ? 'var(--danger)' : 'var(--secondary)', metaWeight: er ? 500 : 400,
+        hasCount: f.type === 'textarea', count: v.length,
+        change: function (ev) { self.setValue(f.name, f.type === 'date' ? autoDate(ev.target.value) : f.type === 'number' ? ev.target.value.replace(/[^0-9.]/g, '') : ev.target.value); } };
+      base.hasMeta = !!(base.meta || base.hasCount);
+      if (f.type === 'select') { var o = (f.options || []).filter(function (x) { return x.value === v; })[0]; base.display = o ? o.label : '선택하세요'; base.selectColor = o ? 'var(--text)' : 'var(--muted)'; base.open = function () { self.openDlg({ kind: 'select', field: f.name }, '#fe-' + f.name, '.de-dlg-item[aria-checked="true"]'); }; }
+      if (f.type === 'checkbox') { base.checked = v === 'true'; base.toggle = function (ev) { self.setValue(f.name, ev.target.checked ? 'true' : 'false'); }; base.hasMeta = false; }
+      if (f.type === 'agenda') {
+        base.hasMeta = !!e.agenda; base.meta = e.agenda || ''; base.hasCount = false;
+        base.agendaCount = s.agenda.length; base.agendaFull = s.agenda.length >= 20;
+        base.addLabel = s.agenda.length >= 20 ? '안건은 최대 20개예요' : '안건 추가';
+        base.addAgenda = function () { if (self.state.agenda.length >= 20) return; var id = 'a' + (++nextId); self.touch({ agenda: self.state.agenda.concat([{ id: id, title: '', discussion: '' }]) }); self.focusSel('#fe-ag-' + id + '-title'); };
+        base.agenda = s.agenda.map(function (a, i) {
+          var ae = e['ag-' + a.id];
+          return { name: '안건 ' + (i + 1), title: a.title, discussion: a.discussion, titleId: 'fe-ag-' + a.id + '-title', discId: 'fe-ag-' + a.id + '-disc', canRemove: s.agenda.length > 1, removeAria: '안건 ' + (i + 1) + ' 제거',
+            invalid: ae ? 'true' : 'false', border: ae ? errBorder : okBorder, hasError: !!ae, error: ae || '',
+            remove: function () { self.openDlg({ kind: 'agendaRemove', id: a.id }, '.de-ag-add'); },
+            changeTitle: function (ev) { var er2 = Object.assign({}, self.state.errors); delete er2['ag-' + a.id]; self.touch({ errors: er2, agenda: self.state.agenda.map(function (x) { return x.id === a.id ? Object.assign({}, x, { title: ev.target.value.slice(0, 300) }) : x; }) }); },
+            changeDisc: function (ev) { self.touch({ agenda: self.state.agenda.map(function (x) { return x.id === a.id ? Object.assign({}, x, { discussion: ev.target.value.slice(0, 5000) }) : x; }) }); } };
+        });
+      }
+      fields.push(base);
+    });
+    Object.assign(out, { fields: fields, hasTemplateFields: !!t && fields.length > 0 });
+    /* approver: active facility directors except self, exactly one */
+    var apErr = e.approver;
+    Object.assign(out, { hasApprovers: s.approvers.length > 0, noApprovers: !s.approvers.length,
+      approverInvalid: apErr ? 'true' : 'false', approverBorder: apErr ? errBorder : '1px solid var(--border)',
+      approverMeta: apErr || (s.approvers.length === 1 ? '선택할 수 있는 시설장이 1명이라 미리 선택했어요.' : '본인을 제외한 활성 시설장 1명을 선택해요.'),
+      approverMetaColor: apErr ? 'var(--danger)' : 'var(--secondary)', approverMetaWeight: apErr ? 500 : 400,
+      approvers: s.approvers.map(function (a, i) { var on = a.id === s.approverId; return { id: 'ap-' + a.id, name: a.name, position: a.position, checked: on ? 'true' : 'false', sep: i ? '1px solid var(--border)' : '0', bg: on ? 'var(--accentSoft)' : 'transparent', ring: on ? 'var(--accent)' : 'var(--controlBorder)', dot: on ? 'var(--accent)' : 'transparent', pick: function () { var er = Object.assign({}, self.state.errors); delete er.approver; self.touch({ approverId: a.id, errors: er }); } }; }) });
+    /* attachments */
+    var cnt = s.files.filter(function (f) { return f.kind !== 'reselect'; }).length;
+    Object.assign(out, { fileCount: cnt, maxFiles: POLICY.maxFileCount, policyText: '최대 ' + POLICY.maxFileCount + '개 · 파일당 ' + POLICY.maxFileSizeMb + 'MB · ' + POLICY.allowedExtensions.join(', '),
+      addFileDisabled: cnt >= POLICY.maxFileCount, addFileAria: cnt >= POLICY.maxFileCount ? '파일 추가, 최대 ' + POLICY.maxFileCount + '개에 도달' : '첨부파일 추가, ' + cnt + '/' + POLICY.maxFileCount,
+      openPicker: function () { self.openDlg({ kind: 'picker' }, '.de-add-file', '.de-dlg-item'); },
+      hasAttachError: !!s.attachError, attachError: s.attachError || '', hasFiles: s.files.length > 0,
+      files: s.files.map(function (f, i) {
+        var i2 = f.name.lastIndexOf('.');
+        var st = { pending: ['저장 시 업로드', 'var(--secondary)', 400], uploading: ['업로드 중 ' + f.progress + '%', 'var(--accent)', 700], done: ['업로드 완료 · 서버 저장 전', 'var(--secondary)', 400], saved: ['저장된 파일', 'var(--success)', 700], failed: ['업로드 실패 · 다시 저장하면 다시 시도해요', 'var(--danger)', 700], reselect: ['기기에 보관되지 않아 다시 선택해야 해요', 'var(--danger)', 700] }[f.status];
+        var isSaved = f.kind === 'saved', isRe = f.kind === 'reselect';
+        return { stem: i2 > 0 ? f.name.slice(0, i2) : f.name, ext: i2 > 0 ? f.name.slice(i2) : '', size: fmtSize(f.size), status: st[0], statusColor: st[1], statusWeight: st[2], sep: i ? '1px solid var(--border)' : '0',
+          hasProgress: f.status === 'uploading', progress: f.progress, progressLabel: f.name + ' 업로드 진행률',
+          cls: isSaved ? 'de-file-remove-saved' : isRe ? 'de-file-reselect' : 'de-file-unselect',
+          actionLabel: isSaved ? '제거' : isRe ? '다시 선택' : '선택 해제', actionColor: isSaved ? 'var(--danger)' : 'var(--accent)', actionDisabled: !!s.busy,
+          actionAria: (isSaved ? '저장된 첨부 영구 삭제: ' : isRe ? '다시 선택: ' : '선택 해제: ') + f.name,
+          action: function () {
+            if (isSaved) self.openDlg({ kind: 'removeSaved', fileId: f.id }, '.de-add-file');
+            else if (isRe) self.openDlg({ kind: 'picker', reselectId: f.id }, '.de-add-file', '.de-dlg-item');
+            else { self.touch({ files: self.state.files.filter(function (x) { return x.id !== f.id; }) }); self.say('선택을 해제했어요', '‘' + f.name + '’는 아직 업로드하지 않은 파일이라 서버에는 영향이 없어요.'); self.focusSel('.de-add-file'); }
+          } };
+      }) });
+    /* bottom actions */
+    var note = '';
+    if (!t) note = '사용할 수 있는 양식이 없어 저장·상신할 수 없어요.';
+    else if (s.deletePending) note = '삭제 결과를 먼저 확인하세요.';
+    else if (s.pendingReq) note = '원 요청 결과를 먼저 확인하세요.';
+    else if (!s.approvers.length) note = '결재자 후보가 없어 상신할 수 없어요. 임시저장은 할 수 있어요.';
+    Object.assign(out, { showBar: ready && !s.returned, progressText: s.progress, hasBarNote: !!note && !s.busy, barNote: note,
+      saveDisabled: !!(s.busy || !t || s.deletePending || s.pendingReq), submitDisabled: !!(s.busy || !t || s.deletePending || s.pendingReq || !s.approvers.length),
+      submitLabel: s.mode === 'recalled' ? '재상신' : '상신',
+      saveDraft: function () { self.begin('draft'); }, submitDoc: function () { self.begin('submit'); } });
+    /* dialog content */
+    var d = null;
+    if (dlg) {
+      var cancel = function (label) { return { label: label || '취소', kind: 'secondary', cls: 'de-dlg-cancel', cancel: true, run: function () { self.closeDlg(); } }; };
+      if (dlg.kind === 'picker') d = { title: dlg.reselectId ? '첨부파일 다시 선택' : '첨부할 파일 선택', role: 'dialog', lines: ['첨부 정책: 최대 ' + POLICY.maxFileCount + '개 · 파일당 ' + POLICY.maxFileSizeMb + 'MB · ' + POLICY.allowedExtensions.join(', ') + ' (모의 정책)'], note: '검토용 모의 기기 파일 목록이에요. 실제 기기 파일을 읽거나 전송하지 않아요.', items: DEVICE_FILES.map(function (df) { return { label: df.name, sub: fmtSize(df.size) + ' · ' + extOf(df.name), pick: function () { self.pickFile(df); } }; }), actions: [{ label: '선택 취소', kind: 'secondary', cls: 'de-dlg-cancel', cancel: true, run: function () { self.closeDlg(); self.say('파일 선택을 취소했어요', '다른 입력과 첨부는 그대로예요.'); } }] };
+      if (dlg.kind === 'template') d = { title: '문서 양식 선택', role: 'dialog', items: s.templates.map(function (tp) { return { label: tp.name, checked: tp.id === s.templateId, pick: function () { if (tp.id === s.templateId) { self.closeDlg(); return; } if (self.hasEnteredFields()) self.setState({ dlg: { kind: 'templateChange', to: tp.id } }); else self.applyTemplate(tp.id); } }; }), actions: [cancel('닫기')] };
+      if (dlg.kind === 'select') { var sf = t.fields.filter(function (x) { return x.name === dlg.field; })[0]; d = { title: sf.label + ' 선택', role: 'dialog', items: sf.options.map(function (o) { return { label: o.label, checked: s.values[sf.name] === o.value, pick: function () { self.setValue(sf.name, o.value); self.setState({ dlg: null }); self.focusSel('#fe-' + sf.name); } }; }), actions: [cancel('닫기')] }; }
+      if (dlg.kind === 'templateChange') { var to = tplById(s.templates, dlg.to); d = { title: '양식을 바꿀까요?', role: 'alertdialog', lines: ['‘' + t.name + '’에 입력한 ' + self.hasEnteredFields() + '개 항목이 ‘' + to.name + '’ 기본값으로 바뀌어요.', '제목·결재자·첨부파일은 그대로 유지돼요.'], actions: [{ label: '‘' + to.name + '’로 변경', kind: 'primary', cls: 'de-dlg-confirm', run: function () { self.applyTemplate(dlg.to); } }, cancel('취소하고 입력 유지')] }; }
+      if (dlg.kind === 'agendaRemove') { var ai = s.agenda.findIndex(function (a) { return a.id === dlg.id; }); var ag = s.agenda[ai] || {}; d = { title: '안건 ' + (ai + 1) + ('013678'.indexOf(String(ai + 1).slice(-1)) >= 0 ? '을' : '를') + ' 제거할까요?', role: 'alertdialog', quote: ag.title || '제목 없는 안건', lines: ['이 안건의 제목과 논의 내용이 화면에서 지워져요.'], actions: [{ label: '안건 제거', kind: 'danger', cls: 'de-dlg-confirm', run: function () { self.touch({ agenda: self.state.agenda.filter(function (a) { return a.id !== dlg.id; }), dlg: null }); self.focusSel('.de-ag-add'); } }, cancel()] }; }
+      if (dlg.kind === 'removeSaved') { var rf = s.files.filter(function (f) { return f.id === dlg.fileId; })[0] || { name: '' }; d = { title: '저장된 첨부를 삭제할까요?', role: 'alertdialog', quote: rf.name, lines: ['서버에 저장된 파일을 영구 삭제해요. 되돌릴 수 없어요.'], busy: dlg.busy, actions: [{ label: dlg.busy ? '삭제 중…' : '첨부 삭제', kind: 'danger', cls: 'de-dlg-confirm', busy: dlg.busy, run: function () { if (self.busyLock) return; self.busyLock = true; self.setState({ dlg: Object.assign({}, dlg, { busy: true }) }); self.later(function () { self.busyLock = false; self.setState({ dlg: null, files: self.state.files.filter(function (f) { return f.id !== dlg.fileId; }) }); self.say('첨부를 삭제했어요', '‘' + rf.name + '’를 서버에서 삭제했어요.'); self.focusSel('.de-add-file'); }, 700); } }, cancel()] }; }
+      if (dlg.kind === 'submitConfirm') { var ap = s.approvers.filter(function (a) { return a.id === s.approverId; })[0] || { name: '', position: '' }; var newFiles = s.files.filter(function (f) { return f.kind === 'new' && f.status !== 'done'; }).length; var rec = s.mode === 'recalled';
+        d = { title: rec ? '재상신할까요?' : '상신할까요?', role: 'alertdialog', summary: [{ k: '제목', v: s.title }, { k: '양식', v: t.name }, { k: '결재자', v: ap.name + ' · ' + ap.position }, { k: '첨부', v: s.files.length + '개' + (newFiles ? ' (새 파일 ' + newFiles + '개는 먼저 업로드)' : '') }],
+          lines: [rec ? '재상신하면 결재가 처음부터 다시 진행돼요. 이전 처리 기록은 이력으로 남아요.' : '상신하면 ' + ap.name + ' ' + ap.position + '에게 결재가 요청돼요. 결재 중에 고치려면 회수해야 해요.'],
+          actions: [{ label: rec ? '재상신' : '상신', kind: 'primary', cls: 'de-dlg-confirm', run: function () { self.begin('submit', true); } }, cancel()] }; }
+      if (dlg.kind === 'deleteConfirm') { var nf = s.files.filter(function (f) { return f.kind === 'saved'; }).length; var de = dlg.error;
+        d = { title: '임시저장 기안을 삭제할까요?', role: 'alertdialog', quote: '‘' + (s.title || '제목 없는 기안') + '’', lines: ['저장된 문서와 첨부파일 ' + nf + '개를 영구 삭제해요.', '현재 화면의 저장하지 않은 입력과 이 기안의 기기 보관본도 지워져 복구할 수 없어요.'], busy: dlg.busy,
+          error: de === 'fail' ? ['삭제하지 못했어요.', '문서는 그대로예요. 연결을 확인한 뒤 다시 시도하세요.'] : de === 'conflict' ? ['삭제하지 않았어요.', '다른 곳에서 이 기안이 바뀌었어요. 최신 내용을 확인한 뒤 다시 결정하세요.'] : null,
+          actions: de === 'conflict' ? [{ label: '최신 내용 확인', kind: 'primary', cls: 'de-dlg-confirm', run: function () { self.setState({ dlg: { kind: 'conflict', fromDelete: true } }); self.focusSel('#de-dlg-title'); } }, cancel('닫기')]
+            : [{ label: dlg.busy ? '삭제 중…' : (de === 'fail' ? '다시 삭제' : '기안 삭제'), kind: 'danger', cls: 'de-dlg-confirm', busy: dlg.busy, run: function () { self.confirmDelete(); } }, cancel()] }; }
+      if (dlg.kind === 'conflict') d = { title: '다른 기기에서 바뀐 내용이 있어요', role: 'alertdialog', summary: [{ k: '서버 최신', v: fmtTime('10:05') + ' 저장' }, { k: '서버 제목', v: SERVER_TITLE }, { k: '내 입력 제목', v: s.title || '제목 없는 기안' }], lines: ['어떤 내용을 기준으로 할지 직접 선택하세요. 자동으로 덮어쓰거나 상신하지 않아요.', '내 입력 유지: 화면 입력을 그대로 두고 최신 버전 기준으로 바꿔요. 서버에는 임시저장을 다시 눌러야 반영돼요.', '서버 내용으로 교체: 화면 입력을 서버 최신본으로 바꿔요. 내 수정은 사라져요.'],
+          actions: [{ label: '내 입력 유지 · 최신 기준 적용', kind: 'primary', cls: 'de-keep-mine', run: function () { self.setState({ dlg: null, updatedAt: '10:05', serverSavedAt: '10:05', banner: { kind: 'keptMine' } }); self.focusSel('.de-banner'); } },
+            { label: '서버 내용으로 교체', kind: 'secondary', cls: 'de-use-server', run: function () { self.setState({ dlg: null, title: SERVER_TITLE, values: Object.assign({}, self.state.values, { content: SERVER_CONTENT }), updatedAt: '10:05', serverSavedAt: '10:05', dirty: false, preservedAt: null, banner: null }); self.say('서버 내용으로 바꿨어요', '현재 화면의 입력을 서버 최신본으로 교체했어요.'); self.focusSel('#fe-title'); } }, cancel('닫기')] };
+      if (dlg.kind === 'recovery') { var en = s.recoveryEntry; var webNote = p.platform === 'web' ? '브라우저 미리보기에서는 현재 화면에만 보관돼 새로고침하거나 닫으면 복원할 수 없어요.' : '이 계정의 이 작성 범위에 보관된 입력만 보여요. 첨부파일은 보관하지 않아요.';
+        var acts = [];
+        if (en) acts.push({ label: '보관 입력 복원', kind: 'primary', cls: 'de-restore', run: function () { var tp = tplById(s.templates, en.templateId); self.setState({ dlg: null, recoveryEntry: null, templateId: en.templateId, title: en.title, values: Object.assign({}, tp.initialValues, { content: en.content }), approverId: en.approverId, files: en.fileNames.map(function (x) { return fileOf(x.name, x.size, 'reselect', 'reselect'); }), dirty: true, preservedAt: en.at, banner: { kind: 'restored' } }); self.focusSel('.de-banner'); } });
+        if (s.pendingReq) acts.push({ label: '요청 확인 정보 열기', kind: 'secondary', cls: 'de-req-info', run: function () { self.setState({ dlg: null }); self.checkRequest(); } });
+        if (en) acts.push({ label: '보관 내용 버리기', kind: 'dangerOutline', cls: 'de-discard', run: function () { self.setState({ dlg: { kind: 'discardRecovery' } }); self.focusSel('#de-dlg-title'); } });
+        acts.push(cancel('닫기'));
+        d = { title: '작성 복구', role: 'dialog', summary: en ? [{ k: '보관 시각', v: fmtTime(en.at) }, { k: '제목', v: en.title }, { k: '양식', v: tplById(s.templates, en.templateId).name }, { k: '첨부', v: en.fileNames.length + '개 · 다시 선택 필요' }] : null, lines: en ? [] : ['이 작성 범위에 보관된 입력이 없어요.'], note: webNote, actions: acts }; }
+      if (dlg.kind === 'discardRecovery') d = { title: '보관 내용을 버릴까요?', role: 'alertdialog', lines: ['이 작성 범위의 기기 보관본을 지워요. 서버에 저장된 문서는 그대로예요.'], actions: [{ label: '보관 내용 버리기', kind: 'danger', cls: 'de-dlg-confirm', run: function () { self.setState({ dlg: null, recoveryEntry: null }); self.say('보관 내용을 버렸어요', '서버 문서에는 영향이 없어요.'); self.focusSel('.de-recovery'); } }, cancel()] };
+      if (dlg.kind === 'leave') d = { title: '작성 중인 내용이 있어요', role: 'alertdialog', lines: [s.mode === 'new' ? '아직 서버에 저장된 기안이 없어요.' : '서버의 임시저장 문서는 그대로예요.', '저장하지 않고 나가면 이 화면의 기기 보관본이 지워져요.'],
+          actions: [{ label: '보관하고 나가기', kind: 'primary', cls: 'de-leave-keep', run: function () { self.setState({ dlg: null, returned: { title: '보관하고 나갔어요', text: '이 기기의 같은 계정에서 작성 복구로 이어서 쓸 수 있어요. 첨부파일은 다시 선택해야 해요.' } }); self.focusSel('.de-returned-title'); } },
+            { label: '저장하지 않고 나가기', kind: 'dangerOutline', cls: 'de-leave-discard', run: function () { self.setState({ dlg: null, returned: { title: '저장하지 않고 나갔어요', text: '이 화면의 기기 보관본을 지웠어요. ' + (s.mode === 'new' ? '서버에 저장된 기안은 없어요.' : '서버의 임시저장 문서는 삭제하지 않았어요.') } }); self.focusSel('.de-returned-title'); } }, cancel()] };
+    }
+    var styles = { primary: ['var(--actionFill)', '#FFFFFF', 'transparent'], danger: ['var(--dangerFill)', '#FFFFFF', 'transparent'], secondary: ['var(--surface)', 'var(--text)', 'var(--controlBorder)'], dangerOutline: ['var(--surface)', 'var(--danger)', 'var(--danger)'] };
+    var showKbOut = out.showKb;
+    Object.assign(out, { dlgOpen: !!d, dlgTitle: d ? d.title : '', dlgRole: d ? d.role : 'dialog', dlgBusyAttr: d && d.busy ? 'true' : 'false',
+      dlgMaxH: H - safeTop - 16,
+      dlgHasQuote: !!(d && d.quote), dlgQuote: d ? d.quote || '' : '', dlgLines: d && d.lines ? d.lines : [],
+      dlgHasSummary: !!(d && d.summary), dlgSummary: d && d.summary ? d.summary : [],
+      dlgHasItems: !!(d && d.items), dlgItems: d && d.items ? d.items.map(function (it, i) { var on = !!it.checked; return { label: it.label, sub: it.sub || '', hasSub: !!it.sub, subColor: 'var(--secondary)', checked: on ? 'true' : 'false', sep: i ? '1px solid var(--border)' : '0', bg: on ? 'var(--accentSoft)' : 'var(--surface)', ring: on ? 'var(--accent)' : 'var(--controlBorder)', dot: on ? 'var(--accent)' : 'transparent', pick: function () { if (!(d && d.busy)) it.pick(); } }; }) : [],
+      dlgHasNote: !!(d && d.note), dlgNote: d ? d.note || '' : '',
+      dlgHasError: !!(d && d.error), dlgErrTitle: d && d.error ? d.error[0] : '', dlgErrText: d && d.error ? d.error[1] : '',
+      dlgActions: d ? d.actions.map(function (a) { var st = styles[a.kind]; return { label: a.label, cls: a.cls, run: a.run, busy: !!a.busy, disabled: !!(d.busy), bg: st[0], fg: st[1], bd: st[2] }; }) : [],
+      scrimClick: function () { if (d && !d.busy) { var c = d.actions.filter(function (a) { return a.cancel; })[0]; if (c) c.run(); } },
+      dlgKey: function (ev) {
+        if (ev.key === 'Escape') { ev.stopPropagation(); if (d && !d.busy) { var c = d.actions.filter(function (a) { return a.cancel; })[0]; if (c) c.run(); } return; }
+        if (ev.key === 'Tab') { var box = ev.currentTarget; var fs = [].slice.call(box.querySelectorAll('button:not([disabled])')); if (!fs.length) return; var first = fs[0], last = fs[fs.length - 1];
+          if (ev.shiftKey && (document.activeElement === first || document.activeElement === box.querySelector('#de-dlg-title'))) { ev.preventDefault(); last.focus(); }
+          else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); } }
+      } });
+    out.showKb = showKbOut;
+    return out;
+  }
+}
+</script>
+</body>
+</html>
