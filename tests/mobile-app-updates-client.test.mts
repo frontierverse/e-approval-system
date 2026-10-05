@@ -416,10 +416,10 @@ test('app updates loading footer preserves progress without a route action befor
 });
 
 function stubAppShell(h: ReturnType<typeof createAppUpdatesHarness>) {
-  const session = { user: { id: 'synthetic-actor', name: '합성 직원', positionName: '직원' }, loading: false, signOut: async () => {} };
+  const session = { token: 'synthetic-token', user: { id: 'synthetic-actor', name: '합성 직원', positionName: '직원', role: 'USER', canApproveDocuments: false }, loading: false, signOut: async () => {} };
   const notifications = {
     notificationOpenError: null, retryNotificationOpen: async () => {}, dismissNotificationOpenError: () => {},
-    pushStatus: { enabled: true }, pushLoading: false, pushPending: false, pushError: null, pushMessage: null, pushNeedsSettings: false,
+    pushStatus: { enabled: true }, pushLoading: false, pushPending: false, pushError: null, pushMessage: null, pushNeedsSettings: false, pushFailedMode: null,
     enablePush: async () => {}, disablePush: async () => {}, retryPushRegistration: async () => {}, refreshPushStatus: async () => {}, openPushSettings: async () => {},
   };
   Object.assign(h.mocks, {
@@ -433,7 +433,10 @@ function stubAppShell(h: ReturnType<typeof createAppUpdatesHarness>) {
     '@/providers/DraftRecoveryProvider': { DraftRecoveryProvider: 'DraftRecoveryProvider' },
     '@/components/daily-report-back-button': { DailyReportBackButton: 'DailyReportBackButton' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
+    '@expo/vector-icons': { Feather: 'Feather' },
   });
+  Object.assign(h.mocks['react-native'], { Modal: 'Modal', useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }) });
+  Object.assign(h.mocks['react-native-safe-area-context'], { SafeAreaView: 'SafeAreaView' });
   Object.assign(h.mocks['expo-router'], { Stack: Object.assign(function Stack() {}, { Screen: 'Stack.Screen', Protected: 'Stack.Protected' }) });
   return { session, notifications };
 }
@@ -442,13 +445,19 @@ test('app updates actual profile entry opens the common status route without tri
   const s = setup();
   try {
     stubAppShell(s.h); await s.refresh();
-    const profile = s.h.mount(s.h.load('app/(tabs)/profile.tsx').default, {});
-    const entry = nodes(profile.tree).find(row => row.type === 'TextAction' && row.props.label === '앱 업데이트')!;
-    assert.ok(entry); entry.props.onPress();
+    // Render each real screen boundary with its own hook scope, then invoke the
+    // actual accessible menu row. Do not replace the Profile hub with a mock.
+    let profile = s.h.mount(s.h.load('app/(tabs)/profile.tsx').default, {});
+    while (typeof profile.tree?.type === 'function') profile = s.h.mount(profile.tree.type, profile.tree.props);
+    const entry = nodes(profile.tree).find(row => row.props?.label === '앱 업데이트')!;
+    assert.ok(entry);
+    const row = s.h.mount(entry.type, entry.props);
+    const button = nodes(row.tree).find(node => node.type === 'Pressable' && node.props.accessibilityLabel === '앱 업데이트')!;
+    assert.ok(button); button.props.onPress();
     assert.deepEqual(s.h.state.routes, ['/app-updates']);
     assert.equal(s.h.state.checkCalls.length, 0); assert.equal(s.h.state.downloadCalls.length, 0);
-    assert.ok(nodes(profile.tree).some(row => row.type === 'TextAction' && row.props.label === '계정·도장 설정'));
-    assert.ok(nodes(profile.tree).some(row => row.type === 'TextAction' && row.props.label === '이 기기 알림 끄기'));
+    assert.ok(nodes(profile.tree).some(row => row.props?.label === '계정·도장 설정'));
+    assert.ok(nodes(profile.tree).some(row => row.props?.label === '이 기기 알림 끄기'));
   } finally { s.dispose(); }
 });
 
