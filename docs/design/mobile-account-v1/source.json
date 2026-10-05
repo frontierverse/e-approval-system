@@ -1,0 +1,12 @@
+{
+  "sourceTask": "바자울 전자결재 앱 디자인",
+  "page": "계정·도장 설정 v1",
+  "version": 19,
+  "taskURL": "https://claude.ai/cowork/cse_019QmmgaB7zLPe4E3LvQLRnB",
+  "sourceZIP": "bajaul-account-v1-source.zip",
+  "zipSHA256": "153cb9d7879d3bda6259e07ef146eb68c53fcefca9ee1f15d0281e294bd0a293",
+  "referenceSHA256": "a4a57a41b9a2eeca1a9b1ff1b6ec212b78ebf89734fbf433efcc189857a2753d",
+  "editableSourceSHA256": "802a968e92ba31e6c926fedea9b5ce97cb211fe37f7f41faf1e8ff95337f01dc",
+  "implementation": "mobile/src/app/account.tsx",
+  "nativeOSVerified": false
+}

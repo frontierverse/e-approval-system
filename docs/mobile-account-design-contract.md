@@ -77,3 +77,7 @@ Native는 **Expo DocumentPicker**로 파일 하나를 선택한다. 카메라/�
 HomeTheme·Feather·44px 행동·줄바꿈·포커스·4.5:1 대비를 적용한다. 소스 근거: `mobile/src/app/account.tsx`, `mobile/src/app/_layout.tsx`, `mobile/src/components/account-image-editor.tsx`, `account-password-form.tsx`, `account-feedback.tsx`, `mobile/src/lib/account-image-core.ts`, `.native.ts`, `.web.ts`, `types.ts`, `session.tsx`, `src/lib/mobile-account.ts`, `password-change-policy.ts`, `profile-image-policy.ts`, `signature-image-policy.ts`.
 
 원본 기능 캡처는390×844 Expo 웹·이예시/예시 부서/시설장·이메일null·이미지 미등록·변경 가능 합성 계정이다. API 주소를127.0.0.1:8908로 강제하며 모의 GET 조회 외 모든 `/account/` 변경은405로 차단했다. 실제 OS 파일 선택/키보드·native fontScale/스크린리더·운영 계정 검증은 하지 않았다.
+
+## 2026-10-06 실제 앱 반영
+
+Claude Version 19 완료 시안은 `mobile/src/app/account.tsx`와 계정 전용 컴포넌트에 반영했다. 기능 계약·합성 검수 및 원본 출처는 `docs/design/mobile-account-v1/design-qa.md`와 `source.json`에 기록했다. 운영 배포는 별도 릴리스 기록으로 확인한다.

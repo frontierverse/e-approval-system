@@ -74,3 +74,7 @@ HomeTheme와 Feather 선형 아이콘을 이어간다. 화이트/다크 그룹 �
 - 선택과 저장 구분, 취소/실패의 기존 이미지 및 입력 보존, 서버 확인 후 상태 확정, 삭제 확인, 작업 중 잠금·재시도·계정 이탈 후 늦은 응답 무시를 확인한다.
 - 비밀번호 성공 모의 재로그인·변경 불가·첫 오류 포커스와 입력 보존을 확인한다.
 - 검수한 크기·테마·상태·증거 경로를 기록한다. DOM/모의 상태 검토와 실제 OS 파일 선택·native 키보드/fontScale·VoiceOver/TalkBack·운영 API 검증을 구분하고 미확인은 그대로 적는다.
+
+## 2026-10-06 실제 앱 반영
+
+Claude Version 19 완료 시안은 `mobile/src/app/account.tsx`와 계정 전용 컴포넌트에 반영했다. 기능 계약·합성 검수 및 원본 출처는 `docs/design/mobile-account-v1/design-qa.md`와 `source.json`에 기록했다. 운영 배포는 별도 릴리스 기록으로 확인한다.
