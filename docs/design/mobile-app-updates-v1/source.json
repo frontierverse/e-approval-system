@@ -1,0 +1,26 @@
+{
+  "task": "바자울 전자결재 앱 디자인",
+  "artifactUrl": "https://claude.ai/cowork/cse_019QmmgaB7zLPe4E3LvQLRnB?artifact=82497355-1c7d-45ce-933b-9e3b90d2ed7a",
+  "version": 20,
+  "page": "app-updates-v1",
+  "originalLogicalPagesPreserved": 8,
+  "sourceHtml": "project/AppUpdates.dc.html",
+  "sourceZipSha256": "ed58fc2ea5bb7724bfcfc68f443bd39d1db49f353419a87cf4670d05beb42309",
+  "referenceOriginalSha256": "f198ef4dbcebd411ca13608a23831db25097c5dff33d5fb82f7d770dbf1d7d39",
+  "referenceOriginalSize": [
+    780,
+    1688
+  ],
+  "referenceNormalizedSize": [
+    390,
+    844
+  ],
+  "output": "/Users/seungsikshin/projects/e-approval-system/output/design/claude-mobile-app-updates-2026-10-06",
+  "platformFontsPreserved": true,
+  "businessApiBlocked": true,
+  "physicalDeviceVerified": false,
+  "nativeUiStates": "View-only useAppUpdates fixture; production provider tested separately",
+  "screenshotEncoding": "IAB JPEG converted to PNG; RGB token verification uses computed CSS because screenshot transport changes pixel color",
+  "minimumMeasuredTextContrast": 5.47,
+  "viewportStateCount": 27
+}

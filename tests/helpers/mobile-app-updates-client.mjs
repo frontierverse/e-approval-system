@@ -18,7 +18,8 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
   const state = {
     platform: os, development, appState: 'active', clock: Date.parse('2026-10-04T12:00:00.000Z'),
     contexts: new Map(), listeners: new Map(), timers: new Map(), nextTimer: 0,
-    checkCalls: [], downloadCalls: [], reloadCalls: [], storageCalls: [], disk, routes: [], pathname: '/profile',
+    checkCalls: [], downloadCalls: [], reloadCalls: [], storageCalls: [], disk, routes: [], navigation: [], pathname: '/profile',
+    sessionToken: 'synthetic-token', canGoBack: false, dimensions: { width: 390, height: 844, fontScale: 1, scale: 1 },
     native: {
       currentlyRunning: { updateId: '11111111-1111-4111-8111-111111111111', channel: 'production', runtimeVersion: 'native-runtime', createdAt: new Date('2026-10-01T00:00:00.000Z'), isEmbeddedLaunch: false, isEmergencyLaunch: false, emergencyLaunchReason: null },
       isStartupProcedureRunning: false, isUpdateAvailable: false, isUpdatePending: false,
@@ -66,15 +67,16 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
   const jsx = (type, props, key) => ({ type, props: props ?? {}, key });
   const mocks = {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: value => value }, AppState: { get currentState() { return state.appState; }, addEventListener: listen } },
+    'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: value => value }, useColorScheme: () => 'light', useWindowDimensions: () => state.dimensions, AccessibilityInfo: { sendAccessibilityEvent: () => {} }, AppState: { get currentState() { return state.appState; }, addEventListener: listen } },
     'expo-updates': updates, 'expo-secure-store': secureStore,
     'expo-constants': { __esModule: true, default: { expoConfig: { version: '1.0.5' } } },
-    'expo-router': { usePathname: () => state.pathname, router: { push: value => state.routes.push(value) }, useFocusEffect: fn => react.useEffect(fn, [fn]) },
-    'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 16 }) },
+    'expo-router': { Stack: { Screen: 'Stack.Screen' }, usePathname: () => state.pathname, router: { push: value => state.routes.push(value), canGoBack: () => state.canGoBack, back: () => state.navigation.push({ kind: 'back' }), replace: path => state.navigation.push({ kind: 'replace', path }) }, useFocusEffect: fn => react.useEffect(fn, [fn]) },
+    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, bottom: 16 }) },
+    '@expo/vector-icons': { Feather: 'Feather' },
+    '@/lib/session': { useSession: () => ({ token: state.sessionToken }) },
     'expo-application': { nativeApplicationVersion: '1.0.5', nativeBuildVersion: '8' },
     '@/lib/theme': { useTheme: () => ({}) },
     '@/components/ui': { PrimaryButton: 'PrimaryButton', TextAction: 'TextAction', ScreenHeading: 'ScreenHeading' },
-    '@/components/account-feedback': { AccountFeedback: 'AccountFeedback' },
   };
   const root = new URL('../../mobile/src/', import.meta.url), modules = new Map();
   function resolve(file) {
@@ -107,6 +109,14 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
   }
   const scopes = [];
   const mount = (fn, props = {}) => { const instance = new Hooks(fn, props); scopes.push(instance); instance.update(); return instance; };
+  // Expand real presentation components with independent hook scopes so screen
+  // assertions inspect actual native controls, rather than mock button labels.
+  const renderTree = value => {
+    if (Array.isArray(value)) return value.map(renderTree);
+    if (!value || typeof value !== 'object') return value;
+    if (typeof value.type === 'function') return renderTree(mount(value.type, value.props).tree);
+    return { ...value, props: { ...value.props, children: renderTree(value.props?.children) } };
+  };
   const event = (name, value) => { if (name === 'change') state.appState = value; for (const fn of [...state.listeners.get(name) ?? []]) fn(value); };
-  return { state, mocks, updates, secureStore, load, mount, event, async flush(instance) { await tick(); instance.update(); await tick(); instance.update(); await tick(); }, async fireTimers() { for (const [id, value] of [...state.timers]) { state.timers.delete(id); await value.fn(); } }, dispose() { for (const instance of scopes) instance.unmount(); state.listeners.clear(); state.timers.clear(); } };
+  return { state, mocks, updates, secureStore, load, mount, renderTree, event, async flush(instance) { await tick(); instance.update(); await tick(); instance.update(); await tick(); }, async fireTimers() { for (const [id, value] of [...state.timers]) { state.timers.delete(id); await value.fn(); } }, dispose() { for (const instance of scopes) instance.unmount(); state.listeners.clear(); state.timers.clear(); } };
 }

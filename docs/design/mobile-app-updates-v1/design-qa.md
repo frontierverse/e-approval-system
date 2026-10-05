@@ -2,13 +2,13 @@
 
 final result: passed
 
-이전 검수: [내 정보 v1](docs/design/mobile-profile-v1/design-qa.md). 원본 출처·해시·뷰포트 정보는 [source.json](docs/design/mobile-app-updates-v1/source.json)에 있다.
+이전 검수: [내 정보 v1](../mobile-profile-v1/design-qa.md). 원본 출처·해시·뷰포트 정보는 [source.json](source.json)에 있다.
 
 ## 원본과 구현
 
 Claude “바자울 전자결재 앱 디자인” Version20의 app-updates-v1과 다운로드한 `bajaul-app-updates-v1-source.zip`의 `project/AppUpdates.dc.html`을 기준으로 실제 Expo Router `/app-updates`를 구현했다. 기존8개 논리 페이지를 보존한 디자인이다. Claude 편집용 HTML·support.js·모의 provider·실험실은 앱에 이식하지 않았다.
 
-[전체 비교](docs/design/mobile-app-updates-v1/comparison-light.png)는 왼쪽 Claude/오른쪽 구현 각각390×844이며 [내용 확대 비교](docs/design/mobile-app-updates-v1/comparison-light-content.png)는 같은 y47~712 영역이다. 원본780×1688은390×844로 정규화했다. 동일한 idle·라이트·앱1.0.5·demo10a1·게시10월5일9시·관찰9시30분·확인10월6일2시30분·다운로드10월5일9시5분이다. Safe Area47/34px을 외부 QA 프레임에서 제공하고 OS 장식을 새로 그리지 않았다. 익명 QA의 뒤로 접근 이름은 로그인, 원본은 내 정보이며 시각 구조는 같다.
+[전체 비교](comparison-light.png)는 왼쪽 Claude/오른쪽 구현 각각390×844이며 [내용 확대 비교](comparison-light-content.png)는 같은 y47~712 영역이다. 원본780×1688은390×844로 정규화했다. 동일한 idle·라이트·앱1.0.5·demo10a1·게시10월5일9시·관찰9시30분·확인10월6일2시30분·다운로드10월5일9시5분이다. Safe Area47/34px을 외부 QA 프레임에서 제공하고 OS 장식을 새로 그리지 않았다. 익명 QA의 뒤로 접근 이름은 로그인, 원본은 내 정보이며 시각 구조는 같다.
 
 검수 주소는 `http://127.0.0.1:8911/device`, 실제 앱 번들은8912에서 제공했다. 로컬 API 주소만 허용하고 모든 업무 API는405로 차단했다. 네이티브 상태는 실제 화면에 주입한 **view-only useAppUpdates fixture**이며 실제 provider 기능은 별도 단위 테스트로 확인했다. 실제 web disabled는 fixture를 제거한 실제 provider 상태다. 운영 직원·문서·기기 기록을 조회하거나 수정하지 않았다.
 
@@ -28,11 +28,11 @@ IAB 캡처는 JPEG를 PNG로 정규화했다. 캡처 전송의 RGB 차이를 확
 - **360×800 다크:** 현재 상태·주 행동·실행 코드·기록이 읽히며 너비=scrollWidth=360이다. 긴10시 게시 시각은 다음 줄로 흐른다. ready rollback은 다음 실행 안내와 기존 current를 보존한다.
 - **두 배 확대:** CSS180×380을2배 렌더한360×800으로 확인했다. 너비=scrollWidth=180, 제목·행동·긴 한글·날짜·완료 안내가 세로 흐름과 스크롤로 접근 가능하다. 실제 native fontScale2 실기기 검증은 아니며 fontScale2의100% 라벨 배치는 단위 테스트로 확인했다.
 - **1366×768:** 최대720px 내용 폭과 우선순위를 유지하며 가로 넘침이 없다. 웹 업무 관리자 화면은 이번 변경 대상이 아니다.
-- **상태:** checking,0/37/100%/null 다운로드, available, 확인 실패, 대상 보존 다운로드 실패, ready, rollback, empty/embedded/unknown, emergency, storage를 확인했다. 숫자0과 미확인,100%와 적용 대기를 구분한다. 날짜 없는 기록은 가짜 시각을 만들지 않는다. [metrics.json](docs/design/mobile-app-updates-v1/metrics.json)에27개 뷰포트/상태 기록이 있다.
+- **상태:** checking,0/37/100%/null 다운로드, available, 확인 실패, 대상 보존 다운로드 실패, ready, rollback, empty/embedded/unknown, emergency, storage를 확인했다. 숫자0과 미확인,100%와 적용 대기를 구분한다. 날짜 없는 기록은 가짜 시각을 만들지 않는다. [metrics.json](metrics.json)에27개 뷰포트/상태 기록이 있다.
 - **탐색·키보드:** 이름 있는44px 뒤로와48px 주 행동,44px 재확인. Tab은 뒤로→주 행동 순서로 이동하며 포커스가 보인다. 오류 안내와 ready 제목 포커스를 확인했다. 실제 뒤로 이력 및 익명/로그인 fallback은 실제 페이지 단위 테스트에서 확인했다.
 - **합성 재시도:** 다운로드 재시도 클릭 후 unknown→37%→100%→ready 화면으로 이동했다. 합성 이벤트는 download1회, current는demo10a1 유지, ready에는 뒤로만 남는다. 실제 네이티브 API 실행 검증과 구분한다.
 - **실제 웹:** ‘설치한 앱에서 확인할 수 있습니다’와 비활성 이유·확인 불가·기록 없음이며 업데이트 행동이 없다. 기본 화면 콘솔 error0개다.
-- **대비:** 두 테마의 실제 다운로드/기록 텍스트는 최소5.47:1이다([contrast.json](docs/design/mobile-app-updates-v1/contrast.json)). 주 버튼 흰색/#2563EB는5.17:1, 다크 진행 막대#8DB7FF/#262E39는6.75:1이다. 색상과 함께 제목·수치·설명을 제공한다.
+- **대비:** 두 테마의 실제 다운로드/기록 텍스트는 최소5.47:1이다([contrast.json](contrast.json)). 주 버튼 흰색/#2563EB는5.17:1, 다크 진행 막대#8DB7FF/#262E39는6.75:1이다. 색상과 함께 제목·수치·설명을 제공한다.
 
 ## 자동 검증과 한계
 

@@ -300,12 +300,12 @@ test('app updates ready page explains a manual cold restart and has no reload/do
   const s = setup();
   try {
     await s.refresh(); ready(s.h); await s.refresh();
-    const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {}), text = textOf(page.tree);
+    const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {}), tree = s.h.renderTree(page.tree), text = textOf(tree);
     assert.match(text, /작성 중인 내용을 저장한 뒤 앱을 완전히 종료/);
     assert.match(text, /다음 실행에서 적용/);
     assert.match(text, /현재 적용된 업데이트/); assert.match(text, /게시 시각/); assert.match(text, /이 기기에서 적용 확인/);
     assert.match(text, /실제 설치 시각과 다를 수/);
-    assert.equal(nodes(page.tree).filter(row => ['PrimaryButton', 'TextAction'].includes(row.type)).length, 0);
+    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).length, 0);
     assert.match(text, /앱 버전 1\.0\.5/);
   } finally { s.dispose(); }
 });
@@ -314,17 +314,17 @@ test('app updates actual page manual retry routes to check or download while bus
   const s = setup(), held = deferred();
   try {
     await s.refresh(); const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
-    const button = () => nodes(page.tree).find(row => row.type === 'PrimaryButton')!;
-    assert.equal(button().props.title, '업데이트 확인');
+    const button = () => nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로'))!;
+    assert.equal(button().props.accessibilityLabel, '업데이트 확인');
     s.h.state.onCheck = () => held.promise; button().props.onPress(); await tick(); await s.refresh(); page.update();
-    assert.equal(button().props.disabled, true); assert.match(button().props.title, /확인 중/);
+    assert.equal(button().props.disabled, true); assert.match(button().props.accessibilityLabel, /확인 중/);
     held.reject(Error('synthetic failure')); await tick(); await s.refresh(); page.update();
-    assert.equal(button().props.disabled, false); assert.equal(button().props.title, '업데이트 다시 확인');
-    available(s.h); await s.refresh(); page.update(); assert.equal(button().props.title, '다운로드 다시 시도');
+    assert.equal(button().props.disabled, false); assert.equal(button().props.accessibilityLabel, '업데이트 다시 확인');
+    available(s.h); await s.refresh(); page.update(); assert.equal(button().props.accessibilityLabel, '다운로드 다시 시도');
     s.h.state.onDownload = async () => { ready(s.h); return { isNew: true, manifest: updateB.manifest }; };
     button().props.onPress(); await tick(); await s.refresh(); page.update();
     assert.equal(s.h.state.checkCalls.length, 1); assert.equal(s.h.state.downloadCalls.length, 1); assert.equal(s.value().phase, 'ready');
-    assert.equal(nodes(page.tree).filter(row => row.type === 'PrimaryButton').length, 0);
+    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).length, 0);
   } finally { held.resolve({ isAvailable: false }); s.dispose(); }
 });
 
@@ -334,7 +334,7 @@ test('app updates disabled footer is hidden and disabled page offers no native c
     await s.refresh(); assert.equal(s.h.mount(s.h.load('components/app-update-status.tsx').AppUpdateStatus, {}).tree, null);
     const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
     assert.match(textOf(page.tree), /웹·개발 화면에서는 앱 업데이트를 확인하거나 다운로드하지 않습니다/);
-    assert.equal(nodes(page.tree).filter(row => ['PrimaryButton', 'TextAction'].includes(row.type)).length, 0);
+    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).length, 0);
   } finally { s.dispose(); }
 });
 
@@ -361,7 +361,7 @@ test('app updates ignore stale native update objects after their availability an
     assert.equal(s.value().phase, 'idle'); assert.equal(s.value().lastDownloadedAt, null);
     await s.value().download(); assert.equal(s.h.state.downloadCalls.length, 0);
     const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
-    assert.equal(nodes(page.tree).find(row => row.type === 'PrimaryButton')!.props.title, '업데이트 확인');
+    assert.equal(nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props.accessibilityLabel === '업데이트 확인')!.props.accessibilityLabel, '업데이트 확인');
     assert.doesNotMatch(textOf(page.tree), /다음 실행에서 적용/);
   } finally { s.dispose(); }
 });
@@ -482,5 +482,67 @@ test('app updates actual root registers a common route and keeps loading navigat
     assert.equal(loadingStatus.props.canNavigate, false);
     assert.equal(nodes(navigation.tree).filter(row => row.type === 'Stack.Screen').length, 0);
     assert.deepEqual(s.h.state.routes, []);
+  } finally { s.dispose(); }
+});
+
+test('app updates common page back uses history or the correct signed-in fallback without checking on entry', async () => {
+  const s = setup();
+  try {
+    await s.refresh(); const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
+    const back = () => nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props.accessibilityLabel.startsWith('뒤로'))!;
+    assert.equal(back().props.accessibilityLabel, '뒤로, 내 정보'); back().props.onPress();
+    s.h.state.sessionToken = null; page.update(); assert.equal(back().props.accessibilityLabel, '뒤로, 로그인'); back().props.onPress();
+    s.h.state.canGoBack = true; page.update(); assert.equal(back().props.accessibilityLabel, '뒤로'); back().props.onPress();
+    assert.deepEqual(s.h.state.navigation, [{ kind: 'replace', path: '/profile' }, { kind: 'replace', path: '/login' }, { kind: 'back' }]);
+    assert.equal(s.h.state.checkCalls.length, 0); assert.equal(s.h.state.downloadCalls.length, 0);
+    assert.equal(nodes(page.tree).find(row => row.type === 'Stack.Screen')!.props.options.headerShown, false);
+  } finally { s.dispose(); }
+});
+
+test('app updates redesigned page retains the failed download target and keeps current code separate from ready', async () => {
+  const s = setup(), held = deferred();
+  try {
+    await s.refresh(); available(s.h); await s.refresh();
+    const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
+    const action = (label: string) => nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props.accessibilityLabel === label)!;
+    s.h.state.onDownload = () => held.promise;
+    const captured = action('업데이트 다운로드'); captured.props.onPress(); captured.props.onPress();
+    await tick(); await s.refresh(); page.update(); assert.equal(action('다운로드 중…').props.disabled, true);
+    assert.equal(s.h.state.downloadCalls.length, 1);
+    held.reject(Error('synthetic download failure')); await tick(); await s.refresh(); page.update();
+    const errorTree = s.h.renderTree(page.tree), text = textOf(errorTree);
+    assert.equal((text.match(/새 업데이트 게시 시각/g) ?? []).length, 1);
+    assert.match(text, /다운로드할 업데이트는 그대로/); assert.match(text, /11111111/);
+    assert.ok(nodes(errorTree).some(row => row.props?.accessibilityRole === 'alert'));
+    assert.ok(action('다운로드 다시 시도')); assert.ok(action('새 업데이트 다시 확인'));
+    assert.doesNotMatch(text, /native-runtime|production|11111111-1111|22222222-2222/);
+    s.h.state.onDownload = async () => ({ isNew: true, manifest: updateB.manifest });
+    action('다운로드 다시 시도').props.onPress(); await tick(); await s.refresh(); page.update();
+    assert.equal(s.h.state.checkCalls.length, 0); assert.equal(s.h.state.downloadCalls.length, 2);
+    const readyText = textOf(s.h.renderTree(page.tree)); assert.match(readyText, /11111111/); assert.match(readyText, /지금 실행 중인 코드/);
+    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable').length, 1);
+    assert.equal(s.h.state.reloadCalls.length, 0);
+  } finally { held.resolve({ isNew: false }); s.dispose(); }
+});
+
+test('app updates redesigned progress distinguishes unknown and finishing and larger text stacks record labels', async () => {
+  const s = setup();
+  try {
+    await s.refresh(); const ui = s.h.load('components/app-updates-ui.tsx');
+    const unknown = s.h.mount(ui.AppUpdatesProgress, { progress: null });
+    assert.ok(nodes(unknown.tree).some(row => row.type === 'ActivityIndicator'));
+    assert.equal(nodes(unknown.tree).filter(row => row.props?.accessibilityRole === 'progressbar').length, 0);
+    for (const [progress, expected] of [[0, 0], [.37, 37], [1, 100]]) {
+      const shown = s.h.mount(ui.AppUpdatesProgress, { progress });
+      assert.deepEqual(shown.tree.props.accessibilityValue, { min: 0, max: 100, now: expected, text: `${expected}%` });
+    }
+    s.h.state.native = { ...s.h.state.native, isDownloading: true, downloadProgress: 1 };
+    await s.refresh(); const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
+    assert.match(textOf(s.h.renderTree(page.tree)), /다운로드 100% · 마무리 중/);
+    assert.doesNotMatch(textOf(s.h.renderTree(page.tree)), /다운로드 완료 · 적용 대기/);
+    s.h.state.dimensions = { width: 360, height: 800, fontScale: 2, scale: 1 }; page.update();
+    const rows = nodes(page.tree).filter(row => row.type === ui.AppUpdatesRow);
+    assert.ok(rows.length >= 5); assert.ok(rows.every(row => row.props.labelWidth === '100%'));
+    assert.equal(s.h.state.reloadCalls.length, 0);
   } finally { s.dispose(); }
 });

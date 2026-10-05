@@ -1,0 +1,386 @@
+[
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "17px",
+    "text": "앱 업데이트",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(247, 248, 250)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "현재 상태",
+    "contrast": 5.47,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(247, 248, 250)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "12px",
+    "text": "앱 버전 1.0.5",
+    "contrast": 5.47,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "17px",
+    "text": "업데이트 다운로드 37%",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "다운로드하는 동안에도 다른 업무는 계속할 수 있어요.",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "13px",
+    "text": "37%",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "새 업데이트 게시 시각",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "2026. 10. 6. 오전 10:00:00",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(240, 242, 245)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "15px",
+    "text": "다운로드 중…",
+    "contrast": 14.77,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(247, 248, 250)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "현재 적용된 업데이트",
+    "contrast": 5.47,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(247, 248, 250)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "12px",
+    "text": "지금 실행 중인 코드",
+    "contrast": 5.47,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "코드 버전",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "demo10a1",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "게시 시각",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:00:00",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "이 기기에서 적용 확인",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:30:00",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "12px",
+    "text": "적용 확인은 이 기기에서 이 코드의 실행을 처음 확인한 시각입니다. 실제 설치 시각과 다를 수 있습니다.",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(247, 248, 250)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "확인·다운로드 기록",
+    "contrast": 5.47,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "최근 확인 시도",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "2026. 10. 6. 오전 2:30:00",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "13px",
+    "text": "최근 다운로드 확인",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(25, 31, 40)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:05:00",
+    "contrast": 16.56,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(255, 255, 255)",
+    "foreground": "rgb(92, 102, 117)",
+    "size": "12px",
+    "text": "확인 시도에는 실패한 시도도 포함됩니다. 다운로드 확인은 다운로드 준비를 확인한 시각입니다.",
+    "contrast": 5.81,
+    "theme": "light"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "17px",
+    "text": "앱 업데이트",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(17, 21, 27)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "현재 상태",
+    "contrast": 9.16,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(17, 21, 27)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "12px",
+    "text": "앱 버전 1.0.5",
+    "contrast": 9.16,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "17px",
+    "text": "업데이트 다운로드 37%",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "다운로드하는 동안에도 다른 업무는 계속할 수 있어요.",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "13px",
+    "text": "37%",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "새 업데이트 게시 시각",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "2026. 10. 6. 오전 10:00:00",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(38, 46, 57)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "15px",
+    "text": "다운로드 중…",
+    "contrast": 12.67,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(17, 21, 27)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "현재 적용된 업데이트",
+    "contrast": 9.16,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(17, 21, 27)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "12px",
+    "text": "지금 실행 중인 코드",
+    "contrast": 9.16,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "코드 버전",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "demo10a1",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "게시 시각",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:00:00",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "이 기기에서 적용 확인",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:30:00",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "12px",
+    "text": "적용 확인은 이 기기에서 이 코드의 실행을 처음 확인한 시각입니다. 실제 설치 시각과 다를 수 있습니다.",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(17, 21, 27)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "확인·다운로드 기록",
+    "contrast": 9.16,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "최근 확인 시도",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "2026. 10. 6. 오전 2:30:00",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "13px",
+    "text": "최근 다운로드 확인",
+    "contrast": 8.0,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(244, 246, 250)",
+    "size": "14px",
+    "text": "2026. 10. 5. 오전 9:05:00",
+    "contrast": 14.78,
+    "theme": "dark"
+  },
+  {
+    "background": "rgb(28, 34, 43)",
+    "foreground": "rgb(175, 184, 199)",
+    "size": "12px",
+    "text": "확인 시도에는 실패한 시도도 포함됩니다. 다운로드 확인은 다운로드 준비를 확인한 시각입니다.",
+    "contrast": 8.0,
+    "theme": "dark"
+  }
+]

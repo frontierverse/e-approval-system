@@ -17,6 +17,7 @@ const light = {
   dangerFill: "#A52C39",
   dangerSoft: "#FBECEF",
   success: "#176345",
+  successSoft: "#E8F5EE",
   tab: "#FFFFFF",
 };
 
@@ -36,6 +37,7 @@ const dark = {
   dangerFill: "#A52C39",
   dangerSoft: "#492831",
   success: "#8BE2B8",
+  successSoft: "#1D3A2E",
   tab: "#1C222B",
 };
 
