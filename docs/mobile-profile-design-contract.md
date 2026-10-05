@@ -1,10 +1,11 @@
 # 내 정보 v1 현재 기능 계약
 
-기준 **2026-10-05 / main 44f09062af518976e7cd9eedaa5333fa2aced4d0**. 이 문서는 실제 소스에서 확인한 허브 계약이다. 디자인 브리프의 추가 검수 기준과 현재 구현을 구분한다. 운영 주소·자격 증명·개인 정보는 포함하지 않는다.
+기준 **2026-10-05 / codex/claude-mobile-profile-design**, 운영 기준 main **44f09062af518976e7cd9eedaa5333fa2aced4d0**에서 내 정보 v1을 반영한 최신 소스 계약이다. 운영 적용 완료를 의미하지 않는다. 운영 주소·자격 증명·개인 정보는 포함하지 않는다.
 
 ## 근거 파일
 
-- `mobile/src/app/(tabs)/profile.tsx`: 계정 요약, 업무 메뉴, 설정 링크, 기기 알림, 로그아웃 확인.
+- `mobile/src/app/(tabs)/profile.tsx`, `mobile/src/components/profile-screen.tsx`: 허브 진입, 계정 요약, 업무 메뉴, 설정 링크, 기기 알림, 로그아웃 확인.
+- `mobile/src/lib/profile-state.ts`, `mobile/src/lib/use-profile-logout.ts`: 상태별 표시·재시도 의도, 확인 및 중복 실행 잠금.
 - `mobile/src/app/(tabs)/_layout.tsx`: 탭 순서·권한·선택·배지·Safe Area.
 - `mobile/src/lib/types.ts`: `MobileUser`와 `ChatSummary`.
 - `mobile/src/lib/home-theme.ts`: 적용된 페이지의 라이트·다크 토큰.
@@ -40,7 +41,7 @@ type MobileUser = {
 | `1..99` | 직원 채팅 · 안 읽음 n개 |
 | `>=100` | 직원 채팅 · 안 읽음 99+개 |
 
-이 수는 결재 알림 `unreadCount`와 별개다. 채팅 128을 접근 이름에 전달하는 것은 새 디자인 기준이며 현재 텍스트는 99+만 표시한다. 현재 계정이 아닌 응답을 보이지 않게 하며 401은 세션 만료 처리한다.
+이 수는 결재 알림 `unreadCount`와 별개다. 채팅128은 시각99+와 접근 이름128로 표시한다. 현재 계정이 아닌 응답을 보이지 않게 하며401은 세션 만료 처리한다. 허브 콘텐츠도 계정·세션 키로 초기화한다.
 
 탭은 `canApproveDocuments=true`일 때 홈/받은결재/문서함/알림/내 정보, false이면 홈/문서함/알림/내 정보다. 알림 배지는 null·0에서 숨김, 1..99 숫자, 100 이상 99+, 접근 이름은 실제 수다. 전역 탭바에는 별도 임시저장 탭이 없다.
 
@@ -53,6 +54,7 @@ pushPending: boolean;
 pushError: string | null;
 pushMessage: string | null;
 pushNeedsSettings: boolean;
+pushFailedMode: "auto" | "enable" | "disable" | null;
 enablePush(); disablePush(); retryPushRegistration();
 refreshPushStatus(); openPushSettings();
 ```
@@ -71,7 +73,7 @@ POST는 같은 푸시 토큰이 다른 세션에 연결되어 있으면 현재 �
 
 자동 조회는 OS 권한 팝업을 열지 않는다. 등록이 켜져 있으면 허용된 기존 권한으로 토큰을 재확인한다. 사용자가 켜기를 실행하고 권한이 미결정이며 다시 요청 가능할 때만 OS 권한을 요청한다. 거부 상태에서는 기기 설정 안내를 사용한다. iOS provisional/ephemeral도 허용으로 처리한다.
 
-명시적 켜기/끄기 실패는 `failedPushMode`에 해당 의도를 보존한다. **끄기 실패 뒤 재시도는 disable**이며 자동 ON 재등록으로 그 의도를 없애지 않는다. 실패를 false나 true 성공 상태로 만들지 않는다. `retryPushRegistration`은 보존된 실패 mode를 재시도한다.
+명시적 켜기/끄기 실패는 내부 `failedPushMode`에 해당 의도를 보존하고, 읽기 전용 `pushFailedMode`로 허브에 전달한다. **끄기 실패 뒤 재시도는 disable**이며 자동 ON 재등록으로 그 의도를 없애지 않는다. 허브도 ‘알림 끄기 다시 시도’로 표시한다. 실패를 false나 true 성공 상태로 만들지 않는다. `retryPushRegistration`은 보존된 실패 mode를 재시도한다.
 
 확인된 끄기 성공 문구는 ‘이 기기의 결재 알림을 껐습니다.’, 켜기 성공은 ‘이 기기에서 결재 알림을 받습니다.’다. 권한 오류는 ‘기기 설정에서 바자울 알림 권한을 허용한 뒤 다시 등록하세요.’, 기기 설정 열기 실패는 ‘기기 설정을 열지 못했습니다. 설정 앱에서 바자울 알림을 허용하세요.’다. 연결 실패는 재시도 안내를 제공한다.
 
@@ -91,7 +93,7 @@ POST는 같은 푸시 토큰이 다른 세션에 연결되어 있으면 현재 �
 
 ## 로그아웃·세션
 
-네이티브 허브는 ‘로그아웃 / 이 기기에서 로그아웃하시겠습니까? / 취소·로그아웃’ 확인을 제공한다. 현재 웹 허브는 즉시 signOut 한다. 허브 자체에는 별도 로그아웃 pending 잠금이 아직 없다. 새 디자인의 확인·처리 중 중복 실행 방지 기준과 혼동하지 않는다.
+웹과 네이티브 허브 모두 ‘로그아웃 / 이 기기에서 로그아웃하시겠습니까? / 취소·로그아웃’ 확인을 제공한다. 확인 전 실행하지 않고 취소는 로그인 상태를 유지한다. 확인 시 동기 잠금으로 signOut을 한 번만 실행하며 처리 중 두 행동을 비활성화한다. 계정 이탈 후 늦은 완료/오류로 이전 계정의 피드백을 표시하지 않는다. 웹의 포커스 진입·내부 순환·Escape/취소·실행 행 복귀를 검수했다.
 
 `signOut`은 auth generation을 변경하고 현재 세션의 로컬 정보·private provider 상태를 먼저 만료시킨 뒤 POST `/auth/logout`를 시도한다. 원격 통신 실패는 무시하며 로컬 로그아웃을 되돌리지 않는다. 토큰 저장 정리는 직렬 처리하여 이전 로그아웃이 새 로그인 토큰을 지우지 않게 한다. 저장 정리 오류의 일반 피드백은 있을 수 있지만 이전 계정의 private 화면을 복구하는 근거가 아니다.
 
@@ -117,4 +119,4 @@ POST는 같은 푸시 토큰이 다른 세션에 연결되어 있으면 현재 �
 | dangerSoft | #FBECEF | #492831 |
 | success | #176345 | #8BE2B8 |
 
-Feather 선형 아이콘과 기존 탭 선택 배경을 이어간다. 현재 내 정보의 legacy theme/Ionicons는 기능 참고다. 이 문서의 상태 검수는 모의 UI 기준이며 실제 OS 권한·푸시 도착·실기기 검증 완료를 뜻하지 않는다.
+내 정보는 HomeTheme·Feather 선형 아이콘을 사용하고 기존 탭 선택 배경을 이어간다. 이 문서의 UI 상태 검수는 합성 자료 기준이며 실제 OS 권한·푸시 도착·실기기 검증 완료를 뜻하지 않는다. 상세 증거는 [구현 검수](design/mobile-profile-v1/design-qa.md)를 따른다.
