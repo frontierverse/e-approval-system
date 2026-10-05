@@ -52,12 +52,23 @@ test("decision comments validate trimmed bounds while keeping the original input
 
 test("document actions require both employee capability and server grants in the matching lifecycle", () => {
   const document = {status:"submitted",canDecide:true,canRecall:true,canEdit:true,updatedAt:"2026-10-05T00:12:00Z",decisionBlockedReason:null};
-  assert.deepEqual(documentActions(document, true), {canDecide:true,canRecall:true,canEdit:false});
+  assert.deepEqual(documentActions(document, true), {canDecide:true,canRecall:true,canEdit:false,canDelete:false});
   assert.equal(documentActions(document, false).canDecide, false);
   assert.equal(documentActions({...document, canDecide:false}, true).canDecide, false);
   assert.equal(documentActions({...document, decisionBlockedReason:"미지원 첨부"}, true).canDecide, false);
   assert.equal(documentActions({...document, updatedAt:undefined}, true).canRecall, false);
-  for (const status of ["approved","rejected","discarded"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:false});
-  for (const status of ["draft","recalled"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:true});
-  assert.deepEqual(documentActions(null, true), {canDecide:false,canRecall:false,canEdit:false});
+  for (const status of ["approved","rejected","discarded"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:false,canDelete:false});
+  for (const status of ["draft","recalled"]) assert.deepEqual(documentActions({...document,status}, true), {canDecide:false,canRecall:false,canEdit:true,canDelete:false});
+  assert.deepEqual(documentActions(null, true), {canDecide:false,canRecall:false,canEdit:false,canDelete:false});
+});
+
+
+test("draft delete actions require an explicit server grant and a current version; recall never grants deletion", () => {
+  const document = {status:"draft",canDelete:true,canEdit:true,updatedAt:"2026-10-05T00:12:00.000Z"};
+  assert.equal(documentActions(document, false).canDelete, true);
+  assert.equal(documentActions({...document,canDelete:undefined}, true).canDelete, false);
+  assert.equal(documentActions({...document,updatedAt:null}, true).canDelete, false);
+  for (const status of ["recalled","submitted","in_progress","approved","rejected","discarded"]) {
+    assert.equal(documentActions({...document,status}, true).canDelete, false);
+  }
 });

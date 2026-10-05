@@ -23,13 +23,13 @@ export function PrimaryButton({ title, disabled, onPress, danger = false, ref }:
   </Pressable>;
 }
 
-export function TextAction({ label, onPress, icon, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap; ref?: React.Ref<View> }) {
+export function TextAction({ label, onPress, icon, danger, ...props }: PressableProps & { label: string; icon?: keyof typeof Ionicons.glyphMap; danger?: boolean; ref?: React.Ref<View> }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return <Pressable {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} accessibilityRole="button" accessibilityLabel={props.accessibilityLabel ?? label}
     style={({ pressed }) => [styles.action, { backgroundColor: pressed || focused ? theme.accentSoft : "transparent", borderWidth: 2, borderColor: focused ? theme.accent : "transparent", paddingHorizontal: 6, opacity: props.disabled ? 0.45 : 1 }]}>
-    {icon ? <Ionicons name={icon} size={18} color={theme.accent} /> : null}
-    <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "700" }}>{label}</Text>
+    {icon ? <Ionicons name={icon} size={18} color={danger ? theme.danger : theme.accent} /> : null}
+    <Text style={{ color: danger ? theme.danger : theme.accent, fontSize: 14, fontWeight: "700" }}>{label}</Text>
   </Pressable>;
 }
 

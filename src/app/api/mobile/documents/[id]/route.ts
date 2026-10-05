@@ -3,7 +3,7 @@ import { getAttachmentPreviewKind } from "@/lib/attachment-preview";
 import { getCurrentApprovalStep } from "@/lib/mock-data";
 import { getMobileSession, mobileJson } from "@/lib/mobile-auth";
 import { isApprovalAuthorityPosition } from "@/lib/approval-authority";
-import { canManageDraftDocumentAttachmentsByPolicy, canRecallDocumentByPolicy } from "@/lib/approval-permissions-core";
+import { canDeleteDraftDocumentByPolicy, canManageDraftDocumentAttachmentsByPolicy, canRecallDocumentByPolicy } from "@/lib/approval-permissions-core";
 
 export const runtime = "nodejs";
 
@@ -71,6 +71,7 @@ export async function GET(
       canDecide,
       canRecall: canRecallDocumentByPolicy(session.userId, document),
       canEdit: canManageDraftDocumentAttachmentsByPolicy(session.userId, document),
+      canDelete: canDeleteDraftDocumentByPolicy(session.userId, document),
       decisionBlockedReason: isCurrentApprover && unsupportedAttachments.length > 0
         ? "미리보기를 지원하지 않는 첨부파일이 있어 웹에서 확인 후 결재해야 합니다."
         : null,

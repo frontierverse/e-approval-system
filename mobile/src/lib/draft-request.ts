@@ -11,7 +11,7 @@ function closedDraftPath(path: string, method: string) {
   if (endpoint === '/drafts/uploads') return method === 'POST' && query === undefined;
   if (endpoint === '/drafts/requests') return false;
   const draft = endpoint.match(/^\/drafts\/([A-Za-z0-9_-]+)$/);
-  if (draft) return draftId(draft[1]) && ['GET', 'POST'].includes(method) && query === undefined;
+  if (draft) return draftId(draft[1]) && ['GET', 'POST', 'DELETE'].includes(method) && query === undefined;
   const file = endpoint.match(/^\/drafts\/([A-Za-z0-9_-]+)\/attachments\/([A-Za-z0-9_-]+)$/);
   if (file) return draftId(file[1]) && draftId(file[2]) && method === 'DELETE' && query === undefined;
   const upload = endpoint.match(/^\/drafts\/uploads\/([A-Za-z0-9_-]+)(\/complete)?$/);

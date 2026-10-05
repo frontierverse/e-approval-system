@@ -8,6 +8,8 @@ import { KeyboardScrollView } from "./keyboard-scroll-view";
 import { DocumentActionSheet, type DocumentAction } from "./document-action-sheet";
 import { DetailBadge, DetailButton, DetailPanel, DetailSection, DetailText as Text } from "./document-detail-ui";
 import { DocumentProgress, RejectionReason } from "./document-progress";
+import { ApiError } from "@/lib/api";
+import { isDraftDeleteResult } from "@/lib/draft-deletion";
 import { attachmentFileSize } from "@/lib/attachment-file";
 import { decisionCommentError, documentActions, detailDate, detailStatusLabels } from "@/lib/document-detail";
 import { useHomeTheme } from "@/lib/home-theme";
@@ -21,9 +23,10 @@ export function DocumentDetailScreen({ id }: { id: string }) {
   const { user, request } = useSession(), { document, error, loading, unavailable, reload } = useDocumentDetail(id);
   const [action, setAction] = useState<DocumentAction | null>(null), [comments, setComments] = useState({ approve: "", reject: "" });
   const [pending, setPending] = useState(false), [actionError, setActionError] = useState<string | null>(null), [needsCheck, setNeedsCheck] = useState(false);
-  const [finished, setFinished] = useState<"back" | "edit" | null>(null);
+  const [finished, setFinished] = useState<"back" | "edit" | "drafts" | null>(null);
   const lock = useRef(false), actionButton = useRef<View>(null), approveButton = useRef<View>(null), recallButton = useRef<View>(null), returnButton = useRef<View | null>(null);
-  const { canDecide, canRecall, canEdit } = documentActions(document, user?.canApproveDocuments === true);
+  const deleteAttempt = useRef<string | null>(null), deleteButton = useRef<View>(null);
+  const { canDecide, canRecall, canEdit, canDelete } = documentActions(document, user?.canApproveDocuments === true);
   const close = () => { if (!lock.current) { Keyboard.dismiss(); setAction(null); requestAnimationFrame(() => returnButton.current?.focus()); } };
   usePreventRemove(!!user && (pending || !!action), () => { if (!lock.current) close(); });
   const [previousUnavailable, setPreviousUnavailable] = useState(unavailable);
@@ -32,22 +35,31 @@ export function DocumentDetailScreen({ id }: { id: string }) {
     if (unavailable) { setAction(null); setComments({ approve: "", reject: "" }); }
   }
   // Remove the navigation guard in the committed render before leaving after success.
-  useEffect(() => { if (finished && !pending && !action) { if (finished === "edit") router.replace({ pathname: "/drafts/[id]", params: { id } }); else router.back(); } }, [finished, pending, action, id]);
+  useEffect(() => { if (finished && !pending && !action) { if (finished === "edit") router.replace({ pathname: "/drafts/[id]", params: { id } }); else if (finished === "drafts") router.replace("/drafts?folder=drafts"); else router.back(); } }, [finished, pending, action, id]);
   const recheck = async () => {
     if (lock.current) return;
+    if (action === "delete" && deleteAttempt.current) { await submit(true); return; }
     const latest = await reload();
     if (latest) { setNeedsCheck(false); setActionError(null); }
   };
-  const submit = async () => {
-    if (lock.current || !action || !document || needsCheck || error) return;
-    const selected = action, comment = selected === "recall" ? "" : comments[selected].trim();
-    if (selected !== "recall" && decisionCommentError(selected, comment)) return;
+  const submit = async (verifyDeletion = false) => {
+    if (lock.current || !action || !document || !verifyDeletion && (needsCheck || error)) return;
+    const selected = action, comment = selected === "approve" || selected === "reject" ? comments[selected].trim() : "";
+    if ((selected === "approve" || selected === "reject") && decisionCommentError(selected, comment)) return;
     lock.current = true; setPending(true); setActionError(null);
     try {
-      const latest = await reload();
+      const latest = selected === "delete" && deleteAttempt.current ? document : await reload();
       if (!latest) throw new Error("최신 상태를 확인하지 못했어요. 문서를 처리하지 않았습니다.");
       if (latest.updatedAt !== document.updatedAt) throw new Error("문서가 변경됐어요. 최신 내용과 의견을 확인해 주세요.");
-      if (selected === "recall") {
+      if (selected === "delete") {
+        if (!deleteAttempt.current) {
+          if (!documentActions(latest, user?.canApproveDocuments === true).canDelete || !latest.updatedAt) throw new Error("현재 문서는 삭제할 수 없어요.");
+          deleteAttempt.current = latest.updatedAt;
+        }
+        const result = await request<unknown>(`/drafts/${id}`, { method: "DELETE", body: { expectedUpdatedAt: deleteAttempt.current } });
+        if (!isDraftDeleteResult(result, id)) throw new Error("삭제 응답을 확인하지 못했어요. 삭제 결과를 다시 확인해 주세요.");
+        setFinished("drafts");
+      } else if (selected === "recall") {
         if (!documentActions(latest, user?.canApproveDocuments === true).canRecall || !latest.updatedAt) throw new Error("현재 문서는 회수할 수 없어요.");
         await request(`/documents/${id}/recall`, { method: "POST", body: { expectedUpdatedAt: latest.updatedAt } });
         setFinished("edit");
@@ -58,11 +70,12 @@ export function DocumentDetailScreen({ id }: { id: string }) {
       }
       Keyboard.dismiss(); setAction(null);
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && cause.status !== 408) deleteAttempt.current = null;
       setActionError(cause instanceof Error ? cause.message : "서버 응답을 확인하지 못했습니다."); setNeedsCheck(true);
     } finally { lock.current = false; setPending(false); }
   };
-  const open = (value: DocumentAction) => { if (!lock.current && !loading && !error) { returnButton.current = value === "approve" ? approveButton.current : value === "recall" ? recallButton.current : actionButton.current; setAction(value); } };
-  const allowed = !loading && !error && (action === "recall" ? canRecall : canDecide);
+  const open = (value: DocumentAction) => { if (!lock.current && !loading && !error) { returnButton.current = value === "approve" ? approveButton.current : value === "recall" ? recallButton.current : value === "delete" ? deleteButton.current : actionButton.current; setAction(value); } };
+  const allowed = !loading && !error && (action === "recall" ? canRecall : action === "delete" ? canDelete : canDecide);
   return <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: theme.surface }}>
     <Stack.Screen options={{ headerShown: false, gestureEnabled: !pending && !action }} />
     <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
@@ -97,10 +110,10 @@ export function DocumentDetailScreen({ id }: { id: string }) {
         <DetailButton label={unavailable ? "뒤로" : "다시 시도"} onPress={() => { if (unavailable) router.back(); else void reload(); }} />
       </DetailPanel>}
     </KeyboardScrollView>
-    {document && (canDecide || canRecall || canEdit) ? <View accessibilityLabel="문서 처리" style={[styles.bar, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
+    {document && (canDecide || canRecall || canEdit) ? <View accessibilityLabel="문서 처리" style={[styles.bar, { flexDirection: largeText && canDelete ? "column" : "row", backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
       {canDecide ? <><DetailButton ref={actionButton} label="반려" danger disabled={pending || loading || !!error} onPress={() => open("reject")} style={{ flex: 1 }} /><DetailButton ref={approveButton} label="승인" primary disabled={pending || loading || !!error} onPress={() => open("approve")} style={{ flex: largeText ? 1 : 2 }} /></>
         : canRecall ? <DetailButton ref={recallButton} label="회수하고 수정" icon="corner-up-left" disabled={pending || loading || !!error} onPress={() => open("recall")} style={{ flex: 1 }} />
-          : <DetailButton label={document.status === "recalled" ? "수정·재상신" : "기안 수정"} icon="edit-3" primary disabled={pending || loading || !!error} onPress={() => router.replace({ pathname: "/drafts/[id]", params: { id } })} style={{ flex: 1 }} />}
+          : <>{canDelete ? <DetailButton ref={deleteButton} label="삭제" icon="trash-2" danger disabled={pending || loading || !!error} onPress={() => open("delete")} style={{ flex: largeText ? undefined : 1 }} /> : null}<DetailButton label={document.status === "recalled" ? "수정·재상신" : "기안 수정"} icon="edit-3" primary disabled={pending || loading || !!error} onPress={() => router.replace({ pathname: "/drafts/[id]", params: { id } })} style={{ flex: largeText && canDelete ? undefined : 2 }} /></>}
     </View> : <View style={{ height: insets.bottom, backgroundColor: theme.background }} />}
     {document && action ? <DocumentActionSheet key={action} action={action} document={document} comment={action === "approve" || action === "reject" ? comments[action] : ""}
       onComment={value => { if (action === "approve" || action === "reject") setComments(values => ({ ...values, [action]: value })); }}
