@@ -54,19 +54,20 @@ export function useConfirmAction({ inlineNative = false }: { inlineNative?: bool
   const ask = (value: Confirmation) => choose(value).then(choice => choice === "confirm");
   const resolution = pending.current;
   const respond = (choice: Choice) => { if (resolution) finish(choice, resolution); };
+  const actions = inlineNative || confirmation?.alternative ? <>
+    <PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} />
+    {confirmation?.alternative ? <PrimaryButton title={confirmation.alternative} danger onPress={() => respond("alternative")} /> : null}
+    <TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} />
+  </> : <View style={{ flexDirection: "row", gap: 12 }}>
+    <View style={{ flex: 1 }}><TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} /></View>
+    <View style={{ flex: 1 }}><PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} /></View>
+  </View>;
   const content = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 480, maxHeight: "100%", borderRadius: 12, backgroundColor: theme.surface, overflow: "hidden" }}>
-    <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-    <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "700" }}>{confirmation?.title}</Text>
-    <Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 22 }}>{confirmation?.message}</Text>
-    {inlineNative || confirmation?.alternative ? <>
-      <PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} />
-      {confirmation?.alternative ? <PrimaryButton title={confirmation.alternative} danger onPress={() => respond("alternative")} /> : null}
-      <TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} />
-    </> : <View style={{ flexDirection: "row", gap: 12 }}>
-      <View style={{ flex: 1 }}><TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} /></View>
-      <View style={{ flex: 1 }}><PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} /></View>
-    </View>}
+    <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "700", padding: 16, paddingBottom: 12 }}>{confirmation?.title}</Text>
+    <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
+      <Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 22 }}>{confirmation?.message}</Text>
     </ScrollView>
+    <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 12 }}>{actions}</View>
   </View>;
   const inline = inlineNative && Platform.OS !== "web" && !!confirmation;
   const dialog = inline ? content : Platform.OS === "web" ? <Modal visible={!!confirmation} transparent animationType="none"

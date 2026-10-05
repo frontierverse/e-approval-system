@@ -49,5 +49,6 @@ export function documentActions(document: MobileDocument | null, canApproveDocum
     canDecide: active && canApproveDocuments && document?.canDecide === true && !document.decisionBlockedReason,
     canRecall: active && document?.canRecall === true && !!document.updatedAt,
     canEdit: (document?.status === "draft" || document?.status === "recalled") && document.canEdit === true,
+    canDelete: document?.status === "draft" && document.canDelete === true && !!document.updatedAt,
   };
 }

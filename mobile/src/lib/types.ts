@@ -77,6 +77,7 @@ export type MobileDocument = {
   canDecide: boolean;
   canRecall?: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   decisionBlockedReason: string | null;
 };
 

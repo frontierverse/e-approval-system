@@ -84,3 +84,25 @@ test("CI PostgreSQL draft concurrent CAS edits advance future token monotonicall
     await assert.rejects(s.domain.saveMobileDraft(s.actor.id, createBody, null, { ...s.deps, db: retiredDb }), { code: "UNAUTHORIZED" }); await assert.rejects(s.domain.getMobileDraftRequestStatus(s.actor.id, createBody.requestId, null, { ...s.deps, db: retiredDb }), { code: "UNAUTHORIZED" }); assert.equal(auditReads, 0);
   } finally { await s.dispose(); }
 });
+
+
+test("CI PostgreSQL mobile draft DELETE uses actual document locks and audit SetNull for concurrent retry", { skip: !ci, timeout: 60000 }, async () => {
+  const s = await setup(); try {
+    const { deleteMobileDraft } = await import("../src/lib/mobile-draft-delete.ts");
+    const first = await s.domain.saveMobileDraft(s.actor.id, s.body("pg-draft-mobile-deletion"), null, s.deps);
+    const changed = new Date(Date.parse(first.updatedAt) + 1);
+    await s.db.approvalDocument.update({ where: { id: first.documentId }, data: { updatedAt: changed } });
+    await assert.rejects(deleteMobileDraft(s.actor.id, first.documentId, { expectedUpdatedAt: first.updatedAt }, s.deps), { status: 409 });
+    assert.equal(await s.db.approvalDocument.count({ where: { id: first.documentId } }), 1);
+    const pair = actorBarrier(s), command = { expectedUpdatedAt: changed.toISOString() };
+    const results = await Promise.all([1, 2].map(() => deleteMobileDraft(s.actor.id, first.documentId, command, { ...s.deps, db: pair.db })));
+    assert.equal(pair.entered(), 2); assert.ok(results.every(r => r.ok && r.deleted));
+    assert.equal(await s.db.approvalDocument.count({ where: { id: first.documentId } }), 0);
+    const deleted = await s.db.auditLog.findMany({ where: { actorId: s.actor.id, action: "DELETE_DRAFT" } });
+    assert.equal(deleted.length, 1); assert.equal(deleted[0].documentId, null); assert.equal(deleted[0].targetId, first.documentId);
+    const status = await s.domain.getMobileDraftRequestStatus(s.actor.id, "pg-draft-mobile-deletion", null, s.deps);
+    assert.equal(status.outcome, "deleted"); assert.equal(status.documentId, first.documentId);
+    await s.db.user.update({ where: { id: s.actor.id }, data: { status: "INACTIVE" } });
+    await assert.rejects(deleteMobileDraft(s.actor.id, first.documentId, command, s.deps), { status: 401 });
+  } finally { await s.dispose(); }
+});
