@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Keyboard, Modal, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, BackHandler, Keyboard, Modal, Platform, ScrollView, Text, View, type TextStyle } from "react-native";
 import { PrimaryButton, TextAction } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 
@@ -7,9 +7,13 @@ type Confirmation = { title: string; message: string; confirm: string; danger?: 
 type Choice = "confirm" | "alternative" | "cancel";
 
 /** inlineNative keeps privacy-sensitive confirmations in the app's own window. */
-export function useConfirmAction({ inlineNative = false }: { inlineNative?: boolean } = {}) {
-  const theme = useTheme();
+export function useConfirmAction({ inlineNative = false, colors, sheet = false, bottomInset = 0 }: { inlineNative?: boolean; colors?: ReturnType<typeof useTheme>; sheet?: boolean; bottomInset?: number } = {}) {
+  const base = useTheme(), theme = colors ?? base;
+  const textWrap = sheet && Platform.OS === "web" ? { wordBreak: "keep-all", overflowWrap: "anywhere" } as unknown as TextStyle : undefined;
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const firstLine = confirmation?.message.split("\n")[0] ?? "";
+  const quotedSummary = sheet && /^".*"$/.test(firstLine) ? firstLine.slice(1, -1) : null;
+  const message = quotedSummary !== null ? confirmation?.message.slice(firstLine.length + 1) : confirmation?.message;
   const pending = useRef<((choice: Choice) => void) | null>(null);
   const cancelButton = useRef<View>(null);
   const returnFocus = useRef<(() => void) | null>(null);
@@ -55,24 +59,25 @@ export function useConfirmAction({ inlineNative = false }: { inlineNative?: bool
   const resolution = pending.current;
   const respond = (choice: Choice) => { if (resolution) finish(choice, resolution); };
   const actions = inlineNative || confirmation?.alternative ? <>
-    <PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} />
-    {confirmation?.alternative ? <PrimaryButton title={confirmation.alternative} danger onPress={() => respond("alternative")} /> : null}
-    <TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} />
+    <PrimaryButton colors={colors} title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} />
+    {confirmation?.alternative ? <PrimaryButton colors={colors} title={confirmation.alternative} danger onPress={() => respond("alternative")} /> : null}
+    <TextAction colors={colors} outlined={!!colors} ref={cancelButton} label="취소" onPress={() => respond("cancel")} />
   </> : <View style={{ flexDirection: "row", gap: 12 }}>
     <View style={{ flex: 1 }}><TextAction ref={cancelButton} label="취소" onPress={() => respond("cancel")} /></View>
     <View style={{ flex: 1 }}><PrimaryButton title={confirmation?.confirm ?? "확인"} danger={confirmation?.danger} onPress={() => respond("confirm")} /></View>
   </View>;
-  const content = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 480, maxHeight: "100%", borderRadius: 12, backgroundColor: theme.surface, overflow: "hidden" }}>
-    <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "700", padding: 16, paddingBottom: 12 }}>{confirmation?.title}</Text>
-    <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
-      <Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 22 }}>{confirmation?.message}</Text>
+  const content = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 480, maxHeight: sheet ? "90%" : "100%", borderRadius: sheet ? 20 : 12, borderBottomLeftRadius: sheet ? 0 : 12, borderBottomRightRadius: sheet ? 0 : 12, backgroundColor: theme.surface, overflow: "hidden" }}>
+    <Text accessibilityRole="header" aria-level={2} style={[textWrap, { color: theme.text, fontSize: 18, fontWeight: "700", padding: 16, paddingBottom: 12 }]}>{confirmation?.title}</Text>
+    <ScrollView showsVerticalScrollIndicator={sheet ? false : undefined} style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: sheet ? 16 : 12, gap: sheet ? 12 : 0 }} keyboardShouldPersistTaps="handled">
+      {quotedSummary !== null ? <View style={{ padding: 12, borderWidth: 1, borderColor: theme.border, borderRadius: 12, backgroundColor: theme.background }}><Text style={[textWrap, { color: theme.text, fontSize: 14, lineHeight: 22, fontWeight: "700" }]}>{quotedSummary}</Text></View> : null}
+      <Text style={[textWrap, { color: theme.secondary, fontSize: 14, lineHeight: 22 }]}>{message}</Text>
     </ScrollView>
-    <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 12 }}>{actions}</View>
+    <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(16, bottomInset), gap: sheet ? 8 : 12 }}>{actions}</View>
   </View>;
   const inline = inlineNative && Platform.OS !== "web" && !!confirmation;
   const dialog = inline ? content : Platform.OS === "web" ? <Modal visible={!!confirmation} transparent animationType="none"
     accessibilityLabel={confirmation?.title} onRequestClose={cancel} onShow={() => cancelButton.current?.focus()}>
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: 16 }}>
+    <View style={{ flex: 1, justifyContent: sheet ? "flex-end" : "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: sheet ? 0 : 16 }}>
       {content}
     </View>
   </Modal> : null;

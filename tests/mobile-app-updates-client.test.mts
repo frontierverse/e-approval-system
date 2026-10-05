@@ -423,6 +423,7 @@ function stubAppShell(h: ReturnType<typeof createAppUpdatesHarness>) {
     enablePush: async () => {}, disablePush: async () => {}, retryPushRegistration: async () => {}, refreshPushStatus: async () => {}, openPushSettings: async () => {},
   };
   Object.assign(h.mocks, {
+    '@/lib/home-theme': { useHomeTheme: () => h.mocks['@/lib/theme'].useTheme() },
     '@/lib/session': { SessionProvider: 'SessionProvider', useSession: () => session },
     '@/lib/notifications': { NotificationsProvider: 'NotificationsProvider', useNotifications: () => notifications },
     '@/lib/chat-provider': { ChatProvider: 'ChatProvider', useChat: () => ({ unreadCount: null, error: null, isCurrentAccount: () => true }) },

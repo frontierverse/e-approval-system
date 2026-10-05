@@ -1,0 +1,4 @@
+- paragraph: "상태: new · 테마: light"
+- generic: "{\"writeCount\":1,\"lastWrite\":{\"path\":\"/drafts\",\"body\":{\"title\":\"10월 공용물품 구매 요청\",\"templateId\":\"qa-template\",\"fieldValues\":{\"content\":\"10월 공동 활동에 사용할 공용 소모품을 구매하고자 합니다.\\n운영 일정에 맞춰 수량을 확인하고 첨부된 모의 계획서를 참고해 검토해 주세요.\"},\"approverIds\":[\"qa-director\"],\"uploadIds\":[],\"intent\":\"draft\",\"expectedUpdatedAt\":null,\"requestId\":\"mobile_muutp7br_fl90h2xrhqbj2cfmfs5kr\"}},\"postResult\":\"slow\"}"
+- link "앱 보기":
+  - /url: /device

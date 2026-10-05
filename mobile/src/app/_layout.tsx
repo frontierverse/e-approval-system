@@ -13,10 +13,11 @@ import { DraftRecoveryProvider } from "@/providers/DraftRecoveryProvider";
 import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { SessionProvider, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
+import { useHomeTheme } from "@/lib/home-theme";
 
 function Navigation() {
   const { user, loading } = useSession();
-  const theme = useTheme();
+  const theme = useTheme(), draftTheme = useHomeTheme();
   const { notificationOpenError, retryNotificationOpen, dismissNotificationOpenError } = useNotifications();
   if (loading) return <View style={{ flex: 1, backgroundColor: theme.background }}><View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={theme.accent} /></View><AppUpdateStatus canNavigate={false} /></View>;
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -29,9 +30,9 @@ function Navigation() {
       <Stack.Protected guard={!user}><Stack.Screen name="login" options={{ headerShown: false }} /></Stack.Protected>
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="drafts/new" options={{ title: "새 기안" }} />
+        <Stack.Screen name="drafts/new" options={{ title: "새 기안", headerTintColor: draftTheme.text, headerStyle: { backgroundColor: draftTheme.surface }, headerTitleStyle: { fontSize: 17, fontWeight: "700" }, contentStyle: { backgroundColor: draftTheme.background } }} />
         <Stack.Screen name="drafts/recovery" options={{ title: "작성 복구", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="작성 복구 뒤로" /> : null }} />
-        <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정" }} />
+        <Stack.Screen name="drafts/[id]" options={{ title: "기안 수정", headerTintColor: draftTheme.text, headerStyle: { backgroundColor: draftTheme.surface }, headerTitleStyle: { fontSize: 17, fontWeight: "700" }, contentStyle: { backgroundColor: draftTheme.background } }} />
         <Stack.Screen name="documents/[id]" options={{ title: "결재 문서" }} />
         <Stack.Screen name="attachments/[id]" options={{ title: "첨부파일" }} />
         <Stack.Screen name="chat/index" options={{ title: "직원 채팅", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton label="직원 채팅 뒤로" /> : null }} />

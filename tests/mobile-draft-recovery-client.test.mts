@@ -170,7 +170,7 @@ function editorFixture({ document = false, record = null as Record<string, unkno
   const cold = () => { editor.unmount(); editor = h.mount(h.load('components/draft-editor.tsx', 'ScopedDraftEditor').QAExposed, { scope }); };
   const update = async () => { await tick(); editor.update(); await tick(); editor.update(); };
   const button = (label: string) => {
-    const v = nodes(editor.tree).find(v => [v.props?.label, v.props?.title, v.props?.accessibilityLabel].includes(label)); assert.ok(v, label); return v.props;
+    const v = nodes(editor.tree).find(v => typeof v.props?.onPress === 'function' && [v.props?.label, v.props?.title, v.props?.accessibilityLabel].includes(label)); assert.ok(v, label); return v.props;
   };
   const field = (label: string) => h.find(editor, 'TextInput', label);
   const feedback = () => nodes(editor.tree).filter(v => v.type === 'AccountFeedback').map(v => v.props).at(-1);

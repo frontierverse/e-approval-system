@@ -28,7 +28,7 @@ async function fixture(status = "draft") {
   await tick(); provider.update();
   const screen = h.mount(h.load("components/draft-editor.tsx", "ScopedDraftEditor").QAExposed, { scope });
   const settle = async () => { for (let i = 0; i < 6; i++) { await tick(); await setImmediate(); provider.update(); screen.update(); } };
-  const controls = (label: string) => nodes(screen.tree).filter(v => v.props?.label === label || v.props?.title === label);
+  const controls = (label: string) => nodes(screen.tree).filter(v => typeof v.props?.onPress === 'function' && (v.props?.label === label || v.props?.title === label));
   const control = (label: string) => { const row = controls(label)[0]; assert.ok(row, label); return row.props; };
   const field = (label: string) => h.find(screen, "TextInput", label);
   await settle();
