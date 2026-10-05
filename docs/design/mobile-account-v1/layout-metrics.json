@@ -1,0 +1,42 @@
+[
+  {
+    "state": "360-dark-long-preview-error",
+    "focused": null,
+    "h1": 1,
+    "overflows": [],
+    "scrollWidth": 360,
+    "smallControls": [],
+    "tabs": 1,
+    "width": 360
+  },
+  {
+    "state": "360-dark-password-unavailable",
+    "focused": null,
+    "h1": 1,
+    "overflows": [],
+    "scrollWidth": 360,
+    "smallControls": [],
+    "tabs": 1,
+    "width": 360
+  },
+  {
+    "state": "360-light-200-long",
+    "focused": null,
+    "h1": 1,
+    "overflows": [],
+    "scrollWidth": 180,
+    "smallControls": [],
+    "tabs": 1,
+    "width": 180
+  },
+  {
+    "state": "390-light-final",
+    "focused": null,
+    "h1": 1,
+    "overflows": [],
+    "scrollWidth": 390,
+    "smallControls": [],
+    "tabs": 1,
+    "width": 390
+  }
+]

@@ -1,15 +1,16 @@
 import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
 import { KeyboardScreen } from "@/components/keyboard-screen";
-import { useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
 import { AccountImageEditor } from "@/components/account-image-editor";
 import { AccountPasswordForm } from "@/components/account-password-form";
-import { ErrorState, TextAction } from "@/components/ui";
+import { AccountButton, AccountSection } from "@/components/account-ui";
+import { DetailText as Text } from "@/components/document-detail-ui";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme } from "@/lib/home-theme";
 import type { MobileAccount } from "@/lib/types";
 
 export default function Account() {
@@ -17,7 +18,7 @@ export default function Account() {
   return token ? <AccountScreen key={token} /> : null;
 }
 function AccountScreen() {
-  const theme = useTheme();
+  const theme = useHomeTheme();
   const insets = useSafeAreaInsets();
   const { request } = useSession();
   const [account, setAccount] = useState<MobileAccount | null>(null);
@@ -41,41 +42,58 @@ function AccountScreen() {
   }, [request]);
   useFocusEffect(useCallback(() => { void load(); return () => { sequence.current++; }; }, [load]));
   const acquire = () => {
-    if (locked.current || !!error || !account) return false;
+    if (locked.current || loading || !!error || !account) return false;
     locked.current = true; sequence.current++; setLoading(false); setBusy(true); return true;
   };
   const release = () => { locked.current = false; if (alive.current) setBusy(false); };
-  const disabled = busy || !!error;
-  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
-    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-      <View style={styles.heading}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 18, fontWeight: "800" }}>계정 정보</Text><TextAction label={loading ? "확인 중..." : "새로고침"} icon="refresh" disabled={busy || loading} onPress={() => void load()} /></View>
-      {!account ? error ? <ErrorState message={error} retry={() => void load()} /> : <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.accent} /><Text accessibilityLiveRegion="polite" style={{ color: theme.secondary }}>계정 정보를 불러오는 중...</Text></View>
-      </View> : <>
-        <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text style={{ color: theme.text, fontSize: 18, lineHeight: 25, fontWeight: "800" }}>{account.name}</Text>
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-            <Info label="부서" value={account.departmentName} /><Info label="직급" value={account.positionName} />
-          </View>
-          <View style={{ marginTop: 8 }}><Info label="이메일" value={account.email ?? "미등록"} /></View>
-        </View>
-        {error ? <AccountFeedback error={error} /> : null}
-        <AccountImageEditor kind="signature" info={account.signatureImage} disabled={disabled} acquire={acquire} release={release} onChange={image => setAccount(before => before ? { ...before, signatureImage: image } : before)} />
-        <AccountImageEditor kind="profile" info={account.profileImage} disabled={disabled} acquire={acquire} release={release} onChange={image => setAccount(before => before ? { ...before, profileImage: image } : before)} />
-        {account.canChangePassword ? <AccountPasswordForm disabled={disabled} acquire={acquire} release={release} /> : <View style={[styles.panel, { marginTop: 12, borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>비밀번호 변경</Text>
-          <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 }}>비밀번호 로그인 계정이 아닙니다. 관리자에게 문의하세요.</Text>
-        </View>}
-      </>}
-    </KeyboardScrollView>
-  </KeyboardScreen>;
+  const disabled = busy || loading || !!error;
+  return <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: theme.surface }}>
+    <Stack.Screen options={{ headerShown: false }} />
+    <View style={[styles.heading, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+      <AccountButton label="뒤로, 내 정보" icon="chevron-left" iconOnly onPress={() => router.canGoBack() ? router.back() : router.replace("/profile")} />
+      <Text accessibilityRole="header" aria-level={1} style={{ flex: 1, color: theme.text, fontSize: 17, lineHeight: 24, fontWeight: "700" }}>계정·도장 설정</Text>
+      <AccountButton label={loading ? "계정 정보 확인 중" : "계정 정보 새로고침"} icon="refresh-cw" iconOnly disabled={busy || loading} onPress={() => void load()} />
+    </View>
+    <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+      <KeyboardScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
+        {!account ? error ? <AccountSection title="계정 정보">
+          <AccountFeedback error={error} />
+          <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>연결을 확인한 뒤 다시 시도해 주세요. 확인 전에는 이미지·비밀번호를 변경할 수 없어요.</Text>
+          <AccountButton label="다시 시도" disabled={loading} onPress={() => void load()} />
+        </AccountSection> : <View accessibilityLabel="계정 정보를 불러오는 중" accessibilityLiveRegion="polite" style={{ gap: 16 }}>
+          <ActivityIndicator color={theme.accent} />
+          {[140, 210, 150].map((height, index) => <View key={index} accessible={false} aria-hidden style={[styles.panel, { height, backgroundColor: theme.surface, borderColor: theme.border, gap: 10 }]}>
+            {[40, 70, 55].map(width => <View key={width} style={{ width: `${width}%`, height: 12, backgroundColor: theme.surfaceMuted, borderRadius: 6 }} />)}
+          </View>)}
+        </View> : <>
+          {error ? <AccountSection title="새로고침 실패">
+            <AccountFeedback error={error} />
+            <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>마지막으로 불러온 계정 정보예요. 최신 상태를 확인할 때까지 이미지·비밀번호를 변경할 수 없어요.</Text>
+            <AccountButton label="다시 시도" disabled={loading || busy} onPress={() => void load()} />
+          </AccountSection> : null}
+          <AccountSection title="계정 정보 · 읽기 전용">
+            <Text style={{ color: theme.text, fontSize: 17, lineHeight: 24, fontWeight: "700" }}>{account.name}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+              <Info inline label="부서" value={account.departmentName} /><Info inline label="직급" value={account.positionName} />
+            </View>
+            <Info label="이메일" value={account.email ?? "미등록"} />
+          </AccountSection>
+          <AccountImageEditor kind="signature" info={account.signatureImage} disabled={disabled} acquire={acquire} release={release} onChange={image => setAccount(before => before ? { ...before, signatureImage: image } : before)} />
+          <AccountImageEditor kind="profile" info={account.profileImage} disabled={disabled} acquire={acquire} release={release} onChange={image => setAccount(before => before ? { ...before, profileImage: image } : before)} />
+          {account.canChangePassword ? <AccountPasswordForm disabled={disabled} acquire={acquire} release={release} /> : <AccountSection title="비밀번호 변경">
+            <Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 21 }}>비밀번호 로그인 계정이 아닙니다. 관리자에게 문의하세요.</Text>
+          </AccountSection>}
+        </>}
+      </KeyboardScrollView>
+    </KeyboardScreen>
+  </SafeAreaView>;
 }
-function Info({ label, value }: { label: string; value: string }) {
-  const theme = useTheme();
-  return <View style={{ flex: 1, minWidth: 0 }}><Text style={{ color: theme.secondary, fontSize: 12 }}>{label}</Text><Text style={{ color: theme.text, fontSize: 14, lineHeight: 20, marginTop: 2 }}>{value}</Text></View>;
+function Info({ label, value, inline }: { label: string; value: string; inline?: boolean }) {
+  const theme = useHomeTheme();
+  return <View style={{ minWidth: 0, ...(inline ? { flexGrow: 1, flexBasis: 120 } : {}) }}><Text style={{ color: theme.secondary, fontSize: 12, lineHeight: 17 }}>{label}</Text><Text style={{ color: theme.text, fontSize: 14, lineHeight: 20, marginTop: 0 }}>{value}</Text></View>;
 }
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, maxWidth: 720, width: "100%", alignSelf: "center" },
-  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 12, paddingBottom: 8 },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 12, gap: 16, maxWidth: 720, width: "100%", alignSelf: "center" },
+  heading: { flexDirection: "row", alignItems: "center", gap: 4, padding: 4, minHeight: 52, borderBottomWidth: 1 },
+  panel: { borderWidth: 1, borderRadius: 16, padding: 14 },
 });

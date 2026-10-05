@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { Platform, StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 import { AccountFeedback } from "@/components/account-feedback";
-import { PrimaryButton } from "@/components/ui";
+import { AccountButton, AccountSection } from "@/components/account-ui";
+import { DetailText as Text } from "@/components/document-detail-ui";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme } from "@/lib/home-theme";
 
 type Props = { disabled: boolean; acquire: () => boolean; release: () => void };
 export function AccountPasswordForm({ disabled, acquire, release }: Props) {
-  const theme = useTheme();
+  const theme = useHomeTheme();
   const { request, signOut } = useSession();
   const [currentPassword, setCurrent] = useState("");
   const [newPassword, setNew] = useState("");
@@ -47,27 +48,25 @@ export function AccountPasswordForm({ disabled, acquire, release }: Props) {
   const edit = (name: string, setter: (value: string) => void) => (value: string) => {
     setter(value); setError(null); setFields(before => { const next = { ...before }; delete next[name]; return next; });
   };
-  return <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-    <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>비밀번호 변경</Text>
-    <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 }}>새 비밀번호는 4~128자입니다. 변경 후 모든 모바일 기기에서 다시 로그인해야 합니다.</Text>
+  return <AccountSection title="비밀번호 변경">
+    <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>변경 후 모든 모바일 기기에서 다시 로그인해야 합니다. 새 비밀번호는 4~128자이고 현재 비밀번호와 달라야 해요.</Text>
     <PasswordField ref={currentInput} label="현재 비밀번호" value={currentPassword} onChangeText={edit("currentPassword", setCurrent)} autoComplete="current-password" error={fields.currentPassword} editable={!disabled} returnKeyType="next" onSubmitEditing={() => newInput.current?.focus()} />
     <PasswordField ref={newInput} label="새 비밀번호" value={newPassword} onChangeText={edit("newPassword", setNew)} autoComplete="new-password" error={fields.newPassword} editable={!disabled} returnKeyType="next" onSubmitEditing={() => confirmInput.current?.focus()} maxLength={128} />
     <PasswordField ref={confirmInput} label="새 비밀번호 확인" value={confirmPassword} onChangeText={edit("confirmPassword", setConfirm)} autoComplete="new-password" error={fields.confirmPassword} editable={!disabled} returnKeyType="done" onSubmitEditing={() => void submit()} maxLength={128} />
-    <View style={{ marginTop: 12 }}><PrimaryButton title={pending ? "변경 중..." : "비밀번호 변경"} disabled={disabled} onPress={() => void submit()} /></View>
+    <AccountButton label={pending ? "변경 중..." : "비밀번호 변경"} primary disabled={disabled} onPress={() => void submit()} style={{ minHeight: 48 }} />
     <AccountFeedback error={error} />
-  </View>;
+  </AccountSection>;
 }
 function PasswordField({ label, error, ref, ...props }: TextInputProps & { label: string; error?: string; ref: React.Ref<TextInput> }) {
-  const theme = useTheme();
+  const theme = useHomeTheme();
   const [focused, setFocused] = useState(false);
-  return <View style={{ marginTop: 12 }}>
-    <Text style={{ color: theme.secondary, fontSize: 13, fontWeight: "700", marginBottom: 6 }}>{label}</Text>
+  return <View style={{ gap: 4 }}>
+    <Text style={{ color: theme.text, fontSize: 13, lineHeight: 19, fontWeight: "700" }}>{label}</Text>
     <TextInput ref={ref} {...props} accessibilityLabel={label} accessibilityHint={error} {...(Platform.OS === "web" ? { "aria-invalid": !!error } : {})} secureTextEntry autoCapitalize="none" autoCorrect={false} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: error ? theme.danger : focused ? theme.accent : theme.border, borderWidth: focused ? 2 : 1 }]} />
+      style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: error ? theme.danger : focused ? theme.accent : theme.controlBorder, borderWidth: focused ? 2 : 1 }]} />
     {error ? <Text accessibilityRole="alert" style={{ color: theme.danger, fontSize: 13, lineHeight: 19, marginTop: 4 }}>{error}</Text> : null}
   </View>;
 }
 const styles = StyleSheet.create({
-  panel: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12 },
-  input: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, fontSize: 16 },
+  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
 });
