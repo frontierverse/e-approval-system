@@ -221,3 +221,17 @@ test("StrictMode effect cleanup/restart fences prior requests and leaves exactly
   assert.equal(scope.value.unreadCount,null);assert.equal(state.routes.length,0);
   state.countResolvers[1].resolve({unreadCount:2});state.lastResolvers[1](null);await tick();scope.render();assert.equal(scope.value.unreadCount,2);
 });
+
+test("a document-open response cannot navigate after the caller loses focus",async()=>{
+  const scope=await mount();state.holdDocuments.add("doc-a");let active=true;
+  const pending=scope.value.openNotificationDocument("doc-a",()=>active);active=false;
+  state.documentResolvers.get("doc-a").resolve({ok:true,unreadCount:3});
+  await assert.rejects(pending,(error:Error)=>error.name==="AbortError");await tick();scope.render();
+  assert.deepEqual(state.routes,[]);assert.equal(scope.value.notificationRevision,1);
+});
+test("clearing an unauthorized badge count rejects a late summary snapshot",async()=>{
+  const scope=await mount();state.holdCount=true;
+  const pending=scope.value.refreshUnreadCount();scope.value.setUnreadCount(null);
+  state.countResolvers[0].resolve({unreadCount:8});await pending;await tick();scope.render();
+  assert.equal(scope.value.unreadCount,null);
+});

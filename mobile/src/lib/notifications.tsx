@@ -9,9 +9,9 @@ import { useSession } from "./session";
 type NotificationsContextValue = {
   unreadCount: number | null;
   notificationRevision: number;
-  setUnreadCount: (count: number) => void;
+  setUnreadCount: (count: number | null) => void;
   refreshUnreadCount: () => Promise<void>;
-  openNotificationDocument: (documentId: string) => Promise<void>;
+  openNotificationDocument: (documentId: string, isActive?: () => boolean) => Promise<void>;
   notificationOpenError: string | null;
   retryNotificationOpen: () => Promise<void>;
   dismissNotificationOpenError: () => void;
@@ -67,8 +67,8 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
   const countRevision = useRef(0);
   const countPending = useRef<Promise<void> | null>(null);
   const countQueued = useRef(false);
-  const setUnreadCount = useCallback((count: number) => {
-    if (!current() || !Number.isSafeInteger(count) || count < 0) return;
+  const setUnreadCount = useCallback((count: number | null) => {
+    if (!current() || (count !== null && (!Number.isSafeInteger(count) || count < 0))) return;
     countRevision.current++; updateUnreadCount(count);
   }, [current]);
   const refreshUnreadCount = useCallback(function refresh(): Promise<void> {
@@ -95,9 +95,9 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
   const retryDocument = useRef<string | null>(null);
   const openSequence = useRef(0);
   const opening = useRef(new Map<string, Promise<void>>());
-  const openNotificationDocument = useCallback((documentId: string): Promise<void> => {
+  const openNotificationDocument = useCallback((documentId: string, isActive?: () => boolean): Promise<void> => {
     if (!validNotificationDocumentId(documentId)) return Promise.reject(new ApiError("알림의 문서 정보를 확인하지 못했습니다.", 400));
-    if (!current()) return Promise.reject(stoppedError());
+    if (!current() || (isActive && !isActive())) return Promise.reject(stoppedError());
     const pending = opening.current.get(documentId);
     if (pending) return pending;
     const sequence = ++openSequence.current;
@@ -105,6 +105,9 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
     const operation = authenticated<{ ok: boolean; unreadCount: number }>("/notifications/read-document", { method: "POST", body: { documentId } }).then(result => {
       check();
       if (started !== scopeGeneration.current) throw stoppedError();
+      // A list can lose focus while its read request settles. The server may have
+      // read the alerts, but that response must not navigate away from the new screen.
+      if (isActive && !isActive()) { invalidate(); throw stoppedError(); }
       if (result.ok !== true) throw new ApiError("알림 문서를 열지 못했습니다. 다시 시도하세요.", 0);
       const count = checkedCount(result.unreadCount);
       if (sequence === openSequence.current) {

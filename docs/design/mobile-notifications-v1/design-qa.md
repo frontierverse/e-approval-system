@@ -6,7 +6,7 @@ final result: passed
 
 Claude **바자울 전자결재 앱 디자인 / 알림 v1**의 완료 메인 캡처와 `bajaul-notifications-v1-source.zip`의 `project/Notifications.dc.html`을 기준으로 실제 Expo Router `/notifications`를 구현했다. 편집용 HTML/모의 런타임은 앱에 이식하지 않았다.
 
-시각 비교 파일은 [docs/design/mobile-notifications-v1](docs/design/mobile-notifications-v1/)에 저장했다. `reference-light.png`는 원본780×1688(@2x)을390×844로 정규화한 결과, `implementation-light.png`는 실제 앱390×844 캡처다. 시설장 이예시·라이트·전체23·미읽음3·첫20행·1/2페이지·같은 합성 제목/메시지/시각을 비교했다. iframe390×763 위/아래 외부 Safe Area47/34px은 장식 상태바를 새로 그리지 않는다.
+시각 비교 파일은 [현재 증거 폴더](./)에 저장했다. `reference-light.png`는 원본780×1688(@2x)을390×844로 정규화한 결과, `implementation-light.png`는 실제 앱390×844 캡처다. 시설장 이예시·라이트·전체23·미읽음3·첫20행·1/2페이지·같은 합성 제목/메시지/시각을 비교했다. iframe390×763 위/아래 외부 Safe Area47/34px은 장식 상태바를 새로 그리지 않는다.
 
 - 전체 비교: `comparison-light.png`, 왼쪽 원본/오른쪽 구현 각각390×844.
 - 확대 비교: `comparison-light-top.png`, 같은 y47~478의 헤더·필터·첫3행.
