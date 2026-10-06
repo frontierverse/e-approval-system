@@ -41,7 +41,7 @@ export default function MobileAppPrivacyPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">{appName} 개인정보처리방침</h1>
           <p className="mt-2 text-sm leading-6">{organizationName}</p>
-          <p className="text-sm leading-6 text-[var(--text-muted)]">방침 버전: 2026년 10월 6일 · 공개 게시일부터 적용</p>
+          <p className="text-sm leading-6">방침 버전: 2026년 10월 7일 · 시행일: 2026년 10월 7일</p>
         </div>
         <button type="button" data-theme-toggle aria-label="화면 테마 변경" className="min-h-11 shrink-0 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm font-medium hover:bg-[var(--surface-muted)]">테마 변경</button>
       </header>
@@ -51,7 +51,7 @@ export default function MobileAppPrivacyPage() {
       </nav>
       <Section id="data" title="1. 처리 목적과 개인정보 항목">
         <dl className="divide-y divide-[var(--border)]">
-          {purposes.map(([name, items, purpose]) => <div key={name} className="py-3 first:pt-0"><dt className="font-semibold">{name}</dt><dd className="mt-1">{items}</dd><dd className="mt-1 text-[var(--text-muted)]">목적: {purpose}</dd></div>)}
+          {purposes.map(([name, items, purpose]) => <div key={name} className="py-3 first:pt-0"><dt className="font-semibold">{name}</dt><dd className="mt-1">{items}</dd><dd className="mt-1">목적: {purpose}</dd></div>)}
         </dl>
         <p>기관은 직원·정보주체가 제공하거나 권한을 가진 직원이 업무 과정에서 등록한 정보와 시스템 이용 시 생성되는 정보를 처리합니다. 선택 항목은 해당 기능을 사용하는 경우에만 등록하며, 파일·자유서술에는 업무에 필요한 최소한의 정보만 입력하도록 관리합니다.</p>
         <p>직원 인사·업무 수행, 청소년 보호·상담 업무에 적용되는 법령, 계약의 이행 또는 적법한 동의 등 해당 처리의 근거에 따라 정보를 처리합니다. 이 방침의 게시나 앱 로그인 자체를 별도 동의로 간주하지 않습니다.</p>
@@ -94,7 +94,7 @@ export default function MobileAppPrivacyPage() {
         <p>개인정보 침해 상담은 개인정보침해 신고센터(국번 없이 118, privacy.kisa.or.kr), 분쟁 조정은 개인정보분쟁조정위원회(kopico.go.kr)에 요청할 수 있습니다.</p>
       </Section>
       <Section id="changes" title="8. 방침 변경">
-        <p>이 방침은 공개 게시일부터 적용합니다. 처리 목적·항목·보관 기간·외부 서비스 등 중요한 내용을 변경하면 이 페이지와 업무 시스템 공지 등으로 변경 사항과 적용일을 알리고, 별도 동의가 필요한 변경은 해당 절차를 거칩니다.</p>
+        <p>이 방침은 2026년 10월 7일부터 적용합니다. 처리 목적·항목·보관 기간·외부 서비스 등 중요한 내용을 변경하면 이 페이지와 업무 시스템 공지 등으로 변경 사항과 적용일을 알리고, 별도 동의가 필요한 변경은 해당 절차를 거칩니다.</p>
       </Section>
       <nav aria-label="관련 페이지" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <Link href="/mobile-app/support" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">앱 지원</Link>
