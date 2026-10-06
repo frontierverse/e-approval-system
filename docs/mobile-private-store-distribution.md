@@ -31,9 +31,15 @@ EMM의 Managed Google Play 비공개 앱 게시 화면은 첫 게시 때 등록�
 
 사용자 승인 후 Apple Developer에서 App Store 프로필 `Bajaul Private Store 20261006`을 발급하고 다운로드했다. App ID `NAS4C244M3.com.gyeoljaeon.internal`, 개발자 팀·만료일·스토어 권한·기존 인증서 일련번호·CMS 서명을 검사했다. App Store 프로필 UUID는 `512f1ed9-0917-4f12-bc0a-67f29a8b72f2`이며 2027-10-01 만료된다. 새 Distribution 인증서는 발급하지 않았다.
 
-Android 앱 `com.gyeoljaeon.internal`을 회사 조직 `LC00v4uk7o`의 Google 비공개 앱 화면에서 `바자울`로 생성하고 ManageEngine에 선택·저장·동기화했다. 앱 저장소에서 `Google Hosted Private App`, 버전 `1.0.5`로 확인됐고 1개 동기화 성공을 확인했다. 해당 조직과 비공개 설정을 운영자 기록에 반영했다. 직원 기기는 아직 0대이며 실제 설치 완료로 기록하지 않는다. 최초 생성 직후 Google 화면은 `Not available yet`였으므로 최종 설치 가능 상태와 첫 실제 기기 배포를 확인한다.
+Android 앱 `com.gyeoljaeon.internal`을 회사 조직 `LC00v4uk7o`의 Google 비공개 앱 화면에서 `바자울`로 생성하고 ManageEngine에 선택·저장·동기화했다. 앱 저장소에서 `Google Hosted Private App`, 버전 `1.0.5`로 확인됐고 1개 동기화 성공을 확인했다. 해당 조직과 비공개 설정을 운영자 기록에 반영했다. 최초 생성 직후에는 `Not available yet`였으나 후속 조회에서 해당 대기 표시가 사라지고 회사의 비공개 앱 목록에 표시되는 것을 확인했다. 직원 기기는 아직 0대이며 실제 설치 완료로 기록하지 않는다. 첫 실제 기기 배포와 설치·업데이트를 확인한다.
 
-검증한 프로필을 기존 EAS 프로젝트 `@artemismars2/gyeoljaeon`의 App Store 빌드 자격 증명에 연결했다. 인증서 개인키·P12·비밀번호를 조회하거나 내보내지 않고 기존 인증서 ID와 프로필만 연결했으며, 연결 후 프로필 UUID·인증서 일련번호·App Store 배포 형식을 재확인했다. iOS 비공개 스토어 빌드 워크플로 `01a110be-0dc9-71dc-93e5-090c50029fa1`과 빌드 `90e76550-a1a2-45fc-b4af-97a788a8cf7f`가 `1.0.5 / build 1`로 완료됐다. 다운로드한 IPA의 ZIP CRC·bundle ID/버전·프로필 CMS 서명·스토어 권한·승인한 기존 인증서를 확인했고 `codesign --verify --deep --strict`로 코드 서명과 리소스 무결성을 검증했다. 실제 iPhone 동작 검증·스토어 제출은 아직 완료되지 않았다. App Store Connect는 기존 개발자 계정으로 재로그인이 필요하다.
+검증한 프로필을 기존 EAS 프로젝트 `@artemismars2/gyeoljaeon`의 App Store 빌드 자격 증명에 연결했다. 인증서 개인키·P12·비밀번호를 조회하거나 내보내지 않고 기존 인증서 ID와 프로필만 연결했으며, 연결 후 프로필 UUID·인증서 일련번호·App Store 배포 형식을 재확인했다. iOS 비공개 스토어 빌드 워크플로 `01a110be-0dc9-71dc-93e5-090c50029fa1`과 빌드 `90e76550-a1a2-45fc-b4af-97a788a8cf7f`가 `1.0.5 / build 1`로 완료됐다. 다운로드한 IPA의 ZIP CRC·bundle ID/버전·프로필 CMS 서명·스토어 권한·승인한 기존 인증서를 확인했고 `codesign --verify --deep --strict`로 코드 서명과 리소스 무결성을 검증했다. 실제 iPhone 동작 검증·스토어 제출은 아직 완료되지 않았다.
+
+2026-10-06 사용자가 기존 개발자 계정으로 App Store Connect 로그인을 완료했다. 바자울의 Primary Category `Business`와 한국어 부제 `직원 전용 전자결재·업무 관리`를 저장했고 `Saved` 상태를 확인했다. Private 배포 초안에 회사명을 입력했으며 조직 ID는 아직 확인되지 않아 저장·제출하지 않았다. Apple Business의 기존 관리형 회사 계정과 App Store Connect의 개발자 계정은 구분한다. 사용자가 기존 관리형 계정으로 로그인했고 회사 조직 홈에서 사회적협동조합 청소년자립학교를 확인했다. 중복 조직을 만들지 않는다.
+
+사용자는 회사 등록증과 기관 도메인 인증을 조직 검증 방법으로 선택했다. 제공한 홈페이지 주소는 `youth.bajaul.com`이며 해당 주소는 기존 Vercel CNAME 연결이 있다. 사용자가 상위 도메인 `bajaul.com`의 기관 소유·관리 권한을 확인했고, 인증 대상으로 선택했다. 제공한 사업자등록증 PDF를 로컬에서 확인했으며 기관명과 주소가 기존 조직 정보와 일치했다.
+
+사용자가 Apple 화면에서 발급된 도메인 인증용 TXT 값을 제공하고 Cloudflare 관리 계정으로 로그인했다. `bajaul.com` 루트에 해당 TXT를 TTL Auto로 추가했고 Cloudflare 레코드 목록에서 저장 결과를 확인했다. Cloudflare의 두 네임서버와 기본 DNS 조회에서 정확한 Apple 인증 값을 확인했다. Apple 인증 화면은 컴퓨터 제어 제한으로 조회할 수 없으므로 사용자가 `Send for Review`를 직접 눌렀고 심사 중·검토 대기 상태가 표시됐다고 확인했다. 조직 인증 심사는 사용자 확인에 따라 접수된 것으로 기록한다. 조직 승인과 검증된 배포 대상 조직 ID는 아직 확인되지 않았으며 iOS 제출 가드를 유지한다.
 
 실제 앱에 포함된 fingerprint는 Android APK versionCode 10이 `93cd48e41f372202d0c64a600e24d314978b19ac`, iOS build 1이 `170acad74bd1a06928924cffcbe5855fe0aa9d91`이다. iOS의 Expo 설정에서 production 채널과 기존 EAS 업데이트 프로젝트를 확인했다. 초기 AAB versionCode 9 및 기존 직원 APK versionCode 8과 별도로 호환되는 네이티브 런타임을 유지하고, 새 스토어 앱 설치를 확인하기 전에는 OTA 호환성을 추정하지 않는다.
 
@@ -85,6 +91,8 @@ npm run submit:private-store:ios -- --id VERIFIED_IOS_BUILD_UUID
 
 `mobile-private-store-listing.json`은 앱 설명·심사 안내 초안이다. 앱 ID·조직 ID·지원 연락처·개인정보처리방침 URL·심사용 로그인 정보는 미확인 값을 채우지 않는다. 개인정보 공개 항목은 실제 데이터 흐름과 외부 처리 업체를 검토해 확정한다. 계정·업무 문서와 첨부·직원 대화·알림 토큰·로그인/감사 기록 및 청소년 관련 데이터의 실제 취급을 포함해야 한다. 운영 개인정보가 보이는 화면을 스토어에 올리지 않는다.
 
+기관 홈페이지 `https://youth.bajaul.com/`에서 공개 문의 영역 `#contact`를 확인했다. 앱 지원 페이지 후보로 기록하되 사용자가 앱 문의처를 선택하기 전에는 확정한 지원 연락처로 사용하지 않는다. 홈페이지 전체 접근성 상태에서 개인정보처리방침 링크는 관찰되지 않았으며, 기존 개인정보처리방침 페이지의 존재·주소를 사용자에게 확인한다.
+
 ## 공식 근거
 
 - [Google 비공개 앱 개요](https://support.google.com/work/android/answer/9563481?hl=en)
@@ -96,6 +104,7 @@ npm run submit:private-store:ios -- --id VERIFIED_IOS_BUILD_UUID
 - [Apple의 Public/Private 배포 설정](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/set-distribution-methods)
 - [Apple Business의 Custom Apps](https://support.apple.com/en-ie/guide/business/axm58ba3112a/web)
 - [Apple Business 가입·조직 인증](https://support.apple.com/en-euro/guide/business/axm402206497/web)
+- [Apple Business 도메인 추가·인증](https://support.apple.com/en-euro/guide/business/axm48c3280c0/web)
 - [ManageEngine 무료 25대 관리](https://www.manageengine.com/mobile-device-management/free-mobile-device-management-software.html)
 - [ManageEngine 체험 종료와 Free Edition 전환 FAQ](https://www.manageengine.com/mobile-device-management/faq.html)
 - [ManageEngine Android 개인 기기 업무 프로필](https://www.manageengine.com/mobile-device-management/help/enrollment/enroll_android_devices.html)
