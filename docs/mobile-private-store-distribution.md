@@ -127,3 +127,7 @@ Vercel Functions의 서울 리전, Supabase 운영 DB의 서울 리전을 확인
 - [ManageEngine Android 개인 기기 업무 프로필](https://www.manageengine.com/mobile-device-management/help/enrollment/enroll_android_devices.html)
 - [Expo 빌드 설정](https://docs.expo.dev/build/eas-json/)
 - [Expo 제출 설정](https://docs.expo.dev/submit/eas-json/)
+
+## 개인정보 페이지·앱 링크 검증
+
+루트·모바일 lint/typecheck, 프록시 테스트 10개와 최신 운영 브랜치를 반영한 프로덕션 빌드를 통과했다. 기존 파일 저장소 tracing 경고 4개는 유지된다. 390×844 밝은·어두운 테마, 320×800 보관 기준 재배치를 확인했고 가로 넘침이 없다. 공개 링크의 최소 터치 영역은 44×44px로 맞췄다. 앱 로그인 화면에도 로그아웃 상태에서 공개 링크가 표시된다. 남은 최종 확인은 데스크톱·확대 검수와 운영 배포 및 익명 URL 응답이다.

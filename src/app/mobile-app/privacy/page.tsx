@@ -47,7 +47,7 @@ export default function MobileAppPrivacyPage() {
       </header>
       <p className="my-4 text-sm leading-7">{organizationName}(이하 “기관”)은 {appName} 직원용 모바일 앱과 연결된 업무 시스템의 개인정보를 아래 기준으로 처리합니다. 앱은 기관이 등록한 활성 직원 계정으로 이용하며, 청소년이나 일반 이용자에게 직접 회원가입을 제공하지 않습니다.</p>
       <nav aria-label="개인정보처리방침 목차" className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {[["data", "처리 항목"], ["retention", "보관·파기"], ["providers", "처리 업체"], ["rights", "권리·문의"]].map(([id, label]) => <a key={id} href={`#${id}`} className="inline-flex min-h-11 items-center underline underline-offset-4">{label}</a>)}
+        {[["data", "처리 항목"], ["retention", "보관·파기"], ["providers", "처리 업체"], ["rights", "권리·문의"]].map(([id, label]) => <a key={id} href={`#${id}`} className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">{label}</a>)}
       </nav>
       <Section id="data" title="1. 처리 목적과 개인정보 항목">
         <dl className="divide-y divide-[var(--border)]">
@@ -67,10 +67,10 @@ export default function MobileAppPrivacyPage() {
       <Section id="providers" title="3. 외부 서비스와 국외 처리">
         <p>앱과 업무 시스템 운영에 다음 서비스를 사용합니다. 서버·저장소 운영은 업무 처리 위탁이며, 알림·업데이트 제공 시에는 기능에 필요한 정보만 전송합니다.</p>
         <dl className="divide-y divide-[var(--border)]">
-          <div className="py-3"><dt className="font-semibold">Vercel Inc. — 업무 서버 운영</dt><dd>웹·API 요청에 포함된 업무 정보와 접속 정보. 서버 실행 리전은 대한민국 서울이며, 서비스의 네트워크·운영·지원 과정에서 미국 등 국외 인프라가 사용될 수 있습니다. 업무 기록은 기관 보관 기준을, 서비스 운영 기록은 제공업체의 보존 기준을 따릅니다. 문의: privacy@vercel.com.</dd><dd><a href="https://vercel.com/legal/privacy-notice" className="inline-flex min-h-11 items-center underline underline-offset-4">Vercel 개인정보 안내</a></dd></div>
-          <div className="py-3"><dt className="font-semibold">Supabase Pte. Ltd. — 데이터베이스·파일 저장</dt><dd>직원 계정·업무·청소년 기록 및 첨부파일. 주 저장 리전은 대한민국 서울이며, 싱가포르 사업자와 미국 지원 법인 등 서비스 운영·지원 주체가 관여할 수 있습니다. 서비스 이용 중 기관 보관 기준에 따라 보관·삭제하며, 계약 종료 후 반환·삭제는 서비스 계약의 조건을 따릅니다. 문의: privacy@supabase.io.</dd><dd><a href="https://supabase.com/legal/customer-resources/data-processing-addendum" className="inline-flex min-h-11 items-center underline underline-offset-4">Supabase 처리·보존 안내</a></dd></div>
-          <div className="py-3"><dt className="font-semibold">650 Industries, Inc. (Expo) — 결재 알림·앱 업데이트</dt><dd>미국 소재 서비스입니다. 알림을 켜면 Expo 알림 토큰, 일반적인 결재 알림 문구와 문서 내부 식별자를 알림 발생 시 HTTPS로 전송합니다. 현재 알림 문구에는 문서 제목·본문을 넣지 않습니다. Expo는 전달 대기 중 알림 정보를 일시 처리하고 Apple APNs(iPhone) 또는 Google FCM(Android)에 전달합니다. 업데이트 요청 시 운영체제와 무작위 식별 토큰, IP 주소 등 통신 정보가 전송되며, 제공업체는 서비스 제공에 필요한 기간 동안 처리합니다. 문의는 Expo 공식 개인정보 안내의 문의 양식으로 접수할 수 있습니다.</dd><dd><a href="https://expo.dev/privacy" className="inline-flex min-h-11 items-center underline underline-offset-4">Expo 개인정보 안내</a></dd></div>
-          <div className="py-3"><dt className="font-semibold">Apple Inc.·Google LLC — 기기 알림 전달</dt><dd>미국 소재 사업자의 APNs·FCM이 기기로 알림을 전달하는 과정에서 기기 알림 식별자와 알림 내용을 처리합니다. 보존·삭제 조건은 각 알림 서비스의 정책을 따릅니다.</dd><dd className="flex flex-wrap gap-x-4"><a href="https://www.apple.com/legal/privacy/" className="inline-flex min-h-11 items-center underline underline-offset-4">Apple 개인정보 안내</a><a href="https://policies.google.com/privacy" className="inline-flex min-h-11 items-center underline underline-offset-4">Google 개인정보 안내</a></dd></div>
+          <div className="py-3"><dt className="font-semibold">Vercel Inc. — 업무 서버 운영</dt><dd>웹·API 요청에 포함된 업무 정보와 접속 정보. 서버 실행 리전은 대한민국 서울이며, 서비스의 네트워크·운영·지원 과정에서 미국 등 국외 인프라가 사용될 수 있습니다. 업무 기록은 기관 보관 기준을, 서비스 운영 기록은 제공업체의 보존 기준을 따릅니다. 문의: privacy@vercel.com.</dd><dd><a href="https://vercel.com/legal/privacy-notice" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Vercel 개인정보 안내</a></dd></div>
+          <div className="py-3"><dt className="font-semibold">Supabase Pte. Ltd. — 데이터베이스·파일 저장</dt><dd>직원 계정·업무·청소년 기록 및 첨부파일. 주 저장 리전은 대한민국 서울이며, 싱가포르 사업자와 미국 지원 법인 등 서비스 운영·지원 주체가 관여할 수 있습니다. 서비스 이용 중 기관 보관 기준에 따라 보관·삭제하며, 계약 종료 후 반환·삭제는 서비스 계약의 조건을 따릅니다. 문의: privacy@supabase.io.</dd><dd><a href="https://supabase.com/legal/customer-resources/data-processing-addendum" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Supabase 처리·보존 안내</a></dd></div>
+          <div className="py-3"><dt className="font-semibold">650 Industries, Inc. (Expo) — 결재 알림·앱 업데이트</dt><dd>미국 소재 서비스입니다. 알림을 켜면 Expo 알림 토큰, 일반적인 결재 알림 문구와 문서 내부 식별자를 알림 발생 시 HTTPS로 전송합니다. 현재 알림 문구에는 문서 제목·본문을 넣지 않습니다. Expo는 전달 대기 중 알림 정보를 일시 처리하고 Apple APNs(iPhone) 또는 Google FCM(Android)에 전달합니다. 업데이트 요청 시 운영체제와 무작위 식별 토큰, IP 주소 등 통신 정보가 전송되며, 제공업체는 서비스 제공에 필요한 기간 동안 처리합니다. 문의는 Expo 공식 개인정보 안내의 문의 양식으로 접수할 수 있습니다.</dd><dd><a href="https://expo.dev/privacy" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Expo 개인정보 안내</a></dd></div>
+          <div className="py-3"><dt className="font-semibold">Apple Inc.·Google LLC — 기기 알림 전달</dt><dd>미국 소재 사업자의 APNs·FCM이 기기로 알림을 전달하는 과정에서 기기 알림 식별자와 알림 내용을 처리합니다. 보존·삭제 조건은 각 알림 서비스의 정책을 따릅니다.</dd><dd className="flex flex-wrap gap-x-4"><a href="https://www.apple.com/legal/privacy/" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Apple 개인정보 안내</a><a href="https://policies.google.com/privacy" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Google 개인정보 안내</a></dd></div>
         </dl>
         <p>국외 처리가 필요한 경우 기관은 적용되는 법적 근거와 고지·동의 요건을 갖추어 처리합니다. 알림은 기기 설정이나 앱의 알림 설정에서 끌 수 있고, 알림을 꺼도 기본 업무 기능을 이용할 수 있습니다. 국외 처리 관련 문의·처리정지 요청은 아래 담당 창구로 접수할 수 있으며, 필수 서버·업데이트 처리를 중단하면 해당 앱 서비스 이용이 제한될 수 있습니다.</p>
       </Section>
@@ -89,7 +89,7 @@ export default function MobileAppPrivacyPage() {
       </Section>
       <Section id="rights" title="7. 권리 행사와 담당 창구">
         <p>정보주체 또는 적법한 대리인은 개인정보 열람·정정·삭제·처리정지, 동의 철회 및 개인정보 관련 불만 처리를 요청할 수 있습니다. 만 14세 미만 아동의 법정대리인도 권리를 행사할 수 있습니다.</p>
-        <dl><dt className="font-semibold">{mobileAppInfo.privacyContact}</dt><dd><a href={`mailto:${mobileAppInfo.supportEmail}`} className="inline-flex min-h-11 max-w-full items-center break-all underline underline-offset-4">{mobileAppInfo.supportEmail}</a></dd></dl>
+        <dl><dt className="font-semibold">{mobileAppInfo.privacyContact}</dt><dd><a href={`mailto:${mobileAppInfo.supportEmail}`} className="inline-flex min-h-11 min-w-11 max-w-full items-center break-all underline underline-offset-4">{mobileAppInfo.supportEmail}</a></dd></dl>
         <p>요청 대상과 요청 내용을 보내 주시면 필요한 최소한의 본인·대리권 확인 후 관련 법령에 따라 처리하고 결과를 안내합니다. 최초 문의 이메일에 비밀번호·인증번호·주민등록번호나 청소년 기록 원문을 보내지 마세요. 법령상 보존 의무 등으로 요청을 제한하는 경우 그 이유와 이의 제기 방법을 안내합니다. 직원 계정 이용 종료는 기관의 계정 담당자를 통해 처리합니다.</p>
         <p>개인정보 침해 상담은 개인정보침해 신고센터(국번 없이 118, privacy.kisa.or.kr), 분쟁 조정은 개인정보분쟁조정위원회(kopico.go.kr)에 요청할 수 있습니다.</p>
       </Section>
@@ -97,9 +97,9 @@ export default function MobileAppPrivacyPage() {
         <p>이 방침은 공개 게시일부터 적용합니다. 처리 목적·항목·보관 기간·외부 서비스 등 중요한 내용을 변경하면 이 페이지와 업무 시스템 공지 등으로 변경 사항과 적용일을 알리고, 별도 동의가 필요한 변경은 해당 절차를 거칩니다.</p>
       </Section>
       <nav aria-label="관련 페이지" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <Link href="/mobile-app/support" className="inline-flex min-h-11 items-center underline underline-offset-4">앱 지원</Link>
-        <Link href="/login" className="inline-flex min-h-11 items-center underline underline-offset-4">업무 시스템 로그인</Link>
-        <a href="https://youth.bajaul.com/" className="inline-flex min-h-11 items-center underline underline-offset-4">기관 홈페이지</a>
+        <Link href="/mobile-app/support" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">앱 지원</Link>
+        <Link href="/login" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">업무 시스템 로그인</Link>
+        <a href="https://youth.bajaul.com/" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">기관 홈페이지</a>
       </nav>
     </article>
   </main>;

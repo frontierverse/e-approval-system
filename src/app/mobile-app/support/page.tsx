@@ -36,7 +36,7 @@ export default function MobileAppSupportPage() {
           <p className="mt-2 text-sm leading-6">계정 등록, 로그인, 앱 사용 중 발생한 문제는 아래 이메일로 문의해 주세요.</p>
           <a
             href={`mailto:${supportEmail}`}
-            className="mt-3 inline-flex min-h-11 max-w-full items-center rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold break-all text-white hover:underline underline-offset-4"
+            className="mt-3 inline-flex min-h-11 min-w-11 max-w-full items-center rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold break-all text-white hover:underline underline-offset-4"
           >
             {supportEmail}
           </a>
@@ -56,9 +56,9 @@ export default function MobileAppSupportPage() {
         </section>
 
         <nav aria-label="관련 페이지" className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link href="/mobile-app/privacy" className="inline-flex min-h-11 items-center text-[var(--foreground)] underline underline-offset-4">개인정보처리방침</Link>
-          <Link href="/login" className="inline-flex min-h-11 items-center font-medium text-[var(--foreground)] underline underline-offset-4">업무 시스템 로그인</Link>
-          <a href="https://youth.bajaul.com/" className="inline-flex min-h-11 items-center text-[var(--foreground)] underline underline-offset-4">기관 홈페이지</a>
+          <Link href="/mobile-app/privacy" className="inline-flex min-h-11 min-w-11 items-center text-[var(--foreground)] underline underline-offset-4">개인정보처리방침</Link>
+          <Link href="/login" className="inline-flex min-h-11 min-w-11 items-center font-medium text-[var(--foreground)] underline underline-offset-4">업무 시스템 로그인</Link>
+          <a href="https://youth.bajaul.com/" className="inline-flex min-h-11 min-w-11 items-center text-[var(--foreground)] underline underline-offset-4">기관 홈페이지</a>
         </nav>
       </div>
     </main>
