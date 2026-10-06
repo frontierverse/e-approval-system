@@ -1,0 +1,50 @@
+[
+  {
+    "name": "ChatFilePreviewImage.dc.html",
+    "renderedDomSha256": "713bfb4758fc94d8060a6a10de346906c90d0080c7de66dfb6008aaf1c51fc9e",
+    "staticDomSha256": "c15e89da3aaf90e007e6035b41595a8215ff75cab76564db52e9994bd0b9a06e",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewImageDark.dc.html",
+    "renderedDomSha256": "9b8974f98c28a1adbbf7da688517469d362298a10c1cd0279797e3d3c0b7a898",
+    "staticDomSha256": "7ad9f840e9cbfe99ac4504e5026817e6a6593eb898be157b3fb1dc1b568b239e",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewImageSmall.dc.html",
+    "renderedDomSha256": "029dea01edfc5f2ad262cce62b52ea3a11d25ddc1e6e8eab7e1300e073fa2a2c",
+    "staticDomSha256": "73345725348b3ba51e7e94afb300d16d78816dbfa3fc52eadba395ae0041fc55",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewImageDesktop.dc.html",
+    "renderedDomSha256": "a43945df47eba49d194650d8dc590b3597e345e0fd1a075ada511777805379a7",
+    "staticDomSha256": "10d28a2c127bcf79cecd0d2a23de6cc02a97a636ead8823a938f5429e0fbd180",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewFetchError.dc.html",
+    "renderedDomSha256": "a214ca711482d3f783640f002a44da02ebb70419f68722233c451c8fa9cafe87",
+    "staticDomSha256": "7b71ce019be02d79bda87cf780c16073cf9fd68798c4b257963689559e5fd38c",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewLoading.dc.html",
+    "renderedDomSha256": "beaff71d9179165eb518a4405dfa2c9306faf9ae705bbc0e97e05e40ab22e7b7",
+    "staticDomSha256": "a8a3d8f68c02752cd13e798bc67349e75d57ce95035f613a7b7aef635c5592e9",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewWebPdf.dc.html",
+    "renderedDomSha256": "82ac3758a40976485eae44793ce4a893dab3208a5aa6f937240eede738a27e7d",
+    "staticDomSha256": "c342c3fb423430a4d2984be0bd255ad6c651d9767637142b812f45de96cac9cb",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  },
+  {
+    "name": "ChatFilePreviewLargeError.dc.html",
+    "renderedDomSha256": "de23ca66ac8241b392c4212cf54b3a9442c1a05b318203e3695cb75be3c852d4",
+    "staticDomSha256": "241ce6286cfe755dcd760a953e7f505f620e1a1a51b6118053a7ba7c9a0ae0ed",
+    "normalization": "Remove scripts from rendered DOM; alias existing landscape brand image to same local supplied PNG. No app content, layout, text or styles edited."
+  }
+]
