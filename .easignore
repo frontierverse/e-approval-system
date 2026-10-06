@@ -10,6 +10,12 @@
 /mobile/.env*
 /mobile/README.md
 /mobile/AGENTS.md
+/mobile/.claude/
+/mobile/design-qa.md
+/mobile/private-store.json
+/mobile/scripts/check-private-store.mjs
+/mobile/scripts/check-private-store.test.mjs
+/mobile/scripts/submit-private-store.mjs
 /mobile/scripts/test-api.mjs
 /mobile/credentials.json
 /mobile/google-services.json

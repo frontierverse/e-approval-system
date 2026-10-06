@@ -1,0 +1,14 @@
+{
+  "organizationName": "사회적협동조합 청소년자립학교",
+  "android": {
+    "distribution": "managed-google-play-private",
+    "organizationIds": [],
+    "consolePrivateDistributionConfirmed": false
+  },
+  "ios": {
+    "distribution": "apple-custom-app-private",
+    "organizationIds": [],
+    "appStoreConnectAppId": null,
+    "consolePrivateDistributionConfirmed": false
+  }
+}

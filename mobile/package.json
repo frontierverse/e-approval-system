@@ -46,6 +46,12 @@
     "test:api": "node --test scripts/test-api.mjs",
     "check:release": "node --env-file-if-exists=.env.local scripts/check-release.mjs",
     "build:staff": "npx eas-cli@latest workflow:run .eas/workflows/build-staff.yml",
+    "build:private-store:android": "npx eas-cli@latest workflow:run .eas/workflows/build-private-store-android.yml",
+    "build:private-store:ios": "npx eas-cli@latest workflow:run .eas/workflows/build-private-store-ios.yml",
+    "check:private-store": "node scripts/check-private-store.mjs",
+    "test:private-store": "node --test scripts/check-private-store.test.mjs",
+    "submit:private-store:android": "node scripts/submit-private-store.mjs --platform android",
+    "submit:private-store:ios": "node scripts/submit-private-store.mjs --platform ios",
     "update:preview": "npx eas-cli@latest workflow:run .eas/workflows/update-preview.yml",
     "update:production": "npx eas-cli@latest workflow:run .eas/workflows/update-production.yml",
     "eas-build-pre-install": "node scripts/check-release.mjs"

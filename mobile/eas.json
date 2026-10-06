@@ -26,11 +26,19 @@
       "extends": "production",
       "distribution": "internal",
       "android": { "buildType": "apk" }
+    },
+    "private-store": {
+      "extends": "production",
+      "distribution": "store",
+      "android": { "buildType": "app-bundle" }
     }
   },
   "submit": {
     "production": {
       "android": { "track": "internal", "releaseStatus": "draft" }
+    },
+    "private-store": {
+      "android": { "track": "production", "releaseStatus": "draft" }
     }
   }
 }

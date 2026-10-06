@@ -1,5 +1,7 @@
 # 바자울 모바일 앱
 
+정식 직원 배포는 Android **Managed Google Play 비공개 앱**, iOS **Apple Custom Apps의 Private 배포**로 진행한다. [비공개 스토어 배포 절차](../docs/mobile-private-store-distribution.md)에 빌드·제출 명령과 조직 등록 현황을 기록한다. `private-store` 빌드는 스토어 제출용이며 실제 공개 범위는 각 스토어 콘솔에서 회사 조직으로 제한해야 한다. 조직 등록·심사·게시 완료 상태는 별도 검증한다.
+
 직원 전용 Expo 앱이다. 공개 App Store·Play Store로 출시하지 않는다. 웹 프로젝트와 같은 데이터베이스와 결재 규칙을 쓰며, iOS와 Android에 동일한 코드로 배포한다. 일반 직원에게는 홈의 내 상신 진행 상황, 알림, 내 정보와 문서·첨부파일 열람을 제공한다. 직급이 시설장인 직원만 받은결재 탭과 본인 결재 순서의 승인·반려를 사용한다. 관리자 역할만으로 결재 권한이 부여되지는 않는다. 직원은 앱의 새 기안·기안함에서 서버에 등록된 양식을 직접 작성하고, 파일 첨부·임시저장·수정·상신과 본인 임시저장 기안의 삭제를 사용할 수 있다. 관리자 기능은 웹에서 사용한다. 서버는 유효한 bearer 세션, 활성 직원 상태, 현재 직급, 문서별 열람·결재 권한을 확인한다.
 
 ## 내 할 일
@@ -111,11 +113,11 @@ PDF 미리보기는 네이티브 모듈을 사용하므로 Expo Go 대신 개발
 - Apple 팀 `NAS4C244M3`의 기존 Distribution 인증서는 EAS에 등록되어 있다. USB 연결 없이 기기를 등록하려면 Expo 계정의 `Apple devices > Register Apple device`에서 만든 링크를 설치할 iPhone의 Safari로 열어 등록 프로필을 설치한다. 등록한 기기를 Apple 프로비저닝 프로파일에 포함한 뒤 iOS 내부 배포 빌드를 만든다.
 - iOS APNs 키 `5H8962CTM3`는 EAS에 등록되어 이 앱에 연결되어 있다. Apple 팀 `NAS4C244M3`의 Production 환경에서 `com.gyeoljaeon.internal` 토픽만 허용한다. 내부 배포 빌드의 운영 푸시에 사용하며 실제 기기 도착 여부는 기기 등록과 빌드 이후 확인한다.
 - iOS 서명 없이 컴파일을 확인하려면 `npx eas-cli@latest build --profile preview-simulator --platform ios`를 사용한다. 이 결과물은 iPhone에 설치하는 빌드가 아니다.
-- 바자울의 배포 대상은 회사 직원이다. 현재 회사는 Google Workspace나 직원 휴대폰 관리 서비스를 사용하지 않고 Android 사용자는 100명 이하이다. Google Play 초기 시험 배포는 직원 Google 계정을 지정하는 내부 테스트(최대 100명)로 준비한다. 테스트 트랙은 직원 전용 정식 운영 배포와 구분한다. 내부 테스트 시작에는 신규 개인 계정의 운영 출시용 12명·14일 요건이 적용되지 않는다. Google Play 개발자 계정과 업로드용 AAB가 필요하며, 일반 운영 출시를 선택하면 계정 유형에 따른 출시 요건을 충족해야 한다.
-- Android 제출 프로필은 내부 테스트의 초안으로 구성한다. Google Play Console에서 직원 계정 목록과 설치 대상을 확인한 뒤 해당 트랙에 릴리스한다.
+- 바자울의 정식 Android 배포는 회사 조직에 제한한 Managed Google Play 비공개 앱으로 진행한다. 현재 기록상 Google Workspace나 직원 휴대폰 관리 서비스를 사용하지 않으므로 조직 관리 환경과 조직 ID를 먼저 준비해야 한다. 직원 계정을 지정하는 내부 테스트(최대 100명)는 시험용이며 정식 비공개 운영 배포와 구분한다.
+- `submit.private-store`는 비공개 운영 트랙의 초안 제출용이다. 회사 조직 ID와 실제 콘솔의 비공개 배포 설정 확인 전에는 `submit:private-store:android`가 제출을 차단한다. 기존 `submit.production`의 내부 테스트 초안 설정은 유지한다.
 - Android APK는 최종 스토어 배포 전 시험용이다. 기존 서명 키를 재사용하고 직원 인증이 있는 배포 채널 또는 MDM으로 전달한다. 업데이트도 동일한 package와 서명 키를 유지해야 한다.
 - iOS 시험 배포는 유료 Apple Developer 계정과 등록된 직원 기기 UDID가 있는 Ad Hoc 빌드로 진행한다. 새 기기가 추가되면 프로비저닝 프로필을 갱신하고 새 빌드 또는 재서명이 필요하다. 인증서·프로필 만료도 관리한다.
-- iOS 장기 운영은 지정 조직만 볼 수 있는 Apple Custom Apps의 Private 배포를 우선 검토한다. Apple Business(기존 Apple Business Manager) 또는 Apple School Manager의 조직 ID와 Apple Developer 계정이 필요하며, Apple 심사 후 MDM이나 redemption code로 직원에게 배포한다. 공개 스토어 제출은 하지 않는다. TestFlight는 초대한 직원의 시험용이며 각 빌드는 90일 후 만료된다.
+- iOS 정식 배포는 지정 회사 조직만 볼 수 있는 Apple Custom Apps의 Private 배포로 진행한다. Apple Business(기존 Apple Business Manager) 또는 Apple School Manager의 조직 ID, App Store Connect 앱 ID와 App Store 서명 프로필이 필요하며, Apple 심사 후 MDM이나 redemption code로 직원에게 배포한다. 회사 조직과 Private 설정 확인 전에는 `submit:private-store:ios`가 제출을 차단한다. TestFlight는 초대한 직원의 시험용이며 각 빌드는 90일 후 만료된다.
 - EAS 내부 배포 URL도 기본적으로 URL을 아는 사람이 다운로드할 수 있다. 프로젝트의 Unauthenticated access to internal builds 설정과 직원 배포 채널을 확인한다. Expo 계정 로그인 요구는 서버의 직원 로그인·권한 검사를 대신하지 않는다. 보안 설정 변경, 신규 서명 키 생성, 비용·약관 수락은 별도 승인을 받는다.
 - 앱 API는 `../src/app/api/mobile/`에 있고, 세션 토큰은 기기 SecureStore와 서버 해시로 관리한다. 서버 배포 전에 `20260930000000_mobile_app` 마이그레이션이 필요하다.
 - 저장소 루트의 `.easignore`가 모바일 소스만 업로드한다. 서버 코드와 서버 환경파일은 네이티브 빌드 압축본에서 제외된다.
