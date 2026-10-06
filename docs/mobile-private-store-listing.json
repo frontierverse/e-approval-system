@@ -1,6 +1,10 @@
 {
   "state": "draft_not_submitted",
   "name": "바자울",
+  "version": "1.0.5",
+  "appStoreConnectAppId": "6819625477",
+  "iosMetadataDraftSaved": true,
+  "iosReleaseMode": "manual",
   "locale": "ko-KR",
   "categoryDraft": "Business",
   "package": "com.gyeoljaeon.internal",

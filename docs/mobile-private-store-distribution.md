@@ -15,9 +15,17 @@
 
 2026-10-06 조회: EAS 프로젝트 `@artemismars2/gyeoljaeon`에 접근할 수 있다. 기존 Android 직원용 `1.0.5 / versionCode 8`은 완료된 내부 배포 APK이며 스토어 업로드용 AAB가 아니다.
 
-현재 Chrome에서 확인한 Google 계정은 Play 개발자 등록 전에 2단계 인증이 필요하다. 같은 계정의 Managed Google Play는 회사 조직 접근 권한이 없다고 표시한다. 다른 회사 관리 계정이나 기존 조직의 존재 여부는 아직 확인되지 않았다. Apple Business는 로그인 화면이며 App Store Connect도 인증이 필요하다. 회사 조직 ID와 App Store Connect 앱 ID를 확인하지 않았으므로 등록·심사·게시 완료로 간주하지 않는다.
+초기 Chrome 계정은 2단계 인증이 필요했으나, 사용자가 Brave에서 별도의 Google 계정과 Apple 개발자 계정 인증을 완료했다. 현재 Google 계정은 비영리단체 개발자 계정의 결제 프로필 연결 단계까지 열려 있다. 조직 인증과 가입은 아직 완료되지 않았다.
+
+App Store Connect에 바자울 iOS 앱 레코드 `6819625477`을 생성했다. 한국어 설명·검색어·심사 안내 초안, 버전 `1.0.5`, 수동 릴리스 설정을 저장했다. 실제 심사용 계정·스크린샷·지원/개인정보처리방침 주소는 아직 준비되지 않았다. Private 배포는 회사 조직 ID를 최소 1개 요구하므로 조직 확인 전에는 저장·제출할 수 없다. 선택만 한 화면을 비공개 설정 완료로 기록하지 않는다.
+
+사용자가 기존 Google Workspace·Android 기기 관리 서비스와 Apple Business 조직이 없으며 Android 직원 기기가 25대 이하라고 확인했다. Apple Business 조직명·기존 D-U-N-S 신청의 공개 기관 주소를 입력한 가입 초안을 준비했고, 관리형 Apple 계정 생성과 조직 인증이 남아 있다. Apple 개발자 팀 `NAS4C244M3`은 기존 개인 개발자 회원이며, 배포 대상 회사 조직 ID와 구분한다. 직원이나 기기 등록·약관 동의·결제는 진행하지 않았다.
+
+Android 관리 서비스 후보는 ManageEngine Mobile Device Manager Plus다. 공식 안내에서 무료 25대 요금제와 개인 기기의 업무 프로필(BYOD) 지원을 확인했다. 서비스 선택·가입과 Google 관리 조직 연결은 아직 승인·완료되지 않았고, 유료 전환이나 직원 기기 등록을 실행하지 않는다. 30일 체험과 이후 무료 25대 요금제를 구분하여 가입 화면과 실제 라이선스 상태를 확인한다.
 
 EAS의 `private-store` iOS 자격 증명 조회에서는 기존 Distribution 인증서를 확인했다. 이를 재사용하는 설정은 App Store 프로비저닝 프로필 생성 단계에서 Apple Developer 로그인을 요구하여 중단했다. 새 인증서나 프로필을 생성하지 않았다. 인증서만으로 iOS 설치본이 준비된 것은 아니다.
+
+로그인 후 Apple Developer에서 App Store 프로필 초안 `Bajaul Private Store 20261006`을 준비했다. App ID는 `NAS4C244M3.com.gyeoljaeon.internal`, 선택한 기존 인증서는 2027-10-01 만료 Distribution 인증서다. Generate 실행과 EAS 연결은 아직 완료하지 않았으며 발급 승인과 검증을 거쳐 진행한다. Apple Business 가입은 별도의 관리형 Apple 계정 비밀번호·전화번호·본인 인증을 사용자가 입력하는 단계에서 대기한다.
 
 기존 D-U-N-S 신청은 2026-10-02 제출 기록이 있다. 발급 여부와 정확한 법인명을 확인하고 중복 신청하지 않는다. 조직 등록·서비스 선택·직원 기기 등록·약관·결제는 준비된 실제 화면과 정보를 바탕으로 진행한다.
 
@@ -75,5 +83,8 @@ npm run submit:private-store:ios -- --id VERIFIED_IOS_BUILD_UUID
 - [Google Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?hl=en)
 - [Apple의 Public/Private 배포 설정](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/set-distribution-methods)
 - [Apple Business의 Custom Apps](https://support.apple.com/en-ie/guide/business/axm58ba3112a/web)
+- [Apple Business 가입·조직 인증](https://support.apple.com/en-euro/guide/business/axm402206497/web)
+- [ManageEngine 무료 25대 관리](https://www.manageengine.com/mobile-device-management/free-mobile-device-management-software.html)
+- [ManageEngine Android 개인 기기 업무 프로필](https://www.manageengine.com/mobile-device-management/help/enrollment/enroll_android_devices.html)
 - [Expo 빌드 설정](https://docs.expo.dev/build/eas-json/)
 - [Expo 제출 설정](https://docs.expo.dev/submit/eas-json/)

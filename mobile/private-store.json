@@ -8,7 +8,7 @@
   "ios": {
     "distribution": "apple-custom-app-private",
     "organizationIds": [],
-    "appStoreConnectAppId": null,
+    "appStoreConnectAppId": "6819625477",
     "consolePrivateDistributionConfirmed": false
   }
 }
