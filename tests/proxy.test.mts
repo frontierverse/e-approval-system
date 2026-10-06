@@ -5,6 +5,26 @@ import { proxy } from "../src/proxy.ts";
 import { sessionCookieName } from "../src/lib/session-constants.ts";
 
 describe("authentication proxy", () => {
+  test("opens the static app support page without an employee session", () => {
+    const response = proxy(new NextRequest("http://localhost/mobile-app/support?from=app-store"));
+    assert.equal(response.headers.get("location"), null);
+    assert.equal(response.headers.get("x-middleware-next"), "1");
+  });
+
+  test("keeps routes neighboring app support and private documents protected", () => {
+    for (const pathname of [
+      "/mobile-app",
+      "/mobile-app/supporting",
+      "/mobile-app/support/private",
+      "/mobile-app/privacy",
+      "/documents/synthetic-document-id",
+    ]) {
+      const response = proxy(new NextRequest(`http://localhost${pathname}`));
+      assert.equal(response.status, 307);
+      assert.equal(new URL(response.headers.get("location")!).pathname, "/login");
+    }
+  });
+
   test("returns 401 JSON for background chat requests after the cookie expires", async () => {
     for (const pathname of ["/api/chat", "/api/chat/messages", "/api/chat/read", "/api/chat/stream"]) {
       const response = proxy(new NextRequest(`http://localhost${pathname}`));

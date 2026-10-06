@@ -1,0 +1,158 @@
+{
+  "state": "unpublished_review_draft",
+  "reviewedSourceDate": "2026-10-06",
+  "title": "바자울 개인정보처리방침 검토 초안",
+  "controller": "사회적협동조합 청소년자립학교",
+  "app": "바자울",
+  "scopeDraft": "기관에 등록된 직원의 내부 업무 앱과 연결된 업무 시스템에서 처리하는 개인정보",
+  "existingPolicyUrl": null,
+  "effectiveDate": null,
+  "publicationApproved": false,
+  "supportContact": {
+    "email": "artemismars2@gmail.com",
+    "approvedByUser": true,
+    "privacyOfficerAppointmentConfirmed": false
+  },
+  "privacyContact": {
+    "nameOrDepartment": null,
+    "email": null,
+    "phone": null
+  },
+  "notice": "소스에 존재하는 항목과 기관에서 확정한 처리방침은 다릅니다. 확인되지 않은 보관 기간·처리업체·국외 이전·권리 행사 절차는 확정 문구로 게시하지 않습니다.",
+  "processingSections": [
+    {
+      "id": "staff-account",
+      "purposeDraft": "직원 식별, 로그인, 재직 상태와 업무 권한 확인, 계정 및 프로필 관리",
+      "codeSupportedItems": [
+        "이름",
+        "이메일(등록한 경우)",
+        "비밀번호 해시",
+        "부서·직위·역할·권한·계정 상태",
+        "생년월일·입사일·퇴사일(등록한 경우)",
+        "프로필 및 서명 이미지(등록한 경우)"
+      ],
+      "retentionPeriod": null,
+      "retentionTrigger": null,
+      "sources": [
+        "prisma/schema.prisma: User",
+        "src/lib/mobile-auth.ts",
+        "src/lib/mobile-account.ts"
+      ]
+    },
+    {
+      "id": "staff-work",
+      "purposeDraft": "전자결재, 업무 보고·일지·일정·할 일 관리, 직원 간 업무 대화 및 자료 공유",
+      "codeSupportedItems": [
+        "문서·보고·일지·일정·할 일의 작성 내용과 작성자·결재자·처리 이력",
+        "댓글·직원 대화 내용",
+        "첨부파일·자료실 파일과 메타데이터",
+        "업무 내용에 직원이 입력한 개인정보"
+      ],
+      "retentionPeriod": null,
+      "retentionTrigger": null,
+      "sources": [
+        "prisma/schema.prisma",
+        "src/lib/attachment-storage.ts",
+        "src/lib/resource-file-storage.ts"
+      ]
+    },
+    {
+      "id": "youth-records",
+      "purposeDraft": "권한이 부여된 직원의 청소년 보호·상담·생활·학습·일정 및 사후관리 업무",
+      "codeSupportedItems": [
+        "이름·생년월일·나이·연락처",
+        "입소·퇴소·상담 및 사후관리 관련 날짜",
+        "가족·보호자 이름·관계·연락처",
+        "생활·학습·일정·특이사항·업무보고",
+        "결정문 및 관련 첨부파일"
+      ],
+      "retentionPeriod": null,
+      "retentionTrigger": null,
+      "implementedRetentionForReview": {
+        "period": "상담·사후관리 완료일부터 5년",
+        "exceptions": "법원 요청·감사·미종결 사건 등 보존 보류 사유를 별도 등록",
+        "expiryBehavior": "기간 경과만으로 자동 파기를 시작하지 않고 관리자 확인 후 파기 검토",
+        "organizationPolicyConfirmed": false
+      },
+      "sources": [
+        "prisma/schema.prisma: Youth and related models",
+        "src/lib/youth-retention-core.ts",
+        "docs/youth-retention.md"
+      ]
+    },
+    {
+      "id": "access-and-notifications",
+      "purposeDraft": "로그인 유지, 결재 알림 전송, 접속 보안과 업무 처리 감사",
+      "codeSupportedItems": [
+        "모바일 세션 토큰의 서버 해시와 사용자 연결·발급일·만료일",
+        "Expo 알림 토큰 및 알림 처리 이력",
+        "웹 로그인 쿠키",
+        "로그인·감사 기록의 사용자·행위·시각·IP 주소(기록되는 경우)"
+      ],
+      "retentionPeriod": null,
+      "retentionTrigger": null,
+      "sources": [
+        "src/lib/session.ts",
+        "src/lib/mobile-auth.ts",
+        "src/lib/mobile-push.ts",
+        "prisma/schema.prisma: LoginHistory, AuditLog, MobileSession, MobilePushSubscription"
+      ]
+    }
+  ],
+  "deviceStorageDraft": {
+    "description": "모바일 로그인 토큰과 작성 복구 정보는 SecureStore를 사용합니다. 로그아웃·인증 만료·계정 변경 시 앱이 관련 임시 리소스 정리를 요청합니다. 이용자가 외부 앱으로 공유한 사본과 서버·백업까지 모두 삭제된다는 보장은 아닙니다.",
+    "sources": [
+      "mobile/src/lib/session.tsx",
+      "mobile/src/lib/draft-recovery-store.native.ts",
+      "mobile/src/lib/draft-recovery-privacy.ts"
+    ]
+  },
+  "cookiesDraft": {
+    "description": "웹 로그인 세션 쿠키와 화면 테마 저장을 사용합니다. 로그인 유효기간은 개인정보 보관·파기 기간과 다릅니다. 다른 자동 수집 도구의 실제 운영 여부는 추가 확인이 필요합니다.",
+    "inventoryComplete": false,
+    "sources": [
+      "src/lib/session.ts",
+      "src/app/layout.tsx"
+    ]
+  },
+  "externalProcessingForReview": [
+    {
+      "service": "Expo Push Service",
+      "codeBehavior": "알림 신청 기기의 Expo 토큰, 일반적인 결재 알림 문구와 문서 내부 식별자를 Expo API로 전달합니다. 현재 발송 코드에는 결재 문서 본문·제목을 알림 문구에 넣지 않습니다.",
+      "operatorLegalEntity": null,
+      "dataLocationCountries": null,
+      "contractAndRetentionConfirmed": false,
+      "source": "src/lib/mobile-push.ts"
+    },
+    {
+      "service": "업무 서버·데이터베이스·파일 저장소",
+      "codeBehavior": "로컬, Supabase Storage, Vercel Blob 저장 경로가 지원됩니다. 기존 운영 문서에 Vercel·Supabase 사용 기록이 있으나 현재 배포의 처리업체·활성 저장소·국가를 재확인해야 합니다.",
+      "activeOperators": null,
+      "dataLocationCountries": null,
+      "contractAndRetentionConfirmed": false,
+      "sources": [
+        "src/lib/attachment-storage.ts",
+        "src/lib/resource-file-storage.ts",
+        "docs/youth-retention.md"
+      ]
+    }
+  ],
+  "thirdPartyProvisionConfirmed": false,
+  "internationalTransfersConfirmed": false,
+  "sensitiveDataAndUnder14ProcedureConfirmed": false,
+  "dataSubjectRequestProcedureConfirmed": false,
+  "destructionAndBackupProcedureConfirmed": false,
+  "safetyMeasuresDraft": "활성 직원 계정 확인, 권한별 조회·처리 제한, 세션 확인과 로그인·감사 기록을 사용합니다. 실제 운영의 접근 관리·암호화·백업·교육 등 관리적·기술적·물리적 조치는 기관 확인 후 기재합니다.",
+  "publicationBlockers": [
+    "개인정보 보호 담당자·부서 및 문의 연락처",
+    "직원 계정·업무 문서·대화·로그 등의 보관 기간과 법적·업무상 근거",
+    "청소년 보존 기준과 예외의 기관 최종 확인",
+    "현재 운영 위탁 업체·처리 항목·저장 국가·보유 조건",
+    "제3자 제공 및 국외 이전의 실제 여부와 적용 근거",
+    "민감정보와 만 14세 미만 정보 처리의 실제 범위 및 절차",
+    "열람·정정·삭제·처리정지 요구 접수와 처리 절차",
+    "파일·자유서술·외부 사본·백업을 포함한 파기 절차",
+    "시행일과 최종 기관 검토"
+  ],
+  "legalReviewReference": "https://www.law.go.kr/LSW/lsLinkCommonInfo.do?lsJoLnkSeq=1032645945"
+}
