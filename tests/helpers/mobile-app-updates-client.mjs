@@ -43,7 +43,7 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
     useSyncExternalStore(subscribe, getSnapshot) { const value = getSnapshot(); react.useEffect(() => subscribe(() => undefined), [subscribe]); return value; },
   };
   const listen = (name, fn) => { const bucket = state.listeners.get(name) ?? new Set(); bucket.add(fn); state.listeners.set(name, bucket); return { remove: () => bucket.delete(fn) }; };
-  const native = Object.fromEntries(['View', 'Text', 'Pressable', 'ActivityIndicator', 'ScrollView'].map(name => [name, name]));
+  const native = Object.fromEntries(['View', 'Text', 'Pressable', 'ActivityIndicator', 'ScrollView', 'TextInput'].map(name => [name, name]));
   const updates = {
     get isEnabled() { return state.updatesEnabled; }, get updateId() { return state.native.currentlyRunning.updateId; },
     get channel() { return state.native.currentlyRunning.channel; }, get runtimeVersion() { return state.native.currentlyRunning.runtimeVersion; },

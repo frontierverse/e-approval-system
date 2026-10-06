@@ -1,20 +1,24 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Modal, Platform, ScrollView, Text, View } from "react-native";
+import { Modal, Platform, ScrollView, View } from "react-native";
 import { AccountFeedback } from "@/components/account-feedback";
-import { PrimaryButton, TextAction } from "@/components/ui";
+import { ChatThreadSend as PrimaryButton, ChatThreadAction as TextAction, ChatThreadFileSummary } from "@/components/chat-thread-ui";
+import { DetailText as Text } from "@/components/document-detail-ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConfirmAction } from "@/components/use-confirm-action";
 import { ApiError } from "@/lib/api";
-import { chatError, chatPreviewKind, newChatRequestId } from "@/lib/chat";
-import { chatFileSize, createChatFileTransfer, registerChatPreviewAttachment } from "@/lib/chat-file-transfer";
+import { chatError, formatChatTimestamp, chatPreviewKind, newChatRequestId } from "@/lib/chat";
+import { createChatFileTransfer, registerChatPreviewAttachment } from "@/lib/chat-file-transfer";
 import { useChat } from "@/lib/chat-provider";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme as useTheme } from "@/lib/home-theme";
 import type { ChatAttachment } from "@/lib/types";
-export function ChatAttachmentActions({ attachment, peerId, messageId, isSender, isCurrent, enabled, onChanged, onClose, onPending }: {
+export function ChatAttachmentActions({ attachment, peerId, messageId, peerName, createdAt, isSender, isCurrent, enabled, onChanged, onClose, onPending }: {
   attachment: ChatAttachment;
   peerId: string;
   messageId: string;
+  peerName?: string;
+  createdAt?: string;
   isSender: boolean;
   isCurrent: () => boolean;
   enabled: boolean;
@@ -25,7 +29,8 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
   const { token, user, expireSession } = useSession();
   const theme = useTheme();
   const { foregroundEpoch, isForegroundCurrent } = useChat();
-  const confirmation = useConfirmAction();
+  const insets = useSafeAreaInsets();
+  const confirmation = useConfirmAction({ colors: theme, sheet: true, bottomInset: insets.bottom });
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [handoff, setHandoff] = useState(false);
@@ -201,14 +206,23 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, isSender,
   };
   if (!enabled || !isForegroundCurrent(foregroundEpoch))
     return null;
-  return <Modal visible transparent animationType="none" accessibilityLabel="채팅 파일" onRequestClose={() => void close()} onShow={() => cancelButton.current?.focus()}><View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 }}><View style={{ width: "100%", maxWidth: 520, maxHeight: "95%", borderRadius: 12, backgroundColor: theme.surface, padding: 16, gap: 8 }}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>채팅 파일</Text><ScrollView><Text selectable style={{ color: theme.text, fontSize: 14, lineHeight: 21 }}>{attachment.originalName}</Text><Text style={{ color: theme.secondary, fontSize: 13, marginTop: 4 }}>{chatFileSize(attachment.size)} · {isSender ? "보낸 파일" : "받은 파일"}</Text>{!isSender ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20, marginTop: 8 }}>파일을 저장한 뒤 수신 완료하면 서버 원본이 삭제됩니다. 공유 화면에서 취소했다면 수신 완료하지 마세요.</Text> : null}<AccountFeedback error={error} message={notice}/></ScrollView>
-  {(completed || ["deleted", "deleting"].includes(attachment.status)) && !unknown ? <Text style={{ color: theme.secondary, fontSize: 13 }}>원본 파일이 삭제되어 다운로드할 수 없습니다.</Text> : <>
-   {chatPreviewKind(attachment.originalName) && attachment.size <= 4 * 1024 * 1024 && !ready && !unknown ? <TextAction label="미리보기" disabled={busy} icon="eye-outline" onPress={preview}/> : null}
-   {!unknown ? <View style={{ gap: 8 }}><PrimaryButton title={busy ? progress === null ? "파일 처리 중" : `파일 처리 ${Math.floor(progress * 100)}%` : Platform.OS === "ios" ? "파일 저장·공유" : "파일 저장"} disabled={busy} onPress={() => void exportFile(Platform.OS === "ios" ? "share" : "save")}/>{Platform.OS === "android" ? <TextAction label="다른 앱으로 공유" disabled={busy} onPress={() => void exportFile("share")}/> : null}</View> : null}
-   {!isSender && handoff && !unknown ? <PrimaryButton title="파일을 저장했습니다 · 수신 완료" disabled={busy} onPress={() => void complete()}/> : null}
-   {unknown ? <PrimaryButton title="원래 수신 완료 상태 확인" disabled={busy} onPress={() => void retryComplete()}/> : null}
-  </>}
-  {busy ? <TextAction label="파일 요청 취소" onPress={() => { if (current()) transfer.current?.cancel(); }} /> : null}
-  <TextAction ref={cancelButton} label="닫기" disabled={busy} onPress={() => void close()}/>
- </View></View>{confirmation.dialog}</Modal>;
+  return <Modal visible transparent animationType="none" accessibilityLabel="파일 작업" onRequestClose={() => void close()} onShow={() => cancelButton.current?.focus()}>
+  <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", alignItems: "center" }}>
+  <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 760, maxHeight: "92%", borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.surface, padding: 16, paddingBottom: Math.max(insets.bottom + 12, 16), gap: 12 }}>
+    <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 17, lineHeight: 23.8, fontWeight: "700" }}>파일 작업</Text>
+    <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
+      <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19.5 }}>{isSender ? "내가 보낸 파일이에요. 상대가 수신 완료하기 전까지 저장·공유할 수 있어요." : `${peerName ?? "상대방"}님이 보낸 파일이에요. 기기에 저장한 뒤 수신 완료를 눌러야 서버 원본이 정리돼요.`}</Text>
+      <View style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: theme.surfaceMuted }}><ChatThreadFileSummary attachment={attachment} detail={`${isSender ? "보낸 파일" : "받은 파일"}${createdAt ? ` · ${formatChatTimestamp(createdAt)}` : ""}`} /></View>
+      <AccountFeedback error={error} message={notice} />
+      {(completed || ["deleted", "deleting"].includes(attachment.status)) && !unknown ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>원본 파일이 삭제되어 다운로드할 수 없습니다.</Text> : <View style={{ gap: 8 }}>
+        {chatPreviewKind(attachment.originalName) && attachment.size <= 4 * 1024 * 1024 && !ready && !unknown ? <TextAction label="미리보기" panel disabled={busy} onPress={preview} /> : null}
+        {!unknown ? <><PrimaryButton title={busy ? progress === null ? "파일 처리 중" : `파일 처리 ${Math.floor(progress * 100)}%` : Platform.OS === "ios" ? "파일 저장·공유" : "파일 저장"} displayTitle={busy ? undefined : Platform.OS === "ios" ? "파일 저장·공유" : "기기에 저장"} panel disabled={busy} onPress={() => void exportFile(Platform.OS === "ios" ? "share" : "save")} />
+          {Platform.OS === "android" ? <TextAction label="다른 앱으로 공유" panel disabled={busy} onPress={() => void exportFile("share")} /> : null}</> : null}
+        {!isSender && handoff && !unknown ? <PrimaryButton title="파일을 저장했습니다 · 수신 완료" panel disabled={busy} onPress={() => void complete()} /> : null}
+        {unknown ? <PrimaryButton title="원래 수신 완료 상태 확인" panel disabled={busy} onPress={() => void retryComplete()} /> : null}
+      </View>}
+      {busy ? <TextAction label="파일 요청 취소" panel onPress={() => { if (current()) transfer.current?.cancel(); }} /> : null}
+    </ScrollView>
+    <TextAction ref={cancelButton} label="닫기" panel disabled={busy || unknown} onPress={() => void close()} />
+  </View></View>{confirmation.dialog}</Modal>;
 }

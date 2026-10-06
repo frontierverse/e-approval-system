@@ -28,7 +28,7 @@ usePreventRemove:(enabled:boolean,callback:unknown)=>{active.prevent={enabled,ca
 useConfirmAction:()=>({dialog:null,ask:async(options:Row)=>{state.confirmations.push(options);return state.confirm;}}),useTheme:()=>({text:"text",secondary:"secondary",muted:"muted",accent:"accent",surface:"surface",background:"background",border:"border",danger:"danger",accentSoft:"accentSoft"}),
 useChat:()=>chat,useSession:()=>({token:"token-a",user:{id:"own"},expireSession}),
 Platform:{OS:"android"},AppState:{currentState:"active",addEventListener:(event:string,fn:unknown)=>{state.listeners[event]=fn;return{remove:()=>delete state.listeners[event]};}},setInterval:(fn:unknown)=>{state.timers.push(fn);return state.timers.length;},clearInterval:()=>{},
-FlatList:"FlatList",KeyboardAvoidingView:"KeyboardAvoidingView",KeyboardScreen:"KeyboardScreen",KeyboardScrollView:"ScrollView",KeyboardFlatList:"FlatList",ActivityIndicator:"ActivityIndicator",Text:"Text",View:"View",Modal:"Modal",ScrollView:"ScrollView",Image:"Image",ChatInput:"ChatInput",ChatBadge:"ChatBadge",ChatRowLink:"ChatRowLink",AccountFeedback:"AccountFeedback",PrimaryButton:"PrimaryButton",TextAction:"TextAction",EmptyState:"EmptyState",ChatAttachmentActions:"ChatAttachmentActions",PdfPreview:"PdfPreview",
+FlatList:"FlatList",KeyboardAvoidingView:"KeyboardAvoidingView",KeyboardScreen:"KeyboardScreen",KeyboardScrollView:"ScrollView",KeyboardFlatList:"FlatList",ActivityIndicator:"ActivityIndicator",Text:"Text",View:"View",Modal:"Modal",ScrollView:"ScrollView",Image:"Image",ChatInput:"ChatInput",ChatThreadMessage:"ChatThreadMessage",ChatThreadLoading:"ChatThreadLoading",ChatThreadSelectedFile:"ChatThreadSelectedFile",ChatThreadFileSummary:"ChatThreadFileSummary",ChatBadge:"ChatBadge",ChatRowLink:"ChatRowLink",AccountFeedback:"AccountFeedback",PrimaryButton:"PrimaryButton",TextAction:"TextAction",EmptyState:"EmptyState",ChatAttachmentActions:"ChatAttachmentActions",PdfPreview:"PdfPreview",
 discardChatFile:(file:Row,options:Row)=>{state.discards.push({file,token:options.token,current:options.isCurrent()});},clearChatFileResources:async()=>{state.purges++;},router:{push:(value:unknown)=>state.routes.push(value),canGoBack:()=>false,back:()=>state.routes.push("BACK"),replace:(value:unknown)=>state.routes.push(value)},pickChatFile:async()=>state.onPick?state.onPick():state.selectedFile??null,uploadChatFile:async(options:Row)=>state.onUpload(options),createChatFileTransfer:()=>{state.operations++;return state.transfer;},chatFileSize:(size:number)=>`${size}B`,registerChatPreviewAttachment:()=>{},loadChatPreview:async(options:Row)=>{state.previewRequests.push(options);return state.onPreview(options);},lookupChatPreviewAttachment:()=>state.previewAttachment,
 apiRequest:request,createContext:()=>({Provider:"Provider"}),useContext:()=>null,
 };
@@ -530,4 +530,56 @@ test("employee no-record state has precedence over unmatched search; list preser
  const h=await mount("list");assert.deepEqual(find(h,"FlatList").data.map((r:Row)=>r.peer.id),["peer-2","peer"]);
  find(h,"ChatListSearch").onChange("없는 직원");find(h,"ChatListTabs").onChange(true);update(h);
  assert.equal(find(h,"ChatListEmpty").noRecords,true);assert.equal(find(h,"ChatListEmpty").directory,true);
+});
+
+test("background and fresh permission check remove stale private feedback from the rendered tree", async () => {
+  const h = await mount("thread");
+  find(h, "ChatInput").onChange("보관 입력"); update(h);
+  state.onRequest = async () => { throw new ApiError("민감한_기록.pdf 전송 실패", 400); };
+  find(h, "PrimaryButton", "보내기").onPress(); await tick(); update(h);
+  assert.ok(JSON.stringify(h.tree).includes("민감한_기록.pdf"));
+  setChatForeground(false); update(h);
+  assert.equal(JSON.stringify(h.tree).includes("민감한_기록.pdf"), false);
+  assert.equal(nodes(h.tree).some(n => n.type === "AccountFeedback"), false);
+  const fresh = deferred(); state.onRequest = async () => fresh.promise;
+  setChatForeground(true); update(h);
+  assert.equal(JSON.stringify(h.tree).includes("민감한_기록.pdf"), false);
+  fresh.resolve({ messages: [message()], hasMore: false }); await tick(); update(h);
+  assert.equal(find(h, "ChatInput").value, "보관 입력");
+});
+
+test("jump to new messages clears old visible IDs before allowing a new read acknowledgement", async () => {
+  const h = await mount("thread");
+  const original = find(h, "FlatList");
+  original.onScrollBeginDrag();
+  original.onViewableItemsChanged({ viewableItems: [{ item: message(), isViewable: true }] });
+  state.onRequest = async path => path.startsWith("/chat/messages?") ? { messages: [message(), message("9007199254740994")], hasMore: false } : { ok: true };
+  state.timers.at(-1)(); await tick(); update(h);
+  const jump = find(h, "TextAction", "새 메시지 1개 · 최신 메시지로");
+  const readBefore = state.requests.filter((r: Row) => r.path === "/chat/read").length;
+  jump.onPress(); update(h);
+  find(h, "FlatList").onScroll({ nativeEvent: { contentOffset: { y: 100 }, layoutMeasurement: { height: 500 }, contentSize: { height: 600 } } });
+  await tick();
+  assert.equal(state.requests.filter((r: Row) => r.path === "/chat/read").length, readBefore, "jump must not mark formerly visible history as read");
+  find(h, "FlatList").onViewableItemsChanged({ viewableItems: [{ item: message("9007199254740994"), isViewable: true }] });
+  await tick();
+  assert.equal(state.requests.filter((r: Row) => r.path === "/chat/read").at(-1)?.body.messageId, "msg-9007199254740994");
+});
+
+test("compact uncertain thread pins original retry and discard outside composer scrolling", async () => {
+  state.dimensions = { width: 180, height: 380, fontScale: 1, scale: 1 };
+  const h = await mount("thread");
+  find(h, "ChatInput").onChange("고정한 원래 전송"); update(h);
+  state.onRequest = async () => { throw new ApiError("응답 확인 필요", 503); };
+  find(h, "PrimaryButton", "보내기").onPress(); await tick(); update(h);
+  const scroll = find(h, "ScrollView");
+  assert.equal(nodes(scroll.children).some(n => n.type === "PrimaryButton" && n.props.title === "같은 전송 다시 확인"), false);
+  assert.equal(nodes(scroll.children).some(n => n.type === "TextAction" && n.props.label === "작성 내용 버리기"), false);
+  assert.ok(find(h, "TextAction", "작성 내용 버리기"));
+  assert.equal(find(h, "ChatInput").disabled, true);
+  state.onRequest = async (_path: string, options: Row) => ({ message: message("9007199254740994", { senderId: "own", recipientId: "peer", body: options.body.body }) });
+  find(h, "PrimaryButton", "같은 전송 다시 확인").onPress(); await tick(); update(h);
+  const sends = state.requests.filter((r: Row) => r.path === "/chat/messages");
+  assert.deepEqual(sends[0].body, sends[1].body);
+  assert.equal(find(h, "ChatInput").value, "");
 });
