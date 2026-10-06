@@ -16,11 +16,12 @@ const message=(sequence="9007199254740993",patch:Row={})=>({id:`msg-${sequence}`
 const employee={id:"peer",name:"직원",departmentName:"지원",positionName:"담당",active:true};
 const summary=()=>({employees:[employee],conversations:[{peer:employee,lastMessage:message(),unreadCount:1}],unreadCount:1});
 const request=async(path:string,options:Row={})=>{state.requests.push({path,...options});return state.onRequest(path,options);};
-const defaultChat:Row={refreshSummary:async()=>{state.refreshes++;return state.summary;},authenticatedRequest:request,isCurrentAccount:()=>state.account,foreground:true,foregroundEpoch:0,isForegroundCurrent:(epoch:number)=>state.account&&chat.foreground&&epoch===chat.foregroundEpoch,summary:null,error:null};
+const defaultChat:Row={refreshSummary:async()=>{state.refreshes++;return state.onSummaryRefresh?state.onSummaryRefresh():state.summary;},authenticatedRequest:request,isCurrentAccount:()=>state.account,foreground:true,foregroundEpoch:0,isForegroundCurrent:(epoch:number)=>state.account&&chat.foreground&&epoch===chat.foregroundEpoch,summary:null,error:null};
 const chat:Row={...defaultChat};
 function setChatForeground(value:boolean) { if(chat.foreground!==value) chat.foregroundEpoch++; chat.foreground=value; }
 const expireSession=async()=>state.expired++;
 const harness:Row={...core,ApiError,
+Stack:{Screen:"Stack.Screen"},StyleSheet:{create:(value:unknown)=>value},useWindowDimensions:()=>state.dimensions,useHomeTheme:()=>harness.useTheme(),SafeAreaView:"SafeAreaView",ChatListAction:"ChatListAction",ChatListTabs:"ChatListTabs",ChatListSearch:"ChatListSearch",ChatListRow:"ChatListRow",ChatListLoading:"ChatListLoading",ChatListNotice:"ChatListNotice",ChatListEmpty:"ChatListEmpty",
 React:{createElement:(type:unknown,props:Row|null,...children:unknown[])=>({type,props:{...props,children}}),Fragment:"Fragment"},
 useRef:(v:unknown)=>{const c=cell();return c.ref??(c.ref={current:v});},useState:(v:unknown)=>{const c=cell();if(!c.state){c.state={value:typeof v==="function"?v():v};c.setter=(next:unknown)=>{c.state.value=typeof next==="function"?next(c.state.value):next;};}return[c.state.value,c.setter];},useCallback:(fn:unknown,deps:unknown[])=>{const c=cell();if(!same(c.deps,deps)){c.deps=deps;c.fn=fn;}return c.fn;},useEffect:effect,useLayoutEffect:effect,useFocusEffect:(fn:()=>unknown)=>{const i=active.index;effect(fn,[fn]);active.slots[i].focus=true;},
 usePreventRemove:(enabled:boolean,callback:unknown)=>{active.prevent={enabled,callback};},useNavigation:()=>({dispatch:(action:unknown)=>state.dispatched.push(action)}),useSafeAreaInsets:()=>({bottom:16}),
@@ -28,7 +29,7 @@ useConfirmAction:()=>({dialog:null,ask:async(options:Row)=>{state.confirmations.
 useChat:()=>chat,useSession:()=>({token:"token-a",user:{id:"own"},expireSession}),
 Platform:{OS:"android"},AppState:{currentState:"active",addEventListener:(event:string,fn:unknown)=>{state.listeners[event]=fn;return{remove:()=>delete state.listeners[event]};}},setInterval:(fn:unknown)=>{state.timers.push(fn);return state.timers.length;},clearInterval:()=>{},
 FlatList:"FlatList",KeyboardAvoidingView:"KeyboardAvoidingView",KeyboardScreen:"KeyboardScreen",KeyboardScrollView:"ScrollView",KeyboardFlatList:"FlatList",ActivityIndicator:"ActivityIndicator",Text:"Text",View:"View",Modal:"Modal",ScrollView:"ScrollView",Image:"Image",ChatInput:"ChatInput",ChatBadge:"ChatBadge",ChatRowLink:"ChatRowLink",AccountFeedback:"AccountFeedback",PrimaryButton:"PrimaryButton",TextAction:"TextAction",EmptyState:"EmptyState",ChatAttachmentActions:"ChatAttachmentActions",PdfPreview:"PdfPreview",
-discardChatFile:(file:Row,options:Row)=>{state.discards.push({file,token:options.token,current:options.isCurrent()});},clearChatFileResources:async()=>{state.purges++;},router:{push:(value:unknown)=>state.routes.push(value)},pickChatFile:async()=>state.onPick?state.onPick():state.selectedFile??null,uploadChatFile:async(options:Row)=>state.onUpload(options),createChatFileTransfer:()=>{state.operations++;return state.transfer;},chatFileSize:(size:number)=>`${size}B`,registerChatPreviewAttachment:()=>{},loadChatPreview:async(options:Row)=>{state.previewRequests.push(options);return state.onPreview(options);},lookupChatPreviewAttachment:()=>state.previewAttachment,
+discardChatFile:(file:Row,options:Row)=>{state.discards.push({file,token:options.token,current:options.isCurrent()});},clearChatFileResources:async()=>{state.purges++;},router:{push:(value:unknown)=>state.routes.push(value),canGoBack:()=>false,back:()=>state.routes.push("BACK"),replace:(value:unknown)=>state.routes.push(value)},pickChatFile:async()=>state.onPick?state.onPick():state.selectedFile??null,uploadChatFile:async(options:Row)=>state.onUpload(options),createChatFileTransfer:()=>{state.operations++;return state.transfer;},chatFileSize:(size:number)=>`${size}B`,registerChatPreviewAttachment:()=>{},loadChatPreview:async(options:Row)=>{state.previewRequests.push(options);return state.onPreview(options);},lookupChatPreviewAttachment:()=>state.previewAttachment,
 apiRequest:request,createContext:()=>({Provider:"Provider"}),useContext:()=>null,
 };
 (globalThis as Row)[key]=harness;
@@ -36,10 +37,10 @@ async function load(file:string,name:string){const source=readFileSync(new URL(`
 const components:Row={thread:await load("components/chat-thread-screen.tsx","ChatThreadContent"),list:await load("components/chat-screen.tsx","ChatScreenContent"),file:await load("components/chat-attachment-actions.tsx","ChatAttachmentActions"),provider:await load("lib/chat-provider.tsx","AccountChatProvider"),preview:await load("components/chat-file-preview-screen.tsx","ChatFilePreviewContent")};
 const scopes:Hooks[]=[];const tick=()=>new Promise<void>(r=>setImmediate(r));const update=(h:Hooks)=>{h.render();h.flush();};
 async function mount(kind:string,props:Row={}){const h=new Hooks(kind,{peerId:"peer",...props});scopes.push(h);h.render();h.flush();await tick();update(h);return h;}
-function nodes(root:unknown):Row[]{if(Array.isArray(root))return root.flatMap(nodes);if(!root||typeof root!=="object")return[];const row=root as Row;return[row,...nodes(row.props?.children)];}
+function nodes(root:unknown):Row[]{if(Array.isArray(root))return root.flatMap(nodes);if(!root||typeof root!=="object")return[];const row=root as Row;return[row,...Object.values(row.props??{}).flatMap(nodes)];}
 function find(h:Hooks,type:string,label?:string){const n=nodes(h.tree).find(n=>n.type===type&&(!label||n.props.title===label||n.props.label===label));assert.ok(n,`${type} ${label??""}`);return n.props;}
 function deferred(){let resolve!:(v:unknown)=>void;let reject!:(v:unknown)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return{promise,resolve,reject};}
-beforeEach(()=>{for(const scope of scopes.splice(0))scope.unmount();Object.assign(state,{account:true,requests:[],refreshes:0,summary:summary(),onRequest:async(path:string,options:Row)=>path==="/chat"?state.summary:path.startsWith("/chat/messages?")?{messages:[message()],hasMore:false}:path==="/chat/read"?{ok:true}:options.method==="POST"?{message:message("9007199254740994",{senderId:"own",recipientId:"peer",body:options.body.body})}:null,confirm:true,confirmations:[],dispatched:[],routes:[],expired:0,timers:[],listeners:{},operations:0,purges:0,discards:[],downloads:0,saves:0,completes:0,statuses:0,ready:false,transferPending:false});Object.assign(chat,defaultChat);state.transfer={download:async()=>{state.downloads++;state.ready=true;return true;},save:async()=>{state.saves++;return{kind:"handoff",requiresConfirmation:true,message:"외부 저장 화면"};},share:async()=>({kind:"handoff",requiresConfirmation:true,message:"공유 화면"}),isReady:()=>state.ready,getState:()=>({ready:state.ready,exported:false,requiresConfirmation:false,completionPending:state.transferPending,completed:false}),status:async()=>{state.statuses++;return{match:true,status:"deleting"};},complete:async()=>{state.completes++;state.transferPending=true;const result=await state.onComplete();state.transferPending=false;return result;},cancel:()=>{},release:()=>{}};state.onComplete=async()=>({message:message()});state.previewAttachment={id:"file",originalName:"민감 기록.pdf",size:12,status:"available"};state.previewRequests=[];state.previewReleases=0;state.onPreview=async()=>({uri:"private-preview",mimeType:"application/pdf",kind:"pdf",release:()=>state.previewReleases++});state.selectedFile=null;state.onPick=null;state.onUpload=async()=>{throw new Error("not used");};});
+beforeEach(()=>{for(const scope of scopes.splice(0))scope.unmount();Object.assign(state,{dimensions:{width:390,height:844,fontScale:1,scale:1},account:true,onSummaryRefresh:null,requests:[],refreshes:0,summary:summary(),onRequest:async(path:string,options:Row)=>path==="/chat"?state.summary:path.startsWith("/chat/messages?")?{messages:[message()],hasMore:false}:path==="/chat/read"?{ok:true}:options.method==="POST"?{message:message("9007199254740994",{senderId:"own",recipientId:"peer",body:options.body.body})}:null,confirm:true,confirmations:[],dispatched:[],routes:[],expired:0,timers:[],listeners:{},operations:0,purges:0,discards:[],downloads:0,saves:0,completes:0,statuses:0,ready:false,transferPending:false});Object.assign(chat,defaultChat);state.transfer={download:async()=>{state.downloads++;state.ready=true;return true;},save:async()=>{state.saves++;return{kind:"handoff",requiresConfirmation:true,message:"외부 저장 화면"};},share:async()=>({kind:"handoff",requiresConfirmation:true,message:"공유 화면"}),isReady:()=>state.ready,getState:()=>({ready:state.ready,exported:false,requiresConfirmation:false,completionPending:state.transferPending,completed:false}),status:async()=>{state.statuses++;return{match:true,status:"deleting"};},complete:async()=>{state.completes++;state.transferPending=true;const result=await state.onComplete();state.transferPending=false;return result;},cancel:()=>{},release:()=>{}};state.onComplete=async()=>({message:message()});state.previewAttachment={id:"file",originalName:"민감 기록.pdf",size:12,status:"available"};state.previewRequests=[];state.previewReleases=0;state.onPreview=async()=>({uri:"private-preview",mimeType:"application/pdf",kind:"pdf",release:()=>state.previewReleases++});state.selectedFile=null;state.onPick=null;state.onUpload=async()=>{throw new Error("not used");};});
 after(()=>{for(const scope of scopes)scope.unmount();delete(globalThis as Row)[key];});
 test("loaded messages alone never mark read; only visible inbound ID does",async()=>{const h=await mount("thread");assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);const list=find(h,"FlatList");list.onViewableItemsChanged({viewableItems:[{isViewable:true,item:message("1",{senderId:"own",recipientId:"peer"})}]});await tick();assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);list.onViewableItemsChanged({viewableItems:[{isViewable:true,item:message()}]});await tick();assert.deepEqual(state.requests.find((r:Row)=>r.path==="/chat/read").body,{peerId:"peer",messageId:message().id});});
 test("read callbacks after blur/background/account switch cannot mutate",async()=>{const h=await mount("thread");const callback=find(h,"FlatList").onViewableItemsChanged;h.blur();callback({viewableItems:[{isViewable:true,item:message()}]});setChatForeground(false);update(h);state.account=false;callback({viewableItems:[{isViewable:true,item:message()}]});await tick();assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);});
@@ -473,4 +474,60 @@ test("OS picker keeps its own lock across resume and late denied selection is re
   assert.equal(JSON.stringify(thread.tree).includes("must-not-retain.pdf"), false);
   assert.equal(state.routes.length, 0);
   assert.equal(state.expired, 0);
+});
+
+
+test("chat list search stays visible and preserves name/department/position query across both modes",async()=>{
+ const h=await mount("list");
+ find(h,"ChatListSearch").onChange("지원");update(h);
+ assert.equal(find(h,"FlatList").data.length,1);
+ find(h,"ChatListTabs").onChange(true);update(h);
+ assert.equal(find(h,"ChatListSearch").value,"지원");
+ find(h,"ChatListTabs").onChange(false);update(h);
+ assert.equal(find(h,"ChatListSearch").value,"지원");
+ find(h,"ChatListSearch").onClear();update(h);
+ assert.equal(find(h,"ChatListSearch").value,"");
+ find(h,"ChatListSearch").onChange("담당");update(h);assert.equal(find(h,"FlatList").data.length,1);
+ find(h,"ChatListSearch").onChange("받은 내용");update(h);assert.equal(find(h,"FlatList").data.length,0,"message body is not searchable");
+ assert.equal(state.requests.length,0,"list/search never calls read or send");
+});
+test("new chat selects employee finder and clears only the local query",async()=>{
+ const h=await mount("list");find(h,"ChatListSearch").onChange("없음");update(h);
+ find(h,"ChatListAction","새 대화").onPress();update(h);
+ assert.equal(find(h,"ChatListTabs").directory,true);assert.equal(find(h,"ChatListSearch").value,"");
+ assert.equal(find(h,"FlatList").data.length,1);assert.equal(state.requests.length,0);
+});
+test("manual chat refresh masks private rows, locks inputs, deduplicates captured actions and preserves query",async()=>{
+ const h=await mount("list");find(h,"ChatListSearch").onChange("지원");update(h);
+ const search=find(h,"ChatListSearch"),tabs=find(h,"ChatListTabs"),fresh=find(h,"ChatListAction","새로고침").onPress,newChat=find(h,"ChatListAction","새 대화").onPress;
+ const held=deferred();state.onSummaryRefresh=()=>held.promise;update(h);
+ const refresh=find(h,"ChatListAction","새로고침").onPress;const before=state.refreshes;refresh();refresh();update(h);
+ assert.equal(state.refreshes,before+1);assert.equal(find(h,"FlatList").data.length,0);
+ assert.equal(find(h,"ChatListSearch").disabled,true);assert.equal(find(h,"ChatListTabs").disabled,true);assert.equal(find(h,"ChatListAction","새 대화").disabled,true);
+ search.onChange("지우기 시도");search.onClear();tabs.onChange(true);newChat();fresh();update(h);
+ assert.equal(find(h,"ChatListSearch").value,"지원");assert.equal(find(h,"ChatListTabs").directory,false);
+ held.resolve(state.summary);await tick();update(h);assert.equal(find(h,"FlatList").data.length,1);assert.equal(find(h,"ChatListSearch").disabled,false);
+});
+test("first/fresh chat lookup failure differs from empty records and keeps previous private rows hidden",async()=>{
+ const h=await mount("list");state.onSummaryRefresh=async()=>null;update(h);find(h,"ChatListAction","새로고침").onPress();await tick();update(h);
+ assert.equal(find(h,"FlatList").data.length,0);assert.ok(find(h,"ChatListNotice").error);
+ assert.equal(nodes(h.tree).some(n=>n.type==="ChatListEmpty"),false);
+ assert.equal(find(h,"ChatListSearch").disabled,true);
+});
+test("periodic failure retains only verified current-account list and reports unread unknown",async()=>{
+ const h=await mount("list");chat.summary=state.summary;chat.error="네트워크 확인 필요";update(h);
+ assert.equal(find(h,"FlatList").data.length,1);assert.equal(find(h,"ChatListNotice").periodic,true);
+ assert.ok(JSON.stringify(h.tree).includes("확인 필요"));
+ chat.summary=null;update(h);assert.equal(find(h,"FlatList").data.length,0);assert.equal(find(h,"ChatListSearch").disabled,true);
+});
+test("captured chat search, clear, new and tabs cannot act after account change or raw foreground invalidation",async()=>{
+ const h=await mount("list");const search=find(h,"ChatListSearch"),tabs=find(h,"ChatListTabs"),fresh=find(h,"ChatListAction","새 대화");
+ state.account=false;search.onChange("이전 직원");tabs.onChange(true);fresh.onPress();search.onClear();update(h);
+ assert.equal(find(h,"ChatListSearch").value,"");assert.equal(find(h,"ChatListTabs").directory,false);assert.equal(state.routes.length,0);
+});
+test("employee no-record state has precedence over unmatched search; list preserves supplied order",async()=>{
+ const second={...employee,id:"peer-2",name:"둘째",active:false};state.summary={employees:[],conversations:[{peer:second,lastMessage:message(),unreadCount:0},{peer:employee,lastMessage:message(),unreadCount:1}],unreadCount:1};
+ const h=await mount("list");assert.deepEqual(find(h,"FlatList").data.map((r:Row)=>r.peer.id),["peer-2","peer"]);
+ find(h,"ChatListSearch").onChange("없는 직원");find(h,"ChatListTabs").onChange(true);update(h);
+ assert.equal(find(h,"ChatListEmpty").noRecords,true);assert.equal(find(h,"ChatListEmpty").directory,true);
 });
