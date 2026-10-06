@@ -59,7 +59,9 @@ function harness(kind = 'tasks', exportName, initial = {}, account = 'a') {
   const imports = {
     react, 'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
     'expo-router': { Stack: { Screen: 'Stack.Screen' }, router: { setParams(params) { props = { ...props, ...params, page: Number(params.page ?? props.page) }; render(); }, push(path) { navigation.push(path); } }, useFocusEffect: focusHook, useLocalSearchParams: () => props },
-    'react-native': { ...components, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }) }, '@expo/vector-icons': { Ionicons: 'Ionicons' },
+    'react-native': { ...components, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }) }, '@expo/vector-icons': { Ionicons: 'Ionicons', Feather: 'Feather' },
+    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 0 }) },
+    '@/components/document-detail-ui': { DetailText: 'Text' },
     '@/components/account-feedback': { AccountFeedback: 'AccountFeedback', focusAccountNotice() {} }, '@/components/ui': components, '@/components/inbox-list': components,
     '@/lib/api': api, '@/lib/tasks': core, '@/lib/session': { useSession: () => ({ ...session, request }) }, '@/lib/theme': { useTheme: () => ({}) }, '@/lib/home-theme': { useHomeTheme: () => ({}) },
     '@/components/home-dashboard': { HomeDashboard: 'HomeDashboard' },
@@ -70,7 +72,8 @@ function harness(kind = 'tasks', exportName, initial = {}, account = 'a') {
   function render() { cursor = 0; tree = evaluated[name](props); for (const fn of effects.splice(0)) fn(); return tree; }
   const find = type => { let found; walk(tree, node => { if (node.type === type && !found) found = node; }); assert(found, type); return found; };
   const flat = () => find('FlatList');
-  const action = label => { let found; walk(flat().props.ListHeaderComponent, node => { if (node.type === 'TextAction' && node.props.label === label) found = node.props; }); assert(found, 'action ' + label); return found; };
+  const action = label => { let found; walk(flat().props.ListHeaderComponent, node => { if ((node.type === 'TextAction' || node.type?.name === 'TaskAction') && node.props.label === label) found = node.props;
+      if (node.type?.name === 'TaskFeedback' && node.props.onRetry && label === (node.props.conflict ? '최신 목록 불러오기' : '다시 시도')) found = { onPress: node.props.onRetry, disabled: node.props.disabled }; }); assert(found, 'action ' + label); return found; };
   const row = index => { const item = flat().props.data[index ?? 0]; assert(item, 'task row'); return flat().props.renderItem({ item }).props; };
   function pending(path) { const entry = requests.find(item => !item.settled && (!path || item.path === path)); assert(entry, 'pending request ' + path); return entry; }
   const resolve = (value, path) => { const entry = pending(path); entry.settled = true; entry.resolve(value); };

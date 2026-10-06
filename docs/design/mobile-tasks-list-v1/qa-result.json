@@ -1,0 +1,1178 @@
+[
+  {
+    "name": "dark-390",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 259.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 307.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 65.484375,
+        "x": 20,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 81.28125,
+        "x": 89.484375,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 53.375,
+        "x": 174.765625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 53.375,
+        "x": 232.140625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 65.484375,
+        "x": 289.515625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 242
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 262.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 328
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 348
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 413
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 433.5
+      },
+      {
+        "disabled": null,
+        "height": 106,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 499
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 530
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 606
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 626
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 691
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 711
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 776
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 796
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 85,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 258.765625,
+      "x": 17,
+      "y": 242
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 390,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 390,
+    "contrastMethod": "visible React Native Web Text dir=auto nodes, computed foreground and nearest opaque parent background"
+  },
+  {
+    "name": "dark-360",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 229.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 277.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 59.484375,
+        "x": 20,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 75.28125,
+        "x": 83.484375,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 47.375,
+        "x": 162.765625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 47.375,
+        "x": 214.140625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 59.484375,
+        "x": 265.515625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 242
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 262.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 328
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 348
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 413
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 433.5
+      },
+      {
+        "disabled": null,
+        "height": 106,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 499
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 530
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 606
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 626
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 691
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 711
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 776
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 796
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 85,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 228.765625,
+      "x": 17,
+      "y": 242
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 360,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 360,
+    "contrastMethod": "visible React Native Web Text dir=auto nodes, computed foreground and nearest opaque parent background"
+  },
+  {
+    "name": "dark-200-percent-reflow-180",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 49.765625,
+        "y": 52
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 97.765625,
+        "y": 52
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 125,
+        "x": 20,
+        "y": -16
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 74.4375,
+        "x": 20,
+        "y": 32
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 46.5625,
+        "x": 98.4375,
+        "y": 32
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 54.4375,
+        "x": 20,
+        "y": 80
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 66.5625,
+        "x": 78.4375,
+        "y": 80
+      },
+      {
+        "disabled": null,
+        "height": 126,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 177
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 303
+      },
+      {
+        "disabled": null,
+        "height": 105,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 360
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 465
+      },
+      {
+        "disabled": null,
+        "height": 126,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 522
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 648
+      },
+      {
+        "disabled": null,
+        "height": 126,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 705
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 831
+      },
+      {
+        "disabled": null,
+        "height": 105,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 888
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 993
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 1050
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 1134
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 131,
+        "x": 17,
+        "y": 1191
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 31,
+        "y": 1275
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 126,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 131,
+      "x": 17,
+      "y": 177
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 180,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 180,
+    "contrastMethod": "visible React Native Web Text dir=auto nodes, computed foreground and nearest opaque parent background"
+  },
+  {
+    "name": "light-390",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 259.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 307.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 65.484375,
+        "x": 20,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 81.28125,
+        "x": 89.484375,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 53.375,
+        "x": 174.765625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 53.375,
+        "x": 232.140625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 65.484375,
+        "x": 289.515625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 242
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 262.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 328
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 348
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 413
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 433.5
+      },
+      {
+        "disabled": null,
+        "height": 106,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 499
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 530
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 606
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 626
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 691
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 711
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 258.765625,
+        "x": 17,
+        "y": 776
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 275.765625,
+        "y": 796
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 85,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 258.765625,
+      "x": 17,
+      "y": 242
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 390,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 390,
+    "measuredTextNodes": 44
+  },
+  {
+    "name": "light-360",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 229.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 277.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 59.484375,
+        "x": 20,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 75.28125,
+        "x": 83.484375,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 47.375,
+        "x": 162.765625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 47.375,
+        "x": 214.140625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 59.484375,
+        "x": 265.515625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 242
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 262.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 328
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 348
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 413
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 433.5
+      },
+      {
+        "disabled": null,
+        "height": 106,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 499
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 530
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 606
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 626
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 691
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 711
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 228.765625,
+        "x": 17,
+        "y": 776
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 245.765625,
+        "y": 796
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 85,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 228.765625,
+      "x": 17,
+      "y": 242
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 360,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 360,
+    "measuredTextNodes": 44
+  },
+  {
+    "name": "light-desktop-1366",
+    "buttons": [
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "뒤로",
+        "width": 44,
+        "x": 307,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "할 일 새로고침",
+        "width": 44,
+        "x": 932.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "새 할 일 등록",
+        "width": 70.234375,
+        "x": 980.765625,
+        "y": 4
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "미완료",
+        "width": 142.484375,
+        "x": 315.5,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "기한 초과",
+        "width": 158.28125,
+        "x": 461.984375,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "완료",
+        "width": 130.375,
+        "x": 624.265625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "전체",
+        "width": 130.375,
+        "x": 758.640625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "삭제됨",
+        "width": 142.484375,
+        "x": 893.015625,
+        "y": 145
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 242
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 회의 자료 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 262.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "공용 비품 목록 점검, 기한 초과, 2026-10-05까지, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 328
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "공용 비품 목록 점검, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 348
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "합성 일정 안내문 확인, 오늘 마감, 2026-10-06까지, 회의 검수용 회의, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 413
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 일정 안내문 확인, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 433.5
+      },
+      {
+        "disabled": null,
+        "height": 85,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 미완료, 2026-10-07까지, 회의 검수용 회의, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 499
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "2026년_공용_자료_정리_및_다음_회의_준비를_위한_매우_긴_합성_할_일_제목_줄바꿈_검수, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 519.5
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "예시 교육 자료 준비, 미완료, 2026-10-09까지, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 585
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "예시 교육 자료 준비, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 605
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "합성 점검표 갱신, 미완료, 2026-10-14까지, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 670
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "합성 점검표 갱신, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 690
+      },
+      {
+        "disabled": null,
+        "height": 84,
+        "label": "검수용 파일 분류, 미완료, 기한 없음, 상세 보기",
+        "width": 643.765625,
+        "x": 312.5,
+        "y": 755
+      },
+      {
+        "disabled": null,
+        "height": 44,
+        "label": "검수용 파일 분류, 완료 처리",
+        "width": 70.234375,
+        "x": 956.265625,
+        "y": 775
+      }
+    ],
+    "contrastFailures": [],
+    "firstRow": {
+      "disabled": null,
+      "height": 85,
+      "label": "검수용 회의 자료 확인, 기한 초과, 2026-10-04까지, 회의 검수용 회의, 상세 보기",
+      "width": 643.765625,
+      "x": 312.5,
+      "y": 242
+    },
+    "lowestTextRatio": 5.168555560022562,
+    "scrollWidth": 1366,
+    "smallTargets": [],
+    "visibleH1": 1,
+    "width": 1366,
+    "measuredTextNodes": 44
+  }
+]
