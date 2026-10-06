@@ -19,23 +19,33 @@
 
 App Store Connect에 바자울 iOS 앱 레코드 `6819625477`을 생성했다. 한국어 설명·검색어·심사 안내 초안, 버전 `1.0.5`, 수동 릴리스 설정을 저장했다. 실제 심사용 계정·스크린샷·지원/개인정보처리방침 주소는 아직 준비되지 않았다. Private 배포는 회사 조직 ID를 최소 1개 요구하므로 조직 확인 전에는 저장·제출할 수 없다. 선택만 한 화면을 비공개 설정 완료로 기록하지 않는다.
 
-사용자가 기존 Google Workspace·Android 기기 관리 서비스와 Apple Business 조직이 없으며 Android 직원 기기가 25대 이하라고 확인했다. Apple Business 조직명·기존 D-U-N-S 신청의 공개 기관 주소를 입력한 가입 초안을 준비했고, 관리형 Apple 계정 생성과 조직 인증이 남아 있다. Apple 개발자 팀 `NAS4C244M3`은 기존 개인 개발자 회원이며, 배포 대상 회사 조직 ID와 구분한다. 직원이나 기기 등록·약관 동의·결제는 진행하지 않았다.
+사용자가 기존 Google Workspace·Android 기기 관리 서비스와 Apple Business 조직이 없으며 Android 직원 기기가 25대 이하라고 확인했다. 사용자가 관리형 Apple 계정 생성을 직접 완료했고, Apple Business 홈에서 회사 조직이 생성된 것을 확인했다. 조직 인증은 아직 완료되지 않았으며 인증 화면에서 서로 다른 인증 방법 2종을 요구한다. Apple 개발자 팀 `NAS4C244M3`은 기존 개인 개발자 회원이며, 배포 대상 회사 조직 ID와 구분한다. 직원이나 기기 등록·결제는 진행하지 않았다.
 
-Android 관리 서비스 후보는 ManageEngine Mobile Device Manager Plus다. 공식 안내에서 무료 25대 요금제와 개인 기기의 업무 프로필(BYOD) 지원을 확인했다. 서비스 선택·가입과 Google 관리 조직 연결은 아직 승인·완료되지 않았고, 유료 전환이나 직원 기기 등록을 실행하지 않는다. 30일 체험과 이후 무료 25대 요금제를 구분하여 가입 화면과 실제 라이선스 상태를 확인한다.
+사용자가 Android 관리 서비스로 ManageEngine Mobile Device Manager Plus의 무료 25대 요금제를 선택하고, 정보 제공·가입 약관 동의를 승인했다. 무료 계정을 생성하여 관리 콘솔에 진입했으며 현재 화면은 29일 남은 체험 상태다. 사용자가 새 Zoho 비밀번호 설정과 이메일 인증을 직접 완료했고, 콘솔에서 미인증 경고가 사라진 것을 확인했다. 현재 가입 지역 감지는 US다. 유료 구독·결제·직원 기기 등록은 진행하지 않았다.
 
-EAS의 `private-store` iOS 자격 증명 조회에서는 기존 Distribution 인증서를 확인했다. 이를 재사용하는 설정은 App Store 프로비저닝 프로필 생성 단계에서 Apple Developer 로그인을 요구하여 중단했다. 새 인증서나 프로필을 생성하지 않았다. 인증서만으로 iOS 설치본이 준비된 것은 아니다.
+사용자가 Managed Google Play 계약 동의와 ManageEngine EMM 연결 권한을 승인했다. 기존 Google 계정으로 Android 전용 조직을 생성해 연결을 완료했고, ManageEngine과 Google 비공개 앱 화면에서 회사명 및 조직 ID `LC00v4uk7o`를 확인했다. 데이터 보호 담당자와 EU 담당자 연락처는 지정하지 않았다. Google Workspace 구독이나 도메인 구매는 진행하지 않았다.
 
-로그인 후 Apple Developer에서 App Store 프로필 초안 `Bajaul Private Store 20261006`을 준비했다. App ID는 `NAS4C244M3.com.gyeoljaeon.internal`, 선택한 기존 인증서는 2027-10-01 만료 Distribution 인증서다. Generate 실행과 EAS 연결은 아직 완료하지 않았으며 발급 승인과 검증을 거쳐 진행한다. Apple Business 가입은 별도의 관리형 Apple 계정 비밀번호·전화번호·본인 인증을 사용자가 입력하는 단계에서 대기한다.
+공식 안내와 FAQ는 체험 종료 후 Free Edition으로 전환하면 총 25대까지 무료로 계속 관리할 수 있다고 설명한다. Android와 iPhone 등을 같은 MDM에서 관리할 경우 기기 수를 합산한다. 현재 구독 화면에는 유료 업그레이드 양식만 있으며 무료 상태로 전환된 것을 확인하지 못했으므로 실제 라이선스를 Free 25로 기록하지 않는다. 체험 종료 시 무료 전환 상태와 선택한 관리 기기를 확인한다.
+
+EMM의 Managed Google Play 비공개 앱 게시 화면은 첫 게시 때 등록비 없는 게시 계정을 자동 생성한다. 기존 직원 설치본의 서명을 유지하려면 같은 기존 서명키로 만든 APK를 먼저 게시한다. 이 화면에서 처음부터 AAB를 올리면 Google이 새 앱 서명키를 생성하므로 현재 경로에서는 사용하지 않는다. 첫 게시용 `staff` APK 빌드 `b3e2e82e-0886-42f1-a2ee-175fe8cb4a28`이 `1.0.5 / versionCode 10`으로 완료됐다. ZIP CRC·실제 바이너리 manifest의 패키지/버전·APK v2 RSA 서명·전체 파일의 청크 해시를 검증했고 기존 서명 인증서와 일치했다. 변경한 파일을 거부하는 검사도 통과했다. 실제 Android 설치·업데이트 검증은 남아 있다. versionCode 10을 게시한 이후에는 이전 AAB versionCode 9를 제출하지 않으며, AAB 전환 시 서명 설정을 완료하고 더 높은 versionCode로 새로 빌드한다.
+
+사용자 승인 후 Apple Developer에서 App Store 프로필 `Bajaul Private Store 20261006`을 발급하고 다운로드했다. App ID `NAS4C244M3.com.gyeoljaeon.internal`, 개발자 팀·만료일·스토어 권한·기존 인증서 일련번호·CMS 서명을 검사했다. App Store 프로필 UUID는 `512f1ed9-0917-4f12-bc0a-67f29a8b72f2`이며 2027-10-01 만료된다. 새 Distribution 인증서는 발급하지 않았다.
+
+Android 앱 `com.gyeoljaeon.internal`을 회사 조직 `LC00v4uk7o`의 Google 비공개 앱 화면에서 `바자울`로 생성하고 ManageEngine에 선택·저장·동기화했다. 앱 저장소에서 `Google Hosted Private App`, 버전 `1.0.5`로 확인됐고 1개 동기화 성공을 확인했다. 해당 조직과 비공개 설정을 운영자 기록에 반영했다. 직원 기기는 아직 0대이며 실제 설치 완료로 기록하지 않는다. 최초 생성 직후 Google 화면은 `Not available yet`였으므로 최종 설치 가능 상태와 첫 실제 기기 배포를 확인한다.
+
+검증한 프로필을 기존 EAS 프로젝트 `@artemismars2/gyeoljaeon`의 App Store 빌드 자격 증명에 연결했다. 인증서 개인키·P12·비밀번호를 조회하거나 내보내지 않고 기존 인증서 ID와 프로필만 연결했으며, 연결 후 프로필 UUID·인증서 일련번호·App Store 배포 형식을 재확인했다. iOS 비공개 스토어 빌드 워크플로 `01a110be-0dc9-71dc-93e5-090c50029fa1`과 빌드 `90e76550-a1a2-45fc-b4af-97a788a8cf7f`가 `1.0.5 / build 1`로 완료됐다. 다운로드한 IPA의 ZIP CRC·bundle ID/버전·프로필 CMS 서명·스토어 권한·승인한 기존 인증서를 확인했고 `codesign --verify --deep --strict`로 코드 서명과 리소스 무결성을 검증했다. 실제 iPhone 동작 검증·스토어 제출은 아직 완료되지 않았다. App Store Connect는 기존 개발자 계정으로 재로그인이 필요하다.
+
+실제 앱에 포함된 fingerprint는 Android APK versionCode 10이 `93cd48e41f372202d0c64a600e24d314978b19ac`, iOS build 1이 `170acad74bd1a06928924cffcbe5855fe0aa9d91`이다. iOS의 Expo 설정에서 production 채널과 기존 EAS 업데이트 프로젝트를 확인했다. 초기 AAB versionCode 9 및 기존 직원 APK versionCode 8과 별도로 호환되는 네이티브 런타임을 유지하고, 새 스토어 앱 설치를 확인하기 전에는 OTA 호환성을 추정하지 않는다.
 
 기존 D-U-N-S 신청은 2026-10-02 제출 기록이 있다. 발급 여부와 정확한 법인명을 확인하고 중복 신청하지 않는다. 조직 등록·서비스 선택·직원 기기 등록·약관·결제는 준비된 실제 화면과 정보를 바탕으로 진행한다.
 
 ## Android 진행 순서
 
-1. 회사의 Android Enterprise 관리 환경을 연결하고 Managed Google Play **조직 ID**를 확인한다. Google Workspace 또는 선택한 EMM을 통한 관리가 필요하다. 개인 휴대폰은 해당 관리 방식에 따라 업무 프로필로 설치한다. 현재 서비스가 없으므로 서비스 선택·비용·직원 기기 관리 범위는 먼저 확정해야 한다.
-2. 게시 계정을 준비한다. 기존 Play Console 경로 또는 EMM의 Managed Play 비공개 앱 게시 경로를 사용할 수 있다. 두 경로는 가입 절차와 필요 자격 증명이 다르므로 신규 유료 계정을 자동 생성하지 않는다.
-3. Play Console에서 해당 앱의 **Managed Google Play → Organizations**에 확인한 회사 조직만 등록하고, 실제 비공개 표시와 대상 조직을 확인한다. 공개 운영 앱을 먼저 게시하지 않는다.
-4. 첫 AAB 업로드는 콘솔에서 진행한다. 기존 직원 APK에서 삭제 없이 업데이트하려면 Play App Signing의 **앱 서명 인증서**가 기존 설치본과 일치해야 한다. AAB 업로드 인증서와 Google이 최종 APK에 사용하는 앱 서명 인증서는 다를 수 있다. 초기 등록에서 기존 앱 서명키 유지 방법을 확인하며 새 앱 서명키를 자동 선택하지 않는다. 키 전송은 실제 대상·방식이 준비된 후 승인받는다. EAS Submit의 후속 업로드를 사용하려면 Google Play 제출용 서비스 계정을 별도로 연결한다. 기존 FCM 푸시 키는 제출용 권한을 대신하지 않는다.
-5. `mobile/private-store.json`의 Android 조직 ID와 확인 상태를 입력하고, 아래 제출 검사를 실행한다. EAS 제출 시 초안을 만든 뒤 콘솔에서 비공개 대상 조직과 버전을 확인하고 릴리스한다.
+1. 선택한 ManageEngine 무료 계정을 준비하고 회사의 Android Enterprise 관리 환경을 연결한 뒤 Managed Google Play **조직 ID**를 확인한다. 개인 휴대폰은 업무 프로필로 설치한다. 연결 권한·약관은 실제 화면에서 확인한다.
+2. ManageEngine의 Managed Play 비공개 앱 게시 화면을 사용한다. 첫 게시 때 등록비 없는 게시 계정이 자동 생성되므로 별도의 유료 Play Console 계정을 자동 생성하지 않는다.
+3. 첫 게시에는 검증한 기존 서명키의 APK를 사용한다. 현재 조직에만 승인되는 비공개 앱인지 실제 표시와 조직 ID를 확인한다. 공개 운영 앱을 먼저 게시하지 않는다.
+4. 이후 AAB로 전환하려면 Play App Signing의 **앱 서명 인증서**가 기존 설치본과 일치하도록 기존 키 등록을 준비한다. AAB 업로드 인증서와 Google이 최종 APK에 사용하는 앱 서명 인증서는 다를 수 있다. 키 전송은 실제 대상·방식이 준비된 후 승인받는다. EAS Submit의 후속 업로드를 사용하려면 Google Play 제출용 서비스 계정을 별도로 연결한다. 기존 FCM 푸시 키는 제출용 권한을 대신하지 않는다.
+5. `mobile/private-store.json`의 Android 조직 ID와 확인 상태를 입력한다. EMM 화면의 첫 APK 게시와 EAS의 후속 AAB 제출을 구분한다. 아래 EAS 제출 명령은 검증한 `private-store` AAB만 허용하며 APK는 허용하지 않는다. EAS 제출 시 초안을 만든 뒤 콘솔에서 비공개 대상 조직과 버전을 확인하고 릴리스한다.
 6. 직원의 관리형 Play Store에서 설치·업데이트 및 로그인·퇴직 계정 차단을 실제 Android로 확인한다.
 
 ## iOS 진행 순서
@@ -80,11 +90,14 @@ npm run submit:private-store:ios -- --id VERIFIED_IOS_BUILD_UUID
 - [Google 비공개 앱 개요](https://support.google.com/work/android/answer/9563481?hl=en)
 - [Managed Google Play 계정 연결](https://support.google.com/work/android/answer/7042221?hl=en)
 - [Play Console에서 비공개 앱 게시](https://support.google.com/googleplay/work/answer/6145139?hl=en)
+- [EMM에서 비공개 앱 게시와 첫 APK의 서명키 유지](https://support.google.com/googleplay/work/answer/9146439)
+- [ManageEngine의 Managed Play 비공개 앱 게시](https://www.manageengine.com/in/mobile-device-management/how-to/mdm-publish-enterprise-apps-as-private-apps-directly-from-mdm.html)
 - [Google Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?hl=en)
 - [Apple의 Public/Private 배포 설정](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/set-distribution-methods)
 - [Apple Business의 Custom Apps](https://support.apple.com/en-ie/guide/business/axm58ba3112a/web)
 - [Apple Business 가입·조직 인증](https://support.apple.com/en-euro/guide/business/axm402206497/web)
 - [ManageEngine 무료 25대 관리](https://www.manageengine.com/mobile-device-management/free-mobile-device-management-software.html)
+- [ManageEngine 체험 종료와 Free Edition 전환 FAQ](https://www.manageengine.com/mobile-device-management/faq.html)
 - [ManageEngine Android 개인 기기 업무 프로필](https://www.manageengine.com/mobile-device-management/help/enrollment/enroll_android_devices.html)
 - [Expo 빌드 설정](https://docs.expo.dev/build/eas-json/)
 - [Expo 제출 설정](https://docs.expo.dev/submit/eas-json/)
