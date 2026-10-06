@@ -1,13 +1,13 @@
-import { router, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { AccountFeedback } from "@/components/account-feedback";
-import { ChatBadge, ChatInput, ChatRowLink } from "@/components/chat-content";
-import { EmptyState, TextAction } from "@/components/ui";
-import { formatChatTimestamp } from "@/lib/chat";
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { DetailText as Text } from "@/components/document-detail-ui";
+import { KeyboardScreen } from "@/components/keyboard-screen";
+import { ChatListAction, ChatListEmpty, ChatListLoading, ChatListNotice, ChatListRow, ChatListSearch, ChatListTabs } from "@/components/chat-list-ui";
 import { useChat } from "@/lib/chat-provider";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme } from "@/lib/home-theme";
 import type { ChatEmployee, ChatSummary } from "@/lib/types";
 export function ChatScreen() {
   const { token } = useSession();
@@ -22,7 +22,10 @@ export function ChatScreen() {
 function ChatScreenContent({ isCurrentAccount }: {
   isCurrentAccount: () => boolean;
 }) {
-  const theme = useTheme();
+  const theme = useHomeTheme();
+  const { bottom } = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const searchInput = useRef<TextInput>(null);
   const { refreshSummary, summary, error: providerError, isCurrentAccount: providerCurrent, foreground: appForeground, foregroundEpoch, isForegroundCurrent } = useChat();
   const [privacy, setPrivacy] = useState(true);
   const [verifiedRenderEpoch, setVerifiedRenderEpoch] = useState(-1);
@@ -56,6 +59,7 @@ function ChatScreenContent({ isCurrentAccount }: {
     busy.current = true;
     setLoading(true);
     if (fresh) {
+      setError(null);
       verified.current = false;
       setPrivacy(true);
       setData(null);
@@ -107,32 +111,52 @@ function ChatScreenContent({ isCurrentAccount }: {
   const term = search.trim().toLocaleLowerCase("ko-KR");
   const match = (peer: ChatEmployee) => `${peer.name} ${peer.departmentName} ${peer.positionName}`.toLocaleLowerCase("ko-KR").includes(term);
   const rows = displayData ? directory ? displayData.employees.filter(match).map(peer => ({ peer, conversation: displayData.conversations.find(c => c.peer.id === peer.id) })) : displayData.conversations.filter(c => match(c.peer)).map(conversation => ({ peer: conversation.peer, conversation })) : [];
-  return <View style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
-  <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 4 }}>
-   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}><Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>{displayData ? `대화 ${displayData.conversations.length}개 · 안 읽음 ${providerError ? "확인 필요" : `${displayData.unreadCount}개`}` : "채팅 확인 중"}</Text><TextAction label="새 대화" icon="create-outline" disabled={!data || loading} onPress={() => {
-    if (readyForAction()) {
-      setDirectory(true);
-      setSearch("");
-    }
-  }}/></View>
-   {directory ? <ChatInput label="직원 검색" placeholder="이름·부서·직급 검색" value={search} onChange={value => {
-    if (readyForAction())
-      setSearch(value);
-  }} disabled={!data}/> : null}
-   <View style={{ flexDirection: "row", gap: 8 }}><TextAction label="대화 목록" disabled={!data} onPress={() => {
-    if (readyForAction())
-      setDirectory(false);
-  }}/><TextAction label="직원 찾기" disabled={!data} onPress={() => {
-    if (readyForAction())
-      setDirectory(true);
-  }}/><TextAction label="새로고침" icon="refresh" disabled={loading} onPress={() => void load(true)}/></View>
-   <AccountFeedback error={error ?? providerError}/>
-  </View>
-  {loading && !data ? <ActivityIndicator style={{ padding: 20 }} color={theme.accent}/> : null}
-  <FlatList data={rows} keyExtractor={row => row.peer.id} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} accessibilityRole="list" accessibilityLabel={directory ? "대화 가능한 직원" : "직원 대화 목록"} renderItem={({ item }) => <ChatRowLink disabled={loading} accessibilityLabel={`${item.peer.name}${item.peer.active ? "" : ", 현재 대화 기록만 확인 가능"}${item.conversation?.unreadCount ? `, 안 읽음 ${item.conversation.unreadCount}개` : ""}`} onPress={() => navigate(item.peer)}>
-   <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}><Text style={{ color: theme.text, fontWeight: "700", fontSize: 15, flex: 1 }}>{item.peer.name}{!item.peer.active ? " · 기록" : ""}</Text><ChatBadge count={item.conversation?.unreadCount ?? 0}/></View>
-   <Text numberOfLines={1} style={{ color: theme.secondary, fontSize: 13, marginTop: 3 }}>{item.conversation ? item.conversation.lastMessage.body || item.conversation.lastMessage.attachment?.originalName || "파일 메시지" : `${item.peer.departmentName} · ${item.peer.positionName}`}</Text>
-   {item.conversation ? <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>{formatChatTimestamp(item.conversation.lastMessage.createdAt)}</Text> : null}
-  </ChatRowLink>} ListEmptyComponent={!loading && displayData ? <EmptyState title={term ? "검색 결과가 없습니다" : directory ? "대화 가능한 직원이 없습니다" : "아직 대화가 없습니다"} detail={directory ? "다른 검색어를 입력하세요." : "직원 찾기에서 새 대화를 시작하세요."}/> : null}/>
- </View>;
+  const canInteract = !!displayData && !loading && appForeground && verifiedRenderEpoch === foregroundEpoch;
+  const changeDirectory = (value: boolean) => { if (readyForAction() && !busy.current) setDirectory(value); };
+  const changeSearch = (value: string) => { if (readyForAction() && !busy.current) setSearch(value); };
+  const clearSearch = () => { if (readyForAction() && !busy.current) { setSearch(""); searchInput.current?.focus(); } };
+  const newChat = () => { if (readyForAction() && !busy.current) { setDirectory(true); setSearch(""); searchInput.current?.focus(); } };
+  const showError = error ?? providerError;
+  const noRecords = !!displayData && (directory ? displayData.employees.length : displayData.conversations.length) === 0;
+  const large = width < 320 || fontScale >= 1.3;
+  return <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: theme.surface }}>
+    <Stack.Screen options={{ headerShown: false }} />
+    <View style={{ borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface }}>
+      <View style={styles.heading}>
+        <ChatListAction label={router.canGoBack() ? "직원 채팅 뒤로" : "뒤로, 내 정보"} icon="chevron-left" iconOnly onPress={() => {
+          if (!isCurrentAccount() || !providerCurrent()) return;
+          if (router.canGoBack()) router.back(); else router.replace("/profile");
+        }} />
+        <Text accessibilityRole="header" aria-level={1} style={{ flexGrow: 1, flexShrink: 1, flexBasis: large ? "70%" : 0, color: theme.text, fontSize: 17, lineHeight: 23, fontWeight: "700" }}>직원 채팅</Text>
+        <View style={{ marginLeft: "auto", flexDirection: "row", gap: 4, alignItems: "center" }}>
+          <ChatListAction label="새로고침" accessibilityLabel={loading ? "채팅 목록 확인 중" : "채팅 목록 새로고침"} icon="rotate-cw" iconOnly disabled={loading || !appForeground} busy={loading} onPress={() => void load(true)} />
+          <ChatListAction label="새 대화" icon="plus" primary disabled={!canInteract} onPress={newChat} />
+        </View>
+      </View>
+    </View>
+    <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background }}>
+      <FlatList data={rows} keyExtractor={row => row.peer.id} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(24, bottom + 16) }]} accessibilityRole="list"
+        accessibilityLabel={`${directory ? "직원 목록" : "대화 목록"}${term && displayData ? `, 검색 결과 ${rows.length}${directory ? "명" : "개"}` : ""}`}
+        ListHeaderComponent={<View style={{ gap: 12, marginBottom: 12 }}>
+          {displayData ? <Text accessibilityLiveRegion="polite" style={{ marginHorizontal: 4, color: theme.secondary, fontSize: 14, lineHeight: 20 }}>
+            대화 <Text style={{ color: theme.text, fontWeight: "700", fontVariant: ["tabular-nums"] }}>{displayData.conversations.length}</Text>개 · 안 읽은 메시지 <Text style={{ color: providerError ? theme.danger : displayData.unreadCount ? theme.accent : theme.text, fontWeight: "700", fontVariant: ["tabular-nums"] }}>{providerError ? "확인 필요" : `${displayData.unreadCount}개`}</Text>
+          </Text> : loading ? <View accessibilityLiveRegion="polite" style={{ marginHorizontal: 4, flexDirection: "row", gap: 6, alignItems: "center" }}>
+            <View accessible={false} aria-hidden><ActivityIndicator size="small" color={theme.secondary} /></View><Text style={{ color: theme.secondary, fontSize: 14, lineHeight: 20 }}>채팅 확인 중</Text>
+          </View> : null}
+          <ChatListTabs directory={directory} disabled={!canInteract} onChange={changeDirectory} />
+          <ChatListSearch value={search} disabled={!canInteract} inputRef={searchInput} onChange={changeSearch} onClear={clearSearch} />
+          {term && displayData && rows.length ? <Text accessibilityLiveRegion="polite" style={{ marginHorizontal: 4, color: theme.secondary, fontSize: 12, lineHeight: 18 }}>‘{search.trim()}’ 검색 결과 · {directory ? `직원 ${rows.length}명` : `대화 ${rows.length}개`}</Text> : null}
+          {displayData && showError ? <ChatListNotice error={showError} periodic title="최근 확인 실패" detail="마지막으로 확인한 목록이에요." onRetry={() => void load(true)} /> : null}
+        </View>}
+        renderItem={({ item, index }) => <ChatListRow peer={item.peer} conversation={item.conversation} directory={directory} first={index === 0} last={index === rows.length - 1} disabled={!canInteract} onPress={() => navigate(item.peer)} />}
+        ListEmptyComponent={loading ? <ChatListLoading /> : displayData ? <ChatListEmpty directory={directory} noRecords={noRecords} onFind={() => changeDirectory(true)} onClear={clearSearch} />
+          : showError ? <ChatListNotice error={showError} title="채팅 목록을 불러오지 못했어요" onRetry={() => void load(true)} />
+          : !appForeground ? <ChatListNotice title="앱이 비활성 상태예요" detail="보안을 위해 채팅 내용을 가렸어요. 앱으로 돌아오면 다시 확인한 뒤 보여줘요." /> : null} />
+    </KeyboardScreen>
+  </SafeAreaView>;
 }
+const styles = StyleSheet.create({
+  heading: { width: "100%", maxWidth: 760, alignSelf: "center", flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, padding: 4, paddingRight: 12, minHeight: 52 },
+  content: { paddingHorizontal: 16, paddingTop: 12, width: "100%", maxWidth: 760, alignSelf: "center" },
+});

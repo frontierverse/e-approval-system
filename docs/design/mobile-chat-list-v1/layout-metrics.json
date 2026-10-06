@@ -1,0 +1,4498 @@
+[
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "main-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 330,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "검색어 지우기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 대화 열기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 317
+        },
+        "disabled": false,
+        "label": "최예시, 지원팀 담당, 새 대화 시작",
+        "role": "button"
+      }
+    ],
+    "focus": "직원 찾기",
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 대화 열기"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 317
+        },
+        "label": "최예시, 지원팀 담당, 새 대화 시작"
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n\n‘지원’ 검색 결과 · 직원 2명\n김예시\n3\n지원팀 · 담당\n최예시\n지원팀 · 담당",
+    "width": 390,
+    "name": "finder-search-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 330,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "검색어 지우기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      }
+    ],
+    "focus": "대화 목록",
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n\n‘지원’ 검색 결과 · 대화 1개\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3",
+    "width": 390,
+    "name": "list-search-preserved-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 330,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "검색어 지우기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      }
+    ],
+    "focus": "검색어 지우기",
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 248
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n\n‘지원’ 검색 결과 · 대화 1개\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3",
+    "width": 390,
+    "name": "keyboard-focus-clear-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 330,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "검색어 지우기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 88.015625,
+          "x": 33,
+          "y": 307
+        },
+        "disabled": false,
+        "label": "검색 지우기",
+        "role": "button"
+      }
+    ],
+    "focus": "이름·부서·직급 검색",
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n\n검색 결과가 없습니다\n이름·부서·직급으로 찾을 수 있어요. 메시지 내용은 검색하지 않아요.\n검색 지우기",
+    "width": 390,
+    "name": "search-empty-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 대화 열기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 대화 열기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 대화 열기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "최예시, 지원팀 담당, 새 대화 시작",
+        "role": "button"
+      }
+    ],
+    "focus": "이름·부서·직급 검색",
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "박예시, 사무팀 담당, 대화 열기"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 대화 열기"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 대화 열기"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "label": "최예시, 지원팀 담당, 새 대화 시작"
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n박예시\n사무팀 · 담당\n이예시\n4\n운영팀 · 팀장\n김예시\n3\n지원팀 · 담당\n최예시\n지원팀 · 담당",
+    "width": 390,
+    "name": "finder-new-clears-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 75.90625,
+          "x": 33,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "대화 0개 · 안 읽은 메시지 0개\n대화 목록\n직원 찾기\n\n아직 대화가 없습니다\n직원 찾기에서 대화할 직원을 고를 수 있어요.\n직원 찾기",
+    "width": 390,
+    "name": "empty-conversations-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "대화 0개 · 안 읽은 메시지 0개\n대화 목록\n직원 찾기\n\n대화 가능한 직원이 없습니다\n지금 대화를 시작할 수 있는 재직 직원이 없어요.",
+    "width": 390,
+    "name": "empty-employees-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 324,
+          "x": 33,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "다시 불러오기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 361
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 430
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 499
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 568
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 361
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 430
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 499
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 568
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 확인 필요\n대화 목록\n직원 찾기\n\n최근 확인 실패\n마지막으로 확인한 목록이에요.\n다시 불러오기\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "periodic-error-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 69
+        },
+        "disabled": "true",
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 69
+        },
+        "disabled": "true",
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 129
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 324,
+          "x": 33,
+          "y": 255
+        },
+        "disabled": false,
+        "label": "다시 불러오기",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "대화 목록\n직원 찾기\n\n채팅 목록을 불러오지 못했어요\n직원 채팅 목록을 확인하지 못했습니다. 다시 불러오세요.\n다시 불러오기",
+    "width": 390,
+    "name": "fresh-error-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "main-light-390-iteration2"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 100.125,
+          "x": 260.875,
+          "y": 226
+        },
+        "disabled": false,
+        "label": "다시 불러오기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 292
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 361
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 430
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 499
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 292
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 361
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 430
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 499
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 확인 필요\n대화 목록\n직원 찾기\n\n최근 확인 실패 · 마지막으로 확인한 목록이에요.\n다시 불러오기\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "periodic-error-light-390-iteration2"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 104,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 323
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 84,
+          "width": 356,
+          "x": 17,
+          "y": 392
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 477
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 104,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 323
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 84,
+          "width": 356,
+          "x": 17,
+          "y": 392
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 477
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김아주긴이름예시직원\n아주 긴 이름을 가진 합성 업무 지원 부서 · 아주 긴 합성 직급 담당 직원\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "long-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 128개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 128개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 132개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n99+\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "large-unread-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "채팅 목록 확인 중",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "채팅 확인 중\n대화 목록\n직원 찾기\n",
+    "width": 390,
+    "name": "loading-private-masked-light-390"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 216.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 264.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 182,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 328,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 760,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 360,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 360,
+    "name": "main-dark-360"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 216.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 264.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 182,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 328,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 104,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 323
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 84,
+          "width": 326,
+          "x": 17,
+          "y": 392
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 477
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 760,
+    "rows": [
+      {
+        "box": {
+          "height": 104,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 323
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 84,
+          "width": 326,
+          "x": 17,
+          "y": 392
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 477
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 360,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김아주긴이름예시직원\n아주 긴 이름을 가진 합성 업무 지원 부서 · 아주 긴 합성 직급 담당 직원\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 360,
+    "name": "long-dark-360"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 216.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 264.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 158,
+          "x": 182,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 328,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 128개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 760,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 128개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 326,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 360,
+    "text": "대화 4개 · 안 읽은 메시지 132개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n99+\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 360,
+    "name": "large-unread-dark-360"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 36.203125,
+          "y": 52
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 84.203125,
+          "y": 52
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 20,
+          "y": 169
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 92,
+          "y": 169
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 148,
+          "x": 16,
+          "y": 233
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 180,
+          "width": 146,
+          "x": 17,
+          "y": 290
+        },
+        "disabled": false,
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 471
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 595
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 719
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 380,
+    "rows": [
+      {
+        "box": {
+          "height": 180,
+          "width": 146,
+          "x": 17,
+          "y": 290
+        },
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 471
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 595
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 719
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 180,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김아주긴이름예시직원\n아주 긴 이름을 가진 합성 업무 지원 부서 · 아주 긴 합성 직급 담당 직원 ·\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장 ·\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당 ·\n10. 5. 17:30\n\n2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf\n정예시\n기록\n생활팀 · 담당 ·\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 180,
+    "name": "long-light-360-200percent"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 36.203125,
+          "y": 52
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 84.203125,
+          "y": 52
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 20,
+          "y": -45
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 92,
+          "y": -45
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 148,
+          "x": 16,
+          "y": 19
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 180,
+          "width": 146,
+          "x": 17,
+          "y": 76
+        },
+        "disabled": false,
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 257
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 381
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 505
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+    "headings": 1,
+    "height": 380,
+    "rows": [
+      {
+        "box": {
+          "height": 180,
+          "width": 146,
+          "x": 17,
+          "y": 76
+        },
+        "label": "김아주긴이름예시직원, 아주 긴 이름을 가진 합성 업무 지원 부서 아주 긴 합성 직급 담당 직원, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 257
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 381
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 123,
+          "width": 146,
+          "x": 17,
+          "y": 505
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 180,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김아주긴이름예시직원\n아주 긴 이름을 가진 합성 업무 지원 부서 · 아주 긴 합성 직급 담당 직원 ·\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장 ·\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당 ·\n10. 5. 17:30\n\n2026년_시설_운영_개선_및_공용_물품_구매_계획_회의자료_긴이름_검수예시.pdf\n정예시\n기록\n생활팀 · 담당 ·\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 180,
+    "name": "long-light-360-200percent-keyboard"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 36.203125,
+          "y": 52
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 84.203125,
+          "y": 52
+        },
+        "disabled": "true",
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 20,
+          "y": -19
+        },
+        "disabled": "true",
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 48,
+          "width": 68,
+          "x": 92,
+          "y": -19
+        },
+        "disabled": "true",
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 148,
+          "x": 16,
+          "y": 45
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 114,
+          "x": 33,
+          "y": 319
+        },
+        "disabled": false,
+        "label": "다시 불러오기",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 380,
+    "rows": [],
+    "scrollWidth": 180,
+    "text": "대화 목록\n직원 찾기\n\n\n채팅 목록을 불러오지 못했어요\n직원 채팅 목록을 확인하지 못했습니다. 다시 불러오세요.\n다시 불러오기",
+    "width": 180,
+    "name": "fresh-error-light-360-200percent"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 307,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 919.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 967.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 323,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 685,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 728,
+          "x": 319,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "예시 직원 1, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "예시 직원 2, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:39, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "예시 직원 3, 사무팀 담당, 10. 6. 09:38, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "예시 직원 4, 지원팀 담당, 10. 6. 09:37, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 494
+        },
+        "disabled": false,
+        "label": "예시 직원 5, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:36, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 563
+        },
+        "disabled": false,
+        "label": "예시 직원 6, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:35, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 632
+        },
+        "disabled": false,
+        "label": "예시 직원 7, 지원팀 담당, 10. 6. 09:34, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 701
+        },
+        "disabled": false,
+        "label": "예시 직원 8, 운영팀 팀장, 10. 6. 09:33, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 770
+        },
+        "disabled": false,
+        "label": "예시 직원 9, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:32, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 839
+        },
+        "disabled": false,
+        "label": "예시 직원 10, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:31, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 908
+        },
+        "disabled": false,
+        "label": "예시 직원 11, 운영팀 팀장, 10. 6. 09:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 977
+        },
+        "disabled": false,
+        "label": "예시 직원 12, 사무팀 담당, 10. 6. 09:29, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1046
+        },
+        "disabled": false,
+        "label": "예시 직원 13, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:28, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1115
+        },
+        "disabled": false,
+        "label": "예시 직원 14, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:27, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1184
+        },
+        "disabled": false,
+        "label": "예시 직원 15, 사무팀 담당, 10. 6. 09:26, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1253
+        },
+        "disabled": false,
+        "label": "예시 직원 16, 지원팀 담당, 10. 6. 09:25, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1322
+        },
+        "disabled": false,
+        "label": "예시 직원 17, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:24, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1391
+        },
+        "disabled": false,
+        "label": "예시 직원 18, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:23, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1460
+        },
+        "disabled": false,
+        "label": "예시 직원 19, 지원팀 담당, 10. 6. 09:22, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1529
+        },
+        "disabled": false,
+        "label": "예시 직원 20, 운영팀 팀장, 10. 6. 09:21, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1598
+        },
+        "disabled": false,
+        "label": "예시 직원 21, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:20, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1667
+        },
+        "disabled": false,
+        "label": "예시 직원 22, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:19, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1736
+        },
+        "disabled": false,
+        "label": "예시 직원 23, 운영팀 팀장, 10. 6. 09:18, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1805
+        },
+        "disabled": false,
+        "label": "예시 직원 24, 사무팀 담당, 10. 6. 09:17, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1874
+        },
+        "disabled": false,
+        "label": "예시 직원 25, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:16, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1943
+        },
+        "disabled": false,
+        "label": "예시 직원 26, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2012
+        },
+        "disabled": false,
+        "label": "예시 직원 27, 사무팀 담당, 10. 6. 09:14, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2081
+        },
+        "disabled": false,
+        "label": "예시 직원 28, 지원팀 담당, 10. 6. 09:13, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2150
+        },
+        "disabled": false,
+        "label": "예시 직원 29, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:12, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2219
+        },
+        "disabled": false,
+        "label": "예시 직원 30, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:11, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2288
+        },
+        "disabled": false,
+        "label": "예시 직원 31, 지원팀 담당, 10. 6. 09:10, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2357
+        },
+        "disabled": false,
+        "label": "예시 직원 32, 운영팀 팀장, 10. 6. 09:09, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2426
+        },
+        "disabled": false,
+        "label": "예시 직원 33, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:08, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2495
+        },
+        "disabled": false,
+        "label": "예시 직원 34, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:07, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2564
+        },
+        "disabled": false,
+        "label": "예시 직원 35, 운영팀 팀장, 10. 6. 09:06, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2633
+        },
+        "disabled": false,
+        "label": "예시 직원 36, 사무팀 담당, 10. 6. 09:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2702
+        },
+        "disabled": false,
+        "label": "예시 직원 37, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:04, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2771
+        },
+        "disabled": false,
+        "label": "예시 직원 38, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:03, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2840
+        },
+        "disabled": false,
+        "label": "예시 직원 39, 사무팀 담당, 10. 6. 09:02, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2909
+        },
+        "disabled": false,
+        "label": "예시 직원 40, 지원팀 담당, 10. 6. 09:01, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2978
+        },
+        "disabled": false,
+        "label": "예시 직원 41, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:00, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3047
+        },
+        "disabled": false,
+        "label": "예시 직원 42, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 08:59, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3116
+        },
+        "disabled": false,
+        "label": "예시 직원 43, 지원팀 담당, 10. 6. 08:58, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3185
+        },
+        "disabled": false,
+        "label": "예시 직원 44, 운영팀 팀장, 10. 6. 08:57, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3254
+        },
+        "disabled": false,
+        "label": "예시 직원 45, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 08:56, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3323
+        },
+        "disabled": false,
+        "label": "예시 직원 46, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 08:55, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3392
+        },
+        "disabled": false,
+        "label": "예시 직원 47, 운영팀 팀장, 10. 6. 08:54, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3461
+        },
+        "disabled": false,
+        "label": "예시 직원 48, 사무팀 담당, 10. 6. 08:53, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3530
+        },
+        "disabled": false,
+        "label": "예시 직원 49, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 08:52, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3599
+        },
+        "disabled": false,
+        "label": "예시 직원 50, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:51, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3668
+        },
+        "disabled": false,
+        "label": "예시 직원 51, 사무팀 담당, 10. 6. 08:50, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3737
+        },
+        "disabled": false,
+        "label": "예시 직원 52, 지원팀 담당, 10. 6. 08:49, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3806
+        },
+        "disabled": false,
+        "label": "예시 직원 53, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 08:48, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3875
+        },
+        "disabled": false,
+        "label": "예시 직원 54, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 08:47, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3944
+        },
+        "disabled": false,
+        "label": "예시 직원 55, 지원팀 담당, 10. 6. 08:46, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4013
+        },
+        "disabled": false,
+        "label": "예시 직원 56, 운영팀 팀장, 10. 6. 08:45, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4082
+        },
+        "disabled": false,
+        "label": "예시 직원 57, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 08:44, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4151
+        },
+        "disabled": false,
+        "label": "예시 직원 58, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 08:43, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4220
+        },
+        "disabled": false,
+        "label": "예시 직원 59, 운영팀 팀장, 10. 6. 08:42, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4289
+        },
+        "disabled": false,
+        "label": "예시 직원 60, 사무팀 담당, 10. 6. 08:41, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 768,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 218
+        },
+        "label": "예시 직원 1, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 287
+        },
+        "label": "예시 직원 2, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:39, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 356
+        },
+        "label": "예시 직원 3, 사무팀 담당, 10. 6. 09:38, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 425
+        },
+        "label": "예시 직원 4, 지원팀 담당, 10. 6. 09:37, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 494
+        },
+        "label": "예시 직원 5, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:36, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 563
+        },
+        "label": "예시 직원 6, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:35, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 632
+        },
+        "label": "예시 직원 7, 지원팀 담당, 10. 6. 09:34, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 701
+        },
+        "label": "예시 직원 8, 운영팀 팀장, 10. 6. 09:33, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 770
+        },
+        "label": "예시 직원 9, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:32, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 839
+        },
+        "label": "예시 직원 10, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:31, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 908
+        },
+        "label": "예시 직원 11, 운영팀 팀장, 10. 6. 09:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 977
+        },
+        "label": "예시 직원 12, 사무팀 담당, 10. 6. 09:29, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1046
+        },
+        "label": "예시 직원 13, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:28, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1115
+        },
+        "label": "예시 직원 14, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:27, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1184
+        },
+        "label": "예시 직원 15, 사무팀 담당, 10. 6. 09:26, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1253
+        },
+        "label": "예시 직원 16, 지원팀 담당, 10. 6. 09:25, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1322
+        },
+        "label": "예시 직원 17, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:24, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1391
+        },
+        "label": "예시 직원 18, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:23, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1460
+        },
+        "label": "예시 직원 19, 지원팀 담당, 10. 6. 09:22, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1529
+        },
+        "label": "예시 직원 20, 운영팀 팀장, 10. 6. 09:21, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1598
+        },
+        "label": "예시 직원 21, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:20, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1667
+        },
+        "label": "예시 직원 22, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:19, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1736
+        },
+        "label": "예시 직원 23, 운영팀 팀장, 10. 6. 09:18, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1805
+        },
+        "label": "예시 직원 24, 사무팀 담당, 10. 6. 09:17, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1874
+        },
+        "label": "예시 직원 25, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:16, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 1943
+        },
+        "label": "예시 직원 26, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2012
+        },
+        "label": "예시 직원 27, 사무팀 담당, 10. 6. 09:14, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2081
+        },
+        "label": "예시 직원 28, 지원팀 담당, 10. 6. 09:13, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2150
+        },
+        "label": "예시 직원 29, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:12, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2219
+        },
+        "label": "예시 직원 30, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 09:11, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2288
+        },
+        "label": "예시 직원 31, 지원팀 담당, 10. 6. 09:10, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2357
+        },
+        "label": "예시 직원 32, 운영팀 팀장, 10. 6. 09:09, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2426
+        },
+        "label": "예시 직원 33, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 09:08, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2495
+        },
+        "label": "예시 직원 34, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 09:07, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2564
+        },
+        "label": "예시 직원 35, 운영팀 팀장, 10. 6. 09:06, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2633
+        },
+        "label": "예시 직원 36, 사무팀 담당, 10. 6. 09:05, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2702
+        },
+        "label": "예시 직원 37, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:04, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2771
+        },
+        "label": "예시 직원 38, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 09:03, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2840
+        },
+        "label": "예시 직원 39, 사무팀 담당, 10. 6. 09:02, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2909
+        },
+        "label": "예시 직원 40, 지원팀 담당, 10. 6. 09:01, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 2978
+        },
+        "label": "예시 직원 41, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 09:00, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3047
+        },
+        "label": "예시 직원 42, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 08:59, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3116
+        },
+        "label": "예시 직원 43, 지원팀 담당, 10. 6. 08:58, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3185
+        },
+        "label": "예시 직원 44, 운영팀 팀장, 10. 6. 08:57, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3254
+        },
+        "label": "예시 직원 45, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 08:56, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3323
+        },
+        "label": "예시 직원 46, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 08:55, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3392
+        },
+        "label": "예시 직원 47, 운영팀 팀장, 10. 6. 08:54, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3461
+        },
+        "label": "예시 직원 48, 사무팀 담당, 10. 6. 08:53, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3530
+        },
+        "label": "예시 직원 49, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 08:52, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3599
+        },
+        "label": "예시 직원 50, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:51, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3668
+        },
+        "label": "예시 직원 51, 사무팀 담당, 10. 6. 08:50, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3737
+        },
+        "label": "예시 직원 52, 지원팀 담당, 10. 6. 08:49, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3806
+        },
+        "label": "예시 직원 53, 운영팀 팀장, 안 읽은 메시지 3개, 10. 6. 08:48, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3875
+        },
+        "label": "예시 직원 54, 사무팀 담당, 안 읽은 메시지 4개, 10. 6. 08:47, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 3944
+        },
+        "label": "예시 직원 55, 지원팀 담당, 10. 6. 08:46, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4013
+        },
+        "label": "예시 직원 56, 운영팀 팀장, 10. 6. 08:45, 인수인계 문서는 공유 폴더에 있습니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4082
+        },
+        "label": "예시 직원 57, 사무팀 담당, 안 읽은 메시지 3개, 10. 6. 08:44, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4151
+        },
+        "label": "예시 직원 58, 지원팀 담당, 안 읽은 메시지 4개, 10. 6. 08:43, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4220
+        },
+        "label": "예시 직원 59, 운영팀 팀장, 10. 6. 08:42, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 4289
+        },
+        "label": "예시 직원 60, 사무팀 담당, 10. 6. 08:41, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 1366,
+    "text": "대화 60개 · 안 읽은 메시지 105개\n대화 목록\n직원 찾기\n\n예시 직원 1\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 2\n운영팀 · 팀장\n10. 6. 09:39\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 3\n사무팀 · 담당\n10. 6. 09:38\n\n회의자료_검수예시.pdf\n예시 직원 4\n지원팀 · 담당\n10. 6. 09:37\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 5\n운영팀 · 팀장\n10. 6. 09:36\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 6\n사무팀 · 담당\n10. 6. 09:35\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 7\n지원팀 · 담당\n10. 6. 09:34\n\n회의자료_검수예시.pdf\n예시 직원 8\n운영팀 · 팀장\n10. 6. 09:33\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 9\n사무팀 · 담당\n10. 6. 09:32\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 10\n지원팀 · 담당\n10. 6. 09:31\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 11\n운영팀 · 팀장\n10. 6. 09:30\n\n회의자료_검수예시.pdf\n예시 직원 12\n사무팀 · 담당\n10. 6. 09:29\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 13\n지원팀 · 담당\n10. 6. 09:28\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 14\n운영팀 · 팀장\n10. 6. 09:27\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 15\n사무팀 · 담당\n10. 6. 09:26\n\n회의자료_검수예시.pdf\n예시 직원 16\n지원팀 · 담당\n10. 6. 09:25\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 17\n운영팀 · 팀장\n10. 6. 09:24\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 18\n사무팀 · 담당\n10. 6. 09:23\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 19\n지원팀 · 담당\n10. 6. 09:22\n\n회의자료_검수예시.pdf\n예시 직원 20\n운영팀 · 팀장\n10. 6. 09:21\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 21\n사무팀 · 담당\n10. 6. 09:20\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 22\n지원팀 · 담당\n10. 6. 09:19\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 23\n운영팀 · 팀장\n10. 6. 09:18\n\n회의자료_검수예시.pdf\n예시 직원 24\n사무팀 · 담당\n10. 6. 09:17\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 25\n지원팀 · 담당\n10. 6. 09:16\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 26\n운영팀 · 팀장\n10. 6. 09:15\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 27\n사무팀 · 담당\n10. 6. 09:14\n\n회의자료_검수예시.pdf\n예시 직원 28\n지원팀 · 담당\n10. 6. 09:13\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 29\n운영팀 · 팀장\n10. 6. 09:12\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 30\n사무팀 · 담당\n10. 6. 09:11\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 31\n지원팀 · 담당\n10. 6. 09:10\n\n회의자료_검수예시.pdf\n예시 직원 32\n운영팀 · 팀장\n10. 6. 09:09\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 33\n사무팀 · 담당\n10. 6. 09:08\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 34\n지원팀 · 담당\n10. 6. 09:07\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 35\n운영팀 · 팀장\n10. 6. 09:06\n\n회의자료_검수예시.pdf\n예시 직원 36\n사무팀 · 담당\n10. 6. 09:05\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 37\n지원팀 · 담당\n10. 6. 09:04\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 38\n운영팀 · 팀장\n10. 6. 09:03\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 39\n사무팀 · 담당\n10. 6. 09:02\n\n회의자료_검수예시.pdf\n예시 직원 40\n지원팀 · 담당\n10. 6. 09:01\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 41\n운영팀 · 팀장\n10. 6. 09:00\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 42\n사무팀 · 담당\n10. 6. 08:59\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 43\n지원팀 · 담당\n10. 6. 08:58\n\n회의자료_검수예시.pdf\n예시 직원 44\n운영팀 · 팀장\n10. 6. 08:57\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 45\n사무팀 · 담당\n10. 6. 08:56\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 46\n지원팀 · 담당\n10. 6. 08:55\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 47\n운영팀 · 팀장\n10. 6. 08:54\n\n회의자료_검수예시.pdf\n예시 직원 48\n사무팀 · 담당\n10. 6. 08:53\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 49\n지원팀 · 담당\n10. 6. 08:52\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 50\n운영팀 · 팀장\n10. 6. 08:51\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 51\n사무팀 · 담당\n10. 6. 08:50\n\n회의자료_검수예시.pdf\n예시 직원 52\n지원팀 · 담당\n10. 6. 08:49\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 53\n운영팀 · 팀장\n10. 6. 08:48\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 54\n사무팀 · 담당\n10. 6. 08:47\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 55\n지원팀 · 담당\n10. 6. 08:46\n\n회의자료_검수예시.pdf\n예시 직원 56\n운영팀 · 팀장\n10. 6. 08:45\n인수인계 문서는 공유 폴더에 있습니다.\n예시 직원 57\n사무팀 · 담당\n10. 6. 08:44\n오늘 회의 자료 확인 부탁드립니다.\n3\n예시 직원 58\n지원팀 · 담당\n10. 6. 08:43\n오후 일정 변경 사항 공유드립니다.\n4\n예시 직원 59\n운영팀 · 팀장\n10. 6. 08:42\n\n회의자료_검수예시.pdf\n예시 직원 60\n사무팀 · 담당\n10. 6. 08:41\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 1366,
+    "name": "many-light-1366"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 307,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 919.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 967.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 323,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 685,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 728,
+          "x": 319,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 768,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 726,
+          "x": 320,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      }
+    ],
+    "scrollWidth": 1366,
+    "text": "대화 1개 · 안 읽은 메시지 3개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3",
+    "width": 1366,
+    "name": "one-light-1366"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 307,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 919.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "채팅 목록 확인 중",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 967.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 323,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 685,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 728,
+          "x": 319,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 768,
+    "rows": [],
+    "scrollWidth": 1366,
+    "text": "채팅 확인 중\n대화 목록\n직원 찾기\n",
+    "width": 1366,
+    "name": "loading-private-masked-final-1366"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "채팅 목록 새로고침",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": false,
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "disabled": false,
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "disabled": false,
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다.",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "disabled": false,
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "disabled": false,
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다.",
+        "role": "button"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 218
+        },
+        "label": "김예시, 지원팀 담당, 안 읽은 메시지 3개, 10. 6. 09:40, 오늘 회의 자료 확인 부탁드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 287
+        },
+        "label": "이예시, 운영팀 팀장, 안 읽은 메시지 4개, 10. 6. 08:15, 오후 일정 변경 사항 공유드립니다."
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 356
+        },
+        "label": "박예시, 사무팀 담당, 10. 5. 17:30, 첨부파일 회의자료_검수예시.pdf"
+      },
+      {
+        "box": {
+          "height": 68,
+          "width": 356,
+          "x": 17,
+          "y": 425
+        },
+        "label": "정예시 기록, 현재 대화 기록만 확인 가능, 생활팀 담당, 10. 2. 16:05, 인수인계 문서는 공유 폴더에 있습니다."
+      }
+    ],
+    "scrollWidth": 390,
+    "text": "대화 4개 · 안 읽은 메시지 7개\n대화 목록\n직원 찾기\n\n김예시\n지원팀 · 담당\n10. 6. 09:40\n오늘 회의 자료 확인 부탁드립니다.\n3\n이예시\n운영팀 · 팀장\n10. 6. 08:15\n오후 일정 변경 사항 공유드립니다.\n4\n박예시\n사무팀 · 담당\n10. 5. 17:30\n\n회의자료_검수예시.pdf\n정예시\n기록\n생활팀 · 담당\n10. 2. 16:05\n인수인계 문서는 공유 폴더에 있습니다.",
+    "width": 390,
+    "name": "main-light-390-final"
+  },
+  {
+    "controls": [
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 4,
+          "y": 4
+        },
+        "disabled": false,
+        "label": "직원 채팅 뒤로",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 44,
+          "x": 246.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "채팅 목록 확인 중",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 83.796875,
+          "x": 294.203125,
+          "y": 4
+        },
+        "disabled": "true",
+        "label": "새 대화",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 20,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "대화 목록",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 173,
+          "x": 197,
+          "y": 101
+        },
+        "disabled": "true",
+        "label": "직원 찾기",
+        "role": "button"
+      },
+      {
+        "box": {
+          "height": 44,
+          "width": 358,
+          "x": 16,
+          "y": 161
+        },
+        "disabled": false,
+        "label": "이름·부서·직급 검색",
+        "role": "searchbox"
+      }
+    ],
+    "focus": null,
+    "headings": 1,
+    "height": 763,
+    "rows": [],
+    "scrollWidth": 390,
+    "text": "채팅 확인 중\n대화 목록\n직원 찾기\n",
+    "width": 390,
+    "name": "loading-private-masked-light-390-final"
+  }
+]
