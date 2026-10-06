@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "measurements": [
+    {
+      "file": "after-dark-390-metrics.json",
+      "viewport": {
+        "height": 763,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      "fileCardsChecked": 3,
+      "minimumTimestampGap": 4.0,
+      "horizontalOverflow": false,
+      "filenameAndActionInsideCard": true
+    },
+    {
+      "file": "after-dark-360-metrics.json",
+      "viewport": {
+        "height": 760,
+        "scrollWidth": 360,
+        "width": 360
+      },
+      "fileCardsChecked": 3,
+      "minimumTimestampGap": 4.0,
+      "horizontalOverflow": false,
+      "filenameAndActionInsideCard": true
+    },
+    {
+      "file": "after-dark-200-metrics.json",
+      "viewport": {
+        "height": 380,
+        "scrollWidth": 180,
+        "width": 180
+      },
+      "fileCardsChecked": 3,
+      "minimumTimestampGap": 4.0,
+      "horizontalOverflow": false,
+      "filenameAndActionInsideCard": true
+    },
+    {
+      "file": "after-dark-desktop-metrics.json",
+      "viewport": {
+        "height": 768,
+        "scrollWidth": 1366,
+        "width": 1366
+      },
+      "fileCardsChecked": 3,
+      "minimumTimestampGap": 4.0,
+      "horizontalOverflow": false,
+      "filenameAndActionInsideCard": true
+    },
+    {
+      "file": "after-light-390-metrics.json",
+      "viewport": {
+        "height": 763,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      "fileCardsChecked": 3,
+      "minimumTimestampGap": 4.0,
+      "horizontalOverflow": false,
+      "filenameAndActionInsideCard": true
+    }
+  ],
+  "applicationConsoleErrors": 0,
+  "externalBrowserExtensionErrors": 1,
+  "nativeYogaBoundaryCasesPassed": 240,
+  "relatedTestsPassed": 71,
+  "physicalDeviceVerified": false
+}

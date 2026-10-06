@@ -1,0 +1,571 @@
+{
+  "rows": [
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "직원 채팅, 안 읽음 7개"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "청소년 관리"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "자료실"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "급식·카페"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "업무일지"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "업무 일정"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "계정·도장 설정"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "bubble": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 0,
+            "height": 0,
+            "right": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "label": "앱 업데이트"
+        }
+      ],
+      "filenames": [],
+      "label": null,
+      "timestamp": {
+        "bottom": 0,
+        "height": 0,
+        "right": 0,
+        "width": 0,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "box": {
+        "bottom": -38.203125,
+        "height": 85.796875,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": -124
+      },
+      "bubble": {
+        "bottom": -59,
+        "height": 65,
+        "right": 284.953125,
+        "width": 268.953125,
+        "x": 16,
+        "y": -124
+      },
+      "buttons": [],
+      "filenames": [],
+      "label": "김예시 보낸 메시지, 10. 6. 09:30",
+      "timestamp": {
+        "bottom": -38.203125,
+        "height": 16.796875,
+        "right": 86.359375,
+        "width": 70.359375,
+        "x": 16,
+        "y": -55
+      }
+    },
+    {
+      "box": {
+        "bottom": 59.59375,
+        "height": 85.796875,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": -26.203125
+      },
+      "bubble": {
+        "bottom": 38.796875,
+        "height": 65,
+        "right": 284.953125,
+        "width": 268.953125,
+        "x": 16,
+        "y": -26.203125
+      },
+      "buttons": [],
+      "filenames": [],
+      "label": "김예시 보낸 메시지, 10. 6. 09:31",
+      "timestamp": {
+        "bottom": 59.59375,
+        "height": 16.796875,
+        "right": 86.359375,
+        "width": 70.359375,
+        "x": 16,
+        "y": 42.796875
+      }
+    },
+    {
+      "box": {
+        "bottom": 157.390625,
+        "height": 85.796875,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": 71.59375
+      },
+      "bubble": {
+        "bottom": 136.59375,
+        "height": 65,
+        "right": 329,
+        "width": 268.953125,
+        "x": 60.046875,
+        "y": 71.59375
+      },
+      "buttons": [],
+      "filenames": [],
+      "label": "내가 보낸 메시지, 10. 6. 09:32",
+      "timestamp": {
+        "bottom": 157.390625,
+        "height": 16.796875,
+        "right": 329,
+        "width": 101.4375,
+        "x": 227.5625,
+        "y": 140.59375
+      }
+    },
+    {
+      "box": {
+        "bottom": 302.890625,
+        "height": 133.5,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": 169.390625
+      },
+      "bubble": {
+        "bottom": 282.09375,
+        "height": 112.703125,
+        "right": 329,
+        "width": 268.953125,
+        "x": 60.046875,
+        "y": 169.390625
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 271.09375,
+            "height": 44,
+            "right": 318,
+            "width": 246.953125,
+            "x": 71.046875,
+            "y": 227.09375
+          },
+          "label": "업무자료_빈양식.hwp 파일 작업 열기"
+        }
+      ],
+      "filenames": [
+        {
+          "box": {
+            "bottom": 200.6875,
+            "height": 20.296875,
+            "right": 318,
+            "width": 218.953125,
+            "x": 99.046875,
+            "y": 180.390625
+          },
+          "name": "업무자료_빈양식.hwp"
+        }
+      ],
+      "label": "내가 보낸 메시지, 10. 6. 09:33",
+      "timestamp": {
+        "bottom": 302.890625,
+        "height": 16.796875,
+        "right": 329,
+        "width": 101.4375,
+        "x": 227.5625,
+        "y": 286.09375
+      }
+    },
+    {
+      "box": {
+        "bottom": 396.390625,
+        "height": 81.5,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": 314.890625
+      },
+      "bubble": {
+        "bottom": 375.59375,
+        "height": 60.703125,
+        "right": 329,
+        "width": 268.953125,
+        "x": 60.046875,
+        "y": 314.890625
+      },
+      "buttons": [],
+      "filenames": [
+        {
+          "box": {
+            "bottom": 346.1875,
+            "height": 20.296875,
+            "right": 318,
+            "width": 218.953125,
+            "x": 99.046875,
+            "y": 325.890625
+          },
+          "name": "a.hwp"
+        }
+      ],
+      "label": "내가 보낸 메시지, 10. 6. 09:34",
+      "timestamp": {
+        "bottom": 396.390625,
+        "height": 16.796875,
+        "right": 329,
+        "width": 101.4375,
+        "x": 227.5625,
+        "y": 379.59375
+      }
+    },
+    {
+      "box": {
+        "bottom": 632.984375,
+        "height": 224.59375,
+        "right": 329,
+        "width": 313,
+        "x": 16,
+        "y": 408.390625
+      },
+      "bubble": {
+        "bottom": 612.1875,
+        "height": 203.796875,
+        "right": 284.953125,
+        "width": 268.953125,
+        "x": 16,
+        "y": 408.390625
+      },
+      "buttons": [
+        {
+          "box": {
+            "bottom": 591.1875,
+            "height": 44,
+            "right": 260.953125,
+            "width": 220.953125,
+            "x": 40,
+            "y": 547.1875
+          },
+          "label": "2026년_업무_회의_자료_매우_긴_파일명_검수용_문서_최종_검토_예시.pdf 파일 작업 열기"
+        }
+      ],
+      "filenames": [
+        {
+          "box": {
+            "bottom": 520.78125,
+            "height": 60.890625,
+            "right": 260.953125,
+            "width": 192.953125,
+            "x": 68,
+            "y": 459.890625
+          },
+          "name": "2026년_업무_회의_자료_매우_긴_파일명_검수용_문서_최종_검토_예시.pdf"
+        }
+      ],
+      "label": "김예시 보낸 메시지, 10. 6. 09:35",
+      "timestamp": {
+        "bottom": 632.984375,
+        "height": 16.796875,
+        "right": 86.359375,
+        "width": 70.359375,
+        "x": 16,
+        "y": 616.1875
+      }
+    }
+  ],
+  "viewport": {
+    "height": 760,
+    "scrollWidth": 360,
+    "width": 360
+  }
+}

@@ -11,12 +11,12 @@ type ActionProps = { label: string; accessibilityLabel?: string; icon?: keyof ty
 export function ChatThreadAction({ label, accessibilityLabel, icon, iconOnly, disabled, onPress, ref, attachment, pill, panel, warning }: ActionProps) {
   const theme = useHomeTheme(), [focus, setFocus] = useState(false);
   const action = <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress}
-    onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} style={({ pressed }) => [styles.action, pill && { borderRadius: 22, alignSelf: "center", paddingHorizontal: 14 }, panel && { minHeight: 48 }, iconOnly && { width: 44, paddingHorizontal: 0 },
+    onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} style={({ pressed }) => [styles.action, attachment && { alignSelf: "stretch", flexShrink: 0 }, pill && { borderRadius: 22, alignSelf: "center", paddingHorizontal: 14 }, panel && { minHeight: 48 }, iconOnly && { width: 44, paddingHorizontal: 0 },
       { borderColor: focus ? theme.accent : iconOnly ? "transparent" : warning ? theme.secondary : theme.controlBorder, backgroundColor: iconOnly ? "transparent" : theme.surface, opacity: pressed && !disabled ? .8 : 1 }]}>
     {icon ? <Feather name={icon} size={iconOnly ? 22 : 16} color={theme.secondary} accessible={false} aria-hidden /> : null}
     {!iconOnly ? <Text style={{ color: disabled ? theme.secondary : theme.text, fontSize: pill ? 13 : panel ? 15 : 14, lineHeight: panel ? 22 : 20, fontWeight: "700", textAlign: "center", flexShrink: 1 }}>{attachment ? "파일 작업 열기" : label}</Text> : null}
   </Pressable>;
-  return attachment ? <View style={{ padding: 10, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface }}><ChatThreadFileSummary attachment={attachment} />{["deleted", "deleting"].includes(attachment.status) ? null : action}</View> : action;
+  return attachment ? <View style={{ width: "100%", padding: 10, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface }}><ChatThreadFileSummary attachment={attachment} />{["deleted", "deleting"].includes(attachment.status) ? null : action}</View> : action;
 }
 export function ChatThreadSend({ title, displayTitle, disabled, onPress, panel }: { title: string; displayTitle?: string; disabled?: boolean; onPress: () => void; panel?: boolean }) {
   const theme = useHomeTheme(), [focus, setFocus] = useState(false);
@@ -34,7 +34,7 @@ export function ChatThreadFileSummary({ attachment, detail }: { attachment: Chat
   const theme = useHomeTheme();
   const status = attachment.status === "deleted" || attachment.status === "deleting" ? "원본 삭제됨 · 다운로드 불가" : "원본 보관 중";
   return <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><Feather name="file-text" size={20} color={theme.secondary} accessible={false} aria-hidden />
-    <View style={{ flex: 1, minWidth: 0, gap: 1 }}><Text selectable style={[{ color: theme.text, fontSize: 14, lineHeight: 20.3, fontWeight: "700" }, Platform.OS === "web" ? { wordBreak: "break-all" } as unknown as TextStyle : undefined]}>{attachment.originalName}</Text>
+    <View style={{ flexGrow: 1, flexShrink: 1, minWidth: 0, gap: 1 }}><Text selectable style={[{ color: theme.text, fontSize: 14, lineHeight: 20.3, fontWeight: "700" }, Platform.OS === "web" ? { wordBreak: "break-all" } as unknown as TextStyle : undefined]}>{attachment.originalName}</Text>
       <Text style={{ color: theme.secondary, fontSize: 12, lineHeight: 17.4 }}>{attachmentFileSize(attachment.size).replace(/\.0MB$/, "MB")} · {status}{detail ? ` · ${detail}` : ""}</Text></View></View>;
 }
 export function ChatThreadSelectedFile({ name, size }: { name: string; size: number }) {
@@ -48,8 +48,10 @@ export function ChatThreadMessage({ item, own, peerName, children }: { item: Cha
   const theme = useHomeTheme();
   const { width } = useWindowDimensions();
   const fileOnly = !!item.attachment && (!item.body || item.body === `파일: ${item.attachment.originalName}`);
+  const bubbleWidth = Math.min(560, (Math.min(width, 760) - 32) * .82);
   return <View role="listitem" accessibilityLabel={`${own ? "내가" : peerName ?? "상대방"} 보낸 메시지, ${formatChatTimestamp(item.createdAt)}`} style={{ width: "100%", alignItems: own ? "flex-end" : "flex-start", gap: 4 }}>
-    <View style={{ maxWidth: Math.min(560, (Math.min(width, 760) - 32) * .82), borderWidth: fileOnly ? 0 : 1, borderColor: own ? theme.accentSoft : theme.border, borderRadius: 16, borderBottomLeftRadius: own ? 16 : 4, borderBottomRightRadius: own ? 4 : 16, backgroundColor: fileOnly ? "transparent" : own ? theme.accentSoft : theme.surface, paddingVertical: fileOnly ? 0 : 9, paddingHorizontal: fileOnly ? 0 : 12, gap: 8 }}>
+    {/* Native Yoga cannot infer an auto-width card from a flexing filename row. */}
+    <View style={{ width: item.attachment ? bubbleWidth : undefined, maxWidth: bubbleWidth, borderWidth: fileOnly ? 0 : 1, borderColor: own ? theme.accentSoft : theme.border, borderRadius: 16, borderBottomLeftRadius: own ? 16 : 4, borderBottomRightRadius: own ? 4 : 16, backgroundColor: fileOnly ? "transparent" : own ? theme.accentSoft : theme.surface, paddingVertical: fileOnly ? 0 : 9, paddingHorizontal: fileOnly ? 0 : 12, gap: 8 }}>
       {item.body && !fileOnly ? <Text selectable style={{ color: theme.text, fontSize: 15, lineHeight: 22.5 }}>{item.body}</Text> : null}{children}
     </View><Text style={{ color: theme.secondary, fontSize: 12, lineHeight: 16.8, fontVariant: ["tabular-nums"] }}>{formatChatTimestamp(item.createdAt)}{own ? item.readAt ? " · 읽음" : " · 안 읽음" : ""}</Text>
   </View>;

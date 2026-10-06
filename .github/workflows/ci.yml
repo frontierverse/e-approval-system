@@ -73,7 +73,7 @@ jobs:
         working-directory: mobile
         env:
           EXPO_NO_TELEMETRY: "1"
-        run: npm ci && npm run lint && npm run typecheck
+        run: npm ci && npm run lint && npm run typecheck && node ../tests/native-chat-layout.mjs
 
       - name: Run ESLint
         run: npm run lint
