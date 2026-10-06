@@ -39,6 +39,29 @@ test('Actual list404 removes inaccessible task content immediately and provides 
     h.action('최신 목록 불러오기').onPress(); await settle(); assert.equal(h.requests.at(-1).path, '/tasks?status=pending&page=1'); assert.equal(h.requests.filter(r => r.options?.method === 'POST').length, 1);
   } finally { h.destroy(); }
 });
+test('Actual refresh403/404 clears cached rows and counts; transient500 retains data and recovery is GET only', async () => {
+  for (const status of [403, 404, 500]) {
+    const h = harness(); try {
+      h.resolve(response()); await settle();
+      assert.equal(h.flat().props.data.length, 1);
+      assert(text(h.flat().props.ListHeaderComponent).includes('45건'));
+      h.flat().props.refreshControl.props.onRefresh(); await settle();
+      h.reject(new api.ApiError('가상 목록 조회 실패', status), '/tasks?status=pending&page=1'); await settle();
+      const inaccessible = status !== 500;
+      assert.equal(h.flat().props.data.length, inaccessible ? 0 : 1);
+      const header = text(h.flat().props.ListHeaderComponent);
+      assert.equal(header.includes('45건'), !inaccessible);
+      assert.equal(header.includes('12건'), !inaccessible);
+      if (inaccessible) assert(header.includes('—'));
+      h.action('다시 시도').onPress(); await settle();
+      assert.equal(h.requests.at(-1).path, '/tasks?status=pending&page=1');
+      assert.equal(h.requests.filter(r => r.options?.method === 'POST').length, 0);
+      h.resolve(response({ rows: [task('qa-newly-accessible')], pending: 3, overdue: 1 })); await settle();
+      assert.equal(h.flat().props.data[0].id, 'qa-newly-accessible');
+      assert(text(h.flat().props.ListHeaderComponent).includes('3건'));
+    } finally { h.destroy(); }
+  }
+});
 test('Actual pending mutation blur/refocus resumes blocked latest-path GET and releases controls', async () => {
   const h = harness(); try {
     h.resolve(response()); await settle(); h.row().complete(); await settle(); h.blur(); h.setProps({ status: 'all', page: 2 }); h.focus(); await settle();
@@ -62,7 +85,7 @@ test('Actual confirmed mutation followed by failed GET keeps success and retries
   const h = harness('tasks', undefined, { status: 'all' }); try {
     h.resolve(response({ status: 'all' })); await settle(); h.row().complete(); await settle(); h.resolve({ ok: true, message: '확인된 저장 성공', task: task('qa-a-task-001', 1, '2026-10-03T00:00:00.000Z') }, '/tasks/qa-a-task-001/completion'); await settle();
     h.reject(new api.ApiError('후속조회 실패', 500), '/tasks?status=all&page=1'); await settle(); assert.equal(h.flat().props.data[0].version, 1); assert(text(h.flat().props.ListHeaderComponent).includes('—'));
-    let notice; walk(h.flat().props.ListHeaderComponent, node => { if (node.type === 'AccountFeedback') notice = node.props; }); assert.equal(notice.message, '확인된 저장 성공');
+    let notice; walk(h.flat().props.ListHeaderComponent, node => { if (node.type?.name === 'TaskFeedback' && node.props.message) notice = node.props; }); assert.equal(notice.message, '확인된 저장 성공');
     h.action('다시 시도').onPress(); await settle(); assert.equal(h.requests.filter(r => r.options?.method === 'POST').length, 1); assert.equal(h.requests.at(-1).path, '/tasks?status=all&page=1');
   } finally { h.destroy(); }
 });
@@ -88,4 +111,17 @@ test('Actual useHomeData preserves counts on refresh failure and ignores obsolet
 test('Actual home remount starts unknown and ignores old-account response after new account loads', async () => {
   const a = harness('home'); const old = a.requests[0]; a.destroy(); const b = harness('home', undefined, {}, 'b');
   try { assert.equal(b.tree.data, null); assert.equal(b.tree.loading, true); b.resolve(homeResponse(3, 1)); await settle(); old.settled = true; old.resolve(homeResponse(45, 12)); await settle(); assert.equal(b.tree.data.taskCounts.pending, 3); assert.equal(b.requests.length, 1); } finally { b.destroy(); }
+});
+
+test('Actual refresh deduplicates GET and stale completion callbacks stay locked until a successful current query', async () => {
+  const h = harness(); try {
+    h.resolve(response()); await settle(); const staleComplete = h.row().complete;
+    const refresh = h.flat().props.refreshControl.props.onRefresh;
+    refresh(); refresh(); await settle(); assert.equal(h.requests.length, 2); assert.equal(h.row().disabled, true);
+    staleComplete(); await settle(); assert.equal(h.requests.filter(r => r.options?.method === 'POST').length, 0);
+    h.reject(new api.ApiError('가상 최신 조회 실패', 500)); await settle(); assert.equal(h.flat().props.data.length, 1); assert.equal(h.row().disabled, true);
+    staleComplete(); h.row().complete(); await settle(); assert.equal(h.requests.filter(r => r.options?.method === 'POST').length, 0);
+    h.action('다시 시도').onPress(); await settle(); h.resolve(response({ rows: [task('qa-a-task-001', 9)] })); await settle();
+    assert.equal(h.row().disabled, false); h.row().complete(); await settle(); assert.deepEqual(h.requests.at(-1).options.body, { completed: true, version: 9 });
+  } finally { h.destroy(); }
 });

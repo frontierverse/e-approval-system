@@ -1,9 +1,7 @@
-# 채팅 첨부 카드 레이아웃 검수 — 2026-10-06
+# 내 할 일 목록 v1 디자인 검수 — 2026-10-06
 
-파일 단독 메시지의 첨부 카드가 줄어들어 파일명이 사라지고 파일 작업 버튼이 시간과 겹치는 모바일 문제를 수정했다. 첨부 말풍선의 폭을 확정하고 파일명 행의 자동 기준 폭을 유지한다.
+**Final result: passed.** Claude Version 29의 ‘내 할 일 목록 v1’을 기존 모바일 앱에 반영했다. 같은 합성 자료와 390×844 크기로 원본/구현을 비교했고, 360px·1366px·다크·200% 재배치 및 주요 오류/완료 상태를 검수했다. 첫 업무는 정상 상태에서 스크롤 영역 약 26.6%에 시작하고 가로 넘침·44px 미만 행동·텍스트 대비 미달이 없다.
 
-[전체 검수 보고서](docs/design/chat-attachment-native-layout/design-qa.md), [전후 웹 비교](docs/design/chat-attachment-native-layout/before-after-web-390.png), [측정 결과](docs/design/chat-attachment-native-layout/qa-result.json).
+[전체 검수와 미확인 항목](docs/design/mobile-tasks-list-v1/design-qa.md), [Claude/실제 구현 비교](docs/design/mobile-tasks-list-v1/source-implementation-390.png), [측정 결과](docs/design/mobile-tasks-list-v1/qa-result.json).
 
-실제 React Native Yoga 엔진으로 240개 경계 조합을 통과했고 수정 전 소스에서 폭 축소 회귀를 재현했다. 관련 채팅 회귀 검사 71개, 루트/모바일 린트·타입 검사, 운영 설정과 Android/iOS/web export를 통과했다. 웹의 360/390/1366px, 라이트·다크, 200% 확대에서 첨부 파일명·버튼·시간이 겹치지 않는다. 사용자 제공 실기기 사진이나 실제 대화는 저장소에 포함하지 않았다.
-
-텍스트 측정은 합성 모델이며 물리 기기 폰트·Safe Area·스크린리더·OTA 적용 후 화면은 직접 확인하지 않았다. 검수 이미지와 API는 합성 자료다.
+기존 [채팅 첨부 카드 레이아웃 검수](docs/design/chat-attachment-native-layout/design-qa.md)도 보존되어 있다.
