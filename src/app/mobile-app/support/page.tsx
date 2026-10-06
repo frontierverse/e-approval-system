@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { appName, organizationName } from "@/lib/branding";
 
-const supportEmail = "artemismars2@gmail.com";
+import { mobileAppInfo } from "@/lib/mobile-app-info";
+
+const { supportEmail } = mobileAppInfo;
 
 export const metadata: Metadata = {
   title: "모바일 앱 지원",
@@ -54,6 +56,7 @@ export default function MobileAppSupportPage() {
         </section>
 
         <nav aria-label="관련 페이지" className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <Link href="/mobile-app/privacy" className="inline-flex min-h-11 items-center text-[var(--foreground)] underline underline-offset-4">개인정보처리방침</Link>
           <Link href="/login" className="inline-flex min-h-11 items-center font-medium text-[var(--foreground)] underline underline-offset-4">업무 시스템 로그인</Link>
           <a href="https://youth.bajaul.com/" className="inline-flex min-h-11 items-center text-[var(--foreground)] underline underline-offset-4">기관 홈페이지</a>
         </nav>

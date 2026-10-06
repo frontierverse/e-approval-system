@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type TextStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PublicAppLinks } from "@/components/public-app-links";
 import { focusAccountNotice } from "@/components/account-feedback";
 import { useYouth } from "@/components/youth-provider";
 import { useChat } from "@/lib/chat-provider";
@@ -83,6 +84,7 @@ export function ProfileHub({ user, chat, push, logout, navigate, onPush }: HubPr
       </View>
       <Group title="업무 기능">{work.map((item, index) => <View role="listitem" key={item.path}><ProfileRow {...item} first={index === 0} onPress={() => navigate(item.path)} meta={index === 0 ? chatState : undefined} /></View>)}</Group>
       <Group title="계정·앱">{settings.map((item, index) => <View role="listitem" key={item.path}><ProfileRow {...item} first={index === 0} onPress={() => navigate(item.path)} /></View>)}</Group>
+      <PublicAppLinks />
       <View style={styles.section} onLayout={event => { pushY.current = event.nativeEvent.layout.y; }}>
         <SectionTitle title="기기 알림" />
         <View style={[styles.pushPanel, { borderColor: theme.border, backgroundColor: theme.surface }]}>

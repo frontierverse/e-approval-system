@@ -5,10 +5,12 @@ import { proxy } from "../src/proxy.ts";
 import { sessionCookieName } from "../src/lib/session-constants.ts";
 
 describe("authentication proxy", () => {
-  test("opens the static app support page without an employee session", () => {
-    const response = proxy(new NextRequest("http://localhost/mobile-app/support?from=app-store"));
-    assert.equal(response.headers.get("location"), null);
-    assert.equal(response.headers.get("x-middleware-next"), "1");
+  test("opens only the exact public app information pages without an employee session", () => {
+    for (const path of ["support", "privacy"]) {
+      const response = proxy(new NextRequest(`http://localhost/mobile-app/${path}?from=app-store`));
+      assert.equal(response.headers.get("location"), null);
+      assert.equal(response.headers.get("x-middleware-next"), "1");
+    }
   });
 
   test("keeps routes neighboring app support and private documents protected", () => {
@@ -16,7 +18,8 @@ describe("authentication proxy", () => {
       "/mobile-app",
       "/mobile-app/supporting",
       "/mobile-app/support/private",
-      "/mobile-app/privacy",
+      "/mobile-app/privacy-extra",
+      "/mobile-app/privacy/private",
       "/documents/synthetic-document-id",
     ]) {
       const response = proxy(new NextRequest(`http://localhost${pathname}`));
