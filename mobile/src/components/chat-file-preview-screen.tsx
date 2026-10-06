@@ -1,15 +1,15 @@
-import { useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Text, View } from "react-native";
-import { AccountFeedback } from "@/components/account-feedback";
+import { Image, Platform, ScrollView, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ChatFilePreviewAction as TextAction, ChatFilePreviewFeedback, ChatFilePreviewHeader, ChatFilePreviewInfo, ChatFilePreviewLoading, ChatFilePreviewWebPdf, type PreviewFailure } from "@/components/chat-file-preview-ui";
 import { PdfPreview } from "@/components/pdf-preview";
-import { EmptyState, TextAction } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { chatError, isChatId } from "@/lib/chat";
 import { useChat } from "@/lib/chat-provider";
 import { loadChatPreview, lookupChatPreviewAttachment } from "@/lib/chat-file-transfer";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme as useTheme } from "@/lib/home-theme";
 import type { ChatAttachment } from "@/lib/types";
 export function ChatFilePreviewScreen({ attachmentId, peerId }: {
   attachmentId: string;
@@ -36,6 +36,8 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof loadChatPreview>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<PreviewFailure>("fetch");
+  const [screenFocused, setScreenFocused] = useState(false);
   const [lastForegroundEpoch, setLastForegroundEpoch] = useState(foregroundEpoch);
   if (lastForegroundEpoch !== foregroundEpoch) {
     setLastForegroundEpoch(foregroundEpoch);
@@ -60,6 +62,7 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
     releaseResource();
     setPreview(null);
     setFile(null);
+    setError(null);
   }, [releaseResource]);
   const invalidate = useCallback(() => { epoch.current++; }, []);
   useLayoutEffect(() => {
@@ -87,12 +90,17 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
     setError(null);
     release();
     const current = () => alive.current && focused.current && foreground.current && generation === epoch.current && isCurrentAccount() && providerCurrent() && isForegroundCurrent(foregroundEpoch);
+    let failureKind: PreviewFailure = "fetch";
     try {
-      if (!isChatId(attachmentId) || !isChatId(peerId))
+      if (!isChatId(attachmentId) || !isChatId(peerId)) {
+        failureKind = "selection";
         throw new ApiError("파일 주소가 올바르지 않습니다.", 400);
+      }
       const attachment = lookupChatPreviewAttachment({ attachmentId, peerId, token });
-      if (!attachment)
+      if (!attachment) {
+        failureKind = "selection";
         throw new ApiError("대화에서 파일을 다시 선택해 미리보기를 여세요.", 404);
+      }
       controller.current = new AbortController();
       const value = await loadChatPreview({ attachment, token, signal: controller.current.signal, isCurrent: current });
       if (!current()) {
@@ -109,6 +117,13 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
           await expireSession(token);
           return;
         }
+        if (cause instanceof ApiError) {
+          if (cause.status === 403) failureKind = "forbidden";
+          else if (cause.status === 404) failureKind = "selection";
+          else if (cause.status === 410) failureKind = "deleted";
+          else if (cause.status === 415) failureKind = "unsupported";
+        }
+        setFailure(failureKind);
         setError(chatError(cause));
       }
     }
@@ -122,21 +137,52 @@ function ChatFilePreviewContent({ attachmentId, peerId, isCurrentAccount }: {
   }, [attachmentId, expireSession, isCurrentAccount, peerId, providerCurrent, foregroundEpoch, isForegroundCurrent, release, token]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    setScreenFocused(true);
     if (appForeground)
       void load();
     return () => {
       focused.current = false;
+      setScreenFocused(false);
       epoch.current++;
       busy.current = false;
       release();
     };
   }, [appForeground, load, release]));
-  if (lastForegroundEpoch !== foregroundEpoch || !isForegroundCurrent(foregroundEpoch) || !appForeground || !providerCurrent() || !isCurrentAccount())
-    return <View style={{ flex: 1, backgroundColor: theme.background }}><ActivityIndicator color={theme.accent} style={{ padding: 24 }}/></View>;
-  return <View style={{ flex: 1, backgroundColor: theme.background }}><View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>{file ? <Text style={{ color: theme.text, fontSize: 14, fontWeight: "700" }} numberOfLines={2}>{file.originalName}</Text> : null}<Text style={{ color: theme.secondary, fontSize: 12 }}>미리보기만으로 수신 완료하거나 원본을 삭제하지 않습니다.</Text><AccountFeedback error={error}/>{error ? <TextAction label="미리보기 다시 확인" icon="refresh" disabled={loading} onPress={() => void load()}/> : null}</View>{loading ? <ActivityIndicator color={theme.accent} style={{ padding: 24 }}/> : preview ? preview.kind === "pdf" ? <PdfPreview uri={preview.uri} token=""/> : <Image source={{ uri: preview.uri }} accessibilityLabel={file?.originalName ?? "채팅 파일 미리보기"} style={{ flex: 1 }} resizeMode="contain" onError={() => {
+  const visible = lastForegroundEpoch === foregroundEpoch && screenFocused && isForegroundCurrent(foregroundEpoch) && appForeground && providerCurrent() && isCurrentAccount();
+  const ready = visible && !loading && !!preview && !!file;
+  const backToPeer = isChatId(peerId);
+  const onBack = () => {
+    if (!visible || !focused.current || !foreground.current || !isForegroundCurrent(foregroundEpoch) || !isCurrentAccount() || !providerCurrent()) return;
+    focused.current = false;
+    setScreenFocused(false);
+    invalidate();
+    busy.current = false;
+    release();
+    if (router.canGoBack()) router.back();
+    else if (backToPeer) router.replace({ pathname: "/chat/[peerId]", params: { peerId } });
+    else router.replace("/chat");
+  };
+  return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: theme.surface }}>
+    <Stack.Screen options={{ headerShown: false }} />
+    <ChatFilePreviewHeader backLabel={backToPeer ? "뒤로, 직원 대화" : "뒤로, 직원 채팅"} onBack={onBack} />
+    {ready ? <ChatFilePreviewInfo file={file} mimeType={preview.mimeType} /> : null}
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, minHeight: 0, backgroundColor: ready ? theme.surfaceMuted : theme.background }}>
+      {!visible || loading ? <ChatFilePreviewLoading /> : error ? <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
+        <ChatFilePreviewFeedback error={error} failure={failure}>
+          {failure === "fetch" || failure === "image" ? <TextAction label="미리보기 다시 확인" primary disabled={loading} onPress={() => void load()} /> : null}
+          <TextAction label={backToPeer ? "대화로 돌아가기" : "직원 채팅으로 돌아가기"} onPress={onBack} />
+        </ChatFilePreviewFeedback>
+      </ScrollView> : ready ? preview.kind === "pdf" ? Platform.OS === "web" ? <ScrollView style={{ flex: 1 }}><ChatFilePreviewWebPdf /></ScrollView> : <PdfPreview key={preview.uri} uri={preview.uri} token="" /> : <View style={{ flex: 1, minHeight: 0, padding: 12 }}>
+        <View style={{ flex: 1, minHeight: 0, width: "100%", maxWidth: 720, alignSelf: "center" }}>
+          <Image source={{ uri: preview.uri }} accessibilityLabel={`${file.originalName} 이미지 미리보기`} style={{ flex: 1, width: "100%" }} resizeMode="contain" onError={() => {
     if (!alive.current || !focused.current || !foreground.current || !isCurrentAccount() || !providerCurrent() || !isForegroundCurrent(foregroundEpoch) || resource.current !== preview)
       return;
     release();
-    setError("이미지를 표시하지 못했습니다. 다시 확인하세요.");
-  }}/> : <View style={{ padding: 16 }}><EmptyState title="미리보기를 확인하지 못했습니다" detail="대화의 파일 작업에서 다시 여세요."/></View>}</View>;
+    setFailure("image");
+    setError("이미지를 읽지 못했어요. 미리보기를 다시 확인해 주세요.");
+  }} />
+        </View>
+      </View> : <ChatFilePreviewLoading />}
+    </SafeAreaView>
+  </SafeAreaView>;
 }

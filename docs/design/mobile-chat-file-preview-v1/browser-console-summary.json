@@ -1,0 +1,9 @@
+{
+  "inspectedLogCount": 82,
+  "appErrors": [],
+  "excludedExtensionWarnings": true,
+  "knownWarnings": [
+    "expo-notifications web push not supported",
+    "react-native-web pointerEvents deprecation"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "activeElementRole": "alert",
+  "alerts": 1,
+  "bodyText": "\n파일 미리보기\n\n이미지를 표시하지 못했어요\n이미지를 읽지 못했어요. 미리보기를 다시 확인해 주세요.\n미리보기 다시 확인\n대화로 돌아가기",
+  "buttons": [
+    {
+      "height": 44,
+      "label": "뒤로, 직원 대화",
+      "width": 44,
+      "x": 4,
+      "y": 4
+    },
+    {
+      "height": 48,
+      "label": "미리보기 다시 확인",
+      "width": 324,
+      "x": 33,
+      "y": 141.90625
+    },
+    {
+      "height": 48,
+      "label": "대화로 돌아가기",
+      "width": 324,
+      "x": 33,
+      "y": 197.90625
+    }
+  ],
+  "headings": [
+    {
+      "height": 23,
+      "text": "파일 미리보기",
+      "width": 326,
+      "x": 52,
+      "y": 14.5
+    }
+  ],
+  "images": [],
+  "scrollWidth": 390,
+  "viewport": {
+    "height": 763,
+    "width": 390
+  }
+}

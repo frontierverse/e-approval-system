@@ -1,0 +1,17 @@
+{
+  "theme": "light",
+  "mode": "normal",
+  "kind": "normal",
+  "previewMode": "loading",
+  "counts": {
+    "summary": 0,
+    "login": 0,
+    "logout": 0,
+    "denied": 0,
+    "messages": 0,
+    "read": 0,
+    "send": 0,
+    "preview": 1,
+    "fileMutations": 0
+  }
+}

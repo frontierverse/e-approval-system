@@ -21,7 +21,7 @@ const chat:Row={...defaultChat};
 function setChatForeground(value:boolean) { if(chat.foreground!==value) chat.foregroundEpoch++; chat.foreground=value; }
 const expireSession=async()=>state.expired++;
 const harness:Row={...core,ApiError,
-Stack:{Screen:"Stack.Screen"},StyleSheet:{create:(value:unknown)=>value},useWindowDimensions:()=>state.dimensions,useHomeTheme:()=>harness.useTheme(),SafeAreaView:"SafeAreaView",ChatListAction:"ChatListAction",ChatListTabs:"ChatListTabs",ChatListSearch:"ChatListSearch",ChatListRow:"ChatListRow",ChatListLoading:"ChatListLoading",ChatListNotice:"ChatListNotice",ChatListEmpty:"ChatListEmpty",
+Stack:{Screen:"Stack.Screen"},StyleSheet:{create:(value:unknown)=>value},useWindowDimensions:()=>state.dimensions,useHomeTheme:()=>harness.useTheme(),SafeAreaView:"SafeAreaView",ChatListAction:"ChatListAction",ChatListTabs:"ChatListTabs",ChatListSearch:"ChatListSearch",ChatListRow:"ChatListRow",ChatListLoading:"ChatListLoading",ChatListNotice:"ChatListNotice",ChatListEmpty:"ChatListEmpty",ChatFilePreviewHeader:"ChatFilePreviewHeader",ChatFilePreviewInfo:"ChatFilePreviewInfo",ChatFilePreviewLoading:"ChatFilePreviewLoading",ChatFilePreviewFeedback:"ChatFilePreviewFeedback",ChatFilePreviewWebPdf:"ChatFilePreviewWebPdf",
 React:{createElement:(type:unknown,props:Row|null,...children:unknown[])=>({type,props:{...props,children}}),Fragment:"Fragment"},
 useRef:(v:unknown)=>{const c=cell();return c.ref??(c.ref={current:v});},useState:(v:unknown)=>{const c=cell();if(!c.state){c.state={value:typeof v==="function"?v():v};c.setter=(next:unknown)=>{c.state.value=typeof next==="function"?next(c.state.value):next;};}return[c.state.value,c.setter];},useCallback:(fn:unknown,deps:unknown[])=>{const c=cell();if(!same(c.deps,deps)){c.deps=deps;c.fn=fn;}return c.fn;},useEffect:effect,useLayoutEffect:effect,useFocusEffect:(fn:()=>unknown)=>{const i=active.index;effect(fn,[fn]);active.slots[i].focus=true;},
 usePreventRemove:(enabled:boolean,callback:unknown)=>{active.prevent={enabled,callback};},useNavigation:()=>({dispatch:(action:unknown)=>state.dispatched.push(action)}),useSafeAreaInsets:()=>({bottom:16}),
@@ -197,7 +197,7 @@ test("preview resume waits for fresh authorized bytes before revealing private i
   assert.equal(state.purges, 0);
 });
 
-test("preview resume permission failure exposes no cached name and captured retry stays blocked in background", async () => {
+test("preview resume permission failure exposes no cached name and offers only return to conversation", async () => {
   const h = await mount("preview", { attachmentId: "file" });
   setChatForeground(false);
   update(h);
@@ -208,6 +208,14 @@ test("preview resume permission failure exposes no cached name and captured retr
   update(h);
   assert.equal(nodes(h.tree).some(n => n.type === "PdfPreview" || n.type === "Image"), false);
   assert.equal(JSON.stringify(h.tree).includes("민감 기록.pdf"), false);
+  assert.equal(find(h, "ChatFilePreviewFeedback").failure, "forbidden");
+  assert.equal(nodes(h.tree).some(n => n.type === "TextAction" && n.props.label === "미리보기 다시 확인"), false);
+  assert.ok(find(h, "TextAction", "대화로 돌아가기"));
+});
+
+test("captured preview retry stays blocked in background and cannot complete or download files", async () => {
+  state.onPreview = async () => { throw new ApiError("연결을 확인하세요.", 0); };
+  const h = await mount("preview", { attachmentId: "file" });
   const retry = find(h, "TextAction", "미리보기 다시 확인").onPress;
   const count = state.previewRequests.length;
   setChatForeground(false);
@@ -215,6 +223,7 @@ test("preview resume permission failure exposes no cached name and captured retr
   retry();
   await tick();
   assert.equal(state.previewRequests.length, count);
+  assert.equal(state.completes + state.downloads + state.saves, 0);
 });
 
 test("preview late old-account result is released and never expires replacement session", async () => {
@@ -249,7 +258,72 @@ test("captured old image error cannot release a newer foreground preview", async
   update(h);
   assert.equal(find(h, "Image").source.uri, "fresh-private-image");
   assert.equal(state.previewReleases, 1);
-  assert.equal(find(h, "AccountFeedback").error, null);
+  assert.equal(nodes(h.tree).some(n => n.type === "ChatFilePreviewFeedback"), false);
+});
+
+test("preview blur removes earlier failure and blocks captured navigation until fresh focus", async () => {
+  state.onPreview = async () => { throw new ApiError("이전 조회 안내", 0); };
+  const h = await mount("preview", { attachmentId: "file" });
+  const retry = find(h, "TextAction", "미리보기 다시 확인").onPress;
+  const back = find(h, "ChatFilePreviewHeader").onBack;
+  h.blur(); update(h);
+  assert.equal(JSON.stringify(h.tree).includes("이전 조회 안내"), false);
+  const count = state.previewRequests.length;
+  retry(); back(); await tick();
+  assert.equal(state.previewRequests.length, count);
+  assert.deepEqual(state.routes, []);
+  const fresh = deferred(); state.onPreview = async () => fresh.promise;
+  h.refocus(); update(h);
+  assert.equal(nodes(h.tree).some(n => n.type === "ChatFilePreviewFeedback"), false);
+  fresh.resolve({ uri: "fresh-after-blur", mimeType: "application/pdf", kind: "pdf", release: () => state.previewReleases++ });
+  await tick(); update(h);
+  assert.equal(find(h, "PdfPreview").uri, "fresh-after-blur");
+});
+
+test("preview repeated retry issues one GET and removes all private metadata until authorization", async () => {
+  state.onPreview = async () => { throw new ApiError("일시적인 조회 실패", 0); };
+  const h = await mount("preview", { attachmentId: "file" });
+  const retry = find(h, "TextAction", "미리보기 다시 확인").onPress;
+  const pending = deferred(); state.onPreview = async () => pending.promise;
+  retry(); retry(); update(h);
+  assert.equal(state.previewRequests.length, 2);
+  assert.equal(JSON.stringify(h.tree).includes("민감 기록.pdf"), false);
+  assert.equal(JSON.stringify(h.tree).includes("일시적인 조회 실패"), false);
+  pending.resolve({ uri: "retry-private", mimeType: "image/png", kind: "image", release: () => state.previewReleases++ });
+  await tick(); update(h);
+  assert.equal(find(h, "Image").resizeMode, "contain");
+  assert.equal(find(h, "ChatFilePreviewInfo").mimeType, "image/png");
+  assert.equal(state.completes + state.downloads + state.saves, 0);
+});
+
+test("preview direct entry never fetches an unregistered file and invalid peer returns to list once", async () => {
+  state.previewAttachment = null;
+  const h = await mount("preview", { attachmentId: "file", peerId: "invalid/peer" });
+  assert.equal(state.previewRequests.length, 0);
+  assert.equal(find(h, "ChatFilePreviewFeedback").failure, "selection");
+  const back = find(h, "ChatFilePreviewHeader").onBack;
+  back(); back(); update(h);
+  assert.deepEqual(state.routes, ["/chat"]);
+  assert.equal(nodes(h.tree).some(n => n.type === "ChatFilePreviewFeedback"), false);
+});
+
+test("preview back releases authorized content and falls back to the existing peer route", async () => {
+  const h = await mount("preview", { attachmentId: "file" });
+  find(h, "ChatFilePreviewHeader").onBack(); update(h);
+  assert.deepEqual(state.routes, [{ pathname: "/chat/[peerId]", params: { peerId: "peer" } }]);
+  assert.equal(state.previewReleases, 1);
+  assert.equal(state.previewRequests[0].signal.aborted, true);
+  assert.equal(JSON.stringify(h.tree).includes("민감 기록.pdf"), false);
+});
+
+test("preview web PDF preserves the truthful installed-app notice and never fabricates document pages", async () => {
+  const previous = harness.Platform.OS; harness.Platform.OS = "web";
+  try {
+    const h = await mount("preview", { attachmentId: "file" });
+    assert.ok(find(h, "ChatFilePreviewWebPdf"));
+    assert.equal(nodes(h.tree).some(n => n.type === "PdfPreview"), false);
+    assert.equal(find(h, "ChatFilePreviewInfo").file, state.previewAttachment);
+  } finally { harness.Platform.OS = previous; }
 });
 
 
