@@ -26,7 +26,7 @@ EAS의 `private-store` iOS 자격 증명 조회에서는 기존 Distribution 인
 1. 회사의 Android Enterprise 관리 환경을 연결하고 Managed Google Play **조직 ID**를 확인한다. Google Workspace 또는 선택한 EMM을 통한 관리가 필요하다. 개인 휴대폰은 해당 관리 방식에 따라 업무 프로필로 설치한다. 현재 서비스가 없으므로 서비스 선택·비용·직원 기기 관리 범위는 먼저 확정해야 한다.
 2. 게시 계정을 준비한다. 기존 Play Console 경로 또는 EMM의 Managed Play 비공개 앱 게시 경로를 사용할 수 있다. 두 경로는 가입 절차와 필요 자격 증명이 다르므로 신규 유료 계정을 자동 생성하지 않는다.
 3. Play Console에서 해당 앱의 **Managed Google Play → Organizations**에 확인한 회사 조직만 등록하고, 실제 비공개 표시와 대상 조직을 확인한다. 공개 운영 앱을 먼저 게시하지 않는다.
-4. 첫 AAB 업로드는 콘솔에서 진행한다. EAS Submit의 후속 업로드를 사용하려면 Google Play 제출용 서비스 계정을 별도로 연결한다. 기존 FCM 푸시 키는 제출용 권한을 대신하지 않는다.
+4. 첫 AAB 업로드는 콘솔에서 진행한다. 기존 직원 APK에서 삭제 없이 업데이트하려면 Play App Signing의 **앱 서명 인증서**가 기존 설치본과 일치해야 한다. AAB 업로드 인증서와 Google이 최종 APK에 사용하는 앱 서명 인증서는 다를 수 있다. 초기 등록에서 기존 앱 서명키 유지 방법을 확인하며 새 앱 서명키를 자동 선택하지 않는다. 키 전송은 실제 대상·방식이 준비된 후 승인받는다. EAS Submit의 후속 업로드를 사용하려면 Google Play 제출용 서비스 계정을 별도로 연결한다. 기존 FCM 푸시 키는 제출용 권한을 대신하지 않는다.
 5. `mobile/private-store.json`의 Android 조직 ID와 확인 상태를 입력하고, 아래 제출 검사를 실행한다. EAS 제출 시 초안을 만든 뒤 콘솔에서 비공개 대상 조직과 버전을 확인하고 릴리스한다.
 6. 직원의 관리형 Play Store에서 설치·업데이트 및 로그인·퇴직 계정 차단을 실제 Android로 확인한다.
 
@@ -72,6 +72,7 @@ npm run submit:private-store:ios -- --id VERIFIED_IOS_BUILD_UUID
 - [Google 비공개 앱 개요](https://support.google.com/work/android/answer/9563481?hl=en)
 - [Managed Google Play 계정 연결](https://support.google.com/work/android/answer/7042221?hl=en)
 - [Play Console에서 비공개 앱 게시](https://support.google.com/googleplay/work/answer/6145139?hl=en)
+- [Google Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?hl=en)
 - [Apple의 Public/Private 배포 설정](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/set-distribution-methods)
 - [Apple Business의 Custom Apps](https://support.apple.com/en-ie/guide/business/axm58ba3112a/web)
 - [Expo 빌드 설정](https://docs.expo.dev/build/eas-json/)
