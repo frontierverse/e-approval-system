@@ -1,20 +1,21 @@
 import { KeyboardScreen } from "@/components/keyboard-screen";
-import { useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Platform, Text, View, type ViewToken } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FlatList, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from "react-native";
+import { DetailText as Text } from "@/components/document-detail-ui";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
-import { ChatInput } from "@/components/chat-content";
+import { ChatThreadInput as ChatInput, ChatThreadAction as TextAction, ChatThreadSend as PrimaryButton, ChatThreadMessage, ChatThreadLoading, ChatThreadSelectedFile } from "@/components/chat-thread-ui";
 import { ChatAttachmentActions } from "@/components/chat-attachment-actions";
-import { EmptyState, PrimaryButton, TextAction } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
 import { useConfirmAction } from "@/components/use-confirm-action";
 import { ApiError } from "@/lib/api";
-import { chatError, chatUnknownResult, compareChatSequence, formatChatTimestamp, isChatFilePolicy, isChatId, isChatMessage, isChatMessagePage, mergeChatMessages, newChatRequestId } from "@/lib/chat";
+import { chatError, chatUnknownResult, compareChatSequence, isChatFilePolicy, isChatId, isChatMessage, isChatMessagePage, mergeChatMessages, newChatRequestId } from "@/lib/chat";
 import { useChat } from "@/lib/chat-provider";
 import { clearChatFileResources, discardChatFile, pickChatFile, uploadChatFile, type SelectedChatFile } from "@/lib/chat-file-transfer";
 import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
+import { useHomeTheme as useTheme } from "@/lib/home-theme";
 import type { ChatEmployee, ChatMessage } from "@/lib/types";
 type SendAttempt = {
   requestId: string;
@@ -43,7 +44,12 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const confirmation = useConfirmAction();
+  const confirmation = useConfirmAction({ colors: theme, sheet: true, bottomInset: insets.bottom });
+  const { height, width, fontScale } = useWindowDimensions();
+  const compactActions = width < 320 || fontScale >= 1.3;
+  const [viewportHeight, setViewportHeight] = useState(height);
+  const [headerHeight, setHeaderHeight] = useState(52);
+  const [actionHeight, setActionHeight] = useState(58);
   const [attachmentTarget, setAttachmentTarget] = useState<(ChatMessage & { scopeGeneration: number }) | null>(null);
   const [filePending, setFilePending] = useState(false);
   const [peer, setPeer] = useState<ChatEmployee | null>(null);
@@ -51,6 +57,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [privacy, setPrivacy] = useState(true);
+  const [screenFocused, setScreenFocused] = useState(false);
   const [lastForegroundEpoch, setLastForegroundEpoch] = useState(foregroundEpoch);
   const [body, setBody] = useState("");
   const [file, setFile] = useState<SelectedChatFile | null>(null);
@@ -63,9 +70,13 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [newBelow, setNewBelow] = useState(0);
   if (lastForegroundEpoch !== foregroundEpoch) {
     setLastForegroundEpoch(foregroundEpoch);
     setPrivacy(true);
+    setError(null);
+    setNotice(null);
+    setReadError(null);
     setBusy(selecting);
     if (sending) {
       setSending(false);
@@ -104,9 +115,14 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const currentForeground = useCallback((epoch = generation.current) => current(epoch) && isForegroundCurrent(foregroundEpoch), [current, foregroundEpoch, isForegroundCurrent]);
   const readyForAction = useCallback(() => currentForeground() && verified.current && verifiedForeground.current === foregroundEpoch, [currentForeground, foregroundEpoch]);
   const updateMessages = useCallback((value: ChatMessage[]) => {
+    if (verified.current && !atBottom.current) {
+      const known = new Set(currentMessages.current.map(message => message.id));
+      const added = value.filter(message => !known.has(message.id) && message.senderId === peerId && compareChatSequence(message.sequence, currentMessages.current.at(-1)?.sequence ?? "0") > 0).length;
+      if (added) setNewBelow(count => count + added);
+    }
     currentMessages.current = value;
     setMessages(value);
-  }, []);
+  }, [peerId]);
   const updateFile = useCallback((value: SelectedChatFile | null) => {
     currentFile.current = value;
     setFile(value);
@@ -118,6 +134,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     setPeer(null);
     updateMessages([]);
     visibleIds.current = [];
+    setNewBelow(0);
   }, [updateMessages]);
   const invalidate = useCallback(() => { generation.current++; }, []);
   useEffect(() => {
@@ -148,8 +165,12 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     const epoch = generation.current;
     fetching.current = true;
     setLoading(true);
-    if (fresh)
+    if (fresh) {
+      setError(null);
+      setNotice(null);
+      setReadError(null);
       clearPrivate();
+    }
     if (older) {
       bottomPositionPending.current = false;
       atBottom.current = false;
@@ -236,6 +257,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   }, [foregroundEpoch]);
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    setScreenFocused(true);
     verified.current = false;
     setPrivacy(true);
     atBottom.current = true;
@@ -243,6 +265,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     void latestLoad.current(true);
     return () => {
       focused.current = false;
+      setScreenFocused(false);
       generation.current++;
       verified.current = false;
       setPrivacy(true);
@@ -485,13 +508,27 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     atBottom.current = false;
   };
   const masked = privacy || !appForeground || !isForegroundCurrent(foregroundEpoch) || verifiedRenderEpoch !== foregroundEpoch;
-  return <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background, width: "100%", maxWidth: 900, alignSelf: "center" }}>
-  <View style={{ paddingHorizontal: 16, paddingTop: 8 }}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>{masked ? "대화 확인 중" : peer?.name ?? "대화"}</Text><TextAction label="새로고침" disabled={busy || loading} icon="refresh" onPress={() => void load(true)}/></View><AccountFeedback error={error} message={notice}/>{readError ? <><AccountFeedback error={`읽음 상태: ${readError}`}/><TextAction label="읽음 상태 다시 확인" onPress={() => void markVisibleRead()}/></> : null}</View>
-  {masked ? <View style={{ flex: 1, padding: 16 }}>{loading ? <ActivityIndicator color={theme.accent}/> : <EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요."/>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" contentContainerStyle={{ padding: 16, gap: 8 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
+  const showFeedback = lastForegroundEpoch === foregroundEpoch && screenFocused && appForeground && isForegroundCurrent(foregroundEpoch) && (!masked || !loading);
+  // Measure the content after KeyboardScreen reserves native keyboard space. The actions stay
+  // outside the scrolling composer, including at large font sizes and short keyboard viewports.
+  const composerLimit = Math.max(actionHeight + 44, Math.min(427, viewportHeight - headerHeight - 96));
+  return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: theme.surface }}><Stack.Screen options={{ headerShown: false }} />
+  <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background, width: "100%" }}>
+  <View onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} style={{ flex: 1, minHeight: 0 }}>
+  <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{ minHeight: 52, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border }}><View style={{ width: "100%", maxWidth: 760, alignSelf: "center", minHeight: 51, padding: 4, gap: 4, flexDirection: "row", alignItems: "center" }}>
+    <TextAction label="대화 목록으로" icon="chevron-left" iconOnly onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/chat"); }} />
+    <View style={{ flex: 1, minWidth: 0 }}><Text accessibilityRole="header" aria-level={1} style={{ color: theme.text, fontSize: 16, lineHeight: 21.6, fontWeight: "700" }}>{masked ? "대화 확인 중" : peer?.name ?? "대화"}</Text>
+      {!masked && peer ? <Text numberOfLines={2} style={{ color: theme.secondary, fontSize: 12, lineHeight: 16.8 }}>{peer.departmentName} · {peer.positionName}{!peer.active ? " · 기록" : ""}</Text> : null}</View>
+    <TextAction label="새로고침" disabled={busy || loading} icon="rotate-cw" iconOnly onPress={() => void load(true)} />
+  </View></View>
+  {showFeedback && !uncertain && (error || !masked && notice) ? <View style={{ paddingHorizontal: 12 }}><AccountFeedback error={error} message={masked ? null : notice} /></View> : null}
+  {!masked && showFeedback && readError ? <View style={{ paddingHorizontal: 12 }}><AccountFeedback error={`읽음 상태: ${readError}`} /><TextAction label="읽음 상태 다시 확인" onPress={() => void markVisibleRead()} /></View> : null}
+  {masked ? <View style={{ flex: 1, minHeight: 96 }}>{loading ? <ChatThreadLoading /> : <View style={{ padding: 16 }}><EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요." /></View>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" style={{ flex: 1, minHeight: 96, width: "100%", maxWidth: 760, alignSelf: "center" }} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
     if (!readyForAction()) return;
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     atBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 24;
     if (atBottom.current) {
+      setNewBelow(0);
       bottomPositionPending.current = false;
       void latestRead.current();
     }
@@ -499,9 +536,36 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     // Use the measured content height; virtualized scrollToEnd can estimate a shorter final row.
     if (readyForAction() && (bottomPositionPending.current || atBottom.current) && Number.isFinite(height) && height > 0)
       list.current?.scrollToOffset({ offset: height, animated: false });
-  }} ListHeaderComponent={hasMore ? <TextAction label={loading ? "이전 메시지 확인 중" : "이전 메시지 50개 불러오기"} disabled={loading} onPress={() => void load(false, true)}/> : null} ListEmptyComponent={<EmptyState title="아직 메시지가 없습니다" detail="아래에서 첫 메시지를 보내세요."/>} renderItem={({ item }) => <View role="listitem" style={{ alignSelf: item.senderId === user?.id ? "flex-end" : "flex-start", maxWidth: "92%", borderWidth: 1, borderColor: theme.border, borderRadius: 10, backgroundColor: item.senderId === user?.id ? theme.accentSoft : theme.surface, padding: 10, gap: 4 }}>{item.body ? <Text selectable style={{ color: theme.text, fontSize: 14, lineHeight: 21 }}>{item.body}</Text> : null}{item.attachment ? <TextAction label={item.attachment.originalName} icon="document-attach-outline" accessibilityLabel={`${item.attachment.originalName} 파일 작업 열기`} onPress={() => openAttachment(item)}/> : null}<Text style={{ color: theme.muted, fontSize: 11 }}>{formatChatTimestamp(item.createdAt)}{item.senderId === user?.id ? item.readAt ? " · 읽음" : " · 안 읽음" : ""}</Text></View>}/>}
-  {!masked && peer ? <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.surface, gap: 4 }}>{!peer.active && !uncertain ? <Text style={{ color: theme.secondary, fontSize: 13 }}>현재 메시지를 보낼 수 없는 직원입니다. 이전 대화만 확인할 수 있습니다.</Text> : <><ChatInput label="메시지 입력" value={body} onChange={change} multiline placeholder="메시지 입력 (2,000자까지)" disabled={busy || uncertain || !peer.active}/><Text style={{ color: body.length > 2000 ? theme.danger : theme.muted, fontSize: 12, textAlign: "right" }}>{body.length}/2,000</Text>{file ? <Text style={{ color: theme.secondary, fontSize: 13 }} numberOfLines={2}>{file.name} · {(file.size / 1024 / 1024).toFixed(1)}MB</Text> : null}<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><TextAction label="파일 선택" icon="attach" disabled={busy || uncertain || !!file || !peer.active} onPress={() => void chooseFile()}/><View style={{ flex: 1 }}><PrimaryButton title={busy ? selecting ? "파일 선택 중" : progress === null ? "전송 중" : `전송 ${Math.floor(progress * 100)}%` : uncertain ? "같은 전송 다시 확인" : "보내기"} disabled={busy || (!body.trim() && !file)} onPress={() => void send()}/></View></View>{busy && file ? <TextAction label="파일 전송 취소" onPress={() => { if (readyForAction() && mutation.current) abort.current?.abort(); }} /> : null}{dirty && !busy ? <TextAction label="작성 내용 버리기" onPress={() => void discard()}/> : null}</>}</View> : null}
-  {attachmentTarget?.attachment ? <ChatAttachmentActions key={attachmentTarget.attachment.id} attachment={attachmentTarget.attachment} peerId={peerId} messageId={attachmentTarget.id} isSender={attachmentTarget.senderId === user?.id} enabled={!masked} isCurrent={() => current(attachmentTarget.scopeGeneration)} onClose={() => {
+  }} ListHeaderComponent={hasMore ? <TextAction label={loading ? "이전 메시지 확인 중" : "이전 메시지 50개 불러오기"} pill disabled={loading} onPress={() => void load(false, true)} /> : null} ListEmptyComponent={<EmptyState title="아직 메시지가 없습니다" detail="아래에서 첫 메시지를 보내세요." />} renderItem={({ item }) => <ChatThreadMessage item={item} own={item.senderId === user?.id} peerName={peer?.name}>{item.attachment ? <TextAction label={item.attachment.originalName} attachment={item.attachment} accessibilityLabel={`${item.attachment.originalName} 파일 작업 열기`} onPress={() => openAttachment(item)} /> : null}</ChatThreadMessage>} />}
+  {!masked && newBelow > 0 ? <View style={{ paddingHorizontal: 12, paddingVertical: 4, backgroundColor: theme.surface }}><TextAction label={`새 메시지 ${newBelow}개 · 최신 메시지로`} onPress={() => {
+    if (!readyForAction()) return;
+    visibleIds.current = [];
+    atBottom.current = true;
+    bottomPositionPending.current = true;
+    setNewBelow(0);
+    list.current?.scrollToEnd({ animated: false });
+  }} /></View> : null}
+  {!masked && peer ? <View style={{ maxHeight: composerLimit, flexShrink: 1, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.surface }}>
+    <ScrollView style={{ flexShrink: 1, maxHeight: Math.max(44, composerLimit - actionHeight), width: "100%", maxWidth: 760, alignSelf: "center" }} contentContainerStyle={{ paddingTop: 8, paddingHorizontal: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
+      {uncertain ? <View accessibilityRole="alert" style={{ backgroundColor: theme.dangerSoft, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, gap: 6 }}>
+        <Text style={{ color: theme.danger, fontSize: 13, lineHeight: 19.5 }}><Text style={{ fontWeight: "700" }}>전송 결과 확인 필요</Text> · 이미 보내졌을 수 있어요. 새로 보내지 말고 같은 전송을 확인하세요.</Text>
+        {!compactActions ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}><PrimaryButton title={busy ? "같은 전송 확인 중" : "같은 전송 다시 확인"} disabled={busy} onPress={() => void send()} /><TextAction label="작성 내용 버리기" warning disabled={busy} onPress={() => void discard()} /></View> : null}
+      </View> : null}
+      {!peer.active ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>현재 메시지를 보낼 수 없는 직원입니다. 이전 대화만 확인할 수 있습니다.</Text> : <ChatInput label="메시지 입력" value={body} onChange={change} multiline placeholder="메시지 입력" disabled={busy || uncertain} />}
+      {file ? <ChatThreadSelectedFile name={file.name} size={file.size} /> : null}
+      {busy && file ? <TextAction label="파일 전송 취소" onPress={() => { if (readyForAction() && mutation.current) abort.current?.abort(); }} /> : null}
+      {dirty && !busy && !uncertain ? <View style={{ alignSelf: "flex-start" }}><TextAction label="작성 내용 버리기" onPress={() => void discard()} /></View> : null}
+    </ScrollView>
+    {peer.active || uncertain ? <View onLayout={event => setActionHeight(event.nativeEvent.layout.height)} style={{ width: "100%", maxWidth: 760, alignSelf: "center", paddingTop: 6, paddingHorizontal: 12, paddingBottom: Math.max(insets.bottom, 8), flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 }}>
+      {uncertain && compactActions ? <><PrimaryButton title={busy ? "같은 전송 확인 중" : "같은 전송 다시 확인"} disabled={busy} onPress={() => void send()} /><TextAction label="작성 내용 버리기" warning disabled={busy} onPress={() => void discard()} /></> : <>
+      <TextAction label="파일 선택" icon="paperclip" disabled={busy || uncertain || !!file || !peer.active} onPress={() => void chooseFile()} />
+      <Text style={{ color: body.length > 2000 ? theme.danger : theme.secondary, fontSize: 12, lineHeight: 17, fontVariant: ["tabular-nums"] }}>{body.length} / 2000</Text>
+      <View style={{ flex: 1 }} /><PrimaryButton title={busy && !uncertain ? selecting ? "파일 선택 중" : progress === null ? "전송 중" : `전송 ${Math.floor(progress * 100)}%` : "보내기"} disabled={busy || uncertain || !peer.active || (!body.trim() && !file)} onPress={() => { if (!uncertain) void send(); }} />
+      </>}
+    </View> : <View style={{ height: Math.max(insets.bottom, 8) }} />}
+  </View> : null}
+  </View>
+  {attachmentTarget?.attachment ? <ChatAttachmentActions key={attachmentTarget.attachment.id} attachment={attachmentTarget.attachment} peerId={peerId} messageId={attachmentTarget.id} peerName={peer?.name} createdAt={attachmentTarget.createdAt} isSender={attachmentTarget.senderId === user?.id} enabled={!masked} isCurrent={() => current(attachmentTarget.scopeGeneration)} onClose={() => {
     if (readyForAction()) {
       setAttachmentTarget(null);
       setFilePending(false);
@@ -513,5 +577,5 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     }
   }}/> : null}
   {confirmation.dialog}
- </KeyboardScreen>;
+ </KeyboardScreen></SafeAreaView>;
 }
