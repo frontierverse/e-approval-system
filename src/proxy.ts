@@ -15,6 +15,8 @@ export function proxy(request: NextRequest) {
   const isLoginPath = pathname === loginPath;
   const isPublicPath =
     isLoginPath ||
+    pathname === "/mobile-app/support" ||
+    pathname === "/mobile-app/privacy" ||
     publicApiPrefixes.some((prefix) => pathname.startsWith(prefix));
 
   if (!hasSession && !isPublicPath) {

@@ -2,6 +2,7 @@ import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
 import { KeyboardScreen } from "@/components/keyboard-screen";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
+import { PublicAppLinks } from "@/components/public-app-links";
 import { PrimaryButton } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -40,6 +41,7 @@ export default function Login() {
         {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{error}</Text> : null}
         <View style={{ marginTop: 20 }}><PrimaryButton title={pending ? "로그인 중..." : "로그인"} disabled={pending} onPress={submit} /></View>
       </View>
+      <PublicAppLinks />
     </KeyboardScrollView>
   </KeyboardScreen>;
 }

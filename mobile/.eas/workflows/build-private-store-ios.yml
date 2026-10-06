@@ -1,0 +1,16 @@
+name: Build Bajaul private Apple Custom App
+
+jobs:
+  build_ios:
+    type: build
+    env:
+      EAS_NO_VCS: '1'
+    params:
+      platform: ios
+      profile: private-store
+    hooks:
+      before_install_node_modules:
+        - run: set-env EAS_PROJECT_ROOT "$PWD"
+      after_install_node_modules:
+        - run: npm run lint
+        - run: npm run typecheck

@@ -18,7 +18,7 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
   const state = {
     platform: os, development, appState: 'active', clock: Date.parse('2026-10-04T12:00:00.000Z'),
     contexts: new Map(), listeners: new Map(), timers: new Map(), nextTimer: 0,
-    checkCalls: [], downloadCalls: [], reloadCalls: [], storageCalls: [], disk, routes: [], navigation: [], pathname: '/profile',
+    checkCalls: [], downloadCalls: [], reloadCalls: [], storageCalls: [], openedUrls: [], onOpenURL: async () => true, disk, routes: [], navigation: [], pathname: '/profile',
     sessionToken: 'synthetic-token', canGoBack: false, dimensions: { width: 390, height: 844, fontScale: 1, scale: 1 },
     native: {
       currentlyRunning: { updateId: '11111111-1111-4111-8111-111111111111', channel: 'production', runtimeVersion: 'native-runtime', createdAt: new Date('2026-10-01T00:00:00.000Z'), isEmbeddedLaunch: false, isEmergencyLaunch: false, emergencyLaunchReason: null },
@@ -69,6 +69,7 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { ...native, Platform: { get OS() { return state.platform; } }, StyleSheet: { create: value => value }, useColorScheme: () => 'light', useWindowDimensions: () => state.dimensions, AccessibilityInfo: { sendAccessibilityEvent: () => {} }, AppState: { get currentState() { return state.appState; }, addEventListener: listen } },
     'expo-updates': updates, 'expo-secure-store': secureStore,
+    'expo-linking': { openURL: async url => { state.openedUrls.push(url); return state.onOpenURL(url); } },
     'expo-constants': { __esModule: true, default: { expoConfig: { version: '1.0.5' } } },
     'expo-router': { Stack: { Screen: 'Stack.Screen' }, usePathname: () => state.pathname, router: { push: value => state.routes.push(value), canGoBack: () => state.canGoBack, back: () => state.navigation.push({ kind: 'back' }), replace: path => state.navigation.push({ kind: 'replace', path }) }, useFocusEffect: fn => react.useEffect(fn, [fn]) },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, bottom: 16 }) },

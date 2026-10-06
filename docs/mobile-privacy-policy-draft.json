@@ -1,0 +1,60 @@
+{
+  "state": "prepared_not_deployed",
+  "policySource": "src/app/mobile-app/privacy/page.tsx",
+  "version": "2026-10-07",
+  "effectiveDate": "2026-10-07",
+  "controller": "사회적협동조합 청소년자립학교",
+  "app": "바자울",
+  "publicationApprovedByUser": true,
+  "institutionDefaultsDelegatedByUser": true,
+  "contact": {
+    "function": "바자울 운영 담당 (개인정보 문의)",
+    "email": "artemismars2@gmail.com",
+    "formalPrivacyOfficerAppointmentAsserted": false
+  },
+  "retention": {
+    "staff": "재직 중 및 퇴직일부터 3년; 문서 증빙 식별 정보는 해당 문서 기간",
+    "work": "업무 완료일부터 5년",
+    "chat": "메시지 작성일부터 1년",
+    "youth": "상담·사후관리 완료일부터 5년, 근거를 기록한 보존 보류 예외",
+    "security": "생성일부터 2년",
+    "notificationHistory": "생성일부터 90일",
+    "privacyRequests": "처리 완료일부터 3년",
+    "automaticPurgeAsserted": false
+  },
+  "sourceInventory": [
+    "prisma/schema.prisma",
+    "src/lib/mobile-auth.ts",
+    "src/lib/mobile-push.ts",
+    "src/lib/session.ts",
+    "src/lib/youth-retention-core.ts",
+    "src/lib/attachment-storage.ts",
+    "src/lib/resource-file-storage.ts",
+    "mobile/src/lib/session.tsx",
+    "mobile/src/lib/draft-recovery-store.native.ts",
+    "mobile/app.json"
+  ],
+  "providerChecks": {
+    "Vercel": "프로젝트 Functions 설정 icn1 서울 확인; 국외 네트워크·운영·지원 가능; Hobby에 Pro/Enterprise DPA가 적용된다고 주장하지 않음",
+    "Supabase": "운영 DB 서울 확인; 첨부·자료실 저장 공급자별 집계에서 supabase-storage 확인; 법인은 Supabase Pte. Ltd.; 미국 지원 법인 존재",
+    "Expo": "알림 토큰·일반 알림·문서 ID; APNs/FCM 전달; EAS Update 운영체제·무작위 토큰·통신 정보; 미국 처리",
+    "Apple/Google": "APNs/FCM 기기 전달"
+  },
+  "operatorObligations": [
+    "신규 보관 기준에 따른 정기 파기 검토와 기록",
+    "기존 정보의 법령·동의·민감정보·아동 처리 근거 관리",
+    "위탁 계약 및 국외 처리 고지·동의 등 해당 법적 근거 확인",
+    "백업·첨부·내보낸 사본을 포함한 삭제 확인",
+    "앱 링크는 다음 배포 아티팩트에 포함; 기존 APK·IPA 포함으로 표시하지 않음"
+  ],
+  "references": [
+    "https://www.law.go.kr/LSW/lsLinkCommonInfo.do?lsJoLnkSeq=1032645945",
+    "https://www.law.go.kr/법령/근로기준법",
+    "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+    "https://expo.dev/privacy",
+    "https://docs.expo.dev/push-notifications/faq/",
+    "https://supabase.com/legal/customer-resources/data-processing-addendum",
+    "https://vercel.com/legal/privacy-notice",
+    "https://vercel.com/legal/dpa"
+  ]
+}
