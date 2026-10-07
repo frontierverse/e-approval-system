@@ -22,9 +22,33 @@ export const pushEventBodies = {
 export type PushEventKind = keyof typeof pushEventBodies;
 export function isPushEventKind(kind: string): kind is PushEventKind { return Object.hasOwn(pushEventBodies, kind); }
 export function pushEventId(value: unknown): value is string { return typeof value === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(value); }
-export function pushEventPayload(event: { id: string; kind: string }) {
+type ChatPushPreview = { senderName: string; messageBody: string };
+const previewSegments = new Intl.Segmenter("ko", { granularity: "grapheme" });
+const previewEncoder = new TextEncoder();
+function boundedPushPreview(value: string, maxCharacters: number, maxBytes: number) {
+  // Keep visible text on one line and remove directional/control characters.
+  // Preserve emoji joins and truncate complete graphemes within the push budget.
+  const clean = value.normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f\u200b\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, " ").replace(/\s+/g, " ").trim();
+  const segments = Array.from(previewSegments.segment(clean), ({ segment }) => segment);
+  if (segments.length <= maxCharacters && previewEncoder.encode(clean).length <= maxBytes) return clean;
+  let result = "", count = 0;
+  for (const segment of segments) {
+    if (count >= maxCharacters - 1 || previewEncoder.encode(result + segment + "…").length > maxBytes) break;
+    result += segment;
+    count++;
+  }
+  return result + "…";
+}
+export function pushEventPayload(event: { id: string; kind: string }, chatPreview?: ChatPushPreview) {
   if (!pushEventId(event.id) || !isPushEventKind(event.kind)) return null;
-  return { title: "바자울", body: pushEventBodies[event.kind], data: { pushEventId: event.id }, channelId: "work", priority: "high" as const, sound: "default" };
+  let title = "바자울", body: string = pushEventBodies[event.kind];
+  if (chatPreview && event.kind === "CHAT_MESSAGE") {
+    const name = boundedPushPreview(chatPreview.senderName, 32, 128);
+    if (name) title += ` · ${name}`;
+    const message = boundedPushPreview(chatPreview.messageBody, 120, 480);
+    if (message) body = message;
+  }
+  return { title, body, data: { pushEventId: event.id }, channelId: "work", priority: "high" as const, sound: "default" };
 }
 export function koreanPushClock(now: Date) {
   const local = new Date(now.getTime() + 9 * 60 * 60_000);
