@@ -25,7 +25,7 @@ try {
     timeout_milliseconds := 60000
   );`;
   const job = await db.query('SELECT cron.schedule($1,$2,$3) AS id', [name, '*/15 * * * *', command]);
-  await db.query('UPDATE cron.job SET active=$1 WHERE jobid=$2', [active, job.rows[0].id]);
+  await db.query('SELECT cron.alter_job($1::bigint, active := $2::boolean)', [job.rows[0].id, active]);
   await db.query('COMMIT');
   console.log(JSON.stringify({ jobId: job.rows[0].id, name, active, intervalMinutes: 15 }));
 } catch (error) {
