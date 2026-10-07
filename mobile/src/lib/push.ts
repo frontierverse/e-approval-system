@@ -21,6 +21,7 @@ export async function getPushToken(requestPermission = true, devicePushToken?: N
   if (typeof projectId !== "string" || !projectId) throw new Error("앱의 EAS 프로젝트 ID가 설정되지 않았습니다.");
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("approvals", { name: "결재 알림", importance: Notifications.AndroidImportance.HIGH });
+    await Notifications.setNotificationChannelAsync("work", { name: "업무 알림", importance: Notifications.AndroidImportance.HIGH, sound: "default" });
     checkActive(isActive);
   }
   let permission = await Notifications.getPermissionsAsync();

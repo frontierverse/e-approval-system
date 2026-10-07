@@ -1,7 +1,9 @@
 import "server-only";
+import { queueStaffPushEvent } from "@/lib/mobile-push-events";
 
 import { AuditAction, type Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { scheduleStart } from "@/lib/mobile-push-events-core";
 import { formatWorkScheduleDateLabel, getWorkScheduleWeekday, isWorkScheduleDate } from "@/lib/work-schedule-calendar";
 import { mapWorkSchedule, workScheduleSelect } from "@/lib/work-schedules";
 import { getYouthLearningScheduleStartHourFromMinute, getYouthLearningScheduleEndHourFromMinute, isYouthLearningScheduleStartMinute, isYouthLearningScheduleEndMinute } from "@/lib/youth-management-core";
@@ -97,6 +99,9 @@ function timeLabel(start: number, end: number) {
 }
 async function audit(tx: Prisma.TransactionClient, context: WorkScheduleMutationContext, change: "create" | "update" | "delete", previous: ScheduleRecord | null, next: ScheduleRecord | null, source?: WorkScheduleSource) {
   const row = next ?? previous!;
+  const end = scheduleStart(row.scheduleDate, row.endMinute);
+  const changed = !previous || !next || previous.content !== next.content || previous.scheduleDate !== next.scheduleDate || previous.startMinute !== next.startMinute || previous.endMinute !== next.endMinute;
+  if (changed && end > new Date()) await queueStaffPushEvent(tx, { eventKey: `schedule:${row.id}:${change}:${row.updatedAt.toISOString()}`, kind: change === "create" ? "WORK_SCHEDULE_CREATED" : change === "update" ? "WORK_SCHEDULE_UPDATED" : "WORK_SCHEDULE_CANCELLED", targetId: row.id, targetVersion: change === "delete" ? undefined : row.updatedAt.toISOString(), actorId: context.actorId, expiresAt: end });
   await tx.auditLog.create({ data: { actorId: context.actorId, ...context.requestData, action: AuditAction.UPDATE_WORK_SCHEDULE, targetType: "WorkSchedule", targetId: row.id,
     message: `업무 일정표 ${formatWorkScheduleDateLabel(row.scheduleDate)} ${timeLabel(row.startMinute, row.endMinute)} 일정이 ${change === "create" ? "입력" : change === "update" ? "변경" : "삭제"}되었습니다.`,
     metadata: { changeType: `workSchedule.${change}`, source: "work-schedule", scheduleDate: row.scheduleDate,

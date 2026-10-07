@@ -1,4 +1,5 @@
 import "server-only";
+import { queueChatPush } from "@/lib/mobile-push-events";
 
 import { Prisma, UserStatus } from "@/generated/prisma/client";
 import { getCurrentUser } from "@/lib/auth";
@@ -147,7 +148,9 @@ export async function sendStaffChatMessage(userId: string, value: unknown, conte
       const existing = await tx.staffChatMessage.findUnique({ where: uniqueRequest, select: messageSelect });
       if (existing) { reuseMessage(existing, peerId, body); return { message: existing, replay: true }; }
       await lockActiveParticipants(tx, userId, peerId, today);
-      return { message: await tx.staffChatMessage.create({ data: { senderId: userId, recipientId: peerId, body, requestId }, select: messageSelect }), replay: false };
+      const message = await tx.staffChatMessage.create({ data: { senderId: userId, recipientId: peerId, body, requestId }, select: messageSelect });
+      await queueChatPush(tx, message);
+      return { message, replay: false };
     });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;

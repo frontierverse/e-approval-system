@@ -1,6 +1,8 @@
 import "server-only";
 
 import { UserStatus } from "@/generated/prisma/client";
+import { pushEventPayload } from "@/lib/mobile-push-events-core";
+import { resolveStaffPushTarget } from "@/lib/mobile-push-events";
 import { prisma } from "@/lib/prisma";
 
 const sendUrl = "https://exp.host/--/api/v2/push/send";
@@ -19,7 +21,7 @@ type ClaimedDelivery = {
   id: string;
   subscriptionId: string;
   token: string;
-  documentId: string;
+  payload: { title: string; body: string; data: Record<string, string>; channelId: string; priority: "high"; sound: string };
   attempts: number;
 };
 
@@ -64,11 +66,11 @@ async function retryOrFail(delivery: ClaimedDelivery, reason: string) {
   });
 }
 
-async function sendPending(notificationId: string | undefined, limit: number) {
+async function sendPending(notificationId: string | undefined, eventIds: string[] | undefined, limit: number) {
   const now = new Date();
   const candidates = await prisma.mobilePushDelivery.findMany({
     where: {
-      ...(notificationId ? { notificationId } : {}),
+      ...(notificationId ? { notificationId } : eventIds ? { eventId: { in: eventIds } } : {}),
       sentAt: null,
       failedAt: null,
       attempts: { lt: maxAttempts },
@@ -77,13 +79,14 @@ async function sendPending(notificationId: string | undefined, limit: number) {
     take: Math.min(limit, 100),
     orderBy: { createdAt: "asc" },
     include: {
-      notification: { select: { documentId: true } },
+      notification: { select: { documentId: true, type: true, userId: true, readAt: true, document: { select: { status: true, approvalSteps: { select: { approverId: true, status: true } } } } } },
+      event: true,
       subscription: {
         select: {
           id: true,
           expoToken: true,
           session: {
-            select: { expiresAt: true, user: { select: { status: true } } },
+            select: { expiresAt: true, user: { select: { id: true, role: true, status: true, resignationDate: true } } },
           },
         },
       },
@@ -107,7 +110,8 @@ async function sendPending(notificationId: string | undefined, limit: number) {
     if (!claim.count) continue;
     if (
       row.subscription.session.expiresAt <= now ||
-      row.subscription.session.user.status !== UserStatus.ACTIVE
+      row.subscription.session.user.status !== UserStatus.ACTIVE ||
+      Boolean(row.subscription.session.user.resignationDate && row.subscription.session.user.resignationDate <= new Date(now.getTime() + 9 * 60 * 60_000).toISOString().slice(0, 10))
     ) {
       await prisma.mobilePushDelivery.updateMany({
         where: { id: row.id },
@@ -115,11 +119,24 @@ async function sendPending(notificationId: string | undefined, limit: number) {
       });
       continue;
     }
+    let payload: ClaimedDelivery["payload"] | null = null;
+    if (row.event) {
+      const target = await resolveStaffPushTarget(prisma, row.event, row.subscription.session.user, true, now);
+      if (target) payload = pushEventPayload(row.event);
+    } else if (row.notification && row.notification.userId === row.subscription.session.user.id) {
+      const n = row.notification;
+      const currentRequest = n.type !== "APPROVAL_REQUESTED" || (!n.readAt && ["SUBMITTED", "IN_PROGRESS"].includes(n.document.status) && n.document.approvalSteps.some(step => step.approverId === n.userId && step.status === "PENDING"));
+      if (currentRequest) payload = { title: "바자울", body: "확인할 결재 알림이 있습니다.", data: { documentId: n.documentId }, channelId: "approvals", priority: "high", sound: "default" };
+    }
+    if (!payload) {
+      await prisma.mobilePushDelivery.updateMany({ where: { id: row.id }, data: { failedAt: now, lastError: "no_longer_actionable" } });
+      continue;
+    }
     claimed.push({
       id: row.id,
       subscriptionId: row.subscription.id,
       token: row.subscription.expoToken,
-      documentId: row.notification.documentId,
+      payload,
       attempts: row.attempts + 1,
     });
   }
@@ -127,15 +144,7 @@ async function sendPending(notificationId: string | undefined, limit: number) {
 
   let tickets: ExpoResult[];
   try {
-    const payload = claimed.map(({ token, documentId }) => ({
-      to: token,
-      title: "바자울",
-      body: "확인할 결재 알림이 있습니다.",
-      data: { documentId },
-      channelId: "approvals",
-      priority: "high",
-      sound: "default",
-    }));
+    const payload = claimed.map(({ token, payload }) => ({ to: token, ...payload }));
     const data = expoData(await expoPost(sendUrl, payload));
     if (!Array.isArray(data) || data.length !== claimed.length) {
       throw new Error("Expo push ticket count differs");
@@ -265,10 +274,11 @@ async function checkPendingReceipts(limit: number) {
 
 export async function dispatchMobilePushDeliveries(options: {
   notificationId?: string;
+  eventIds?: string[];
   limit?: number;
   checkReceipts?: boolean;
 } = {}) {
-  const send = await sendPending(options.notificationId, options.limit ?? 40);
+  const send = await sendPending(options.notificationId, options.eventIds, options.limit ?? 100);
   const receipts = options.checkReceipts === false
     ? { checked: 0, failed: 0 }
     : await checkPendingReceipts(100);

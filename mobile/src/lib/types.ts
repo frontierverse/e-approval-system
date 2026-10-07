@@ -150,6 +150,7 @@ export type MobileStaffTaskHistoryLog = {
   changes: { field: MobileStaffTaskHistoryField; label: string; before: string | null; after: string | null }[];
 };
 export type MobileStaffTaskHistoryResponse = {
+  readOnly?: boolean;
   task: MobileStaffTaskItem; logs: MobileStaffTaskHistoryLog[]; today: string;
   page: number; pageSize: 20; total: number; totalPages: number;
 };

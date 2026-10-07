@@ -11,14 +11,14 @@ import { useTheme } from "@/lib/theme";
 import type { MobileStaffTaskHistoryLog, MobileStaffTaskHistoryResponse, MobileStaffTaskMutationResponse } from "@/lib/types";
 
 type Mutation = "complete" | "delete";
-export function TaskDetailScreen({ taskId, page = 1, created = false }: { taskId: string; page?: number; created?: boolean }) {
+export function TaskDetailScreen({ taskId, page = 1, created = false, assigned = false }: { taskId: string; page?: number; created?: boolean; assigned?: boolean }) {
   const { token } = useSession();
   const currentToken = useRef(token);
   useLayoutEffect(() => { currentToken.current = token; }, [token]);
   const isCurrentAccount = useCallback(() => !!token && currentToken.current === token, [token]);
-  return token ? <TaskDetailContent key={`${token}:${taskId}`} taskId={taskId} page={page} created={created} isCurrentAccount={isCurrentAccount} /> : null;
+  return token ? <TaskDetailContent key={`${token}:${taskId}:${assigned}`} taskId={taskId} page={page} created={created} assigned={assigned} isCurrentAccount={isCurrentAccount} /> : null;
 }
-function TaskDetailContent({ taskId, page, created, isCurrentAccount }: { taskId: string; page: number; created: boolean; isCurrentAccount: () => boolean }) {
+function TaskDetailContent({ taskId, page, created, assigned, isCurrentAccount }: { taskId: string; page: number; created: boolean; assigned: boolean; isCurrentAccount: () => boolean }) {
   const { request } = useSession();
   const theme = useTheme();
   const confirmation = useConfirmAction();
@@ -54,7 +54,7 @@ function TaskDetailContent({ taskId, page, created, isCurrentAccount }: { taskId
       setResult(null); setLoadError("확인할 할 일을 찾을 수 없습니다. 목록에서 다시 선택하세요."); setLoading(false); setRefreshing(false); return;
     }
     try {
-      const response = await request<MobileStaffTaskHistoryResponse>(`/tasks/${encodeURIComponent(taskId)}/history?page=${page}`);
+      const response = await request<MobileStaffTaskHistoryResponse>(`/tasks/${encodeURIComponent(taskId)}/history?page=${page}${assigned ? "&assigned=1" : ""}`);
       if (!active(scope, operation)) return;
       if (response.task?.id !== taskId) throw new ApiError("할 일 응답을 확인하지 못했습니다. 다시 불러오세요.", 200);
       setResult({ page, data: response });
@@ -67,7 +67,7 @@ function TaskDetailContent({ taskId, page, created, isCurrentAccount }: { taskId
     } finally {
       if (active(scope, operation)) { setLoading(false); setRefreshing(false); }
     }
-  }, [active, isCurrentAccount, page, request, taskId]);
+  }, [active, assigned, isCurrentAccount, page, request, taskId]);
   useEffect(() => { latestLoad.current = load; }, [load]);
   useFocusEffect(useCallback(() => {
     focused.current = true; void load();
@@ -76,7 +76,7 @@ function TaskDetailContent({ taskId, page, created, isCurrentAccount }: { taskId
   useEffect(() => { content.current?.scrollTo({ y: 0, animated: false }); }, [page]);
 
   const run = async (kind: Mutation) => {
-    if (locked.current || loading || loadError || needsRefresh || !task || task.deletedAt || !focused.current || !isCurrentAccount()) return;
+    if (assigned || result?.data.readOnly || locked.current || loading || loadError || needsRefresh || !task || task.deletedAt || !focused.current || !isCurrentAccount()) return;
     const scope = generation.current;
     const operation = ++sequence.current;
     locked.current = true; setBusy(kind); setLoading(false); setRefreshing(false);
@@ -119,7 +119,7 @@ function TaskDetailContent({ taskId, page, created, isCurrentAccount }: { taskId
       {task.meetingTitle ? <Text style={[styles.body, { color: theme.secondary }]}>회의 · {task.meetingTitle}</Text> : null}
       {task.description ? <Text style={[styles.body, { color: theme.text }]}>{task.description}</Text> : null}
       {task.completedAt ? <Text style={[styles.small, { color: theme.secondary }]}>완료 · {formatTaskTimestamp(task.completedAt)}</Text> : null}
-      {task.deletedAt ? <><Text style={[styles.small, { color: theme.secondary }]}>삭제 · {formatTaskTimestamp(task.deletedAt)}</Text><Text style={[styles.small, { color: theme.secondary }]}>목록에서 제외된 업무입니다. 내용과 이력은 보존됩니다.</Text></> : <View style={styles.actions}>
+      {task.deletedAt ? <><Text style={[styles.small, { color: theme.secondary }]}>삭제 · {formatTaskTimestamp(task.deletedAt)}</Text><Text style={[styles.small, { color: theme.secondary }]}>목록에서 제외된 업무입니다. 내용과 이력은 보존됩니다.</Text></> : assigned || data?.readOnly ? <Text style={[styles.small, { color: theme.secondary }]}>배정한 업무의 처리 상태입니다. 담당 직원이 완료·삭제를 처리합니다.</Text> : <View style={styles.actions}>
         <View style={{ flex: 1 }}><PrimaryButton title={busy === "complete" ? "저장 중..." : task.completedAt ? "완료 취소" : "완료 처리"} disabled={disabled} onPress={() => void run("complete")} /></View>
         <TextAction label={busy === "delete" ? "확인 중..." : "삭제"} disabled={disabled} onPress={() => void run("delete")} accessibilityLabel={`${task.title} 삭제`} />
       </View>}

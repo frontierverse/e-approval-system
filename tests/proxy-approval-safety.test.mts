@@ -78,6 +78,7 @@ const prisma = {
         },
       },
       approvalStep: {
+        async findMany() { requireLock(); return state.document.approvalSteps.filter((row: Row) => row.status === "PENDING"); },
         async update({where, data}: Row) {
           requireLock(); const step = state.document.approvalSteps.find((row: Row) => row.id === where.id);
           assert.ok(step); Object.assign(step, data); return step;
@@ -105,6 +106,9 @@ const mockUrl = moduleUrl(`
 `);
 function compile(file: string, replacements: Record<string, string>) {
   let source = readFileSync(new URL(`../src/lib/${file}`, import.meta.url), "utf8");
+  // Notification delivery is an external effect; actual queue/integration tests cover it separately.
+  source = source.replaceAll(JSON.stringify("@/lib/mobile-push-events"), JSON.stringify('data:text/javascript,export%20async%20function%20queueStaffPushEvent(){}%20export%20async%20function%20queueChatPush(){}'));
+
   for (const [from, to] of Object.entries(replacements)) source = source.replaceAll(`"${from}"`, JSON.stringify(to));
   return moduleUrl(ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText);
 }

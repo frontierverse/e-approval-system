@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, beforeEach, test } from "node:test";
 import ts from "typescript";
+import { workPushEventId, workPushHref } from "../mobile/src/lib/work-push-routing.ts";
 import { ApiError } from "../mobile/src/lib/api.ts";
 
 // Exercise production hooks and push helpers with lexical React/Expo/API boundaries, without changing real globals.
@@ -62,6 +63,7 @@ const harness:Row={
   useMemo:(fn:()=>unknown,deps:unknown[])=>{const cell=slot();if(!same(cell.deps,deps)){cell.deps=deps;cell.value=fn();}return cell.value;},
   useEffect:(fn:()=>unknown,deps:unknown[])=>{const cell=slot();cell.effect=true;if(!same(cell.deps,deps)){cell.deps=deps;cell.fn=fn;rendering.effects.push({slot:cell});}},
   useLayoutEffect:()=>{},React:{createElement:(_type:unknown,props:Row)=>({props})},
+  workPushEventId, workPushHref,
   apiRequest(path:string,options:Row){
     state.requests.push({path,...options});
     if(path==="/notifications?page=1") {
@@ -73,6 +75,12 @@ const harness:Row={
       if(state.holdDocuments.has(id))return new Promise((resolve,reject)=>state.documentResolvers.set(id,{resolve,reject}));
       if(state.documentErrors.has(id))return Promise.reject(state.documentErrors.get(id));
       return Promise.resolve({ok:true,unreadCount:state.unread,updatedCount:1});
+    }
+    if(path.startsWith("/push-events/")) {
+      const id=path.split("/")[2]!;
+      if(state.holdEvents.has(id))return new Promise((resolve,reject)=>state.eventResolvers.set(id,{resolve,reject}));
+      if(state.eventErrors.has(id))return Promise.reject(state.eventErrors.get(id));
+      return Promise.resolve({ok:true,href:state.eventHrefs.get(id)??"/chat/peer"});
     }
     if(path==="/push-subscription") {
       if(!options.method&&state.failPushGet){state.failPushGet=false;return Promise.reject(new ApiError("설정 조회 실패",503));}
@@ -92,13 +100,14 @@ const push=await import(`data:text/javascript;base64,${Buffer.from(compile(pushS
 harness.PushPermissionError=push.PushPermissionError;harness.notificationDocumentId=push.notificationDocumentId;harness.validNotificationDocumentId=push.validNotificationDocumentId;
 harness.getPushToken=(requestPermission:boolean,deviceToken:Row,isActive:()=>boolean)=>{state.tokenCalls.push({requestPermission,deviceToken});return push.getPushToken(requestPermission,deviceToken,isActive);};
 let providerSource=readFileSync(new URL("../mobile/src/lib/notifications.tsx",import.meta.url),"utf8");
-providerSource=providerSource.replace(/^import[\s\S]*?from "\.\/session";\n/,`const {router,NativeNotifications,createContext,useCallback,useContext,useEffect,useLayoutEffect,useMemo,useRef,useState,AppState,Linking,Platform,apiRequest,ApiError,getPushToken,notificationDocumentId,PushPermissionError,validNotificationDocumentId,useSession,React}=globalThis.${key};\n`)+"\nexport {AccountNotificationsProvider};\n";
+providerSource=providerSource.replace(/^import[\s\S]*?from "\.\/session";\n/,`const {router,NativeNotifications,createContext,useCallback,useContext,useEffect,useLayoutEffect,useMemo,useRef,useState,AppState,Linking,Platform,apiRequest,ApiError,getPushToken,notificationDocumentId,PushPermissionError,validNotificationDocumentId,workPushEventId,workPushHref,useSession,React}=globalThis.${key};\n`)+"\nexport {AccountNotificationsProvider};\n";
 const native=await import(`data:text/javascript;base64,${Buffer.from(compile(providerSource,true)).toString("base64")}`);
 let scopes:Hooks[]=[];
 beforeEach(()=>{
   for(const scope of scopes)scope.unmount();scopes=[];
   Object.assign(state,{activeToken:"account-a",platform:"android",permission:permission(),afterPrompt:permission(),prompts:0,channels:[],expoRequests:[],expoError:null,holdExpo:false,expoResolvers:[],expoToken:"ExpoPushToken[abcdefghijk]",tokenCalls:[],settingsOpened:0,
     listeners:{app:new Set(),received:new Set(),response:new Set(),rollover:new Set()},lastResponse:null,holdLast:false,lastResolvers:[],cleared:0,routes:[],expired:[],requests:[],unread:8,holdCount:false,countResolvers:[],enabled:true,
+    holdEvents:new Set(),eventResolvers:new Map(),eventErrors:new Map(),eventHrefs:new Map(),
     holdDocuments:new Set(),documentResolvers:new Map(),documentErrors:new Map(),failPushGet:false,failPushDelete:false});
 });
 after(()=>{for(const scope of scopes)scope.unmount();delete(globalThis as Row)[key];});
@@ -234,4 +243,20 @@ test("clearing an unauthorized badge count rejects a late summary snapshot",asyn
   const pending=scope.value.refreshUnreadCount();scope.value.setUnreadCount(null);
   state.countResolvers[0].resolve({unreadCount:8});await pending;await tick();scope.render();
   assert.equal(scope.value.unreadCount,null);
+});
+
+test("work push cold/live duplicate opens the server-authorized target once",async()=>{
+  const event={notification:{request:{identifier:"work-1",content:{data:{pushEventId:"event-a"}}}}};state.lastResponse=event;
+  const scope=await mount();emit("response",event);await tick();scope.render();
+  assert.deepEqual(state.routes,["/chat/peer"]);
+  assert.equal(state.requests.filter((r:Row)=>r.path==="/push-events/event-a/open").length,1);
+});
+test("work push refuses forged server hrefs, supports explicit retry and discards late account results",async()=>{
+  const event=(id:string)=>({notification:{request:{identifier:id,content:{data:{pushEventId:id}}}}});
+  const scope=await mount();state.eventHrefs.set("unsafe","https://example.test");emit("response",event("unsafe"));await tick();scope.render();
+  assert.equal(state.routes.length,0);assert(scope.value.notificationOpenError);
+  state.eventHrefs.set("unsafe","/tasks");scope.value.retryNotificationOpen();await tick();scope.render();assert.deepEqual(state.routes,["/tasks"]);
+  state.holdEvents.add("late");emit("response",event("late"));await tick();scope.unmount();
+  state.activeToken="account-b";await mount();state.eventResolvers.get("late").resolve({ok:true,href:"/resources/private"});await tick();
+  assert.deepEqual(state.routes,["/tasks"]);
 });

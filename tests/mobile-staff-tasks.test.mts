@@ -127,6 +127,9 @@ const moduleUrl = (source: string) => `data:text/javascript;base64,${Buffer.from
 const effectsUrl = moduleUrl(`export const {prisma,revalidatePath,requireUser,getCurrentAuditLogRequestData,getHomeDashboardData}=globalThis.${harnessKey};`);
 function compile(file: string, replacements: Record<string, string>) {
   let source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+  // Notification delivery is an external effect; actual queue/integration tests cover it separately.
+  source = source.replaceAll(JSON.stringify("@/lib/mobile-push-events"), JSON.stringify('data:text/javascript,export%20async%20function%20queueStaffPushEvent(){}%20export%20async%20function%20queueChatPush(){}'));
+
   for (const [from, to] of Object.entries(replacements)) source = source.replaceAll(`"${from}"`, JSON.stringify(to));
   return moduleUrl(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText);
 }
@@ -386,6 +389,15 @@ describe("mobile own staff tasks", () => {
     assert.equal(state.queries.some((entry: Row) => ["auditCount", "history", "names"].includes(entry[0])), false); assert.deepEqual(state.writes, []);
   });
 
+  test("assigned push detail permits only its current ADMIN creator and stays read-only", async () => {
+    const row = task("assigned", "other", { createdById: "staff" }); state.tasks.push(row); auditTask(row);
+    state.session = activeSession("ADMIN");
+    const ownAssigned = await history(row.id, "?assigned=1"); privateResponse(ownAssigned);
+    assert.equal((await ownAssigned.json()).readOnly, true);
+    state.session = activeSession("USER"); privateResponse(await history(row.id, "?assigned=1"), 404);
+    state.session = activeSession("ADMIN"); row.createdById = "another-admin"; privateResponse(await history(row.id, "?assigned=1"), 404);
+    privateResponse(await complete(row.id, true, 0), 404);
+  });
   test("history maps authorized snapshot changes and names while excluding raw metadata, request keys and private request data", async () => {
     const row = ownTask(); auditTask(row, { metadata: { changeType: "staffTask.update", requestId: "private-registration-key", ipAddress: "private-metadata-address", before: { title: "이전 제목", assigneeId: "other", description: null, version: 4, privateToken: "private-token" }, after: { title: "수정 제목", assigneeId: "staff", description: "상세", version: 5, privateToken: "private-token" } } });
     const response = await history(row.id); privateResponse(response); const body = await response.json();

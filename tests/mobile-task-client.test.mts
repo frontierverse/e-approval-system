@@ -178,3 +178,11 @@ test("invalid IDs and a mismatched history task never expose another task", asyn
   const scope = await mount("detail", { taskId: "../private" }); assert.equal(state.requests.length, 0); assert.ok(feedback(scope, "error").length);
   state.onRequest = async () => history({ ...state.task, id: "foreign", title: "다른 직원 업무" }); const valid = await mount("detail"); assert.equal(JSON.stringify(valid.tree).includes("다른 직원 업무"), false); assert.ok(feedback(valid, "error").length);
 });
+
+test("assigned work push detail is read-only and uses its scoped history query", async () => {
+  const scope = await mount("detail", { assigned: true });
+  assert.equal(state.requests[0].path, "/tasks/own-task/history?page=1&assigned=1");
+  assert.equal(nodes(scope.tree).some(node => node.props?.title === "완료 처리" || node.props?.label === "삭제"), false);
+  assert(nodes(scope.tree).some(node => node.type === "Text" && node.props.children.includes("배정한 업무의 처리 상태입니다. 담당 직원이 완료·삭제를 처리합니다.")));
+  assert.equal(calls("POST").length, 0); assert.equal(calls("DELETE").length, 0);
+});

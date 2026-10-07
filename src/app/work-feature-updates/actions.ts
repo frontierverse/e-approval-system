@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AuditAction } from "@/generated/prisma/client";
 import { getCurrentAuditLogRequestData } from "@/lib/audit-log-request";
 import { requireAdmin } from "@/lib/auth";
+import { queueStaffPushEvent } from "@/lib/mobile-push-events";
 import { prisma } from "@/lib/prisma";
 
 const homePath = "/";
@@ -51,7 +52,9 @@ export async function createWorkFeatureUpdateAction(
     };
   }
 
-  const update = await prisma.workFeatureUpdate.create({
+  const requestData = await getCurrentAuditLogRequestData();
+  await prisma.$transaction(async tx => {
+  const update = await tx.workFeatureUpdate.create({
     data: {
       createdById: admin.id,
       description: description || null,
@@ -62,15 +65,18 @@ export async function createWorkFeatureUpdateAction(
     },
   });
 
-  await prisma.auditLog.create({
+  await tx.auditLog.create({
     data: {
       actorId: admin.id,
-      ...(await getCurrentAuditLogRequestData()),
+      ...requestData,
       action: AuditAction.CREATE_WORK_FEATURE_UPDATE,
       targetType: "WorkFeatureUpdate",
       targetId: update.id,
       message: `업무 기능 안내 "${title}"을(를) 등록했습니다.`,
     },
+  });
+
+  await queueStaffPushEvent(tx, { eventKey: `feature:${update.id}`, kind: "FEATURE_UPDATE", targetId: update.id, actorId: admin.id });
   });
 
   revalidatePath(homePath);

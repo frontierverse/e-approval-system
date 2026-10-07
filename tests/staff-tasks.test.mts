@@ -133,6 +133,9 @@ const actions = await import(compileModule("../src/app/tasks/actions.ts", { ...r
 function moduleUrl(source: string) { return `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`; }
 function compileModule(path: string, aliases: Record<string, string>) {
   let source = readFileSync(new URL(path, import.meta.url), "utf8");
+  // Notification delivery is an external effect; actual queue/integration tests cover it separately.
+  source = source.replaceAll(JSON.stringify("@/lib/mobile-push-events"), JSON.stringify('data:text/javascript,export%20async%20function%20queueStaffPushEvent(){}%20export%20async%20function%20queueChatPush(){}'));
+
   for (const [specifier, replacement] of Object.entries(aliases)) source = source.replaceAll(`"${specifier}"`, JSON.stringify(replacement));
   return moduleUrl(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { queueChatPush } from "@/lib/mobile-push-events";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
@@ -95,7 +96,7 @@ export async function sendStaffChatFile(userId: string, form: FormData, context:
     await persistAttachmentFiles([file]);
     message = await db.$transaction(async (tx) => {
       await lockActiveParticipants(tx, userId, peerId, today);
-      return tx.staffChatMessage.create({
+      const created = await tx.staffChatMessage.create({
         data: {
           senderId: userId, recipientId: peerId, body, requestId,
           attachment: { create: {
@@ -105,6 +106,8 @@ export async function sendStaffChatFile(userId: string, form: FormData, context:
         },
         select: uploadMessageSelect,
       });
+      await queueChatPush(tx, created);
+      return created;
     });
   } catch (error) {
     // Includes ambiguous storage-write failures, not just database failures.
