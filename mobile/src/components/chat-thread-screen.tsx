@@ -2,7 +2,7 @@ import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FlatList, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from "react-native";
+import { FlatList, Keyboard, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from "react-native";
 import { DetailText as Text } from "@/components/document-detail-ui";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountFeedback } from "@/components/account-feedback";
@@ -336,6 +336,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const updateFilePending = useCallback((value: boolean) => setFilePending(value), []);
   const openAttachment = (message: ChatMessage) => {
     if (readyForAction() && !mutation.current) {
+      Keyboard.dismiss();
       setAttachmentTarget({ ...message, scopeGeneration: generation.current });
     }
   };
@@ -514,7 +515,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const composerLimit = Math.max(actionHeight + 44, Math.min(427, viewportHeight - headerHeight - 96));
   return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: theme.surface }}><Stack.Screen options={{ headerShown: false }} />
   <KeyboardScreen style={{ flex: 1, backgroundColor: theme.background, width: "100%" }}>
-  <View onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} style={{ flex: 1, minHeight: 0 }}>
+  <View accessibilityElementsHidden={!!attachmentTarget && !masked} importantForAccessibility={attachmentTarget && !masked ? "no-hide-descendants" : "auto"} onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} style={{ flex: 1, minHeight: 0 }}>
   <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{ minHeight: 52, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border }}><View style={{ width: "100%", maxWidth: 760, alignSelf: "center", minHeight: 51, padding: 4, gap: 4, flexDirection: "row", alignItems: "center" }}>
     <TextAction label="대화 목록으로" icon="chevron-left" iconOnly onPress={() => { if (router.canGoBack()) router.back(); else router.replace("/chat"); }} />
     <View style={{ flex: 1, minWidth: 0 }}><Text accessibilityRole="header" aria-level={1} style={{ color: theme.text, fontSize: 16, lineHeight: 21.6, fontWeight: "700" }}>{masked ? "대화 확인 중" : peer?.name ?? "대화"}</Text>

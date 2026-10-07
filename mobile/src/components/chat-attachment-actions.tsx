@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Modal, Platform, ScrollView, View } from "react-native";
+import { BackHandler, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { AccountFeedback } from "@/components/account-feedback";
 import { ChatThreadSend as PrimaryButton, ChatThreadAction as TextAction, ChatThreadFileSummary } from "@/components/chat-thread-ui";
 import { DetailText as Text } from "@/components/document-detail-ui";
@@ -30,7 +30,7 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, peerName,
   const theme = useTheme();
   const { foregroundEpoch, isForegroundCurrent } = useChat();
   const insets = useSafeAreaInsets();
-  const confirmation = useConfirmAction({ colors: theme, sheet: true, bottomInset: insets.bottom });
+  const confirmation = useConfirmAction({ inlineNative: true, colors: theme, sheet: true, bottomInset: insets.bottom });
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [handoff, setHandoff] = useState(false);
@@ -197,6 +197,22 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, peerName,
     }
     onClose();
   };
+  const latestClose = useRef(close);
+  useLayoutEffect(() => { latestClose.current = close; });
+  const visible = enabled && isForegroundCurrent(foregroundEpoch);
+  useEffect(() => {
+    if (Platform.OS === "web" || !visible) return;
+    // Android Modal creates a second window and emits AppState blur. The chat
+    // provider must still mask real focus loss, so use the existing app window.
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      void latestClose.current();
+      return true;
+    });
+    return () => back.remove();
+  }, [visible]);
+  useEffect(() => {
+    if (Platform.OS !== "web" && visible && !confirmation.inline) cancelButton.current?.focus();
+  }, [visible, confirmation.inline]);
   const preview = () => {
     if (!current() || locked.current || transfer.current?.isReady() || unresolved.current || !token)
       return;
@@ -204,11 +220,8 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, peerName,
     onClose();
     router.push({ pathname: "/chat/file-preview", params: { attachmentId: attachment.id, peerId } });
   };
-  if (!enabled || !isForegroundCurrent(foregroundEpoch))
-    return null;
-  return <Modal visible transparent animationType="none" accessibilityLabel="파일 작업" onRequestClose={() => void close()} onShow={() => cancelButton.current?.focus()}>
-  <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", alignItems: "center" }}>
-  <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 760, maxHeight: "92%", borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.surface, padding: 16, paddingBottom: Math.max(insets.bottom + 12, 16), gap: 12 }}>
+  if (!visible) return null;
+  const sheet = <View accessibilityViewIsModal style={{ width: "100%", maxWidth: 760, maxHeight: "92%", borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.surface, padding: 16, paddingBottom: Math.max(insets.bottom + 12, 16), gap: 12 }}>
     <Text accessibilityRole="header" aria-level={2} style={{ color: theme.text, fontSize: 17, lineHeight: 23.8, fontWeight: "700" }}>파일 작업</Text>
     <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
       <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 19.5 }}>{isSender ? "내가 보낸 파일이에요. 상대가 수신 완료하기 전까지 저장·공유할 수 있어요." : `${peerName ?? "상대방"}님이 보낸 파일이에요. 기기에 저장한 뒤 수신 완료를 눌러야 서버 원본이 정리돼요.`}</Text>
@@ -224,5 +237,12 @@ export function ChatAttachmentActions({ attachment, peerId, messageId, peerName,
       {busy ? <TextAction label="파일 요청 취소" panel onPress={() => { if (current()) transfer.current?.cancel(); }} /> : null}
     </ScrollView>
     <TextAction ref={cancelButton} label="닫기" panel disabled={busy || unknown} onPress={() => void close()} />
-  </View></View>{confirmation.dialog}</Modal>;
+  </View>;
+  const content = <View testID="chat-file-actions-overlay" accessibilityViewIsModal
+    style={[Platform.OS === "web" ? { flex: 1 } : StyleSheet.absoluteFill, { zIndex: 20, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", alignItems: "center" }]}>
+    {confirmation.inline ? confirmation.dialog : sheet}
+  </View>;
+  return Platform.OS === "web" ? <Modal visible transparent animationType="none" accessibilityLabel="파일 작업" onRequestClose={() => void close()} onShow={() => cancelButton.current?.focus()}>
+    {content}{confirmation.dialog}
+  </Modal> : content;
 }
