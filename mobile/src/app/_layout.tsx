@@ -82,6 +82,8 @@ function Navigation() {
         <Stack.Screen name="daily-reports/edit" options={{ title: "업무보고 작성", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
         <Stack.Screen name="daily-reports/[id]" options={{ title: "업무보고 상세", headerBackVisible: false, headerLeft: ({ canGoBack }) => canGoBack ? <DailyReportBackButton /> : null }} />
       </Stack.Protected>
+      <Stack.Screen name="public-information/privacy" options={{ headerShown: false }} />
+      <Stack.Screen name="public-information/support" options={{ headerShown: false }} />
       <Stack.Screen name="app-updates" options={{ title: "앱 업데이트" }} />
     </Stack></View>
     <AppUpdateStatus />
