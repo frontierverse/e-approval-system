@@ -52,6 +52,8 @@ Vercel은 Next.js 배포에는 가장 단순한 선택지다. 앱은 PostgreSQL�
 | `DATABASE_URL` | 예 | 도시락 실시간 동기화를 위해 Realtime URL과 같은 Supabase 프로젝트에서 발급한 PostgreSQL 연결 URL |
 | `DIRECT_URL` | 선택 | provider가 pooled URL과 direct URL을 따로 줄 때 Prisma migration용으로 사용 |
 | `AUTH_SECRET` | 예 | 세션 서명용 비밀키. 운영에서는 긴 랜덤 문자열을 사용 |
+| `CRON_SECRET` | 자료실 정리 사용 시 예 | 자료실 정기 정리 인증 및 기존 모바일 푸시 설정 호환 |
+| `MOBILE_PUSH_CRON_SECRET` | 모바일 푸시 사용 시 예 | 푸시 정기 실행 전용 인증. Supabase 정기 작업에도 동일한 값을 설정 |
 | `SUPABASE_URL` | 선택 | 서버의 Supabase Realtime·Storage 접근 URL. 없으면 `NEXT_PUBLIC_SUPABASE_URL`을 사용 |
 | `NEXT_PUBLIC_SUPABASE_URL` | 예 | 도시락 실시간 동기화에 사용하는 Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | 예 | 인증된 서버 스트림에서 Realtime을 구독하고 private Storage를 관리하는 서버 전용 키. 브라우저 노출 금지 |

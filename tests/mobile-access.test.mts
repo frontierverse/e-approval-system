@@ -46,7 +46,8 @@ const effectsUrl = moduleUrl(`
   export async function attachStampedApprovalPdfToDocument(...args) { state.effects.push(['pdf', ...args]); }
   export async function readApprovalAttachmentFile() { throw new Error('Unexpected attachment read'); }
   export async function markDocumentNotificationsRead() { throw new Error('Unexpected notification write'); }
-  export async function dispatchMobilePushDeliveries() { throw new Error('Unexpected push dispatch'); }
+  export async function dispatchMobilePushDeliveries() { if (!state.allowPush) throw new Error('Unexpected push dispatch'); state.effects.push(['dispatch']); return {sent:0,checked:0,failed:0}; }
+  export async function createDueStaffPushEvents() { if (!state.allowPush) throw new Error('Unexpected reminder creation'); state.effects.push(['reminders']); return {scheduled:0}; }
   export function revalidatePath(...args) { state.effects.push(['revalidate', ...args]); }
 `);
 function compile(file: string, replacements: Record<string, string>) {
@@ -61,7 +62,7 @@ const { getMobileSession, hashMobileToken, createMobileSession } = await import(
 const replacements = Object.fromEntries([
   "@/lib/prisma", "@/lib/approval-queries", "@/lib/approval-mutations",
   "@/lib/generated-approval-pdf", "@/lib/approval-attachment-file", "@/lib/notifications",
-  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "@/lib/mobile-notifications", "@/lib/mobile-staff-tasks", "@/lib/mobile-daily-reports", "next/cache",
+  "@/lib/login-history", "@/lib/staff-leave", "@/lib/mobile-push", "@/lib/mobile-push-reminders", "@/lib/home-dashboard", "@/lib/mobile-document-library", "@/lib/mobile-inbox", "@/lib/mobile-notifications", "@/lib/mobile-staff-tasks", "@/lib/mobile-daily-reports", "next/cache",
 ].map(name => [name, effectsUrl]));
 replacements["@/lib/mobile-auth"] = authUrl;
 const route = (path: string) => import(compile(`app/api/mobile/${path}/route.ts`, replacements));
@@ -83,7 +84,7 @@ const request = (path: string, authorization?: string, method = "GET", body?: un
   headers: { ...(authorization ? { Authorization: authorization } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
   ...(body ? { body: JSON.stringify(body) } : {}),
 });
-beforeEach(() => Object.assign(state, { session: null, users: [], creates: [], effects: [], lookups: [], document: null, dashboard: null, recallResult:null }));
+beforeEach(() => Object.assign(state, { session: null, users: [], creates: [], effects: [], lookups: [], document: null, dashboard: null, recallResult:null, allowPush:false }));
 after(() => { delete (globalThis as Row)[key]; });
 
 describe("staff-only mobile access", () => {
@@ -363,14 +364,41 @@ describe("staff-only mobile access", () => {
   });
   test("push dispatch never accepts employee tokens or a missing dispatcher secret", async () => {
     const previous = process.env.CRON_SECRET;
+    const previousPush = process.env.MOBILE_PUSH_CRON_SECRET;
     try {
+      delete process.env.MOBILE_PUSH_CRON_SECRET;
       delete process.env.CRON_SECRET;
       assert.equal((await dispatch(request("push-dispatch", "Bearer " + token))).status, 401);
       process.env.CRON_SECRET = "test-dispatch-secret";
       assert.equal((await dispatch(request("push-dispatch", "Bearer " + token))).status, 401);
     } finally {
       if (previous === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = previous;
+      if (previousPush === undefined) delete process.env.MOBILE_PUSH_CRON_SECRET; else process.env.MOBILE_PUSH_CRON_SECRET = previousPush;
     }
     assert.equal(state.effects.length, 0);
   });
+  test("dedicated push authentication rejects maintenance credentials and only absent values fall back", async () => {
+    const previous = process.env.CRON_SECRET;
+    const previousPush = process.env.MOBILE_PUSH_CRON_SECRET;
+    state.allowPush = true;
+    try {
+      process.env.CRON_SECRET = "synthetic-maintenance-secret";
+      process.env.MOBILE_PUSH_CRON_SECRET = "synthetic-push-secret\n";
+      assert.equal((await dispatch(request("push-dispatch", "Bearer synthetic-maintenance-secret"))).status, 401);
+      assert.deepEqual(state.effects, []);
+      assert.equal((await dispatch(request("push-dispatch", "Bearer synthetic-push-secret"))).status, 200);
+      assert.deepEqual(state.effects, [["reminders"], ["dispatch"]]);
+      state.effects = [];
+      process.env.MOBILE_PUSH_CRON_SECRET = "";
+      assert.equal((await dispatch(request("push-dispatch", "Bearer synthetic-maintenance-secret"))).status, 401);
+      assert.deepEqual(state.effects, []);
+      delete process.env.MOBILE_PUSH_CRON_SECRET;
+      assert.equal((await dispatch(request("push-dispatch", "Bearer synthetic-maintenance-secret"))).status, 200);
+    } finally {
+      if (previous === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = previous;
+      if (previousPush === undefined) delete process.env.MOBILE_PUSH_CRON_SECRET; else process.env.MOBILE_PUSH_CRON_SECRET = previousPush;
+      state.allowPush = false;
+    }
+  });
+
 });
