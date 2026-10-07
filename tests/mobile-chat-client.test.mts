@@ -21,13 +21,13 @@ const chat:Row={...defaultChat};
 function setChatForeground(value:boolean) { if(chat.foreground!==value) chat.foregroundEpoch++; chat.foreground=value; }
 const expireSession=async()=>state.expired++;
 const harness:Row={...core,ApiError,
-Stack:{Screen:"Stack.Screen"},StyleSheet:{create:(value:unknown)=>value},useWindowDimensions:()=>state.dimensions,useHomeTheme:()=>harness.useTheme(),SafeAreaView:"SafeAreaView",ChatListAction:"ChatListAction",ChatListTabs:"ChatListTabs",ChatListSearch:"ChatListSearch",ChatListRow:"ChatListRow",ChatListLoading:"ChatListLoading",ChatListNotice:"ChatListNotice",ChatListEmpty:"ChatListEmpty",ChatFilePreviewHeader:"ChatFilePreviewHeader",ChatFilePreviewInfo:"ChatFilePreviewInfo",ChatFilePreviewLoading:"ChatFilePreviewLoading",ChatFilePreviewFeedback:"ChatFilePreviewFeedback",ChatFilePreviewWebPdf:"ChatFilePreviewWebPdf",
+Stack:{Screen:"Stack.Screen"},StyleSheet:{create:(value:unknown)=>value,absoluteFill:{position:"absolute",top:0,right:0,bottom:0,left:0}},useWindowDimensions:()=>state.dimensions,useHomeTheme:()=>harness.useTheme(),SafeAreaView:"SafeAreaView",ChatListAction:"ChatListAction",ChatListTabs:"ChatListTabs",ChatListSearch:"ChatListSearch",ChatListRow:"ChatListRow",ChatListLoading:"ChatListLoading",ChatListNotice:"ChatListNotice",ChatListEmpty:"ChatListEmpty",ChatFilePreviewHeader:"ChatFilePreviewHeader",ChatFilePreviewInfo:"ChatFilePreviewInfo",ChatFilePreviewLoading:"ChatFilePreviewLoading",ChatFilePreviewFeedback:"ChatFilePreviewFeedback",ChatFilePreviewWebPdf:"ChatFilePreviewWebPdf",
 React:{createElement:(type:unknown,props:Row|null,...children:unknown[])=>({type,props:{...props,children}}),Fragment:"Fragment"},
 useRef:(v:unknown)=>{const c=cell();return c.ref??(c.ref={current:v});},useState:(v:unknown)=>{const c=cell();if(!c.state){c.state={value:typeof v==="function"?v():v};c.setter=(next:unknown)=>{c.state.value=typeof next==="function"?next(c.state.value):next;};}return[c.state.value,c.setter];},useCallback:(fn:unknown,deps:unknown[])=>{const c=cell();if(!same(c.deps,deps)){c.deps=deps;c.fn=fn;}return c.fn;},useEffect:effect,useLayoutEffect:effect,useFocusEffect:(fn:()=>unknown)=>{const i=active.index;effect(fn,[fn]);active.slots[i].focus=true;},
 usePreventRemove:(enabled:boolean,callback:unknown)=>{active.prevent={enabled,callback};},useNavigation:()=>({dispatch:(action:unknown)=>state.dispatched.push(action)}),useSafeAreaInsets:()=>({bottom:16}),
-useConfirmAction:()=>({dialog:null,ask:async(options:Row)=>{state.confirmations.push(options);return state.confirm;}}),useTheme:()=>({text:"text",secondary:"secondary",muted:"muted",accent:"accent",surface:"surface",background:"background",border:"border",danger:"danger",accentSoft:"accentSoft"}),
+useConfirmAction:(options:Row={})=>{state.confirmOptions.push(options);return {inline:false,dialog:null,ask:async(options:Row)=>{state.confirmations.push(options);return state.confirm;}};},useTheme:()=>({text:"text",secondary:"secondary",muted:"muted",accent:"accent",surface:"surface",background:"background",border:"border",danger:"danger",accentSoft:"accentSoft"}),
 useChat:()=>chat,useSession:()=>({token:"token-a",user:{id:"own"},expireSession}),
-Platform:{OS:"android"},AppState:{currentState:"active",addEventListener:(event:string,fn:unknown)=>{state.listeners[event]=fn;return{remove:()=>delete state.listeners[event]};}},setInterval:(fn:unknown)=>{state.timers.push(fn);return state.timers.length;},clearInterval:()=>{},
+Keyboard:{dismiss:()=>state.keyboardDismisses++},BackHandler:{addEventListener:(_name:string,fn:unknown)=>{state.backHandlers.push(fn);return{remove:()=>{state.backHandlers=state.backHandlers.filter((handler:unknown)=>handler!==fn);}};}},Platform:{OS:"android"},AppState:{currentState:"active",addEventListener:(event:string,fn:unknown)=>{state.listeners[event]=fn;return{remove:()=>delete state.listeners[event]};}},setInterval:(fn:unknown)=>{state.timers.push(fn);return state.timers.length;},clearInterval:()=>{},
 FlatList:"FlatList",KeyboardAvoidingView:"KeyboardAvoidingView",KeyboardScreen:"KeyboardScreen",KeyboardScrollView:"ScrollView",KeyboardFlatList:"FlatList",ActivityIndicator:"ActivityIndicator",Text:"Text",View:"View",Modal:"Modal",ScrollView:"ScrollView",Image:"Image",ChatInput:"ChatInput",ChatThreadMessage:"ChatThreadMessage",ChatThreadLoading:"ChatThreadLoading",ChatThreadSelectedFile:"ChatThreadSelectedFile",ChatThreadFileSummary:"ChatThreadFileSummary",ChatBadge:"ChatBadge",ChatRowLink:"ChatRowLink",AccountFeedback:"AccountFeedback",PrimaryButton:"PrimaryButton",TextAction:"TextAction",EmptyState:"EmptyState",ChatAttachmentActions:"ChatAttachmentActions",PdfPreview:"PdfPreview",
 discardChatFile:(file:Row,options:Row)=>{state.discards.push({file,token:options.token,current:options.isCurrent()});},clearChatFileResources:async()=>{state.purges++;},router:{push:(value:unknown)=>state.routes.push(value),canGoBack:()=>false,back:()=>state.routes.push("BACK"),replace:(value:unknown)=>state.routes.push(value)},pickChatFile:async()=>state.onPick?state.onPick():state.selectedFile??null,uploadChatFile:async(options:Row)=>state.onUpload(options),createChatFileTransfer:()=>{state.operations++;return state.transfer;},chatFileSize:(size:number)=>`${size}B`,registerChatPreviewAttachment:()=>{},loadChatPreview:async(options:Row)=>{state.previewRequests.push(options);return state.onPreview(options);},lookupChatPreviewAttachment:()=>state.previewAttachment,
 apiRequest:request,createContext:()=>({Provider:"Provider"}),useContext:()=>null,
@@ -40,7 +40,7 @@ async function mount(kind:string,props:Row={}){const h=new Hooks(kind,{peerId:"p
 function nodes(root:unknown):Row[]{if(Array.isArray(root))return root.flatMap(nodes);if(!root||typeof root!=="object")return[];const row=root as Row;return[row,...Object.values(row.props??{}).flatMap(nodes)];}
 function find(h:Hooks,type:string,label?:string){const n=nodes(h.tree).find(n=>n.type===type&&(!label||n.props.title===label||n.props.label===label));assert.ok(n,`${type} ${label??""}`);return n.props;}
 function deferred(){let resolve!:(v:unknown)=>void;let reject!:(v:unknown)=>void;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return{promise,resolve,reject};}
-beforeEach(()=>{for(const scope of scopes.splice(0))scope.unmount();Object.assign(state,{dimensions:{width:390,height:844,fontScale:1,scale:1},account:true,onSummaryRefresh:null,requests:[],refreshes:0,summary:summary(),onRequest:async(path:string,options:Row)=>path==="/chat"?state.summary:path.startsWith("/chat/messages?")?{messages:[message()],hasMore:false}:path==="/chat/read"?{ok:true}:options.method==="POST"?{message:message("9007199254740994",{senderId:"own",recipientId:"peer",body:options.body.body})}:null,confirm:true,confirmations:[],dispatched:[],routes:[],expired:0,timers:[],listeners:{},operations:0,purges:0,discards:[],downloads:0,saves:0,completes:0,statuses:0,ready:false,transferPending:false});Object.assign(chat,defaultChat);state.transfer={download:async()=>{state.downloads++;state.ready=true;return true;},save:async()=>{state.saves++;return{kind:"handoff",requiresConfirmation:true,message:"외부 저장 화면"};},share:async()=>({kind:"handoff",requiresConfirmation:true,message:"공유 화면"}),isReady:()=>state.ready,getState:()=>({ready:state.ready,exported:false,requiresConfirmation:false,completionPending:state.transferPending,completed:false}),status:async()=>{state.statuses++;return{match:true,status:"deleting"};},complete:async()=>{state.completes++;state.transferPending=true;const result=await state.onComplete();state.transferPending=false;return result;},cancel:()=>{},release:()=>{}};state.onComplete=async()=>({message:message()});state.previewAttachment={id:"file",originalName:"민감 기록.pdf",size:12,status:"available"};state.previewRequests=[];state.previewReleases=0;state.onPreview=async()=>({uri:"private-preview",mimeType:"application/pdf",kind:"pdf",release:()=>state.previewReleases++});state.selectedFile=null;state.onPick=null;state.onUpload=async()=>{throw new Error("not used");};});
+beforeEach(()=>{for(const scope of scopes.splice(0))scope.unmount();Object.assign(state,{dimensions:{width:390,height:844,fontScale:1,scale:1},account:true,closed:undefined,keyboardDismisses:0,confirmOptions:[],backHandlers:[],onSummaryRefresh:null,requests:[],refreshes:0,summary:summary(),onRequest:async(path:string,options:Row)=>path==="/chat"?state.summary:path.startsWith("/chat/messages?")?{messages:[message()],hasMore:false}:path==="/chat/read"?{ok:true}:options.method==="POST"?{message:message("9007199254740994",{senderId:"own",recipientId:"peer",body:options.body.body})}:null,confirm:true,confirmations:[],dispatched:[],routes:[],expired:0,timers:[],listeners:{},operations:0,purges:0,discards:[],downloads:0,saves:0,completes:0,statuses:0,ready:false,transferPending:false});Object.assign(chat,defaultChat);state.transfer={download:async()=>{state.downloads++;state.ready=true;return true;},save:async()=>{state.saves++;return{kind:"handoff",requiresConfirmation:true,message:"외부 저장 화면"};},share:async()=>({kind:"handoff",requiresConfirmation:true,message:"공유 화면"}),isReady:()=>state.ready,getState:()=>({ready:state.ready,exported:false,requiresConfirmation:false,completionPending:state.transferPending,completed:false}),status:async()=>{state.statuses++;return{match:true,status:"deleting"};},complete:async()=>{state.completes++;state.transferPending=true;const result=await state.onComplete();state.transferPending=false;return result;},cancel:()=>{},release:()=>{}};state.onComplete=async()=>({message:message()});state.previewAttachment={id:"file",originalName:"민감 기록.pdf",size:12,status:"available"};state.previewRequests=[];state.previewReleases=0;state.onPreview=async()=>({uri:"private-preview",mimeType:"application/pdf",kind:"pdf",release:()=>state.previewReleases++});state.selectedFile=null;state.onPick=null;state.onUpload=async()=>{throw new Error("not used");};});
 after(()=>{for(const scope of scopes)scope.unmount();delete(globalThis as Row)[key];});
 test("loaded messages alone never mark read; only visible inbound ID does",async()=>{const h=await mount("thread");assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);const list=find(h,"FlatList");list.onViewableItemsChanged({viewableItems:[{isViewable:true,item:message("1",{senderId:"own",recipientId:"peer"})}]});await tick();assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);list.onViewableItemsChanged({viewableItems:[{isViewable:true,item:message()}]});await tick();assert.deepEqual(state.requests.find((r:Row)=>r.path==="/chat/read").body,{peerId:"peer",messageId:message().id});});
 test("read callbacks after blur/background/account switch cannot mutate",async()=>{const h=await mount("thread");const callback=find(h,"FlatList").onViewableItemsChanged;h.blur();callback({viewableItems:[{isViewable:true,item:message()}]});setChatForeground(false);update(h);state.account=false;callback({viewableItems:[{isViewable:true,item:message()}]});await tick();assert.equal(state.requests.filter((r:Row)=>r.path==="/chat/read").length,0);});
@@ -656,4 +656,83 @@ test("compact uncertain thread pins original retry and discard outside composer 
   const sends = state.requests.filter((r: Row) => r.path === "/chat/messages");
   assert.deepEqual(sends[0].body, sends[1].body);
   assert.equal(find(h, "ChatInput").value, "");
+});
+
+
+test("opening Android file actions stays in the app window without triggering the privacy reload loop", async () => {
+  const attachment = { id: "file", originalName: "synthetic.pdf", size: 12, status: "available" };
+  state.onRequest = async (path: string) => path === "/chat" ? state.summary
+    : { messages: [message("9007199254740993", { attachment })], hasMore: false };
+  const provider = await mount("provider", providerProps()); integrateProvider(provider);
+  const thread = await mount("thread");
+  const row = find(thread, "FlatList").renderItem({ item: message("9007199254740993", { attachment }) });
+  nodes(row).find(n => n.type === "TextAction")!.props.onPress(); update(thread);
+  const file = await mount("file", find(thread, "ChatAttachmentActions"));
+  const requests = state.requests.length;
+  // Android native Modal steals Activity focus; dismissal returns it. Exercise
+  // that real event boundary against the provider and thread, rather than
+  // exempting an internal window from privacy checks.
+  for (let frame = 0; frame < 6; frame++) {
+    if (nodes(file.tree).some(n => n.type === "Modal")) {
+      state.listeners.blur(); integrateProvider(provider); update(thread);
+      file.props = find(thread, "ChatAttachmentActions"); update(file);
+      state.listeners.focus(); await tick(); integrateProvider(provider); update(thread);
+      await tick(); update(thread);
+      file.props = find(thread, "ChatAttachmentActions"); update(file);
+    } else {
+      integrateProvider(provider); update(thread); update(file);
+    }
+  }
+  assert.equal(chat.foregroundEpoch, 0, "opening our own file UI never invalidates the foreground");
+  assert.equal(state.keyboardDismisses, 1);
+  assert.equal(state.requests.length, requests, "no repeated access checks or file downloads");
+  assert.equal(nodes(file.tree).some(n => n.type === "Modal"), false);
+  assert.equal(find(file, "View").testID, "chat-file-actions-overlay");
+  assert.ok(find(thread, "FlatList"));
+  assert.equal(state.downloads, 0); assert.equal(state.completes, 0);
+  assert.equal(state.confirmOptions.at(-1).inlineNative, true, "receipt confirmations cannot recreate an Android window");
+  state.backHandlers.at(-1)(); await tick(); update(thread);
+  assert.equal(nodes(thread.tree).some(n => n.type === "ChatAttachmentActions"), false);
+});
+
+test("native file overlay still masks real Android focus loss and waits for fresh thread permission", async () => {
+  const attachment = { id: "file", originalName: "private-synthetic.pdf", size: 12, status: "available" };
+  state.onRequest = async (path: string) => path === "/chat" ? state.summary
+    : { messages: [message("9007199254740993", { attachment })], hasMore: false };
+  const provider = await mount("provider", providerProps()); integrateProvider(provider);
+  const thread = await mount("thread");
+  const row = find(thread, "FlatList").renderItem({ item: message("9007199254740993", { attachment }) });
+  nodes(row).find(n => n.type === "TextAction")!.props.onPress(); update(thread);
+  const file = await mount("file", find(thread, "ChatAttachmentActions"));
+  const save = find(file, "PrimaryButton", "파일 저장").onPress;
+  state.listeners.blur(); save(); integrateProvider(provider); update(thread);
+  file.props = find(thread, "ChatAttachmentActions"); update(file);
+  assert.equal(file.tree, null); assert.equal(state.downloads, 0);
+  assert.equal(nodes(thread.tree).some(n => n.type === "FlatList"), false);
+  const fresh = deferred();
+  state.onRequest = async (path: string) => path === "/chat" ? state.summary : fresh.promise;
+  state.listeners.focus(); integrateProvider(provider); update(thread);
+  file.props = find(thread, "ChatAttachmentActions"); update(file);
+  assert.equal(file.tree, null, "focus alone cannot restore private file content");
+  fresh.resolve({ messages: [message("9007199254740993", { attachment })], hasMore: false });
+  await tick(); integrateProvider(provider); update(thread);
+  file.props = find(thread, "ChatAttachmentActions"); update(file);
+  assert.ok(find(file, "PrimaryButton", "파일 저장"));
+  assert.equal(nodes(file.tree).some(n => n.type === "Modal"), false);
+  assert.equal(chat.foregroundEpoch, 2);
+});
+
+test("web file actions retain the browser modal while native back cannot discard an uncertain receipt", async () => {
+  const props = { attachment: { id: "file", originalName: "synthetic.pdf", size: 12, status: "available" }, peerId: "peer", messageId: "message", isSender: false, isCurrent: () => state.account, enabled: true, onPending: () => {}, onClose: () => { state.closed = true; }, onChanged: () => {} };
+  state.transfer.getState = () => ({ ready: false, exported: true, completionPending: true });
+  const file = await mount("file", props);
+  assert.equal(state.backHandlers.at(-1)(), true); await tick(); update(file);
+  assert.equal(state.closed, undefined);
+  assert.ok(find(file, "PrimaryButton", "원래 수신 완료 상태 확인"));
+  assert.match(find(file, "AccountFeedback").error, /원래 수신 완료 상태/);
+  const previous = harness.Platform.OS; harness.Platform.OS = "web";
+  try {
+    const web = await mount("file", props);
+    assert.ok(find(web, "Modal"));
+  } finally { harness.Platform.OS = previous; }
 });
