@@ -57,7 +57,10 @@ const db={
 const key="__mobileSchedulesHarness";(globalThis as Row)[key]={h,db};
 const url=(source:string)=>`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 const mocks=url(`const {h,db}=globalThis.${key};export const prisma=db;export async function requireUser(){return h.session.user;}export async function getCurrentAuditLogRequestData(){return {ipAddress:'PRIVATE_IP'};}export function getAuditLogRequestData(){return {ipAddress:'PRIVATE_IP'};}export function revalidatePath(path){if(h.cacheFailure)throw Error('cache');h.invalidated.push(path);}export function logServerEvent(){}export function getSafeErrorDigest(){return 'safe';}`);
-function compile(file:string,aliases:Record<string,string>){let source=readFileSync(new URL(`../src/${file}`,import.meta.url),"utf8");for(const[from,to]of Object.entries(aliases))source=source.replaceAll(`"${from}"`,JSON.stringify(to));return url(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);}
+function compile(file:string,aliases:Record<string,string>){let source=readFileSync(new URL(`../src/${file}`,import.meta.url),"utf8");
+  // Notification delivery is an external effect; actual queue/integration tests cover it separately.
+  source = source.replaceAll(JSON.stringify("@/lib/mobile-push-events"), JSON.stringify('data:text/javascript,export%20async%20function%20queueStaffPushEvent(){}%20export%20async%20function%20queueChatPush(){}'));
+for(const[from,to]of Object.entries(aliases))source=source.replaceAll(`"${from}"`,JSON.stringify(to));return url(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);}
 const base={"@/lib/prisma":mocks,"@/lib/audit-log-request":mocks,"next/cache":mocks,"@/lib/auth":mocks,"@/lib/observability":mocks};
 const vacations=compile("lib/staff-vacations.ts",base),queries=compile("lib/work-schedules.ts",{...base,"@/lib/staff-vacations":vacations});
 const mutations=compile("lib/work-schedule-mutations.ts",{...base,"@/lib/work-schedules":queries}),cache=compile("lib/work-schedule-cache.ts",base),auth=compile("lib/mobile-auth.ts",base);

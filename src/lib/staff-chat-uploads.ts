@@ -1,4 +1,5 @@
 import "server-only";
+import { queueChatPush } from "@/lib/mobile-push-events";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type StaffChatUpload } from "@/generated/prisma/client";
@@ -119,6 +120,7 @@ export async function completeStaffChatUpload(userId: string, requestedId: unkno
       } },
     }, select: messageSelect });
     await tx.staffChatUpload.update({ where: { id }, data: { messageId: created.id } });
+    await queueChatPush(tx, created);
     return created;
   }, transactionOptions).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

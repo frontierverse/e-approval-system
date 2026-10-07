@@ -16,6 +16,7 @@ const requiredPrismaDelegates = [
   "mobileDraftUpload",
   "mobilePushSubscription",
   "mobilePushDelivery",
+  "mobilePushEvent",
   "resourcePost",
   "resourceAttachment",
   "resourcePostView",

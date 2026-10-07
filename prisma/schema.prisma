@@ -176,6 +176,7 @@ model User {
   auditLogs                      AuditLog[]                @relation("AuditActor")
   loginHistories                 LoginHistory[]
   notifications                  Notification[]
+  mobilePushEvents                MobilePushEvent[]
   mobileSessions                 MobileSession[]
   mobileDraftUploads             MobileDraftUpload[]
   signedAttachments              Attachment[]              @relation("AttachmentSigner")
@@ -1396,9 +1397,27 @@ model MobilePushSubscription {
   deliveries MobilePushDelivery[]
 }
 
+model MobilePushEvent {
+  id            String   @id @default(cuid())
+  eventKey      String
+  userId        String
+  kind          String
+  targetId      String
+  targetVersion String?
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries    MobilePushDelivery[]
+
+  @@unique([eventKey, userId])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
 model MobilePushDelivery {
   id               String    @id @default(cuid())
-  notificationId   String
+  notificationId   String?
+  eventId          String?
   subscriptionId   String
   attempts         Int       @default(0)
   nextAttemptAt    DateTime  @default(now())
@@ -1409,10 +1428,12 @@ model MobilePushDelivery {
   lastError        String?   @db.VarChar(200)
   createdAt        DateTime  @default(now())
 
-  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  event MobilePushEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
   subscription MobilePushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@unique([notificationId, subscriptionId])
+  @@unique([eventId, subscriptionId])
   @@index([sentAt, failedAt, nextAttemptAt])
   @@index([receiptCheckedAt, sentAt])
 }

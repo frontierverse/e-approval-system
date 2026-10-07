@@ -3,6 +3,7 @@ import "server-only";
 import { after } from "next/server";
 import { NotificationType, Prisma } from "@/generated/prisma/client";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import { activePushUserWhere } from "@/lib/mobile-push-events";
 import { dispatchMobilePushDeliveries } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
 import type { AppNotification } from "@/lib/notification-types";
@@ -57,7 +58,7 @@ export async function createDocumentNotification(
       session: {
         userId: input.userId,
         expiresAt: { gt: new Date() },
-        user: { status: "ACTIVE" },
+        user: activePushUserWhere(),
       },
     },
     select: { id: true },

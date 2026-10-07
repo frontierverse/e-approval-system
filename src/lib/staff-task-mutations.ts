@@ -1,4 +1,5 @@
 import "server-only";
+import { queueStaffPushEvent } from "@/lib/mobile-push-events";
 
 import { AuditAction, Prisma, UserRole } from "@/generated/prisma/client";
 import type { AuditLogRequestData } from "@/lib/audit-log-request";
@@ -62,6 +63,7 @@ export async function createStaffTask(
         metadata: { ...clientMetadata(context), changeType: "staffTask.create", assigneeId: task.assigneeId, dueDate: task.dueDate, before: null, after: taskSnapshot(task) },
       },
     });
+    await queueStaffPushEvent(tx, { eventKey: `task:${task.id}:0`, kind: "TASK_ASSIGNED", targetId: task.id, targetVersion: "0", userIds: [task.assigneeId], actorId: actor.id });
     return { task: await savedTaskItem(tx, task.id), replayed: false };
   });
 }
@@ -109,6 +111,8 @@ export async function updateStaffTask(
         },
       },
     });
+    await queueStaffPushEvent(tx, { eventKey: `task:${id}:${version + 1}`, kind: existing.assigneeId === values.assigneeId ? "TASK_UPDATED" : "TASK_ASSIGNED", targetId: id, targetVersion: String(version + 1), userIds: [values.assigneeId], actorId: actor.id });
+    if (existing.assigneeId !== values.assigneeId) await queueStaffPushEvent(tx, { eventKey: `task:${id}:${version + 1}:removed`, kind: "TASK_UNASSIGNED", targetId: id, userIds: [existing.assigneeId], actorId: actor.id });
     return { task: await savedTaskItem(tx, id), changed: true };
   });
 }
@@ -140,6 +144,7 @@ export async function setOwnStaffTaskCompleted(
         metadata: { ...clientMetadata(context), changeType: input.completed ? "staffTask.complete" : "staffTask.reopen", completedAt: completedAt?.toISOString() ?? null, before: taskSnapshot(existing), after: taskSnapshot({ ...existing, completedAt, version: existing.version + 1 }) },
       },
     });
+    await queueStaffPushEvent(tx, { eventKey: `task:${input.id}:${input.version + 1}`, kind: input.completed ? "TASK_COMPLETED" : "TASK_REOPENED", targetId: input.id, targetVersion: String(input.version + 1), userIds: [existing.createdById], actorId: actor.id });
     return { task: await savedTaskItem(tx, input.id), changed: true };
   });
 }
@@ -169,6 +174,7 @@ export async function deleteOwnStaffTask(
       targetType: "StaffTask", targetId: task.id, message: "본인 할 일을 삭제했습니다. 업무 내용과 이력은 보존됩니다.",
       metadata: { ...clientMetadata(context), changeType: "staffTask.delete", before: taskSnapshot(task), after: taskSnapshot({ ...task, deletedAt, version: task.version + 1 }) },
     } });
+    await queueStaffPushEvent(tx, { eventKey: `task:${input.id}:${input.version + 1}`, kind: "TASK_DELETED", targetId: input.id, targetVersion: String(input.version + 1), userIds: [task.createdById], actorId: actor.id });
     return { task: await savedTaskItem(tx, input.id), changed: true };
   });
 }

@@ -25,6 +25,7 @@ const tx = {
     },
   },
   approvalStep: {
+    async findMany() { return state.document.approvalSteps.filter((row: Row) => row.status === "PENDING"); },
     async updateMany({where, data}: Row) {
       for (const step of state.document.approvalSteps) if (where.status.in.includes(step.status)) Object.assign(step, data);
     },
@@ -55,6 +56,7 @@ const key = "__mobileRecallWorkflow";
   ApprovalStepStatus:{WAITING:"WAITING", PENDING:"PENDING"},
   AuditAction:{RECALL:"RECALL", SUBMIT:"SUBMIT", UPDATE_DRAFT:"UPDATE_DRAFT"},
   NotificationType:{APPROVAL_REQUESTED:"APPROVAL_REQUESTED"},
+  async queueStaffPushEvent(_tx: unknown, value: unknown) { state.pushes.push(value); },
   async getCurrentAuditLogRequestData() { return {}; },
   async lockApprovalDocument() { state.order.push("lock"); state.onLock?.(); },
   async invalidateAutomaticApprovalPdfs() { state.pdfInvalidations++; },
@@ -82,7 +84,7 @@ beforeEach(() => Object.assign(state, {
       {approverId:"head", approver:{name:"시설장"}, status:"PENDING", comment:null}, {approverId:"last", approver:{name:"다음 결재자"}, status:"WAITING"}]},
   histories:[{action:"APPROVE", description:"이전 승인 기록"}],
   notifications:[{type:"APPROVAL_REQUESTED", readAt:null}, {type:"APPROVAL_REQUESTED", readAt:version}, {type:"OTHER", readAt:null}],
-  order:[], writes:0, pdfInvalidations:0, onLock:null,
+  pushes:[], order:[], writes:0, pdfInvalidations:0, onLock:null,
 }));
 after(() => { delete (globalThis as Row)[key]; });
 
@@ -97,11 +99,15 @@ test("recall preserves evidence and attachments while clearing unacted steps and
   assert.equal(state.histories[1].metadata.mobileRecallExpectedUpdatedAt, version);
   assert.equal(state.pdfInvalidations, 1);
   assert.equal(state.notifications.length, 2);
+  assert.equal(state.pushes.length, 1);
+  assert.deepEqual(state.pushes[0].userIds, ["head"]);
+  assert.equal(state.pushes[0].kind, "APPROVAL_RECALLED");
 });
 test("duplicate recall retries write one audit entry and cannot recall a later resubmission", async () => {
   const results = await Promise.all([recallSubmittedDocument("document","staff",version), recallSubmittedDocument("document","staff",version)]);
   assert.ok(results.every(row => row.ok));
   assert.equal(state.writes, 1);
+  assert.equal(state.pushes.length, 1);
   assert.equal(state.histories.filter((row: Row) => row.action === "RECALL").length, 1);
   state.document.status = "SUBMITTED";
   state.document.updatedAt = new Date("2026-10-02T03:00:00.000Z");

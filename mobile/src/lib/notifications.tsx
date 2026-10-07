@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { AppState, Linking, Platform } from "react-native";
 import { apiRequest, ApiError } from "./api";
 import { getPushToken, notificationDocumentId, PushPermissionError, validNotificationDocumentId } from "./push";
+import { workPushEventId, workPushHref } from "./work-push-routing";
 import { useSession } from "./session";
 
 type NotificationsContextValue = {
@@ -131,7 +132,23 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
       setNotificationOpenError(error instanceof Error ? error.message : "알림 문서를 열지 못했습니다. 다시 시도하세요.");
     }
   }, [current, openNotificationDocument]);
-  const retryNotificationOpen = useCallback(async () => { const id = retryDocument.current; if (id && current()) await handlePushDocument(id); }, [current, handlePushDocument]);
+  const handleWorkPush = useCallback(async (eventId: string) => {
+    const attempt = ++openSequence.current;
+    try {
+      if (current()) setNotificationOpenError(null);
+      const result = await authenticated<{ ok: boolean; href: unknown }>(`/push-events/${eventId}/open`, { method: "POST" });
+      check();
+      if (attempt !== openSequence.current) return;
+      if (result.ok !== true || !workPushHref(result.href)) throw new ApiError("알림 이동 경로를 확인하지 못했습니다.", 0);
+      retryDocument.current = null; setNotificationOpenError(null);
+      router.push(result.href as Parameters<typeof router.push>[0]);
+    } catch (error) {
+      if (attempt !== openSequence.current || !current() || (error instanceof Error && error.name === "AbortError")) return;
+      retryDocument.current = `event:${eventId}`;
+      setNotificationOpenError(error instanceof Error ? error.message : "알림을 열지 못했습니다. 다시 시도하세요.");
+    }
+  }, [authenticated, check, current]);
+  const retryNotificationOpen = useCallback(async () => { const id = retryDocument.current; if (id && current()) { if (id.startsWith("event:")) await handleWorkPush(id.slice(6)); else await handlePushDocument(id); } }, [current, handlePushDocument, handleWorkPush]);
   const dismissNotificationOpenError = useCallback(() => { openSequence.current++; retryDocument.current = null; setNotificationOpenError(null); }, []);
 
   const [pushStatus, setPushStatus] = useState<{ enabled: boolean } | null>(null);
@@ -242,12 +259,14 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
     const open = (response: NativeNotifications.NotificationResponse | null) => {
       if (!effectCurrent() || !response) return;
       const documentId = notificationDocumentId(response);
-      if (!documentId) return;
+      const eventId = workPushEventId(response.notification.request.content.data);
+      if (!documentId && !eventId) return;
       const key = response.notification.request.identifier + ":" + response.actionIdentifier;
       if (handled.has(key)) return;
       handled.add(key);
       try { NativeNotifications.clearLastNotificationResponse(); } catch { /* Native response delivery can still proceed. */ }
-      void handlePushDocument(documentId);
+      if (eventId) void handleWorkPush(eventId);
+      else if (documentId) void handlePushDocument(documentId);
     };
     const response = NativeNotifications.addNotificationResponseReceivedListener(open);
     void NativeNotifications.getLastNotificationResponseAsync().then(open).catch(() => undefined);
@@ -264,7 +283,7 @@ function AccountNotificationsProvider({ children, token, isCurrentToken }: { chi
       // A cached response belongs to the departing account; never consume it after switching accounts.
       try { NativeNotifications.clearLastNotificationResponse(); } catch { /* Unavailable on some runtimes. */ }
     };
-  }, [current, handlePushDocument, invalidate, refreshPushStatus, refreshUnreadCount, syncPush, token]);
+  }, [current, handlePushDocument, handleWorkPush, invalidate, refreshPushStatus, refreshUnreadCount, syncPush, token]);
   const pushFailedMode = failedPushMode.current;
   const value = useMemo<NotificationsContextValue>(() => ({
     unreadCount, notificationRevision, setUnreadCount, refreshUnreadCount, openNotificationDocument,

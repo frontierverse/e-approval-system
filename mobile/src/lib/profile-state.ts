@@ -20,7 +20,7 @@ export function profilePushState(state: ProfilePushState) {
   if (!native) return { title: "설치한 모바일 앱에서 설정할 수 있습니다.", description: "브라우저에서는 기기 알림을 켜거나 끌 수 없어요.", icon: "bell-off" as const, tone: "neutral" as const, actions };
   if (!status && !error && (loading || pending)) return { title: "알림 설정 확인 중…", description: "", icon: "clock" as const, tone: "neutral" as const, actions };
   let title = status ? status.enabled ? "켜짐" : "꺼짐" : error ? "알림 설정을 확인하지 못했어요" : "알림 설정 확인 중…";
-  let description = status ? status.enabled ? "이 기기·이 로그인에서 결재 알림을 받아요." : "이 기기·이 로그인에서는 결재 알림을 받지 않아요." : "";
+  let description = status ? status.enabled ? "이 기기·이 로그인에서 결재·채팅·할 일·일정 알림을 받아요." : "이 기기·이 로그인에서는 업무 푸시 알림을 받지 않아요." : "";
   if (settings) {
     title = status?.enabled ? "등록 켜짐 · 기기 알림 권한 꺼짐" : status ? "꺼짐 · 기기 알림 권한이 꺼져 있어요" : "등록 미확인 · 기기 알림 권한 꺼짐";
     description = status?.enabled ? "이 로그인의 등록은 켜져 있지만 알림이 오지 않을 수 있어요." : "권한을 허용하기 전에는 이 기기에 등록할 수 없어요.";

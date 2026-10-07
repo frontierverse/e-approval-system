@@ -1,4 +1,5 @@
 import "server-only";
+import { queueStaffPushEvent } from "@/lib/mobile-push-events";
 
 import {
   ApprovalStepStatus,
@@ -908,6 +909,7 @@ export async function recallSubmittedDocument(
       return { ok: false, message: "문서가 변경되었습니다. 최신 상태를 확인한 뒤 다시 회수하세요." };
     }
 
+    const pendingApprovers = await tx.approvalStep.findMany({ where: { documentId, status: "PENDING" }, select: { approverId: true } });
     const now = new Date();
 
     const recallResult = await tx.approvalDocument.updateMany({
@@ -970,6 +972,7 @@ export async function recallSubmittedDocument(
       },
     });
 
+    await queueStaffPushEvent(tx, { eventKey: `recall:${document.id}:${now.toISOString()}`, kind: "APPROVAL_RECALLED", targetId: document.id, userIds: pendingApprovers.map(step => step.approverId), actorId });
     return {
       ok: true,
       documentId: document.id,
@@ -1820,8 +1823,8 @@ async function notifyProxyApprovalParticipants(
     await createDocumentNotification(tx, {
       userId: document.drafterId,
       documentId: document.id,
-      type: NotificationType.APPROVAL_APPROVED,
-      title: "결재 진행 알림",
+      type: document.approvalSteps.some(step => step.order > targetStep.order) ? NotificationType.APPROVAL_APPROVED : NotificationType.APPROVAL_COMPLETED,
+      title: document.approvalSteps.some(step => step.order > targetStep.order) ? "결재 진행 알림" : "최종 승인 완료",
       message: `"${document.title}" 문서가 ${targetStep.order}차까지 대리 승인되었습니다.`,
     });
   }

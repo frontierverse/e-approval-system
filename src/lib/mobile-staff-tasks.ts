@@ -125,7 +125,13 @@ export async function getMobileStaffTaskHistoryResponse(request: Request, id: un
     const taskId = parseMobileStaffTaskId(id);
     const page = parseMobileStaffTaskPage(new URL(request.url).searchParams);
     const today = getStaffTaskToday();
-    const data = await prisma.$transaction(tx => getStaffTaskHistoryForActor({ id: session.userId, role: "USER" }, taskId, page, tx), { isolationLevel: "RepeatableRead" });
+    const assigned = new URL(request.url).searchParams.get("assigned") === "1";
+    const data = await prisma.$transaction(async tx => {
+      if (assigned) {
+        if (session.user.role !== "ADMIN" || !await tx.staffTask.findFirst({ where: { id: taskId, createdById: session.userId }, select: { id: true } })) return null;
+      }
+      return getStaffTaskHistoryForActor({ id: session.userId, role: assigned ? "ADMIN" : "USER" }, taskId, page, tx);
+    }, { isolationLevel: "RepeatableRead" });
     if (!data) return mobileJson({ error: "할 일을 찾을 수 없습니다.", code: "NOT_FOUND" }, 404);
     const names = new Map(data.assignees.map(user => [user.id, user.name]));
     const logs = data.logs.map(log => {
@@ -142,6 +148,6 @@ export async function getMobileStaffTaskHistoryResponse(request: Request, id: un
       return { id: log.id, createdAt: log.createdAt.toISOString(), message: log.message, actorName: log.actor.name,
         changeType: typeof metadata?.changeType === "string" && knownChanges.has(metadata.changeType) ? metadata.changeType : null, changes };
     });
-    return mobileJson({ task: data.task, logs, today, page: data.page, pageSize: staffTaskPageSize, total: data.total, totalPages: data.totalPages });
+    return mobileJson({ task: data.task, logs, today, ...(assigned ? { readOnly: true } : {}), page: data.page, pageSize: staffTaskPageSize, total: data.total, totalPages: data.totalPages });
   } catch (cause) { return mobileStaffTaskFailure(cause); }
 }

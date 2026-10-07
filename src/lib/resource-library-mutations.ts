@@ -1,4 +1,5 @@
 import "server-only";
+import { queueStaffPushEvent } from "@/lib/mobile-push-events";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { AuditAction, Prisma, type ResourceMutationReceipt, type ResourceUpload } from "@/generated/prisma/client";
@@ -34,7 +35,7 @@ export async function mutateResource(context: ResourceContext, raw: ResourceMuta
     let current: Awaited<ReturnType<typeof getResourceRecord>> | null = null;
     if (target) { await lockResourcePost(tx, target); current = await getResourceRecord(tx, target); assertResourceManager(actor, current); if (current.updatedAt.toISOString() !== (data as ResourceDeleteInput).expectedUpdatedAt) throw new ResourceError("자료가 변경되었습니다. 최신 내용을 확인해 주세요.", "RESOURCE_CONFLICT", 409); }
     const title = operation === "delete" ? current!.title : (data as ResourceCreateInput).title;
-    let id = target!, token: Date | null = null;
+    let id = target!, token: Date | null = null, pushChanged = operation === "create";
     if (operation === "delete") {
       const files = await tx.resourceAttachment.findMany({ where: { resourceId: id }, orderBy: { id: "asc" } });
       for (const file of files) cleanupIds.push(await enqueueResourceFileCleanup(tx, { ref: file, objectKind: "legacy", sourceMutationId: receiptId }, now));
@@ -43,6 +44,7 @@ export async function mutateResource(context: ResourceContext, raw: ResourceMuta
       await tx.resourcePost.delete({ where: { id } });
     } else {
       const values = data as ResourceUpdateInput, removal = operation === "update" ? values.removeAttachmentIds : [], existingIds = current?.attachments.map(file => file.id) ?? [];
+      pushChanged = !current || current.title !== values.title || current.summary !== values.summary || current.category !== values.category || current.educationLevel !== values.educationLevel || values.uploadIds.length > 0 || removal.some(id => existingIds.includes(id));
       if (context.strictRemoveIds !== false && removal.some(file => !existingIds.includes(file))) throw new ResourceError("첨부파일 정보를 확인해 주세요.", "INVALID_REQUEST", 400, { attachments: "첨부파일을 다시 확인해 주세요." });
       const removeIds = removal.filter(file => existingIds.includes(file));
       const previousUploads = removeIds.length ? await tx.resourceUpload.findMany({ where: { consumedAttachmentId: { in: removeIds }, state: "consumed" }, orderBy: { id: "asc" } }) : [];
@@ -67,6 +69,7 @@ export async function mutateResource(context: ResourceContext, raw: ResourceMuta
       }
     }
     await tx.auditLog.create({ data: { actorId: actor.id, targetType: "ResourcePost", targetId: id, action: operation === "create" ? AuditAction.CREATE_RESOURCE : operation === "update" ? AuditAction.UPDATE_RESOURCE : AuditAction.DELETE_RESOURCE, message: `${actor.name}님이 "${title}" 자료를 ${operation === "create" ? "업로드" : operation === "update" ? "수정" : "삭제"}했습니다.`, ...context.requestData } });
+    if (pushChanged && operation !== "delete") await queueStaffPushEvent(tx, { eventKey: `resource:${id}:${requestId}`, kind: operation === "create" ? "RESOURCE_CREATED" : "RESOURCE_UPDATED", targetId: id, targetVersion: token!.toISOString(), actorId: actor.id });
     const receipt = await tx.resourceMutationReceipt.create({ data: { id: receiptId, actorId: actor.id, requestId, operation, targetResourceId: id, payloadHash, committedUpdatedAt: token, committedAt: now, cleanupIds: [...new Set(cleanupIds)] } });
     return receiptResult(tx, actor, receipt, false);
   }, "Serializable", "ResourceMutationReceipt");
