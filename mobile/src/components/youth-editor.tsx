@@ -6,7 +6,8 @@ import { KeyboardScreen } from "@/components/keyboard-screen";
 /* eslint-disable react-hooks/refs, react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from 'react';
 import { Redirect } from 'expo-router';
-import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '@/lib/session';

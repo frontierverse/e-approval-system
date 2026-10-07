@@ -6,7 +6,8 @@ import { KeyboardScreen } from "@/components/keyboard-screen";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/theme';
 import { cafeCategories, cafeCategoryLabel, cafeDirty, cafeHoldAllowed, cafeId, cafeInput, cafeValues, defaultCafeFilters, isCafeDetail, isCafeItemPage, validateCafeHold, validateCafeNote, validateCafeValues } from '@/lib/lunch-cafe';

@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AppState, Platform } from "react-native";
 import * as Updates from "expo-updates";
 import * as SecureStore from "expo-secure-store";
+
+import { beginAppUpdateRestart, cancelAppUpdateRestart, getAppUpdateBlockReason, subscribeAppUpdateSafety } from "@/lib/app-update-safety";
 
 export type AppUpdatePhase = "disabled" | "idle" | "checking" | "downloading" | "available" | "ready" | "error";
 export type AppUpdateInfo = { updateId: string | null; publishedAt: string | null; rollback: boolean };
@@ -11,7 +13,8 @@ export type AppUpdatesValue = {
   current: AppUpdateCurrent; available: AppUpdateInfo | null; downloaded: AppUpdateInfo | null;
   observedAt: string | null; lastCheckAt: string | null; lastDownloadedAt: string | null;
   error: string | null; storageError: string | null; appliedNotice: boolean; dismissAppliedNotice: () => void;
-  check: () => Promise<void>; download: () => Promise<void>;
+  check: () => Promise<void>; download: () => Promise<void>; apply: () => Promise<void>; defer: () => void;
+  deferred: boolean; restarting: boolean; applyError: string | null; applyBlockedReason: string | null;
 };
 type Metadata = { version: 1; currentKey: string | null; observedAt: string | null; lastCheckAt: string | null; downloadedKey: string | null; lastDownloadedAt: string | null };
 const STORAGE_KEY = "gyeoljaeon.app-updates.metadata.v1";
@@ -63,6 +66,10 @@ export function AppUpdatesProvider({ children }: { children: React.ReactNode }) 
   const [manual, setManual] = useState<"checking" | "downloading" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [found, setFound] = useState<AppUpdateInfo | null>(null);
+  const [restarting, setRestarting] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [deferredKey, setDeferredKey] = useState<string | null>(null);
+  const applyBlockedReason = useSyncExternalStore(subscribeAppUpdateSafety, getAppUpdateBlockReason, getAppUpdateBlockReason);
   const [fetched, setFetched] = useState<AppUpdateInfo | null>(null);
   const mounted = useRef(false);
   const generation = useRef(0);
@@ -161,15 +168,42 @@ export function AppUpdatesProvider({ children }: { children: React.ReactNode }) 
       if (active()) { setSuppressed({ check: live.current.native.checkError, download: live.current.native.downloadError }); locked.current = false; setManual(null); }
     }
   }, [found]);
+  const apply = useCallback(async () => {
+    const start = live.current;
+    if (!mounted.current || !start.enabled || locked.current || (!start.native.isUpdatePending && !readyLatch.current) || start.native.isChecking || start.native.isDownloading || start.native.isStartupProcedureRunning || start.native.isRestarting) return;
+    const reason = getAppUpdateBlockReason();
+    if (reason) { setApplyError(reason); return; }
+    if (AppState.currentState !== "active") { setApplyError("앱 화면으로 돌아온 뒤 업데이트를 다시 적용하세요."); return; }
+    if (!beginAppUpdateRestart()) return;
+    locked.current = true;
+    setRestarting(true);
+    setApplyError(null);
+    const stamp = generation.current;
+    const active = () => mounted.current && stamp === generation.current && live.current.enabled;
+    try {
+      await writeQueue.current;
+      // Recheck after storage work: the user may have started editing or left
+      // the foreground while it was completing. New mutations are gated above.
+      const latest = live.current.native;
+      if (!active() || getAppUpdateBlockReason() || AppState.currentState !== "active" || (!latest.isUpdatePending && !readyLatch.current) || latest.isChecking || latest.isDownloading || latest.isStartupProcedureRunning || latest.isRestarting) throw new Error("restart no longer safe");
+      await Updates.reloadAsync();
+      // Keep the lock until the native reload. No state updates after success.
+    } catch {
+      cancelAppUpdateRestart();
+      locked.current = false;
+      if (active()) { setRestarting(false); setApplyError(getAppUpdateBlockReason() ?? "업데이트를 적용하지 못했습니다. 현재 화면은 유지됩니다. 다시 적용하세요."); }
+    }
+  }, []);
+  const defer = useCallback(() => { if (!locked.current) { setDeferredKey(readyKey ?? "pending"); setApplyError(null); } }, [readyKey]);
   const dismissAppliedNotice = useCallback(() => setAppliedNotice(false), []);
   const check = useCallback(() => run("check"), [run]);
   const download = useCallback(() => run("download"), [run]);
   const nativeError = (native.downloadError && native.downloadError !== suppressed.download) || (native.checkError && native.checkError !== suppressed.check);
   const visibleError = enabled ? error ?? (nativeError ? "업데이트 확인 또는 다운로드를 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도하세요." : null) : null;
-  const busy = enabled && (!!manual || !!native.isChecking || !!native.isDownloading || !!native.isStartupProcedureRunning || !!native.isRestarting);
+  const busy = enabled && (restarting || !!manual || !!native.isChecking || !!native.isDownloading || !!native.isStartupProcedureRunning || !!native.isRestarting);
   const phase: AppUpdatePhase = !enabled ? "disabled" : ready ? "ready" : native.isDownloading || manual === "downloading" ? "downloading" : busy ? "checking" : visibleError ? "error" : native.isUpdateAvailable || found ? "available" : "idle";
   const progress = phase === "downloading" && native.isDownloading && typeof native.downloadProgress === "number" && Number.isFinite(native.downloadProgress) && native.downloadProgress >= 0 && native.downloadProgress <= 1 ? native.downloadProgress : null;
-  return <AppUpdatesContext.Provider value={{ enabled, phase, busy, progress, current, available, downloaded, observedAt: currentKey && metadata.currentKey === currentKey ? metadata.observedAt : null, lastCheckAt: metadata.lastCheckAt, lastDownloadedAt: metadata.lastDownloadedAt, error: visibleError, storageError, appliedNotice: enabled && hydrated && appliedNotice, dismissAppliedNotice, check, download }}>{children}</AppUpdatesContext.Provider>;
+  return <AppUpdatesContext.Provider value={{ enabled, phase, busy, progress, current, available, downloaded, observedAt: currentKey && metadata.currentKey === currentKey ? metadata.observedAt : null, lastCheckAt: metadata.lastCheckAt, lastDownloadedAt: metadata.lastDownloadedAt, error: visibleError, storageError, appliedNotice: enabled && hydrated && appliedNotice, dismissAppliedNotice, check, download, apply, defer, deferred: ready && deferredKey !== null && deferredKey === (readyKey ?? "pending"), restarting, applyError, applyBlockedReason }}>{children}</AppUpdatesContext.Provider>;
 }
 
 export function useAppUpdates(): AppUpdatesValue {

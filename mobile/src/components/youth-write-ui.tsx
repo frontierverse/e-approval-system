@@ -1,6 +1,7 @@
 /* Privacy guards and immutable mutation baselines deliberately use synchronous refs; permission changes must clear local state before user actions can resume. */
 
-import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { Text, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 import { TextAction } from './ui';

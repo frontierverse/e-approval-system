@@ -182,7 +182,7 @@ npm run update:production -- --input message="변경 내용"
 
 위 명령은 EAS Workflows에서 빌드·업데이트를 생성한다. `GOOGLE_SERVICES_JSON`은 EAS 서버에서만 읽을 수 있는 파일 변수이므로, 같은 환경의 파일로 fingerprint를 계산한다. 업데이트 작업은 린트·타입·릴리스 검사를 통과해야 발행한다. `EXPO_PUBLIC_API_URL`은 빌드와 업데이트 모두 `https://www.bajaul.com`을 사용한다. 서버 비밀 값·직원 정보·세션 토큰은 업데이트에 포함하지 않는다. GitHub 푸시와 서버 배포만으로 앱 업데이트가 발행되지는 않는다. 로컬에서 직접 `eas update`를 실행하려면 동일한 Firebase 앱 설정 파일을 별도로 준비하고 runtime 일치를 확인해야 한다.
 
-운영 배포 후 새 Android 설치본에서 앱을 완전히 종료하고 다시 열어 다운로드한 뒤, 한 번 더 종료·실행하여 적용을 확인한다. EAS Update의 runtime과 설치본의 runtime이 일치해야 한다. iOS는 별도 기기 등록과 지원 설치본 배포가 끝난 뒤 같은 절차로 확인한다. 문제가 생기면 EAS 대시보드의 해당 채널에서 이전 정상 업데이트로 롤백한다.
+운영 배포 후 Android 설치본에서 백그라운드 다운로드가 끝나면 **업데이트 적용**을 눌러 앱이 스스로 재시작하고 새 코드가 실행되는지 확인한다. **나중에**를 선택해도 다운로드는 유지되며 내 정보 → 앱 업데이트에서 적용할 수 있다. 미저장 업무·계정 입력, 확인할 처리 결과, 진행 중 저장·결재 요청이 있으면 적용을 막는다. 적용 실패 시 현재 화면과 다운로드를 유지한다. 이 기능이 없는 기존 코드에서 이번 변경을 처음 받는 경우에만 다운로드 후 한 번 완전히 종료·실행해야 한다. EAS Update의 runtime과 설치본의 runtime이 일치해야 한다. iOS는 별도 기기 등록과 지원 설치본 배포가 끝난 뒤 같은 절차로 확인한다. 문제가 생기면 EAS 대시보드의 해당 채널에서 이전 정상 업데이트로 롤백한다.
 
 2026-10-02 운영 업데이트 검증: [배포 워크플로](https://expo.dev/accounts/artemismars2/projects/gyeoljaeon/workflows/01a0fa86-3eed-7bca-a572-e7ccdf46ad5c)가 성공했다. Android 업데이트 ID는 `01a0fa87-f240-7c59-9b1c-79dd2dbea06e`, runtime은 `3fbb2aedbf34795a7701a252f72d36d780405b5b`이며 직원용 Android 빌드의 runtime과 일치한다. 앱과 같은 프로토콜로 `production` 채널의 manifest와 실행 번들을 받아 HTTP `200`, 번들의 SHA-256 일치, 운영 API 주소 포함을 확인했다. 실제 휴대폰에서 새 설치본 설치와 업데이트 적용 여부는 별도 확인이 필요하다.
 

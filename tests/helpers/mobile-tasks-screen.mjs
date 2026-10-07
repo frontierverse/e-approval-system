@@ -16,7 +16,8 @@ function evaluate(source, imports) {
   new Function('require', 'module', 'exports', code)(name => { assert(name in imports, 'unexpected import ' + name); return imports[name]; }, evaluated, evaluated.exports);
   return evaluated.exports;
 }
-const api = evaluate(readFileSync(repo + '/mobile/src/lib/api.ts', 'utf8'), {});
+const updateSafety = evaluate(readFileSync(repo + '/mobile/src/lib/app-update-safety.ts', 'utf8'), {});
+const api = evaluate(readFileSync(repo + '/mobile/src/lib/api.ts', 'utf8'), { './app-update-safety': updateSafety });
 const core = evaluate(readFileSync(repo + '/mobile/src/lib/tasks.ts', 'utf8'), { './drafts': { requestKey() { throw new Error('this suite must not create tasks'); } } });
 const element = (type, props, key) => ({ type, props: props || {}, key });
 const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));

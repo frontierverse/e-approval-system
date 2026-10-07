@@ -1,7 +1,8 @@
 import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
 import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from 'expo-router';
-import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import * as DocumentPicker from 'expo-document-picker';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, type TextInputProps, type TextStyle } from 'react-native';

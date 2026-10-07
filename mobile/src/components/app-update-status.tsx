@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TextAction } from "@/components/ui";
 import { useAppUpdates, type AppUpdatePhase } from "@/providers/AppUpdatesProvider";
@@ -30,13 +30,20 @@ export function AppUpdateStatus({ canNavigate = true }: { canNavigate?: boolean 
   const theme = useTheme();
   const { bottom } = useSafeAreaInsets();
   const pathname = usePathname();
-  if (!updates.enabled || pathname === "/app-updates" || (updates.phase === "idle" && !updates.appliedNotice)) return null;
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = updates.phase === "ready" && (width <= 360 || fontScale >= 1.3);
+  if (!updates.enabled || pathname === "/app-updates" || (updates.phase === "idle" && !updates.appliedNotice) || (updates.phase === "ready" && updates.deferred && !updates.restarting)) return null;
   return <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.surface, paddingHorizontal: 12, paddingBottom: bottom }}>
-    <View style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingTop: stacked ? 8 : 0 }}>
       {updates.busy ? <ActivityIndicator size="small" color={theme.accent} /> : null}
-      <Text accessibilityLiveRegion="polite" style={{ flex: 1, color: updates.phase === "error" ? theme.danger : updates.phase === "ready" ? theme.success : theme.secondary, fontSize: 12, lineHeight: 18 }}>{updates.phase === "idle" && updates.appliedNotice ? "현재 업데이트 적용 확인" : appUpdateTitle(updates.phase, updates.progress)}</Text>
+      <Text accessibilityLiveRegion="polite" style={{ flexGrow: 1, flexShrink: stacked ? 0 : 1, flexBasis: stacked ? "100%" : 120, minWidth: 120, color: updates.applyError || updates.phase === "error" ? theme.danger : updates.phase === "ready" ? theme.success : theme.secondary, fontSize: 12, lineHeight: 18 }}>{updates.phase === "idle" && updates.appliedNotice ? "현재 업데이트 적용 확인" : updates.restarting ? "업데이트 적용 중" : appUpdateTitle(updates.phase, updates.progress)}</Text>
+      {canNavigate && updates.phase === "ready" ? <>
+        <TextAction label={updates.restarting ? "적용 중" : "적용"} accessibilityLabel="업데이트 적용" disabled={updates.busy || !!updates.applyBlockedReason} onPress={() => void updates.apply()} />
+        <TextAction label="나중에" accessibilityLabel="업데이트 나중에 적용" disabled={updates.busy} onPress={updates.defer} />
+      </> : null}
       {canNavigate ? <TextAction label="업데이트" accessibilityLabel="앱 업데이트 상태 보기" icon="cloud-download-outline" onPress={() => router.push("/app-updates")} /> : null}
       {updates.phase === "idle" && updates.appliedNotice ? <TextAction label="닫기" accessibilityLabel="업데이트 적용 확인 닫기" onPress={updates.dismissAppliedNotice} /> : null}
     </View>
+    {updates.phase === "ready" && (updates.applyError || updates.applyBlockedReason) ? <Text accessibilityLiveRegion="polite" style={{ color: updates.applyError ? theme.danger : theme.secondary, fontSize: 12, lineHeight: 18, paddingBottom: 8 }}>{updates.applyError ?? updates.applyBlockedReason}</Text> : null}
   </View>;
 }

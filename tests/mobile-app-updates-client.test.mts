@@ -10,7 +10,7 @@ function setup(options: Record<string, unknown> = {}) {
   const provider = h.mount(providerModule.AppUpdatesProvider, { children: 'unchanged-child' });
   const value = () => nodes(provider.tree).find(row => row.type?.context)!.props.value;
   const refresh = () => h.flush(provider);
-  return { h, providerModule, provider, value, refresh, dispose() { h.dispose(); assert.equal(h.state.reloadCalls.length, 0, 'this feature never restarts an app, including ready/error transitions'); } };
+  return { h, providerModule, provider, value, refresh, dispose() { h.dispose(); assert.equal(h.state.reloadCalls.length, options.expectedReloads ?? 0, 'only explicit safe application may restart the app'); } };
 }
 
 function available(h: ReturnType<typeof createAppUpdatesHarness>) {
@@ -265,13 +265,15 @@ test('app updates metadata read with unknown keys or identity/time contradiction
   }
 });
 
-test('app updates footer observes the actual provider and only opens a status screen', async () => {
+test('app updates footer offers explicit apply, defer and status without restarting on discovery', async () => {
   const s = setup();
   try {
     await s.refresh(); ready(s.h); await s.refresh();
     const footer = s.h.mount(s.h.load('components/app-update-status.tsx').AppUpdateStatus, {});
     assert.match(textOf(footer.tree), /다운로드 완료.*적용 대기/);
-    const link = nodes(footer.tree).find(row => row.type === 'TextAction')!;
+    assert.ok(nodes(footer.tree).some(row => row.props?.accessibilityLabel === '업데이트 적용'));
+    assert.ok(nodes(footer.tree).some(row => row.props?.label === '나중에'));
+    const link = nodes(footer.tree).find(row => row.props?.accessibilityLabel === '앱 업데이트 상태 보기')!;
     assert.equal(link.props.accessibilityLabel, '앱 업데이트 상태 보기'); link.props.onPress();
     assert.deepEqual(s.h.state.routes, ['/app-updates']);
     assert.equal(s.h.state.checkCalls.length, 0); assert.equal(s.h.state.downloadCalls.length, 0);
@@ -296,16 +298,16 @@ test('app updates actual progress leaf distinguishes unknown from 0 and finishin
   } finally { s.dispose(); }
 });
 
-test('app updates ready page explains a manual cold restart and has no reload/download action', async () => {
+test('app updates ready page explains self restart and offers apply or later', async () => {
   const s = setup();
   try {
     await s.refresh(); ready(s.h); await s.refresh();
     const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {}), tree = s.h.renderTree(page.tree), text = textOf(tree);
-    assert.match(text, /작성 중인 내용을 저장한 뒤 앱을 완전히 종료/);
-    assert.match(text, /다음 실행에서 적용/);
+    assert.match(text, /앱이 새 버전으로 다시 시작/);
+    assert.match(text, /나중에 적용해도 다운로드한 업데이트는 유지/);
     assert.match(text, /현재 적용된 업데이트/); assert.match(text, /게시 시각/); assert.match(text, /이 기기에서 적용 확인/);
     assert.match(text, /실제 설치 시각과 다를 수/);
-    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).length, 0);
+    assert.deepEqual(nodes(tree).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).map(row => row.props.accessibilityLabel), ['업데이트 적용', '나중에']);
     assert.match(text, /앱 버전 1\.0\.5/);
   } finally { s.dispose(); }
 });
@@ -324,7 +326,7 @@ test('app updates actual page manual retry routes to check or download while bus
     s.h.state.onDownload = async () => { ready(s.h); return { isNew: true, manifest: updateB.manifest }; };
     button().props.onPress(); await tick(); await s.refresh(); page.update();
     assert.equal(s.h.state.checkCalls.length, 1); assert.equal(s.h.state.downloadCalls.length, 1); assert.equal(s.value().phase, 'ready');
-    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).length, 0);
+    assert.deepEqual(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable' && !row.props.accessibilityLabel.startsWith('뒤로')).map(row => row.props.accessibilityLabel), ['업데이트 적용', '나중에']);
   } finally { held.resolve({ isAvailable: false }); s.dispose(); }
 });
 
@@ -361,7 +363,7 @@ test('app updates ignore stale native update objects after their availability an
     assert.equal(s.value().phase, 'idle'); assert.equal(s.value().lastDownloadedAt, null);
     await s.value().download(); assert.equal(s.h.state.downloadCalls.length, 0);
     const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
-    assert.equal(nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props.accessibilityLabel === '업데이트 확인')!.props.accessibilityLabel, '업데이트 확인');
+    assert.equal(nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props?.accessibilityLabel === '업데이트 확인')!.props.accessibilityLabel, '업데이트 확인');
     assert.doesNotMatch(textOf(page.tree), /다음 실행에서 적용/);
   } finally { s.dispose(); }
 });
@@ -504,7 +506,7 @@ test('app updates redesigned page retains the failed download target and keeps c
   try {
     await s.refresh(); available(s.h); await s.refresh();
     const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
-    const action = (label: string) => nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props.accessibilityLabel === label)!;
+    const action = (label: string) => nodes(s.h.renderTree(page.tree)).find(row => row.type === 'Pressable' && row.props?.accessibilityLabel === label)!;
     s.h.state.onDownload = () => held.promise;
     const captured = action('업데이트 다운로드'); captured.props.onPress(); captured.props.onPress();
     await tick(); await s.refresh(); page.update(); assert.equal(action('다운로드 중…').props.disabled, true);
@@ -520,7 +522,7 @@ test('app updates redesigned page retains the failed download target and keeps c
     action('다운로드 다시 시도').props.onPress(); await tick(); await s.refresh(); page.update();
     assert.equal(s.h.state.checkCalls.length, 0); assert.equal(s.h.state.downloadCalls.length, 2);
     const readyText = textOf(s.h.renderTree(page.tree)); assert.match(readyText, /11111111/); assert.match(readyText, /지금 실행 중인 코드/);
-    assert.equal(nodes(s.h.renderTree(page.tree)).filter(row => row.type === 'Pressable').length, 1);
+    assert.ok(action('업데이트 적용')); assert.ok(action('나중에'));
     assert.equal(s.h.state.reloadCalls.length, 0);
   } finally { held.resolve({ isNew: false }); s.dispose(); }
 });
@@ -544,5 +546,175 @@ test('app updates redesigned progress distinguishes unknown and finishing and la
     const rows = nodes(page.tree).filter(row => row.type === ui.AppUpdatesRow);
     assert.ok(rows.length >= 5); assert.ok(rows.every(row => row.props.labelWidth === '100%'));
     assert.equal(s.h.state.reloadCalls.length, 0);
+  } finally { s.dispose(); }
+});
+
+
+test('explicit apply restarts downloaded code once and holds the mutation lock until native restart', async () => {
+  const s = setup({ expectedReloads: 1 }), held = deferred();
+  try {
+    ready(s.h); await s.refresh();
+    s.h.state.onReload = () => held.promise;
+    const captured = s.value().apply, first = captured();
+    await tick(); await s.refresh();
+    assert.equal(s.value().restarting, true); assert.equal(s.value().busy, true);
+    await Promise.all([captured(), s.value().check(), s.value().download()]);
+    assert.equal(s.h.state.reloadCalls.length, 1);
+    const safety = s.h.load('lib/app-update-safety.ts');
+    assert.throws(() => safety.beginAppUpdateRequest('POST'), /업데이트를 적용/);
+    held.resolve(); await first; await s.refresh(); await captured();
+    assert.equal(s.h.state.reloadCalls.length, 1); assert.equal(s.value().restarting, true);
+    assert.equal(s.value().current.updateId, '11111111-1111-4111-8111-111111111111');
+    assert.equal(s.value().downloaded.updateId, updateB.updateId);
+  } finally { held.resolve(); s.dispose(); }
+});
+
+test('apply is refused unless a release update is ready and native work is idle', async () => {
+  for (const options of [{}, { os: 'web' }, { development: true }]) {
+    const s = setup(options);
+    try {
+      await s.refresh(); await s.value().apply();
+      ready(s.h); s.h.state.native.isDownloading = true; await s.refresh(); await s.value().apply();
+      s.h.state.native.isDownloading = false; s.h.state.native.isRestarting = true; await s.refresh(); await s.value().apply();
+      assert.equal(s.h.state.reloadCalls.length, 0);
+    } finally { s.dispose(); }
+  }
+});
+
+test('native apply failure preserves the current screen and downloaded update with a safe retry', async () => {
+  const s = setup({ expectedReloads: 2 });
+  try {
+    ready(s.h); await s.refresh();
+    s.h.state.onReload = async () => { throw Error('secret-token native-path signed-url'); };
+    await s.value().apply(); await s.refresh();
+    assert.equal(s.value().restarting, false); assert.equal(s.value().busy, false);
+    assert.match(s.value().applyError, /현재 화면은 유지/); assert.doesNotMatch(s.value().applyError, /secret-token|native-path|signed-url/);
+    assert.equal(s.value().phase, 'ready'); assert.equal(s.provider.tree.props.children, 'unchanged-child');
+    const finish = s.h.load('lib/app-update-safety.ts').beginAppUpdateRequest('POST'); finish();
+    s.h.state.onReload = async () => {}; await s.value().apply(); await s.refresh();
+    assert.equal(s.h.state.reloadCalls.length, 2); assert.equal(s.value().applyError, null);
+  } finally { s.dispose(); }
+});
+
+test('navigation guards behind the update screen protect unsaved content and release on clean state or unmount', async () => {
+  const s = setup({ expectedReloads: 1 });
+  try {
+    s.h.mocks['expo-router/react-navigation'] = { usePreventRemove: () => {} };
+    const guard = s.h.load('lib/use-protected-navigation.ts').usePreventRemove;
+    const editor = s.h.mount(({ dirty }) => { guard(dirty, () => {}); return 'preserved-input'; }, { dirty: true });
+    ready(s.h); await s.refresh(); await s.value().apply(); await s.refresh();
+    assert.match(s.value().applyBlockedReason, /작성 중/); assert.equal(s.h.state.reloadCalls.length, 0);
+    const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
+    const applyButton = () => nodes(s.h.renderTree(page.tree)).find(row => row.props?.accessibilityLabel === '업데이트 적용')!;
+    assert.equal(applyButton().props.disabled, true); assert.equal(editor.tree, 'preserved-input');
+    editor.update({ dirty: false }); await s.refresh(); assert.equal(s.value().applyBlockedReason, null);
+    editor.update({ dirty: true }); await s.refresh(); assert.ok(s.value().applyBlockedReason);
+    editor.unmount(); await s.refresh(); assert.equal(s.value().applyBlockedReason, null);
+    await s.value().apply(); assert.equal(s.h.state.reloadCalls.length, 1);
+  } finally { s.dispose(); }
+});
+
+test('apply waits for metadata and rechecks editing or background before restarting', async () => {
+  for (const change of ['editing', 'background', 'unmount', 'native-busy', 'not-ready']) {
+    const s = setup(), held = deferred(), safety = s.h.load('lib/app-update-safety.ts'), key = Symbol();
+    try {
+      await s.refresh();
+      s.h.state.onStorage = async call => { if (call.operation === 'set') await held.promise; return call.apply(); };
+      ready(s.h); await s.refresh(); const applying = s.value().apply(); await tick();
+      assert.equal(s.h.state.reloadCalls.length, 0);
+      if (change === 'editing') safety.setAppUpdateBlocker(key, true);
+      else if (change === 'background') s.h.event('change', 'background');
+      else if (change === 'native-busy' || change === 'not-ready') { s.h.state.native = { ...s.h.state.native, ...(change === 'native-busy' ? { isDownloading: true } : { isUpdatePending: false }) }; s.provider.update(); }
+      else s.provider.unmount();
+      held.resolve(); await applying; await s.refresh();
+      assert.equal(s.h.state.reloadCalls.length, 0);
+      safety.setAppUpdateBlocker(key, false); s.h.event('change', 'active');
+      const finish = safety.beginAppUpdateRequest('POST'); finish();
+    } finally { held.resolve(); s.dispose(); }
+  }
+});
+
+test('later hides the footer while retaining downloaded code and the screen can still apply it', async () => {
+  const s = setup();
+  try {
+    ready(s.h); await s.refresh();
+    const footer = s.h.mount(s.h.load('components/app-update-status.tsx').AppUpdateStatus, {});
+    nodes(footer.tree).find(row => row.props?.label === '나중에')!.props.onPress();
+    await s.refresh(); footer.update(); assert.equal(footer.tree, null);
+    assert.equal(s.value().deferred, true); assert.equal(s.value().phase, 'ready');
+    assert.equal(s.value().downloaded.updateId, updateB.updateId);
+    const page = s.h.mount(s.h.load('app/app-updates.tsx').default, {});
+    const tree = s.h.renderTree(page.tree); assert.ok(nodes(tree).some(row => row.props?.accessibilityLabel === '업데이트 적용'));
+    nodes(tree).find(row => row.props?.accessibilityLabel === '나중에')!.props.onPress();
+    assert.deepEqual(s.h.state.navigation, [{ kind: 'replace', path: '/profile' }]);
+    ready(s.h); await s.refresh(); assert.equal(s.value().deferred, true);
+  } finally { s.dispose(); }
+});
+
+test('all mutation request boundaries block restart through response parsing and release after success, failure or abort', async () => {
+  const boundaries = [
+    ['lib/api.ts', 'apiRequest', '/documents', false],
+    ['lib/draft-request.ts', 'draftRequest', '/drafts', true],
+    ['lib/resource-request.ts', 'resourceRequest', '/resources', true],
+    ['lib/youth-request.ts', 'youthRequest', '/youth', true],
+    ['lib/lunch-cafe-request.ts', 'lunchCafeRequest', '/cafe/notes', true],
+  ];
+  for (const [file, name, path, token] of boundaries) {
+    const s = setup({ expectedReloads: 1 }), held = deferred();
+    try {
+      ready(s.h); await s.refresh();
+      const request = s.h.load(file)[name], safety = s.h.load('lib/app-update-safety.ts');
+      const invoke = options => token ? request(path, 'synthetic-token', options) : request(path, options);
+      s.h.state.onFetch = async () => ({ ok: true, status: 200, headers: new Headers({ 'Content-Type': 'application/json' }), json: () => held.promise });
+      const mutation = invoke({ method: 'POST', body: {} }); await tick(); await s.refresh();
+      await s.value().apply(); assert.equal(s.h.state.reloadCalls.length, 0); assert.match(s.value().applyBlockedReason, /요청을 처리 중/);
+      held.resolve({ ok: true }); await mutation; await s.refresh(); assert.equal(safety.getAppUpdateBlockReason(), null);
+      s.h.state.onFetch = async () => { throw Error('synthetic failure'); };
+      await assert.rejects(invoke({ method: 'POST', body: {} })); assert.equal(safety.getAppUpdateBlockReason(), null);
+      if (token) {
+        const abort = new AbortController(); abort.abort();
+        await assert.rejects(invoke({ method: 'POST', body: {}, signal: abort.signal })); assert.equal(safety.getAppUpdateBlockReason(), null);
+      }
+      await s.value().apply(); assert.equal(s.h.state.reloadCalls.length, 1);
+      const calls = s.h.state.fetchCalls.length;
+      await assert.rejects(invoke({ method: 'POST', body: {} }), /업데이트를 적용/);
+      assert.equal(s.h.state.fetchCalls.length, calls, 'no mutation is sent while JS is waiting for native restart');
+    } finally { held.resolve({ ok: true }); s.dispose(); }
+  }
+});
+
+
+test('actual account password and image forms retain input after failure and block application until cleared', async () => {
+  const s = setup();
+  try {
+    const session = { token: 'synthetic-token', request: async () => { throw Error('synthetic save failure'); }, signOut: async () => {} };
+    s.h.mocks['@/lib/session'] = { useSession: () => session };
+    s.h.mocks['@/lib/account-image'] = { pickAccountImage: async () => ({ uri: 'synthetic-image', name: 'signature.png', size: 100, release() {} }), uploadAccountImage: async () => { throw Error('synthetic upload failure'); } };
+    ready(s.h); await s.refresh();
+    const password = s.h.mount(s.h.load('components/account-password-form.tsx').AccountPasswordForm, { disabled: false, acquire: () => true, release() {} });
+    nodes(password.tree).find(row => row.props?.label === '현재 비밀번호')!.props.onChangeText('synthetic-password'); password.update();
+    nodes(password.tree).find(row => row.props?.label === '비밀번호 변경')!.props.onPress(); await s.h.flush(password); await s.refresh();
+    assert.equal(nodes(password.tree).find(row => row.props?.label === '현재 비밀번호')!.props.value, 'synthetic-password');
+    assert.ok(s.value().applyBlockedReason); await s.value().apply(); assert.equal(s.h.state.reloadCalls.length, 0);
+    password.unmount(); await s.refresh(); assert.equal(s.value().applyBlockedReason, null);
+    const image = s.h.mount(s.h.load('components/account-image-editor.tsx').AccountImageEditor, { kind: 'signature', info: { exists: false }, disabled: false, acquire: () => true, release() {}, onChange() {} });
+    nodes(image.tree).find(row => row.props?.label === '이미지 선택')!.props.onPress(); await s.h.flush(image);
+    nodes(image.tree).find(row => row.props?.label === '이미지 저장')!.props.onPress(); await s.h.flush(image); await s.refresh();
+    assert.match(textOf(image.tree), /signature.png/); assert.ok(s.value().applyBlockedReason); await s.value().apply();
+    nodes(image.tree).find(row => row.props?.label === '선택 취소')!.props.onPress(); image.update(); await s.refresh();
+    assert.equal(s.value().applyBlockedReason, null); assert.equal(s.h.state.reloadCalls.length, 0);
+  } finally { s.dispose(); }
+});
+
+
+test('a manually fetched rollback can apply before the native pending event without claiming the current code changed', async () => {
+  const s = setup({ expectedReloads: 1 });
+  try {
+    available(s.h); await s.refresh();
+    s.h.state.onDownload = async () => ({ isNew: false, isRollBackToEmbedded: true });
+    await s.value().download(); await s.refresh();
+    assert.equal(s.h.state.native.isUpdatePending, false); assert.equal(s.value().downloaded.rollback, true);
+    assert.equal(s.value().current.updateId, '11111111-1111-4111-8111-111111111111');
+    await s.value().apply(); assert.equal(s.h.state.reloadCalls.length, 1);
   } finally { s.dispose(); }
 });

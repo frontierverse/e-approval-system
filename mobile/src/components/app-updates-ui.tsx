@@ -30,14 +30,14 @@ export function AppUpdatesRow({ label, labelWidth, children, first, muted }: { l
     <Text selectable style={{ flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 0, color: muted || children === "확인 기록 없음" ? theme.secondary : theme.text, fontSize: 14, lineHeight: 21, fontWeight: "500", fontVariant: ["tabular-nums"] }}>{children}</Text>
   </View>;
 }
-export function AppUpdatesAction({ label, onPress, disabled, busy, secondary }: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; secondary?: boolean }) {
+export function AppUpdatesAction({ label, onPress, disabled, busy, secondary, icon = "refresh-cw" }: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean; secondary?: boolean; icon?: "refresh-cw" | "clock" }) {
   const theme = useHomeTheme(), [focused, setFocused] = useState(false);
   const color = secondary ? theme.accent : busy ? theme.text : "#FFFFFF";
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, busy: !!busy }} disabled={disabled} onPress={onPress}
     onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
     style={({ pressed }) => [styles.action, secondary && styles.secondary, { backgroundColor: secondary ? "transparent" : busy ? theme.surfaceMuted : theme.actionFill,
       borderColor: focused ? theme.accent : secondary ? "transparent" : busy ? theme.border : theme.actionFill, borderWidth: focused ? 2 : 1, opacity: pressed && !disabled ? .8 : 1 }]}>
-    {busy ? <View accessible={false} aria-hidden><ActivityIndicator size="small" color={color} /></View> : secondary ? <Feather name="refresh-cw" size={15} color={color} accessible={false} aria-hidden /> : null}
+    {busy ? <View accessible={false} aria-hidden><ActivityIndicator size="small" color={color} /></View> : secondary ? <Feather name={icon} size={15} color={color} accessible={false} aria-hidden /> : null}
     <Text style={{ flexShrink: 1, color, fontSize: secondary ? 14 : 15, lineHeight: 21, fontWeight: "700", textAlign: "center" }}>{label}</Text>
   </Pressable>;
 }

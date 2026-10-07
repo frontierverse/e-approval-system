@@ -1,3 +1,4 @@
+import { useAppUpdateBlocker } from "@/lib/use-app-update-blocker";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { AccountFeedback, focusAccountNotice } from "@/components/account-feedback";
@@ -29,6 +30,7 @@ export function AccountImageEditor({ kind, info, disabled, acquire, release, onC
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  useAppUpdateBlocker(!!selected || pending !== null || confirming);
   const alive = useRef(true);
   const confirmButton = useRef<View>(null);
   const deleteButton = useRef<View>(null);

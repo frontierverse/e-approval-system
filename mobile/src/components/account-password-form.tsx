@@ -1,3 +1,4 @@
+import { useAppUpdateBlocker } from "@/lib/use-app-update-blocker";
 import { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 import { AccountFeedback } from "@/components/account-feedback";
@@ -21,6 +22,7 @@ export function AccountPasswordForm({ disabled, acquire, release }: Props) {
   const currentInput = useRef<TextInput>(null);
   const newInput = useRef<TextInput>(null);
   const confirmInput = useRef<TextInput>(null);
+  useAppUpdateBlocker(!!currentPassword || !!newPassword || !!confirmPassword || pending);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
