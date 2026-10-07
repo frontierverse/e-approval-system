@@ -122,7 +122,17 @@ async function sendPending(notificationId: string | undefined, eventIds: string[
     let payload: ClaimedDelivery["payload"] | null = null;
     if (row.event) {
       const target = await resolveStaffPushTarget(prisma, row.event, row.subscription.session.user, true, now);
-      if (target) payload = pushEventPayload(row.event);
+      if (target) {
+        if (row.event.kind === "CHAT_MESSAGE") {
+          // Read text previews only after current event ownership/session checks,
+          // then recheck the recipient/unread state in the content query itself.
+          const message = await prisma.staffChatMessage.findFirst({
+            where: { id: row.event.targetId, recipientId: row.subscription.session.user.id, readAt: null, attachment: null },
+            select: { body: true, sender: { select: { name: true } } },
+          });
+          if (message) payload = pushEventPayload(row.event, { senderName: message.sender.name, messageBody: message.body });
+        } else payload = pushEventPayload(row.event);
+      }
     } else if (row.notification && row.notification.userId === row.subscription.session.user.id) {
       const n = row.notification;
       const currentRequest = n.type !== "APPROVAL_REQUESTED" || (!n.readAt && ["SUBMITTED", "IN_PROGRESS"].includes(n.document.status) && n.document.approvalSteps.some(step => step.approverId === n.userId && step.status === "PENDING"));

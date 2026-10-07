@@ -28,7 +28,7 @@ const { createDueStaffPushEvents } = await import(compile("mobile-push-reminders
 after(() => { delete (globalThis as unknown as Row)[key]; });
 
 // Synthetic recipients and tokens only. No outbound Expo request is made.
-test("every work push has a generic body, opaque event ID, work channel and default sound", () => {
+test("work push defaults keep generic bodies, opaque event IDs, work channel and default sound", () => {
   for (const kind of Object.keys(pushEventBodies)) {
     const payload = pushEventPayload({ id: "synthetic-event", kind });
     assert(payload); assert.equal(payload.sound, "default"); assert.equal(payload.channelId, "work");
@@ -107,14 +107,22 @@ function match(row: Row, where: Row = {}): boolean {
 }
 function senderFixture() {
   const now = new Date(), sent: Row[][] = [], rows: Row[] = [];
-  let mode = "ok", readAt: Date | null = null;
+  let mode = "ok", readAt: Date | null = null, previewUnavailable = false;
+  const previewLookups: Row[] = [];
   Object.assign(harness.db, {
     mobilePushDelivery: {
       async findMany({where}:Row) { return rows.filter(row => match(row,where)).map(row => structuredClone(row)); },
       async updateMany({where,data}:Row) { const found=rows.filter(row=>match(row,where));for(const row of found)for(const[key,value]of Object.entries(data))row[key]=value&&typeof value==="object"&&"increment"in value?row[key]+value.increment:value;return{count:found.length}; },
     },
     mobilePushSubscription: { async deleteMany({where}:Row) { for(const row of rows.filter(row=>where.id.in.includes(row.subscriptionId)))row.failedAt=now;return{count:1}; } },
-    staffChatMessage: { async findFirst() { return {senderId:"peer",readAt}; } },
+    staffChatMessage: { async findFirst({where,select}:Row) {
+      if (select.body) {
+        previewLookups.push({where,select});
+        assert.equal(where.id,"message");assert.equal(where.recipientId,"recipient");assert.equal(where.readAt,null);assert.equal(where.attachment,null);
+        return readAt || previewUnavailable ? null : {body:"회의 자료 확인 부탁드립니다.",sender:{name:"테스트 직원"}};
+      }
+      return {senderId:"peer",readAt};
+    } },
   });
   harness.fetch=async(_url,options)=>{const data=JSON.parse(options.body);sent.push(data);if(mode==="http-error")return new Response("",{status:503});return Response.json({data:data.map((_:unknown,i:number)=>mode==="device-gone"?{status:"error",details:{error:"DeviceNotRegistered"}}:{status:"ok",id:`ticket-${i}`})});};
   function add(id: string, approval=false, userId="recipient") {
@@ -124,7 +132,7 @@ function senderFixture() {
       subscription:{id:`sub-${id}`,expoToken:"ExpoPushToken[synthetic]",session:{expiresAt:new Date(+now+60000),user:{id:userId,status:"ACTIVE",role:"USER",resignationDate:null}}}};
     rows.push(row);return row;
   }
-  return{rows,sent,add,setMode:(value:string)=>{mode=value;},setRead:()=>{readAt=now;}};
+  return{rows,sent,add,previewLookups,hidePreview:()=>{previewUnavailable=true;},setMode:(value:string)=>{mode=value;},setRead:()=>{readAt=now;}};
 }
 test("real sender atomically claims mixed approval/work batches and repeated concurrent dispatch sends once",async()=>{
   const f=senderFixture();f.add("work");f.add("approval",true);
@@ -169,4 +177,36 @@ test("daily timers use Korea time, deduplicate runs and expire summaries after w
 test("opening an owned work event still rejects a resigned account before target lookup",async()=>{
   Object.assign(harness.db,{user:{async findFirst(){return null;}},async $transaction(fn:(tx:Row)=>Promise<unknown>){return fn(harness.db);},mobilePushEvent:{async findFirst(){throw Error("must not inspect a resigned account event");}}});
   assert.equal(await openStaffPushEvent({id:"recipient",role:"USER"},"event"),null);
+});
+
+test("text chat previews show sender and bounded text while file and work data stay generic",()=>{
+  const preview={senderName:"  테스트\n직원  ",messageBody:"  회의 자료\r\n확인\t부탁드립니다.  "};
+  const payload=pushEventPayload({id:"event",kind:"CHAT_MESSAGE"},preview)!;
+  assert.equal(payload.title,"바자울 · 테스트 직원");assert.equal(payload.body,"회의 자료 확인 부탁드립니다.");
+  assert.deepEqual(payload.data,{pushEventId:"event"});
+  for(const kind of ["CHAT_FILE","RESOURCE_UPDATED","TASK_UPDATED"]){
+    const other=pushEventPayload({id:"event",kind},preview)!;
+    assert.equal(other.title,"바자울");assert.equal(other.body,pushEventBodies[kind as keyof typeof pushEventBodies]);
+  }
+});
+test("chat preview truncation preserves Korean, complete emoji and the UTF-8 budget",()=>{
+  const segments=new Intl.Segmenter("ko",{granularity:"grapheme"});
+  for(const body of ["가".repeat(121),"👨‍👩‍👧‍👦".repeat(121),"a"+"\u0301".repeat(1000)]){
+    const payload=pushEventPayload({id:"event",kind:"CHAT_MESSAGE"},{senderName:"👨‍👩‍👧‍👦".repeat(100),messageBody:body})!;
+    assert(payload.body.endsWith("…"));assert(Array.from(segments.segment(payload.body)).length<=120);
+    assert(Buffer.byteLength(payload.body,"utf8")<=480);assert(Buffer.byteLength(JSON.stringify(payload),"utf8")<1024);
+    if(body.startsWith("👨"))assert.match(payload.body,/^(👨‍👩‍👧‍👦)+…$/u);
+  }
+  assert.equal(pushEventPayload({id:"event",kind:"CHAT_MESSAGE"},{senderName:"\u202e직원",messageBody:"회의\u2066 안내\u0000"})!.body,"회의 안내");
+});
+test("real sender includes text preview only after recipient checks and rejects stale preview content",async()=>{
+  const f=senderFixture();f.add("preview");await dispatchMobilePushDeliveries({checkReceipts:false});
+  assert.equal(f.sent[0]![0]!.title,"바자울 · 테스트 직원");assert.equal(f.sent[0]![0]!.body,"회의 자료 확인 부탁드립니다.");
+  assert.equal(f.previewLookups.length,1);
+  const file=f.add("file");file.event.kind="CHAT_FILE";
+  await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.previewLookups.length,1);assert.equal(f.sent[1]![0]!.body,pushEventBodies.CHAT_FILE);
+  const wrong=f.add("wrong-owner");wrong.event.userId="other";
+  await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.previewLookups.length,1);assert(wrong.failedAt);
+  const stale=f.add("read-between-queries");f.hidePreview();
+  await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.sent.length,2);assert(stale.failedAt);
 });

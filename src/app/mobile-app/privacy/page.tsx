@@ -22,7 +22,7 @@ const purposes = [
   ["결재·업무 기록", "결재 문서·댓글·보고·일지·일정·할 일, 작성자·결재자와 처리 이력, 자료실 자료·첨부파일 및 파일명·형식·크기", "전자결재, 업무 수행·보고·자료 공유 및 처리 이력 확인"],
   ["직원 업무 대화", "대화 내용, 보낸 직원·대화방, 전송·읽음 시각", "직원 간 업무 연락과 협업"],
   ["청소년·보호자 기록", "청소년 이름·생년월일·나이·연락처, 입소·퇴소·상담·사후관리 날짜, 가족·보호자 이름·관계·연락처, 생활·학습·일정·특이사항·보고, 결정문·첨부파일", "권한을 가진 직원의 보호·상담·생활·학습·사후관리 업무"],
-  ["접속·알림·앱 유지", "사용자 식별자, 로그인·접속·업무 처리 시각과 IP 주소(기록되는 경우), 세션 토큰 해시·만료일, 알림 토큰·처리 이력, 업데이트 요청의 운영체제·무작위 식별 토큰·IP 주소 등 통신 정보", "로그인 유지, 접근 통제·보안 점검, 결재 알림 및 앱 업데이트 제공"],
+  ["접속·알림·앱 유지", "사용자 식별자, 로그인·접속·업무 처리 시각과 IP 주소(기록되는 경우), 세션 토큰 해시·만료일, 알림 토큰·처리 이력, 업데이트 요청의 운영체제·무작위 식별 토큰·IP 주소 등 통신 정보", "로그인 유지, 접근 통제·보안 점검, 결재·직원 채팅·할 일·일정 등 업무 알림 및 앱 업데이트 제공"],
 ];
 const retention = [
   ["직원 계정·인사 기록", "재직 중 및 퇴직일부터 3년. 퇴직 시 로그인 권한을 해제하고, 문서 증빙에 필요한 작성자·결재자 식별 정보는 해당 문서의 보존 기간까지 분리하여 보관합니다."],
@@ -69,7 +69,7 @@ export default function MobileAppPrivacyPage() {
         <dl className="divide-y divide-[var(--border)]">
           <div className="py-3"><dt className="font-semibold">Vercel Inc. — 업무 서버 운영</dt><dd>웹·API 요청에 포함된 업무 정보와 접속 정보. 서버 실행 리전은 대한민국 서울이며, 서비스의 네트워크·운영·지원 과정에서 미국 등 국외 인프라가 사용될 수 있습니다. 업무 기록은 기관 보관 기준을, 서비스 운영 기록은 제공업체의 보존 기준을 따릅니다. 문의: privacy@vercel.com.</dd><dd><a href="https://vercel.com/legal/privacy-notice" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Vercel 개인정보 안내</a></dd></div>
           <div className="py-3"><dt className="font-semibold">Supabase Pte. Ltd. — 데이터베이스·파일 저장</dt><dd>직원 계정·업무·청소년 기록 및 첨부파일. 주 저장 리전은 대한민국 서울이며, 싱가포르 사업자와 미국 지원 법인 등 서비스 운영·지원 주체가 관여할 수 있습니다. 서비스 이용 중 기관 보관 기준에 따라 보관·삭제하며, 계약 종료 후 반환·삭제는 서비스 계약의 조건을 따릅니다. 문의: privacy@supabase.io.</dd><dd><a href="https://supabase.com/legal/customer-resources/data-processing-addendum" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Supabase 처리·보존 안내</a></dd></div>
-          <div className="py-3"><dt className="font-semibold">650 Industries, Inc. (Expo) — 결재 알림·앱 업데이트</dt><dd>미국 소재 서비스입니다. 알림을 켜면 Expo 알림 토큰, 일반적인 결재 알림 문구와 문서 내부 식별자를 알림 발생 시 HTTPS로 전송합니다. 현재 알림 문구에는 문서 제목·본문을 넣지 않습니다. Expo는 전달 대기 중 알림 정보를 일시 처리하고 Apple APNs(iPhone) 또는 Google FCM(Android)에 전달합니다. 업데이트 요청 시 운영체제와 무작위 식별 토큰, IP 주소 등 통신 정보가 전송되며, 제공업체는 서비스 제공에 필요한 기간 동안 처리합니다. 문의는 Expo 공식 개인정보 안내의 문의 양식으로 접수할 수 있습니다.</dd><dd><a href="https://expo.dev/privacy" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Expo 개인정보 안내</a></dd></div>
+          <div className="py-3"><dt className="font-semibold">650 Industries, Inc. (Expo) — 업무 알림·앱 업데이트</dt><dd>미국 소재 서비스입니다. 알림을 켜면 Expo 알림 토큰, 알림 문구와 문서 또는 알림의 내부 식별자를 알림 발생 시 HTTPS로 전송합니다. 직원 텍스트 채팅 알림의 미리보기에는 보낸 직원 이름과 메시지 앞부분이 포함됩니다. 파일 도착과 다른 업무 알림은 업무 종류를 안내하며 문서 제목·본문이나 첨부파일 내용을 넣지 않습니다. 잠금 화면의 미리보기 표시 여부는 기기 알림 설정에 따릅니다. Expo는 전달 대기 중 알림 정보를 일시 처리하고 Apple APNs(iPhone) 또는 Google FCM(Android)에 전달합니다. 업데이트 요청 시 운영체제와 무작위 식별 토큰, IP 주소 등 통신 정보가 전송되며, 제공업체는 서비스 제공에 필요한 기간 동안 처리합니다. 문의는 Expo 공식 개인정보 안내의 문의 양식으로 접수할 수 있습니다.</dd><dd><a href="https://expo.dev/privacy" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Expo 개인정보 안내</a></dd></div>
           <div className="py-3"><dt className="font-semibold">Apple Inc.·Google LLC — 기기 알림 전달</dt><dd>미국 소재 사업자의 APNs·FCM이 기기로 알림을 전달하는 과정에서 기기 알림 식별자와 알림 내용을 처리합니다. 보존·삭제 조건은 각 알림 서비스의 정책을 따릅니다.</dd><dd className="flex flex-wrap gap-x-4"><a href="https://www.apple.com/legal/privacy/" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Apple 개인정보 안내</a><a href="https://policies.google.com/privacy" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Google 개인정보 안내</a></dd></div>
         </dl>
         <p>국외 처리가 필요한 경우 기관은 적용되는 법적 근거와 고지·동의 요건을 갖추어 처리합니다. 알림은 기기 설정이나 앱의 알림 설정에서 끌 수 있고, 알림을 꺼도 기본 업무 기능을 이용할 수 있습니다. 국외 처리 관련 문의·처리정지 요청은 아래 담당 창구로 접수할 수 있으며, 필수 서버·업데이트 처리를 중단하면 해당 앱 서비스 이용이 제한될 수 있습니다.</p>
@@ -81,7 +81,7 @@ export default function MobileAppPrivacyPage() {
       </Section>
       <Section id="device" title="5. 기기 저장·접근 권한·쿠키">
         <p>앱은 로그인 토큰과 작성 복구 정보를 기기의 보안 저장소에 저장하고, 문서 표시·첨부를 위한 임시 파일을 사용할 수 있습니다. 로그아웃·인증 만료·계정 변경 시 관련 임시 정보를 정리합니다. 기기에서 앱을 삭제하는 것과 기관 서버의 업무 기록을 삭제하는 것은 별도 절차입니다.</p>
-        <p>알림 권한은 결재 알림에 사용하고, 파일 선택·공유는 이용자가 해당 기능을 실행할 때 사용합니다. 선택 권한을 거부하면 관련 기능이 제한되며 기본 로그인·업무 조회는 이용할 수 있습니다.</p>
+        <p>알림 권한은 결재·직원 채팅·할 일·일정 등 업무 알림에 사용하고, 파일 선택·공유는 이용자가 해당 기능을 실행할 때 사용합니다. 선택 권한을 거부하면 관련 기능이 제한되며 기본 로그인·업무 조회는 이용할 수 있습니다.</p>
         <p>웹 시스템은 로그인 세션 쿠키와 화면 테마 저장을 사용합니다. 브라우저 설정에서 쿠키를 차단·삭제할 수 있으나 로그인 유지가 제한될 수 있습니다. 로그인 유효기간과 개인정보 보관 기간은 서로 다릅니다. 앱은 광고 목적의 추적 기능을 제공하지 않습니다.</p>
       </Section>
       <Section id="security" title="6. 개인정보 보호 조치">
