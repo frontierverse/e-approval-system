@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
-import { usePreventRemove } from "expo-router/react-navigation";
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Keyboard, Platform, Pressable, RefreshControl, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";

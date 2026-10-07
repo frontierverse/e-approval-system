@@ -1,3 +1,4 @@
+import { useAppUpdateBlocker } from "@/lib/use-app-update-blocker";
 import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
 import { KeyboardScreen } from "@/components/keyboard-screen";
 import { useState } from "react";
@@ -14,6 +15,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(sessionError);
+  useAppUpdateBlocker(!!name || !!password || pending);
   const submit = async () => {
     if (pending) return;
     if (!name.trim() || !password) { setError("이름과 비밀번호를 입력하세요."); return; }

@@ -6,7 +6,8 @@ export function loadChatFileModule(relative, dependencies, boundary = {}) {
   const source = readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const cjsModule = { exports: {} };
-  const require = path => { if (!(path in dependencies)) throw new Error(`Missing lexical dependency: ${path}`); return dependencies[path]; };
+  let updateSafety;
+  const require = path => { if (path === './app-update-safety') return updateSafety ??= loadChatFileModule('mobile/src/lib/app-update-safety.ts', {}); if (!(path in dependencies)) throw new Error(`Missing lexical dependency: ${path}`); return dependencies[path]; };
   const names = Object.keys(boundary);
   new Function('require', 'exports', 'module', ...names, output)(require, cjsModule.exports, cjsModule, ...names.map(name => boundary[name]));
   return cjsModule.exports;

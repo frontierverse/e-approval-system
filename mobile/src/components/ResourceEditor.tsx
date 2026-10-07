@@ -1,7 +1,8 @@
 import { KeyboardScrollView } from "@/components/keyboard-scroll-view";
 import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, useFocusEffect } from "expo-router";
-import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

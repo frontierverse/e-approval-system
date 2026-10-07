@@ -17,7 +17,8 @@ function evaluate(source, imports) {
   new Function('require', 'module', 'exports', code)(name => { assert(Object.hasOwn(imports, name), 'unexpected import ' + name); return imports[name]; }, evaluated, evaluated.exports);
   return evaluated.exports;
 }
-const api = evaluate(sources['mobile/src/lib/api.ts'], {});
+const updateSafety = evaluate(readFileSync(repo + '/mobile/src/lib/app-update-safety.ts', 'utf8'), {});
+const api = evaluate(sources['mobile/src/lib/api.ts'], { './app-update-safety': updateSafety });
 const core = evaluate(sources['mobile/src/lib/daily-reports.ts'], {});
 const jsx = (type, props, key) => ({ type, props: props ?? {}, key });
 const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));

@@ -6,6 +6,8 @@
 
 2026-10-06 Claude Version20의 앱 업데이트 v1을 실제 화면에 반영했다. 자체52px 헤더와 상태·현재 실행 코드·기록 세 그룹, 오류 및 완료 포커스와 진행률 접근 값을 검수했다. 기능 계약은 유지한다. 원본과 실제 화면·검수 한계는 [구현 검수](design/mobile-app-updates-v1/design-qa.md)에 기록했다.
 
+2026-10-07 사용자의 요청에 따라 명시적 적용과 나중에 동작을 추가했다. [적용 흐름 검수](design/mobile-update-apply/design-qa.md)에 화면과 데이터 보호 검증을 기록했다.
+
 ## 근거
 
 - `mobile/src/app/app-updates.tsx`: 상태/주 행동, 실행 코드 정보, 확인·다운로드 기록.
@@ -38,6 +40,8 @@ type AppUpdatesValue = {
   error: string | null; storageError: string | null;
   appliedNotice: boolean; dismissAppliedNotice: () => void;
   check: () => Promise<void>; download: () => Promise<void>;
+  apply: () => Promise<void>; defer: () => void;
+  deferred: boolean; restarting: boolean; applyError: string | null; applyBlockedReason: string | null;
 };
 ```
 
@@ -55,7 +59,7 @@ phase 우선순위는 disabled → ready → downloading → busy/checking → e
 | downloading 100% | 다운로드 100% · 마무리 중 | 완료로 단정하지 않음 |
 | available | 새 업데이트 다운로드 가능 | 업데이트 다운로드; busy가 아니면 새 업데이트 다시 확인 |
 | error | 업데이트 확인 필요 | available이 있으면 다운로드 다시 시도, 없으면 업데이트 다시 확인 |
-| ready | 다운로드 완료 · 적용 대기 | 확인·다운로드·재시작 행동 없음 |
+| ready | 다운로드 완료 · 적용 대기 | 업데이트 적용 / 나중에; 미저장 입력·진행 중 요청·native busy이면 적용 잠금 |
 | disabled | 설치한 앱에서 확인할 수 있습니다 | 네이티브 행동 없음 |
 
 기존 제목을 유지하거나 의미가 동일한 짧은 문구로 표현할 수 있다. 현재 계약은 idle을 ‘최신’으로 확정하지 않는다. lastCheckAt도 성공 기록이 아니라 **확인 시도**다.
@@ -74,13 +78,15 @@ check는 `checkForUpdateAsync()`에서 새 업데이트나 rollback이 확인되
 
 progress는 다운로드 중 관찰된 유한한 0~1만 사용한다. 그 밖은 null이다. 0은 0%, null은 미확인이다. 표시 백분율은 `Math.floor(progress * 100)`이고 progressbar에는 0~100 접근 값을 준다. 100%에서 ready를 추정하지 않는다.
 
-ready는 native `isUpdatePending` 또는 확인된 fetched 결과다. downloaded는 준비된 코드이며 current는 **현재 실행 중인 코드**다. 다운로드가 성공해도 current ID·게시 시각·observedAt를 새 코드로 바꾸지 않는다. 화면에 `reloadAsync`, 강제 종료, 즉시 재시작 기능이 없다.
+ready는 native `isUpdatePending` 또는 확인된 fetched 결과다. downloaded는 준비된 코드이며 current는 **현재 실행 중인 코드**다. 다운로드가 성공해도 current ID·게시 시각·observedAt를 새 코드로 바꾸지 않는다. 사용자가 **업데이트 적용**을 누르면 Expo SDK 57의 `reloadAsync()`로 준비된 코드를 실행한다. 다운로드만으로 재시작하지 않는다.
 
-ready 안내: **작성 중인 내용을 저장한 뒤 앱을 완전히 종료하고 다시 실행하세요. 새 업데이트는 다음 실행에서 적용됩니다.**
+ready 안내: **업데이트 적용을 누르면 앱이 새 버전으로 다시 시작됩니다. 나중에 적용해도 다운로드한 업데이트는 유지됩니다.**
+
+적용은 foreground에서만 허용한다. 기존 화면 이탈 방지 조건과 계정·로그인 입력을 공용 blocker로 관찰하고, 다섯 요청 경계는 상태 변경 요청의 응답 해석까지 보호한다. metadata 저장 뒤 조건을 다시 확인하며 적용 중 새 상태 변경 요청·중복 적용을 막는다. native 재시작이 성공하면 이후 JS 상태를 갱신하지 않는다. 실패하면 화면·입력·다운로드를 유지하고 재시도를 허용한다. **나중에**는 현재 다운로드 안내를 이번 실행에서 숨기며 내 정보의 업데이트 화면에서는 계속 적용할 수 있다.
 
 disabled 안내: **웹·개발 화면에서는 앱 업데이트를 확인하거나 다운로드하지 않습니다.**
 
-rollback 준비도 다음 실행을 기다리는 다운로드 상태이며 지금 실행 중인 코드가 즉시 기본 버전이 되었다고 표시하지 않는다. current.emergency=true는 실제 기본 버전 비상 실행 안내다: **업데이트를 실행하지 못해 기본 버전으로 복구해 실행했습니다. 네트워크를 확인하고 업데이트를 다시 확인하세요.**
+rollback 준비도 사용자가 적용하거나 다음 실행을 기다리는 다운로드 상태이며 지금 실행 중인 코드가 즉시 기본 버전이 되었다고 표시하지 않는다. current.emergency=true는 실제 기본 버전 비상 실행 안내다: **업데이트를 실행하지 못해 기본 버전으로 복구해 실행했습니다. 네트워크를 확인하고 업데이트를 다시 확인하세요.**
 
 ## 표시·시각·기기 보관
 

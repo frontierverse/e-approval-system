@@ -17,7 +17,8 @@ function evaluate(source, imports, fileName = "source.tsx") {
   new Function('require', 'module', 'exports', code)(name => { assert(Object.hasOwn(imports, name), 'unexpected import ' + name); return imports[name]; }, evaluated, evaluated.exports);
   return evaluated.exports;
 }
-const api = evaluate(sources.api, {}, sourcePaths.api);
+const updateSafety = evaluate(readFileSync(repo + '/mobile/src/lib/app-update-safety.ts', 'utf8'), {});
+const api = evaluate(sources.api, { './app-update-safety': updateSafety }, sourcePaths.api);
 const core = evaluate(sources.core, {}, sourcePaths.core);
 const jsx = (type, props, key) => ({ type, props: props ?? {}, key });
 const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));

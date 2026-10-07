@@ -28,6 +28,8 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
     updatesEnabled: true, storeAvailable: true,
     onCheck: async () => ({ isAvailable: false, isRollBackToEmbedded: false }),
     onDownload: async () => ({ isNew: true, isRollBackToEmbedded: false, manifest: { id: '22222222-2222-4222-8222-222222222222', createdAt: '2026-10-04T01:00:00.000Z' } }),
+    onReload: async () => {},
+    fetchCalls: [], onFetch: async () => { throw Error("unexpected fetch"); }, environment: { EXPO_PUBLIC_API_URL: "https://synthetic.invalid" },
     onStorage: null,
   };
   const cell = kind => { const index = active.cursor++; const row = active.cells[index] ??= { kind }; assert.equal(row.kind, kind); return row; };
@@ -52,7 +54,7 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
     useUpdates: () => state.native,
     checkForUpdateAsync: async (...args) => { state.checkCalls.push(args); return state.onCheck(...args); },
     fetchUpdateAsync: async (...args) => { state.downloadCalls.push(args); return state.onDownload(...args); },
-    reloadAsync: async (...args) => { state.reloadCalls.push(args); throw Error('Automatic or manual reload is outside this feature scope'); },
+    reloadAsync: async (...args) => { state.reloadCalls.push(args); return state.onReload(...args); },
   };
   const storage = async (operation, key, value, options) => {
     const call = { operation, key, value, options, apply() { if (operation === 'set') disk.set(key, value); if (operation === 'remove') disk.delete(key); return operation === 'get' ? disk.get(key) ?? null : undefined; } };
@@ -92,12 +94,12 @@ export function createAppUpdatesHarness({ os = 'android', development = false, d
     const source = readFileSync(new URL(file, root), 'utf8') + (expose ? '\nexport const QAExposed = ' + expose + ';\n' : '');
     const output = ts.transpileModule(source, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
     const evaluated = { exports: {} }; modules.set(key, evaluated.exports);
-    new Function('require', 'module', 'exports', 'Date', 'setTimeout', 'clearTimeout', '__DEV__', output)(name => {
+    new Function('require', 'module', 'exports', 'Date', 'setTimeout', 'clearTimeout', '__DEV__', 'fetch', 'process', output)(name => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (name.startsWith('@/')) return load(name.slice(2));
       if (name.startsWith('.')) return load(new URL(name, 'file:///' + file).pathname.slice(1));
       return nativeRequire(name);
-    }, evaluated, evaluated.exports, ScopedDate, (fn, delay) => { const id = ++state.nextTimer; state.timers.set(id, { fn, delay }); return id; }, id => state.timers.delete(id), development);
+    }, evaluated, evaluated.exports, ScopedDate, (fn, delay) => { const id = ++state.nextTimer; state.timers.set(id, { fn, delay }); return id; }, id => state.timers.delete(id), development, (...args) => { state.fetchCalls.push(args); return state.onFetch(...args); }, { env: state.environment });
     modules.set(key, evaluated.exports); return evaluated.exports;
   }
   class Hooks {

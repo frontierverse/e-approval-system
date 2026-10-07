@@ -47,13 +47,19 @@ export default function AppUpdatesScreen() {
           <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
             <View accessible={false} aria-hidden style={[styles.icon, { backgroundColor: iconBackground }]}><Feather name={icon} size={18} color={iconColor} /></View>
             <View style={{ flex: 1, minWidth: 0, gap: 2, paddingTop: 6 }}>
-              <AppUpdatesStatusTitle ready={phase === "ready"}>{appUpdateTitle(phase, updates.progress)}</AppUpdatesStatusTitle>
+              <AppUpdatesStatusTitle ready={phase === "ready"}>{updates.restarting ? "업데이트 적용 중" : appUpdateTitle(phase, updates.progress)}</AppUpdatesStatusTitle>
               {description ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>{description}</Text> : null}
             </View>
           </View>
           {phase === "downloading" ? <AppUpdatesProgress progress={updates.progress} /> : null}
           {phase === "error" && updates.error ? <AppUpdatesNotice kind="error">{updates.error}</AppUpdatesNotice> : null}
-          {phase === "ready" ? <Text style={[styles.guide, { backgroundColor: theme.surfaceMuted, color: theme.text }]}>작성 중인 내용을 저장한 뒤 앱을 완전히 종료하고 다시 실행하세요. 새 업데이트는 다음 실행에서 적용됩니다.</Text> : null}
+          {phase === "ready" ? <Text style={[styles.guide, { backgroundColor: theme.surfaceMuted, color: theme.text }]}>업데이트 적용을 누르면 앱이 새 버전으로 다시 시작됩니다. 나중에 적용해도 다운로드한 업데이트는 유지됩니다.</Text> : null}
+          {phase === "ready" ? <View style={{ gap: 4 }}>
+            {updates.applyBlockedReason ? <Text accessibilityLiveRegion="polite" style={{ color: theme.secondary, fontSize: 13, lineHeight: 20 }}>{updates.applyBlockedReason}</Text> : null}
+            {updates.applyError ? <AppUpdatesNotice kind="error">{updates.applyError}</AppUpdatesNotice> : null}
+            <AppUpdatesAction label={updates.restarting ? "적용 중…" : "업데이트 적용"} busy={updates.restarting} disabled={busy || !!updates.applyBlockedReason} onPress={() => void updates.apply()} />
+            <AppUpdatesAction label="나중에" secondary icon="clock" disabled={busy} onPress={() => { updates.defer(); if (router.canGoBack()) router.back(); else router.replace(token ? "/profile" : "/login"); }} />
+          </View> : null}
           {next ? <AppUpdatesRow label={next.rollback ? "준비된 업데이트" : "새 업데이트 게시 시각"} labelWidth={labelWidth}>{next.rollback ? "기본 버전으로 되돌리기" : formatAppUpdateTime(next.publishedAt)}</AppUpdatesRow> : null}
           {updates.enabled && phase !== "ready" ? <View style={{ gap: 2 }}>
             <AppUpdatesAction label={actionLabel} busy={busy} disabled={busy} onPress={() => void (download ? updates.download() : updates.check())} />
@@ -64,7 +70,7 @@ export default function AppUpdatesScreen() {
       <AppUpdatesSection title="현재 적용된 업데이트" extra="지금 실행 중인 코드">
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {updates.current.emergency ? <View style={{ marginTop: 10 }}><AppUpdatesNotice kind="emergency">업데이트를 실행하지 못해 기본 버전으로 복구해 실행했습니다. 네트워크를 확인하고 업데이트를 다시 확인하세요.</AppUpdatesNotice></View> : null}
-          {phase === "ready" ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20, marginTop: 10 }}>다운로드한 업데이트는 다음 실행부터 적용돼요. 아래 값은 지금 실행 중인 코드예요.</Text> : null}
+          {phase === "ready" ? <Text style={{ color: theme.secondary, fontSize: 13, lineHeight: 20, marginTop: 10 }}>아래 값은 지금 실행 중인 코드예요. 업데이트 적용 후 새 코드의 실행을 확인합니다.</Text> : null}
           {row("코드 버전", code, true, !updates.current.updateId)}
           {row("게시 시각", formatAppUpdateTime(updates.current.publishedAt), false, !updates.current.publishedAt)}
           {row("이 기기에서 적용 확인", formatAppUpdateTime(updates.observedAt), false, !updates.observedAt)}

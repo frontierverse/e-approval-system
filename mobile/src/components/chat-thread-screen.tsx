@@ -1,6 +1,7 @@
 import { KeyboardScreen } from "@/components/keyboard-screen";
 import { router, Stack, useFocusEffect } from "expo-router";
-import { useNavigation, usePreventRemove } from "expo-router/react-navigation";
+import { useNavigation } from 'expo-router/react-navigation';
+import { usePreventRemove } from '@/lib/use-protected-navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FlatList, Keyboard, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from "react-native";
 import { DetailText as Text } from "@/components/document-detail-ui";
