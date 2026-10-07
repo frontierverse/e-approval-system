@@ -25,7 +25,7 @@ export async function startMobileAppUpdatesFixture() {
         return React.createElement(Web.Text, { ...props, style: [flat, scale !== 1 && { fontSize: (flat.fontSize || 14) * scale, lineHeight: (flat.lineHeight || (flat.fontSize || 14) * 1.3) * scale }] });
       }`,
     'expo-router': `import { useEffect } from 'react'; export const Stack = { Screen: () => null };
-      export const router = { canGoBack: () => false, back: () => window.qa.navigation.push('back'), replace: route => window.qa.navigation.push(route), push: route => window.qa.navigation.push(route) };
+      export const router = { canGoBack: () => false, back: () => window.qa.navigation.push('back'), replace: route => window.qa.navigation.push(route), push: route => { window.qa.navigation.push(route); window.dispatchEvent(new CustomEvent('public-navigation', { detail: route })); } };
       export const usePathname = () => new URLSearchParams(location.search).get('screen') === 'footer' ? '/profile' : '/app-updates';
       export const useFocusEffect = callback => useEffect(callback, [callback]);`,
     'expo-updates': `import { useSyncExternalStore } from 'react';
@@ -51,9 +51,9 @@ export async function startMobileAppUpdatesFixture() {
       export const Ionicons = Feather;`,
   };
   const bundle = await build({
-    stdin: { loader: 'tsx', resolveDir: mobile, contents: `import React from 'react'; import { createRoot } from 'react-dom/client'; import { View, Text } from 'react-native';
+    stdin: { loader: 'tsx', resolveDir: mobile, contents: `import React, { useEffect, useState } from 'react'; import { createRoot } from 'react-dom/client'; import { View, Text } from 'react-native';
       import { AppUpdatesProvider } from './src/providers/AppUpdatesProvider'; import Screen from './src/app/app-updates';
-      import { AppUpdateStatus } from './src/components/app-update-status'; import { setAppUpdateBlocker, beginAppUpdateRequest } from './src/lib/app-update-safety';
+      import { PublicAppLinks } from './src/components/public-app-links'; import { PublicAppInformationScreen } from './src/components/public-app-information-screen'; import { AppUpdateStatus } from './src/components/app-update-status'; import { setAppUpdateBlocker, beginAppUpdateRequest } from './src/lib/app-update-safety';
       const params = new URLSearchParams(location.search), downloaded = { updateId: '22222222-2222-4222-8222-222222222222', createdAt: new Date('2026-10-07T00:00:00Z'), type: 'new' };
       window.qa = { reloads: 0, navigation: [], listeners: new Set(), native: {
         currentlyRunning: { updateId: '11111111-1111-4111-8111-111111111111', runtimeVersion: 'synthetic-runtime', createdAt: new Date('2026-10-06T00:00:00Z'), isEmbeddedLaunch: false },
@@ -64,7 +64,12 @@ export async function startMobileAppUpdatesFixture() {
       window.qa.setDirty = value => setAppUpdateBlocker(key, value);
       window.qa.setNative = value => { window.qa.native = { ...window.qa.native, ...value }; for (const listener of window.qa.listeners) listener(); };
       const footer = params.get('screen') === 'footer';
-      createRoot(document.getElementById('root')).render(<AppUpdatesProvider>{footer ? <View style={{ flex: 1 }}><View style={{ flex: 1, padding: 16 }}><Text>업무 화면</Text></View><AppUpdateStatus /></View> : <Screen />}</AppUpdatesProvider>);` },
+      function PublicSurface() {
+        const [route, setRoute] = useState(params.get('screen').replace('public-', ''));
+        useEffect(() => { const navigate = event => setRoute(event.detail.split('/').pop()); window.addEventListener('public-navigation', navigate); return () => window.removeEventListener('public-navigation', navigate); }, []);
+        return route === 'privacy' || route === 'support' ? <PublicAppInformationScreen page={route} /> : <View style={{ padding: 16, flex: 1 }}><Text>로그인</Text><PublicAppLinks /></View>;
+      }
+      createRoot(document.getElementById('root')).render(<AppUpdatesProvider>{params.get('screen')?.startsWith('public-') ? <PublicSurface /> : footer ? <View style={{ flex: 1 }}><View style={{ flex: 1, padding: 16 }}><Text>업무 화면</Text></View><AppUpdateStatus /></View> : <Screen />}</AppUpdatesProvider>);` },
     bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic', logLevel: 'silent',
     define: { __DEV__: 'false', 'process.env.NODE_ENV': '"production"' },
     plugins: [{ name: 'isolated-native-update-ports', setup(plugin) {
