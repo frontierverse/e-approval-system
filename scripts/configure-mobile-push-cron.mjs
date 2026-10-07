@@ -1,9 +1,9 @@
 import 'dotenv/config';
 import { Client } from 'pg';
 
-const secret = process.env.CRON_SECRET?.trim();
+const secret = (process.env.MOBILE_PUSH_CRON_SECRET ?? process.env.CRON_SECRET)?.trim();
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
-if (!secret || !connectionString) throw Error('DATABASE_URL and CRON_SECRET are required.');
+if (!secret || !connectionString) throw Error('DATABASE_URL and MOBILE_PUSH_CRON_SECRET (or legacy CRON_SECRET) are required.');
 const active = process.argv.includes('--activate');
 const name = 'bajaul-employee-push-dispatch';
 const secretName = 'bajaul_mobile_push_cron_secret';

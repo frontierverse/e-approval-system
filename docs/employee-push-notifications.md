@@ -34,7 +34,9 @@
 담당자 변경 후 이전 담당자의 알림은 개인 할 일 목록으로 이동한다.
 
 운영 준비: PostgreSQL 마이그레이션을 적용한 뒤 서버를 배포하고, production
-채널에 모바일 업데이트를 발행한다. `scripts/configure-mobile-push-cron.mjs`로 서버의 `CRON_SECRET`을 Supabase
+채널에 모바일 업데이트를 발행한다. `scripts/configure-mobile-push-cron.mjs`로 서버의 `MOBILE_PUSH_CRON_SECRET`을 Supabase
 Vault에 저장하고 정기 실행 작업을 준비한다. `--activate`로 활성화한다.
+운영 서버와 정기 작업에는 같은 푸시 전용 값을 설정한다. 자료실 정리의 `CRON_SECRET`은
+변경하지 않는다. 기존 설치는 푸시 전용 변수가 없을 때만 `CRON_SECRET`을 사용한다.
 비밀 값은 저장소에 기록하지 않는다. 기기의 알림 권한·방해금지·업무 프로필
 일시 중지는 실제 소리나 배너 표시 여부에 영향을 준다.
