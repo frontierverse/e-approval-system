@@ -76,11 +76,56 @@ test("initial bottom positioning survives an estimated undershoot and uses each 
   list.onContentSizeChange(390, 3000);
   list.onScroll({ nativeEvent: { contentOffset: { y: 2424 }, layoutMeasurement: { height: 576 }, contentSize: { height: 3988 } } });
   list.onContentSizeChange(390, 3988);
-  assert.deepEqual(offsets, [{ offset: 3000, animated: false }, { offset: 3988, animated: false }]);
+  assert.deepEqual(offsets, [{ offset: 3000, animated: false }, { offset: 3988, animated: false }, { offset: 3988, animated: false }]);
   list.onScroll({ nativeEvent: { contentOffset: { y: 3412 }, layoutMeasurement: { height: 576 }, contentSize: { height: 3988 } } });
   list.onScroll({ nativeEvent: { contentOffset: { y: 2400 }, layoutMeasurement: { height: 576 }, contentSize: { height: 3988 } } });
   list.onContentSizeChange(390, 4100);
-  assert.equal(offsets.length, 2, "actual bottom ends initial intent; later history viewing remains in place");
+  assert.equal(offsets.length, 3, "actual bottom ends initial intent; later history viewing remains in place");
+});
+test("composer and keyboard viewport changes keep the measured latest message above the input", async () => {
+  const h = await mount("thread");
+  const list = find(h, "FlatList");
+  const offsets: Row[] = [];
+  list.ref.current = { scrollToOffset: (value: Row) => offsets.push(value) };
+  list.onContentSizeChange(390, 3988);
+  list.onScroll({ nativeEvent: { contentOffset: { y: 3412 }, layoutMeasurement: { height: 576 }, contentSize: { height: 3988 } } });
+  // Composer measurement arrives after the initial content has already reached its end.
+  list.onLayout({ nativeEvent: { layout: { height: 500 } } });
+  assert.equal(offsets.at(-1)?.offset, 3988);
+  assert.equal(offsets.length, 2, "viewport-only changes need another measured scroll request");
+  list.onScroll({ nativeEvent: { contentOffset: { y: 3488 }, layoutMeasurement: { height: 500 }, contentSize: { height: 3988 } } });
+  // Native scroll metrics may precede the layout callback during keyboard animation.
+  list.onScroll({ nativeEvent: { contentOffset: { y: 3488 }, layoutMeasurement: { height: 260 }, contentSize: { height: 3988 } } });
+  list.onLayout({ nativeEvent: { layout: { height: 260 } } });
+  assert.equal(offsets.length, 4);
+  assert.ok(offsets.every(value => value.offset === 3988 && value.animated === false));
+  list.onScrollBeginDrag();
+  list.onLayout({ nativeEvent: { layout: { height: 576 } } });
+  list.onContentSizeChange(390, 4100);
+  assert.equal(offsets.length, 4, "intentional history reading cancels resize following");
+});
+test("a partially hidden latest row does not finish initial positioning", async () => {
+  const h = await mount("thread");
+  const list = find(h, "FlatList");
+  const offsets: Row[] = [];
+  list.ref.current = { scrollToOffset: (value: Row) => offsets.push(value) };
+  list.onContentSizeChange(390, 3988);
+  list.onScroll({ nativeEvent: { contentOffset: { y: 3392 }, layoutMeasurement: { height: 576 }, contentSize: { height: 3988 } } });
+  list.onScroll({ nativeEvent: { contentOffset: { y: 3392 }, layoutMeasurement: { height: 500 }, contentSize: { height: 3988 } } });
+  list.onLayout({ nativeEvent: { layout: { height: 500 } } });
+  assert.equal(offsets.at(-1)?.offset, 3988);
+  assert.equal(offsets.length, 3);
+});
+test("freshly verified reentry starts at latest after history viewing", async () => {
+  const h = await mount("thread");
+  const list = find(h, "FlatList");
+  const offsets: Row[] = [];
+  list.ref.current = { scrollToOffset: (value: Row) => offsets.push(value) };
+  list.onScrollBeginDrag();
+  find(h, "TextAction", "새로고침").onPress();
+  await tick(); update(h);
+  find(h, "FlatList").onContentSizeChange(390, 3988);
+  assert.deepEqual(offsets, [{ offset: 3988, animated: false }]);
 });
 test("explicit user scroll and older-message prepend stop automatic bottom positioning", async () => {
   state.onRequest = async () => ({ messages: [message()], hasMore: true });
@@ -110,10 +155,12 @@ test("captured scroll callbacks cannot move a blurred or replaced account list",
   list.ref.current = { scrollToOffset: () => offsets++ };
   h.blur();
   list.onContentSizeChange(390, 3988);
+  list.onLayout({ nativeEvent: { layout: { height: 500 } } });
   assert.equal(offsets, 0);
   h.refocus(); await tick(); update(h);
   state.account = false;
   find(h, "FlatList").onContentSizeChange(390, 3988);
+  find(h, "FlatList").onLayout({ nativeEvent: { layout: { height: 500 } } });
   assert.equal(offsets, 0);
 });
 test("web wheel cancels initial positioning without treating programmatic scroll as user intent", async () => {

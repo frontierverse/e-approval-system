@@ -107,6 +107,7 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   const readThrough = useRef("0");
   const atBottom = useRef(true);
   const bottomPositionPending = useRef(true);
+  const listSize = useRef({ contentHeight: 0, viewportHeight: 0 });
   const abort = useRef<AbortController | null>(null);
   const abandonOnUnmount = useRef(false);
   useLayoutEffect(() => {
@@ -167,6 +168,9 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
     fetching.current = true;
     setLoading(true);
     if (fresh) {
+      atBottom.current = true;
+      bottomPositionPending.current = true;
+      listSize.current = { contentHeight: 0, viewportHeight: 0 };
       setError(null);
       setNotice(null);
       setReadError(null);
@@ -504,6 +508,15 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
       setError(null);
     }
   };
+  const positionLatest = () => {
+    if (!readyForAction() || !(bottomPositionPending.current || atBottom.current)) return;
+    const height = listSize.current.contentHeight;
+    if (!Number.isFinite(height) || height <= 0) return;
+    // Keep this intent until a scroll event confirms the measured end. Native
+    // layout and virtualized row measurements can arrive in either order.
+    bottomPositionPending.current = true;
+    list.current?.scrollToOffset({ offset: height, animated: false });
+  };
   const stopFollowing = () => {
     if (!readyForAction()) return;
     bottomPositionPending.current = false;
@@ -525,19 +538,36 @@ function ChatThreadContent({ peerId, isCurrentAccount }: {
   </View></View>
   {showFeedback && !uncertain && (error || !masked && notice) ? <View style={{ paddingHorizontal: 12 }}><AccountFeedback error={error} message={masked ? null : notice} /></View> : null}
   {!masked && showFeedback && readError ? <View style={{ paddingHorizontal: 12 }}><AccountFeedback error={`읽음 상태: ${readError}`} /><TextAction label="읽음 상태 다시 확인" onPress={() => void markVisibleRead()} /></View> : null}
-  {masked ? <View style={{ flex: 1, minHeight: 96 }}>{loading ? <ChatThreadLoading /> : <View style={{ padding: 16 }}><EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요." /></View>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" style={{ flex: 1, minHeight: 96, width: "100%", maxWidth: 760, alignSelf: "center" }} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onScroll={event => {
+  {masked ? <View style={{ flex: 1, minHeight: 96 }}>{loading ? <ChatThreadLoading /> : <View style={{ padding: 16 }}><EmptyState title="대화를 확인하지 못했습니다" detail="새로고침으로 현재 접근 권한을 다시 확인하세요." /></View>}</View> : <FlatList key={foregroundEpoch} ref={list} data={messages} keyExtractor={m => m.id} accessibilityRole="list" accessibilityLabel="대화 메시지" style={{ flex: 1, minHeight: 96, width: "100%", maxWidth: 760, alignSelf: "center" }} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} viewabilityConfig={viewability} onViewableItemsChanged={onViewable} onScrollBeginDrag={stopFollowing} onTouchMove={stopFollowing} {...(Platform.OS === "web" ? { onWheel: stopFollowing } : {})} onLayout={event => {
+    if (!readyForAction()) return;
+    const height = event.nativeEvent.layout.height;
+    if (!Number.isFinite(height) || height <= 0) return;
+    listSize.current.viewportHeight = height;
+    // The composer, safe area and keyboard can resize the viewport without
+    // changing content height, so content-size callbacks alone are insufficient.
+    positionLatest();
+  }} onScroll={event => {
     if (!readyForAction()) return;
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-    atBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 24;
+    const previous = listSize.current;
+    const resized = previous.viewportHeight > 0 && previous.viewportHeight !== layoutMeasurement.height
+      || previous.contentHeight > 0 && previous.contentHeight !== contentSize.height;
+    if (resized && (bottomPositionPending.current || atBottom.current))
+      bottomPositionPending.current = true;
+    listSize.current = { contentHeight: contentSize.height, viewportHeight: layoutMeasurement.height };
+    const remaining = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    atBottom.current = remaining <= 24;
     if (atBottom.current) {
       setNewBelow(0);
-      bottomPositionPending.current = false;
+      if (remaining <= 1) bottomPositionPending.current = false;
       void latestRead.current();
     }
+    if (resized) positionLatest();
   }} scrollEventThrottle={100} onContentSizeChange={(_width, height) => {
     // Use the measured content height; virtualized scrollToEnd can estimate a shorter final row.
-    if (readyForAction() && (bottomPositionPending.current || atBottom.current) && Number.isFinite(height) && height > 0)
-      list.current?.scrollToOffset({ offset: height, animated: false });
+    if (!readyForAction() || !Number.isFinite(height) || height <= 0) return;
+    listSize.current.contentHeight = height;
+    positionLatest();
   }} ListHeaderComponent={hasMore ? <TextAction label={loading ? "이전 메시지 확인 중" : "이전 메시지 50개 불러오기"} pill disabled={loading} onPress={() => void load(false, true)} /> : null} ListEmptyComponent={<EmptyState title="아직 메시지가 없습니다" detail="아래에서 첫 메시지를 보내세요." />} renderItem={({ item }) => <ChatThreadMessage item={item} own={item.senderId === user?.id} peerName={peer?.name}>{item.attachment ? <TextAction label={item.attachment.originalName} attachment={item.attachment} accessibilityLabel={`${item.attachment.originalName} 파일 작업 열기`} onPress={() => openAttachment(item)} /> : null}</ChatThreadMessage>} />}
   {!masked && newBelow > 0 ? <View style={{ paddingHorizontal: 12, paddingVertical: 4, backgroundColor: theme.surface }}><TextAction label={`새 메시지 ${newBelow}개 · 최신 메시지로`} onPress={() => {
     if (!readyForAction()) return;
