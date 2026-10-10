@@ -3,6 +3,7 @@ import type { MobilePushEvent, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dispatchMobilePushDeliveries } from "@/lib/mobile-push";
 import { getReadableDocumentWhere } from "@/lib/approval-permissions";
+import { getWorkLogReminderDecision } from "@/lib/work-log-reminder-core";
 import { isPushEventKind, koreanPushClock, pushEventId, scheduleStart, type PushEventKind } from "@/lib/mobile-push-events-core";
 
 export function activePushUserWhere(now = new Date()): Prisma.UserWhereInput {
@@ -49,6 +50,14 @@ export async function resolveStaffPushTarget(db: Prisma.TransactionClient, event
   if (event.userId !== user.id || !isPushEventKind(event.kind) || !pushEventId(event.targetId)) return null;
   if (forDelivery && event.expiresAt <= now) return null;
   const kind = event.kind;
+  if (kind === "WORK_LOG_REMINDER") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(event.targetId)) return null;
+    if (forDelivery) {
+      const decision = getWorkLogReminderDecision(now);
+      if (!decision.shouldSend || event.targetId !== decision.date) return null;
+    }
+    return "/work-logs";
+  }
   if (kind === "CHAT_MESSAGE" || kind === "CHAT_FILE") {
     const message = await db.staffChatMessage.findFirst({ where: { id: event.targetId, recipientId: user.id }, select: { senderId: true, readAt: true } });
     return message && (!forDelivery || !message.readAt) ? `/chat/${message.senderId}` : null;

@@ -15,6 +15,7 @@ export const pushEventBodies = {
   WORK_SCHEDULE_UPDATED: "공용 업무 일정의 시간이나 내용이 변경되었습니다.",
   WORK_SCHEDULE_CANCELLED: "공용 업무 일정이 취소되었습니다.",
   WORK_SCHEDULE_REMINDER: "공용 업무 일정이 곧 시작됩니다. 일정을 확인하세요.",
+  WORK_LOG_REMINDER: "오늘 출근부를 작성해 주세요.",
   FEATURE_UPDATE: "새 업무 기능 안내가 등록되었습니다.",
   APPROVAL_RECALLED: "받은 결재 요청이 회수되었습니다.",
   APPROVAL_REMINDER: "하루 이상 대기 중인 결재 요청이 있습니다.",
