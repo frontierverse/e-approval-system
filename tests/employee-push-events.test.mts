@@ -46,8 +46,8 @@ test("Korean daily and 30-minute schedule boundaries do not replay after the sta
   assert.equal(isScheduleReminderDue(new Date("2026-10-07T01:00:00Z"), "2026-10-07", 600), false);
 });
 test("notification URLs cannot select admin screens, external sites, traversal or injected queries", () => {
-  for (const href of ["/chat/peer", "/tasks/task", "/tasks?status=overdue", "/resources/post", "/work-schedules/schedule", "/app-updates", "/documents/document"]) assert.equal(workPushHref(href), true);
-  for (const href of ["https://example.test", "//example.test", "/admin/tasks", "/chat/../admin", "/tasks?userId=other", "/resources/a%2Fb", "/work-schedules/x?admin=true", null, {}]) assert.equal(workPushHref(href), false);
+  for (const href of ["/chat/peer", "/tasks/task", "/tasks?status=overdue", "/resources/post", "/work-schedules/schedule", "/app-updates", "/documents/document", "/work-logs"]) assert.equal(workPushHref(href), true);
+  for (const href of ["https://example.test", "//example.test", "/admin/tasks", "/chat/../admin", "/tasks?userId=other", "/resources/a%2Fb", "/work-schedules/x?admin=true", "/work-logs/other-user", "/work-logs?userId=other", "/work-logs?token=secret", null, {}]) assert.equal(workPushHref(href), false);
 });
 test("atomic queue selects active recipients, excludes actor, and deduplicates replay per event/device", async () => {
   const now = new Date("2026-10-07T00:00:00Z");
@@ -105,14 +105,14 @@ function match(row: Row, where: Row = {}): boolean {
     return true;
   });
 }
-function senderFixture() {
+function senderFixture(afterClaim?: () => void) {
   const now = new Date(), sent: Row[][] = [], rows: Row[] = [];
   let mode = "ok", readAt: Date | null = null, previewUnavailable = false;
   const previewLookups: Row[] = [];
   Object.assign(harness.db, {
     mobilePushDelivery: {
       async findMany({where}:Row) { return rows.filter(row => match(row,where)).map(row => structuredClone(row)); },
-      async updateMany({where,data}:Row) { const found=rows.filter(row=>match(row,where));for(const row of found)for(const[key,value]of Object.entries(data))row[key]=value&&typeof value==="object"&&"increment"in value?row[key]+value.increment:value;return{count:found.length}; },
+      async updateMany({where,data}:Row) { const found=rows.filter(row=>match(row,where));for(const row of found)for(const[key,value]of Object.entries(data))row[key]=value&&typeof value==="object"&&"increment"in value?row[key]+value.increment:value;if(found.length && data.attempts?.increment)afterClaim?.();return{count:found.length}; },
     },
     mobilePushSubscription: { async deleteMany({where}:Row) { for(const row of rows.filter(row=>where.id.in.includes(row.subscriptionId)))row.failedAt=now;return{count:1}; } },
     staffChatMessage: { async findFirst({where,select}:Row) {
@@ -170,9 +170,10 @@ test("daily timers use Korea time, deduplicate runs and expire summaries after w
   const now=new Date("2026-10-07T00:00:00Z");
   await createDueStaffPushEvents(new Date(+now-1));assert.equal(taskReads,0);
   await createDueStaffPushEvents(now);await createDueStaffPushEvents(now);
-  assert.equal(events.length,3);assert.equal(deliveries.length,3);assert(events.every(row=>row.expiresAt.toISOString()==="2026-10-07T09:00:00.000Z"));
+  assert.equal(events.length,4);assert.equal(deliveries.length,4);
+  assert(events.every(row=>row.expiresAt.toISOString()===(row.kind==="WORK_LOG_REMINDER"?"2026-10-07T01:00:00.000Z":"2026-10-07T09:00:00.000Z")));
   await createDueStaffPushEvents(new Date("2026-10-07T09:00:00Z"));assert.equal(taskReads,2);
-  await createDueStaffPushEvents(new Date("2026-10-08T00:00:00Z"));assert.equal(events.length,5); // Next day the old due task is overdue, so only two summaries remain.
+  await createDueStaffPushEvents(new Date("2026-10-08T00:00:00Z"));assert.equal(events.length,7); // Next day has two existing summaries plus the work-log reminder.
 });
 test("opening an owned work event still rejects a resigned account before target lookup",async()=>{
   Object.assign(harness.db,{user:{async findFirst(){return null;}},async $transaction(fn:(tx:Row)=>Promise<unknown>){return fn(harness.db);},mobilePushEvent:{async findFirst(){throw Error("must not inspect a resigned account event");}}});
@@ -209,4 +210,67 @@ test("real sender includes text preview only after recipient checks and rejects 
   await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.previewLookups.length,1);assert(wrong.failedAt);
   const stale=f.add("read-between-queries");f.hidePreview();
   await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.sent.length,2);assert(stale.failedAt);
+});
+
+
+test("work-log sender uses the morning expiry TTL and preserves generic approval payloads",async(t)=>{
+  t.mock.timers.enable({apis:["Date"],now:Date.parse("2026-10-12T00:00:00Z")});
+  const f=senderFixture(),reminder=f.add("morning"),approval=f.add("approval-private",true);
+  reminder.event!.kind="WORK_LOG_REMINDER";reminder.event!.targetId="2026-10-12";reminder.event!.expiresAt=new Date("2026-10-12T01:00:00Z");
+  await dispatchMobilePushDeliveries({checkReceipts:false});
+  const work=f.sent.flat().find(row=>row.channelId==="work")!;
+  assert.equal(work.body,"오늘 출근부를 작성해 주세요.");assert.equal(work.ttl,3600);
+  assert.deepEqual(work.data,{pushEventId:"event-morning"});
+  const document=f.sent.flat().find(row=>row.channelId==="approvals")!;
+  assert.equal(document.body,"확인할 결재 알림이 있습니다.");assert.deepEqual(document.data,{documentId:"document"});
+  assert.equal("ttl"in document,false);assert(reminder.sentAt);assert(approval.sentAt);
+});
+test("expired work-log reminder events do not reach Expo",async(t)=>{
+  t.mock.timers.enable({apis:["Date"],now:Date.parse("2026-10-12T00:00:00Z")});
+  const f=senderFixture(),reminder=f.add("expired-morning");
+  reminder.event!.kind="WORK_LOG_REMINDER";reminder.event!.targetId="2026-10-12";reminder.event!.expiresAt=new Date(0);
+  await dispatchMobilePushDeliveries({checkReceipts:false});
+  assert.equal(f.sent.length,0);assert(reminder.failedAt);assert.equal(reminder.sentAt,null);
+});
+test("work-log expiry reached during batch claiming is rechecked before Expo",async(t)=>{
+  t.mock.timers.enable({apis:["Date"],now:Date.parse("2026-10-12T00:59:59Z")});
+  const f=senderFixture(()=>t.mock.timers.tick(1000)),reminder=f.add("deadline-crossing");
+  reminder.event!.kind="WORK_LOG_REMINDER";reminder.event!.targetId="2026-10-12";reminder.event!.expiresAt=new Date("2026-10-12T01:00:00Z");
+  await dispatchMobilePushDeliveries({checkReceipts:false});
+  assert.equal(f.sent.length,0);assert(reminder.failedAt);assert.equal(reminder.lastError,"event_expired");assert.equal(reminder.sentAt,null);
+});
+
+test("expired batch bookkeeping cannot delay a valid reminder past its deadline",async(t)=>{
+  t.mock.timers.enable({apis:["Date"],now:Date.parse("2026-10-12T00:59:57Z")});
+  const f=senderFixture(()=>t.mock.timers.tick(1000)),expired=f.add("expired-in-batch"),valid=f.add("valid-in-batch");
+  for(const row of [expired,valid]){row.event!.kind="WORK_LOG_REMINDER";row.event!.targetId="2026-10-12";}
+  expired.event!.expiresAt=new Date("2026-10-12T00:59:58Z");valid.event!.expiresAt=new Date("2026-10-12T01:00:00Z");
+  const update=harness.db.mobilePushDelivery.updateMany;
+  harness.db.mobilePushDelivery.updateMany=async(args:Row)=>{
+    if(args.data.lastError==="event_expired"){
+      assert.equal(f.sent.length,1,"Expo must start before slow expired-event bookkeeping");
+      t.mock.timers.tick(2000);
+    }
+    return update(args);
+  };
+  await dispatchMobilePushDeliveries({checkReceipts:false});
+  assert.equal(f.sent.flat().length,1);assert.deepEqual(f.sent[0]![0]!.data,{pushEventId:"event-valid-in-batch"});
+  assert.equal(f.sent[0]![0]!.ttl,1);assert(valid.sentAt);assert.equal(expired.sentAt,null);assert.equal(expired.lastError,"event_expired");
+});
+
+test("expired-event persistence errors cannot discard successful Expo tickets",async(t)=>{
+  t.mock.timers.enable({apis:["Date"],now:Date.parse("2026-10-12T00:59:57Z")});
+  const f=senderFixture(()=>t.mock.timers.tick(1000)),expired=f.add("expiry-db-error"),valid=f.add("valid-despite-db-error");
+  for(const row of [expired,valid]){row.event!.kind="WORK_LOG_REMINDER";row.event!.targetId="2026-10-12";}
+  expired.event!.expiresAt=new Date("2026-10-12T00:59:58Z");valid.event!.expiresAt=new Date("2026-10-12T01:00:00Z");
+  const update=harness.db.mobilePushDelivery.updateMany;
+  harness.db.mobilePushDelivery.updateMany=async(args:Row)=>{
+    if(args.data.lastError==="event_expired")throw Error("synthetic_expiry_bookkeeping_error");
+    return update(args);
+  };
+  await dispatchMobilePushDeliveries({checkReceipts:false}).catch(error=>{
+    assert.equal(error.message,"synthetic_expiry_bookkeeping_error");
+  });
+  assert.equal(f.sent.flat().length,1);assert(valid.sentAt);assert.equal(valid.ticketId,"ticket-0");assert.equal(valid.attempts,1);
+  await dispatchMobilePushDeliveries({checkReceipts:false});assert.equal(f.sent.flat().length,1);
 });

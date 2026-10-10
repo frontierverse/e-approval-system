@@ -23,6 +23,7 @@ type ClaimedDelivery = {
   token: string;
   payload: { title: string; body: string; data: Record<string, string>; channelId: string; priority: "high"; sound: string };
   attempts: number;
+  expiresAt?: Date;
 };
 
 function expoHeaders() {
@@ -148,13 +149,34 @@ async function sendPending(notificationId: string | undefined, eventIds: string[
       token: row.subscription.expoToken,
       payload,
       attempts: row.attempts + 1,
+      expiresAt: row.event?.expiresAt,
     });
   }
-  if (!claimed.length) return { sent: 0, failed: 0 };
+  // Target checks can take time. Recheck event expiry immediately before the
+  // outbound batch and bound Expo's storage time to the same deadline.
+  const sendAt = new Date();
+  const expired = claimed.filter(delivery => delivery.expiresAt && delivery.expiresAt <= sendAt);
+  const ready = claimed.filter(delivery => !delivery.expiresAt || delivery.expiresAt > sendAt);
+  const markExpired = () => Promise.all(expired.map(delivery =>
+    prisma.mobilePushDelivery.updateMany({
+      where: { id: delivery.id },
+      data: { failedAt: sendAt, lastError: "event_expired" },
+    }),
+  ));
+  claimed.length = 0;
+  claimed.push(...ready);
+  if (!claimed.length) {
+    await markExpired();
+    return { sent: 0, failed: 0 };
+  }
 
   let tickets: ExpoResult[];
   try {
-    const payload = claimed.map(({ token, payload }) => ({ to: token, ...payload }));
+    const payload = claimed.map(({ token, payload, expiresAt }) => ({
+      to: token,
+      ...payload,
+      ...(expiresAt ? { ttl: Math.max(0, Math.floor((expiresAt.getTime() - sendAt.getTime()) / 1000)) } : {}),
+    }));
     const data = expoData(await expoPost(sendUrl, payload));
     if (!Array.isArray(data) || data.length !== claimed.length) {
       throw new Error("Expo push ticket count differs");
@@ -164,6 +186,14 @@ async function sendPending(notificationId: string | undefined, eventIds: string[
     const reason = error instanceof Error ? error.message : "send_failed";
     await Promise.all(claimed.map((delivery) => retryOrFail(delivery, reason)));
     return { sent: 0, failed: claimed.length };
+  } finally {
+    // Persist discarded candidates after the HTTP call so slow database writes
+    // cannot delay the valid morning batch past its deadline.
+    await markExpired().catch(() => {
+      // Expired candidates remain blocked on the next dispatch. Their bookkeeping
+      // must not lose successful Expo tickets for the rest of this batch.
+      console.error("Expired mobile push bookkeeping failed");
+    });
   }
 
   let sent = 0;

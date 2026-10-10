@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { activePushUserWhere, queueStaffPushEvent } from "@/lib/mobile-push-events";
 import { koreanPushClock, isScheduleReminderDue, scheduleStart } from "@/lib/mobile-push-events-core";
+import { getWorkLogReminderDecision } from "@/lib/work-log-reminder-core";
 
 // One summary per employee/category/day. The unique event key also handles
 // overlapping scheduler runs and response-loss retries without extra alerts.
@@ -10,6 +11,17 @@ export async function createDueStaffPushEvents(now = new Date(), db: Pick<typeof
   return db.$transaction(async (tx: Prisma.TransactionClient) => {
     const clock = koreanPushClock(now), dailyWindow = clock.minute >= 9 * 60 && clock.minute < 18 * 60;
     let scheduled = 0;
+    const workLogReminder = getWorkLogReminderDecision(now);
+    if (workLogReminder.shouldSend) {
+      // All active employees are reminded once per Korean working date,
+      // regardless of whether they have already saved today's work log.
+      await queueStaffPushEvent(tx, {
+        eventKey: `work-log-reminder:${workLogReminder.date}`, kind: "WORK_LOG_REMINDER",
+        targetId: workLogReminder.date, now,
+        expiresAt: new Date(`${workLogReminder.date}T10:00:00+09:00`), deferDispatch: true,
+      });
+      scheduled++;
+    }
     if (dailyWindow) {
       const tasks = await tx.staffTask.findMany({ where: { deletedAt: null, completedAt: null, dueDate: { lte: clock.date }, assignee: { ...activePushUserWhere(now), mobileSessions: { some: { expiresAt: { gt: now }, pushSubscription: { isNot: null } } } } }, select: { assigneeId: true, dueDate: true } });
       for (const kind of ["TASK_DUE", "TASK_OVERDUE"] as const) {
